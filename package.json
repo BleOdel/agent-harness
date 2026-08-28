@@ -12,7 +12,7 @@
     "check": "npm run build && npm test",
     "verify:boundary": "node --experimental-strip-types src/verify-boundary.ts",
     "work": "node --experimental-strip-types src/cli.ts work",
-    "verify:gates": "node --test --experimental-strip-types test/pipeline.test.ts",
+    "verify:gates": "node --experimental-strip-types src/verify-gates.ts",
     "verify:reviewer": "node --experimental-strip-types src/verify-reviewer.ts",
     "undo": "node --experimental-strip-types src/cli.ts undo",
     "add": "node --experimental-strip-types src/cli.ts add",

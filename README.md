@@ -42,6 +42,50 @@ reverse it*. `THREAT_MODEL.md` states what that costs, including the six
 residual risks, first among them that the whole guarantee rests on one
 container boundary.
 
+## Architecture
+
+The container is the whole guarantee. Everything else exists to decide
+what may cross back out of it.
+
+```mermaid
+flowchart TB
+    P[("your project<br/>never mounted, never writable")]
+
+    P -. "copy — .git, features.json<br/>and secrets withheld" .-> C
+
+    subgraph BOX["one container: non-root · read-only rootfs · no capabilities · no host filesystem · no Docker socket"]
+        direction TB
+        C["the disposable copy<br/>the only writable mount"]
+        B["Pi — builder<br/>tools on · provider network"]
+        G["six gates<br/>no network at all"]
+        V["Pi — reviewer<br/>read-only · own process · no shared context"]
+        C <--> B
+        B --> G
+        G --> V
+    end
+
+    G -. "a gate fails" .-> D["named diagnosis<br/>what failed · why it matters<br/>what would count as fixed"]
+    D -. "one more attempt" .-> B
+
+    V -- "escalate" --> E["stops.<br/>nothing applied"]
+    V -- "pass" --> A["snapshot before and after,<br/>then apply"]
+    A --> W[("your project, changed<br/>+ one line in the record")]
+```
+
+`undo r1` reverses any of it later, three ways, keeping whatever ran after.
+
+
+Three things that diagram is making precise:
+
+- **Your project never enters the container.** A copy does. That is what
+  lets the model have real tools without the blast radius.
+- **The gates have no network.** A verification that can reach the network
+  can pass because a service was up and fail because one was down, and
+  neither outcome is about your change.
+- **The reviewer is a separate process, not a sub-agent.** One running
+  inside the builder's session would already believe every justification
+  that produced the diff.
+
 ## Requirements
 
 - **Node ≥ 26** — the harness runs TypeScript directly by type-stripping;
@@ -86,9 +130,11 @@ at a project with `HARNESS_PROJECT`, or run it from inside one.
 
 ## How a run works
 
-1. **Copy.** Your project is copied into a disposable sandbox. `.git`,
-   `features.json`, and anything secret-bearing (`.env`, `.ssh`, `.aws`,
-   credentials directories) are withheld, and the withholding is announced.
+1. **Copy.** Your project is copied into a disposable sandbox. The
+   project itself is never mounted. Withheld from the copy, and announced
+   rather than dropped silently: `.git`, `features.json`, `.harness`,
+   `.secure-harness`, `.env`, `.env.local`, `.ssh`, `.aws`, `.gnupg`,
+   `.npmrc`, `.netrc`.
 2. **Build.** Pi runs in the container with tools enabled and the
    provider's network. It reads what it needs and writes what it likes —
    to the copy.
@@ -154,16 +200,21 @@ turn.
 
 ## Verifying it yourself
 
-Three commands prove what unit tests cannot. Each **fails loudly rather
-than skipping** when it cannot run, because a check that skips quietly
-reads as a pass.
-
 ```bash
-npm run check             # typecheck and the test suite
+npm run check             # typecheck and the unit suite — needs nothing but Node
 npm run verify:boundary   # the container, against a real daemon
 npm run verify:gates      # each gate broken in turn, confirmed to stop the apply
 npm run verify:reviewer   # the four real defects, plus the control
 ```
+
+The three `verify:` commands need Docker, a configured image and a real
+model, and each one **fails loudly rather than skipping** when it cannot
+run — because a check that skips quietly reads as a pass, and this project
+has now shipped that defect twice and caught it twice.
+
+`npm run check` is the exception, deliberately: the unit suite has to run
+on a machine with no Docker at all, so the one test that needs a daemon
+skips there by name, and `verify:gates` is what refuses to skip it.
 
 ## What it deliberately does not have
 
