@@ -17,6 +17,18 @@ import { buildRunArguments, CONTAINER_WORK, type SandboxLayout } from "../contai
 import { run } from "../run.ts";
 import { failed, type GateVerdict, passed } from "./gate.ts";
 
+/**
+ * Where the counter lives on disk, resolved from this module rather than
+ * from whatever file happens to be calling.
+ *
+ * Moving the command into src/verbs/ broke a path built from the
+ * caller's directory, and nothing caught it until a live run. A path to a
+ * file this module owns belongs next to that file.
+ */
+export function counterPath(): string {
+  return path.join(import.meta.dirname, "assert-counter.mjs");
+}
+
 /** Written into the copy so the container can load it; removed before the diff. */
 export const COUNTER_IN_COPY = ".harness-assert-counter.mjs";
 export const COUNT_FILE = ".harness-assert-count";

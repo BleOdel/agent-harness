@@ -12,7 +12,7 @@
  * criteria has none.
  */
 
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export const FEATURES_FILE = "features.json";
@@ -119,6 +119,39 @@ export async function readFeatures(project: string): Promise<FeatureListResult |
   }
   return parseFeatures(text);
 }
+
+/**
+ * Records that an item is done, after the harness proved it.
+ *
+ * The harness writes `status` and nothing else -- never a title, never a
+ * priority, and never a criterion. The rule that matters is that nothing
+ * being judged can edit what it is judged against, and status is not
+ * that: it is the harness recording its own verdict, reached through the
+ * gates and the Reviewer.
+ *
+ * Without this, `work` takes the same next Must forever. Found by the
+ * plan's own M5 verification -- build an application following nothing
+ * but `look` -- on the second run.
+ */
+export async function markStatus(project: string, id: string, status: Status): Promise<boolean> {
+  const file = path.join(project, FEATURES_FILE);
+  const text = await readFile(file, "utf8").catch(() => undefined);
+  if (text === undefined) return false;
+  const list = parseFeatures(text);
+  if (!list.ok) return false;
+  if (!list.features.some((feature) => feature.id === id)) return false;
+  const next = list.features.map((feature) =>
+    feature.id === id ? { ...feature, status } : feature);
+  const rendered = `${JSON.stringify(next, null, 2)}\n`;
+  // Through the same parser that reads it: the harness must never write a
+  // list it would then refuse to load.
+  if (!parseFeatures(rendered).ok) return false;
+  await writeFile(file, rendered, "utf8");
+  return true;
+}
+
+export const markDone = async (project: string, id: string): Promise<boolean> =>
+  markStatus(project, id, "done");
 
 /** Unmet dependencies, so the operator is told rather than silently blocked. */
 export function unmetDependencies(feature: Feature, all: readonly Feature[]): string[] {

@@ -77,3 +77,46 @@ test("next items are ordered by MoSCoW, and wont-haves are excluded", () => {
   assert.equal(result.ok, true);
   if (result.ok) assert.deepEqual(nextItems(result.features).map((f) => f.id), ["m", "s", "c"]);
 });
+
+test("markDone changes the status and nothing else", async () => {
+  // The harness writes status because status is its own verdict. It must
+  // never touch a criterion, a title, or a priority -- nothing being
+  // judged may edit what it is judged against.
+  const { markDone } = await import("../src/features.ts");
+  const { mkdtemp, readFile, rm, writeFile } = await import("node:fs/promises");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "harness-markdone-"));
+  try {
+    const before = [
+      item({ id: "a", priority: "must", criteria: ["original criterion"] }),
+      item({ id: "b", priority: "could" }),
+    ];
+    await writeFile(path.join(directory, "features.json"), JSON.stringify(before), "utf8");
+    await markDone(directory, "a");
+    const after = parseFeatures(await readFile(path.join(directory, "features.json"), "utf8"));
+    assert.equal(after.ok, true);
+    if (!after.ok) return;
+    assert.equal(after.features[0]!.status, "done");
+    assert.deepEqual(after.features[0]!.criteria, ["original criterion"]);
+    assert.equal(after.features[0]!.priority, "must");
+    assert.equal(after.features[1]!.status, "todo", "an unrelated item was changed");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("markDone leaves an unreadable list alone rather than replacing it", async () => {
+  const { markDone } = await import("../src/features.ts");
+  const { mkdtemp, readFile, rm, writeFile } = await import("node:fs/promises");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "harness-markdone-bad-"));
+  try {
+    await writeFile(path.join(directory, "features.json"), "{ broken", "utf8");
+    await markDone(directory, "a");
+    assert.equal(await readFile(path.join(directory, "features.json"), "utf8"), "{ broken");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

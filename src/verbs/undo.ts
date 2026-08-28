@@ -27,22 +27,13 @@ import {
   reverserOf,
   type RunRecord,
   undoableRuns,
-} from "./record/record.ts";
-import { type FileOutcome, planUndo } from "./recovery/plan-undo.ts";
-import type { Change } from "./workspace/changes.ts";
+} from "../record/record.ts";
+import { type FileOutcome, planUndo } from "../recovery/plan-undo.ts";
+import { markStatus } from "../features.ts";
+import type { Change } from "../workspace/changes.ts";
+import { OperatorError, say } from "./io.ts";
 
-function say(line: string): void {
-  process.stdout.write(`${line}\n`);
-}
-
-function fail(summary: string, detail = ""): never {
-  process.stderr.write(`\n${summary}\n`);
-  if (detail.trim() !== "") process.stderr.write(`\n${detail.trimEnd()}\n`);
-  process.exit(1);
-}
-
-async function main(): Promise<void> {
-  const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
+export async function undo(project: string, argv: readonly string[]): Promise<void> {
   const { runs, malformed } = await readRecord(project);
   if (malformed.length > 0) {
     // Reported, never skipped. A record that quietly drops what it cannot
@@ -51,9 +42,9 @@ async function main(): Promise<void> {
   }
 
   const undoable = undoableRuns(runs);
-  const wanted = process.argv[2];
+  const wanted = argv[0];
   if (wanted === undefined) {
-    if (undoable.length === 0) fail("nothing to undo.", "No applied run in this project is still standing.");
+    if (undoable.length === 0) throw new OperatorError("nothing to undo.", "No applied run in this project is still standing.");
     say("undoable runs, newest last:\n");
     for (const run of undoable) {
       say(`  ${run.id.padEnd(5)} ${run.at.slice(0, 19).replace("T", " ")}  ${String(run.changes.length)} files  ${run.goal}`);
@@ -65,9 +56,9 @@ async function main(): Promise<void> {
   const run = undoable.find((entry) => entry.id === wanted);
   if (run === undefined) {
     const known = runs.find((entry) => entry.id === wanted);
-    if (known === undefined) fail(`no run ${wanted} in this project.`, "Run `npm run undo` to list what can be undone.");
+    if (known === undefined) throw new OperatorError(`no run ${wanted} in this project.`, "Run `npm run undo` to list what can be undone.");
     const reverser = reverserOf(runs, wanted);
-    fail(
+    throw new OperatorError(
       `${wanted} cannot be undone.`,
       reverser !== undefined
         ? `${reverser} already undid it. Undo ${reverser} to put it back.`
@@ -77,7 +68,7 @@ async function main(): Promise<void> {
 
   const snapshot = recoveryPath(project, run.id);
   if (!existsSync(snapshot)) {
-    fail(`the recovery snapshot for ${run.id} is missing.`, `Expected it at ${snapshot}.`);
+    throw new OperatorError(`the recovery snapshot for ${run.id} is missing.`, `Expected it at ${snapshot}.`);
   }
 
   const { outcomes, writes } = await planUndo(project, run, snapshot);
@@ -85,7 +76,7 @@ async function main(): Promise<void> {
   if (conflicts.length > 0) {
     // All or nothing. A half-undone change leaves the project in a state
     // that never existed and that nothing can describe.
-    fail(
+    throw new OperatorError(
       `${run.id} cannot be undone cleanly: ${String(conflicts.length)} files conflict.`,
       [
         "Nothing was changed.",
@@ -130,10 +121,28 @@ async function main(): Promise<void> {
   }
   await appendUndo(project, undoId, run, undoChanges);
 
+  // The item that run completed is no longer complete. Leaving it "done"
+  // makes `look` describe work whose code has just been removed, which is
+  // the one thing the record exists to prevent.
+  //
+  // Undoing an *undo* re-applies the original, so the item it completed
+  // becomes done again. Status has to travel the same round trip the
+  // files do, or the list and the repository disagree after two undos.
+  const original = run.reverses === undefined
+    ? undefined
+    : runs.find((entry) => entry.id === run.reverses);
+  const [item, status] = original === undefined
+    ? [run.goal, "todo" as const]
+    : [original.goal, "done" as const];
+  const restated = await markStatus(project, item, status);
+
   for (const outcome of outcomes) {
     say(`  ${outcome.action.padEnd(11)} ${outcome.file}${outcome.detail === undefined ? "" : `  (${outcome.detail})`}`);
   }
   say(`\nundid ${run.id}, recorded as ${undoId}. Undo that with: npm run undo -- ${undoId}`);
+  if (restated) say(`${item} is now ${status}.`);
+  // Said plainly rather than implied. An undo reverses one run exactly;
+  // whether the project still holds together afterwards is a different
+  // question, and this one was not asked.
+  say("The suite was not re-run. Check it before working on top of this.");
 }
-
-await main();

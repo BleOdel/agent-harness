@@ -214,3 +214,41 @@ test("run ids account for unreadable lines rather than reusing one", async () =>
     await rm(path.dirname(directory), { recursive: true, force: true });
   }
 });
+
+test("undoing the run that completed an item puts the item back on the list", async () => {
+  // Otherwise `look` reports an item as done while the code implementing
+  // it has just been removed, which is the one thing the record exists to
+  // prevent.
+  const { markDone, parseFeatures } = await import("../src/features.ts");
+  const { markStatus } = await import("../src/features.ts");
+  const directory = await project({ "app.js": "one\n" });
+  try {
+    await writeFile(
+      path.join(directory, "features.json"),
+      JSON.stringify([{ id: "thing", title: "T", priority: "must", status: "todo", criteria: ["c"], dependsOn: [] }]),
+      "utf8",
+    );
+    await markDone(directory, "thing");
+    assert.equal(await markStatus(directory, "thing", "todo"), true);
+
+    const list = parseFeatures(await readFile(path.join(directory, "features.json"), "utf8"));
+    assert.equal(list.ok, true);
+    if (list.ok) assert.equal(list.features[0]!.status, "todo");
+  } finally {
+    await rm(path.dirname(directory), { recursive: true, force: true });
+  }
+});
+
+test("marking a status reports whether it actually happened", async () => {
+  // A silent no-op would make undo announce a reopening that never
+  // occurred.
+  const { markStatus } = await import("../src/features.ts");
+  const directory = await project({});
+  try {
+    assert.equal(await markStatus(directory, "absent", "todo"), false, "no feature list at all");
+    await writeFile(path.join(directory, "features.json"), "[]", "utf8");
+    assert.equal(await markStatus(directory, "absent", "todo"), false, "no such item");
+  } finally {
+    await rm(path.dirname(directory), { recursive: true, force: true });
+  }
+});

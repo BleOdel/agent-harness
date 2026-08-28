@@ -95,3 +95,13 @@ test("assertions are counted through the plain assert module too", async () => {
   assert.ok(ran, "the fixture suite reported no passing test, so the count below means nothing");
   assert.equal(counted, 1);
 });
+
+test("the counter file is where the gate looks for it", async () => {
+  // Moving the command into src/verbs/ broke a path built from the
+  // caller's directory, and nothing caught it until a live run failed
+  // with ENOENT. The gate that proves every change is worthless if the
+  // harness cannot find the file that makes it work.
+  const { counterPath } = await import("../src/gates/tests.ts");
+  const source = await readFile(counterPath(), "utf8");
+  assert.match(source, /HARNESS_ASSERT_COUNT_FILE/u);
+});

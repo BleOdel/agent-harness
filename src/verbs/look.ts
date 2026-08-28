@@ -1,0 +1,89 @@
+/**
+ *   look
+ *
+ * What happened, what is pending, what escalated and why.
+ *
+ * The plan's verification for this milestone is an application built
+ * start to finish by someone following nothing but this. So it has to
+ * answer three questions without the operator asking a second one: what
+ * should I do next, what went wrong, and can I put it back.
+ *
+ * Escalations first. They are the only thing here that is waiting on a
+ * person, and burying them under a status table is how a queue of them
+ * accumulates unread.
+ */
+
+import { readFeatures, nextItems, type Feature } from "../features.ts";
+import { readRecord, type RunRecord, undoableRuns } from "../record/record.ts";
+import { clip, pad, say } from "./io.ts";
+
+function stateOfItem(feature: Feature, runs: readonly RunRecord[]): string {
+  if (feature.status === "done") return "done";
+  const last = runs.filter((run) => run.goal === feature.id).at(-1);
+  if (last === undefined) return feature.status;
+  // Whether that run is *still standing* matters. Reporting "applied" for
+  // a run a later undo reversed describes a repository that no longer
+  // exists, which is exactly the confusion the record exists to prevent.
+  if (last.outcome === "applied") {
+    return undoableRuns(runs).some((run) => run.id === last.id)
+      ? "applied, not yet marked done"
+      : "undone";
+  }
+  return last.outcome;
+}
+
+export async function look(project: string): Promise<void> {
+  const { runs, malformed } = await readRecord(project);
+  const list = await readFeatures(project);
+
+  if (malformed.length > 0) {
+    say(`warning: ${String(malformed.length)} unreadable lines in the record (at ${malformed.join(", ")})`);
+    say();
+  }
+
+  const escalations = runs.filter((run) => run.outcome === "escalated" || run.outcome === "gate-failed");
+  const stillOpen = escalations.filter(
+    (run) => !runs.some((later) => later.goal === run.goal && later.outcome === "applied" && later.at > run.at),
+  );
+
+  if (stillOpen.length > 0) {
+    say(`WAITING ON YOU (${String(stillOpen.length)})`);
+    say();
+    for (const run of stillOpen) {
+      say(`  ${pad(run.id, 5)} ${clip(run.goal, 40)}`);
+      say(`        ${run.reason ?? "(no reason recorded)"}`);
+      for (const finding of run.review?.findings ?? []) say(`        - ${clip(finding, 90)}`);
+      say();
+    }
+  }
+
+  if (list === undefined) {
+    say("No feature list in this project. Work from a goal, or add an item:");
+    say('  npm run add -- <id> --title "..." --criterion "..."');
+  } else if (!list.ok) {
+    say(`The feature list cannot be read: ${list.reason}`);
+  } else {
+    say("ITEMS");
+    say();
+    for (const feature of list.features) {
+      say(`  ${pad(feature.priority, 7)} ${pad(feature.id, 16)} ${pad(stateOfItem(feature, runs), 28)} ${clip(feature.title, 44)}`);
+    }
+    say();
+    const next = nextItems(list.features)[0];
+    say(next === undefined
+      ? "Nothing left to work on."
+      : `Next: ${next.id}.  Start it with: npm run work`);
+    say();
+  }
+
+  const applied = undoableRuns(runs);
+  say(`HISTORY  ${String(runs.length)} runs, ${String(applied.length)} still standing`);
+  say();
+  for (const run of runs.slice(-8)) {
+    const marker = run.outcome === "applied" ? "+" : run.outcome === "no-changes" ? "=" : "!";
+    say(`  ${marker} ${pad(run.id, 5)} ${run.at.slice(0, 16).replace("T", " ")}  ${pad(run.outcome, 12)} ${clip(run.goal, 44)}`);
+  }
+  if (runs.length > 8) say(`  ... ${String(runs.length - 8)} earlier runs`);
+  say();
+  say("  npm run show -- <id>   the exact diff        npm run undo -- <id>   put it back");
+}

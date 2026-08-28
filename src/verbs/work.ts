@@ -17,37 +17,29 @@
 
 import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
-import { runAgent } from "./agent/pi.ts";
-import { diagnose } from "./attribution.ts";
-import { ConfigError, loadConfig } from "./config.ts";
-import { type SandboxLayout } from "./containment/sandbox.ts";
-import { CLAIM_FILE } from "./gates/claim.ts";
-import { DEFAULT_LIMITS, type Limits } from "./gates/limits.ts";
-import { type Feature, readFeatures, unmetDependencies } from "./features.ts";
-import { runPipeline } from "./pipeline.ts";
-import { appendRun, nextRunId, type Outcome, recoveryPath } from "./record/record.ts";
-import { renderDiff } from "./review/diff.ts";
-import { review } from "./review/reviewer.ts";
+import { runAgent } from "../agent/pi.ts";
+import { diagnose } from "../attribution.ts";
+import { ConfigError, loadConfig } from "../config.ts";
+import { OperatorError, say } from "./io.ts";
+import { type SandboxLayout } from "../containment/sandbox.ts";
+import { CLAIM_FILE } from "../gates/claim.ts";
+import { counterPath } from "../gates/tests.ts";
+import { DEFAULT_LIMITS, type Limits } from "../gates/limits.ts";
+import { type Feature, markDone, nextItems, readFeatures, unmetDependencies } from "../features.ts";
+import { runPipeline } from "../pipeline.ts";
+import { appendRun, nextRunId, type Outcome, recoveryPath, type RunRecord } from "../record/record.ts";
+import { renderDiff } from "../review/diff.ts";
+import { review } from "../review/reviewer.ts";
 import {
   assertChangesAreApplicable,
   BoundaryViolation,
-} from "./workspace/changes.ts";
+} from "../workspace/changes.ts";
 import {
   applyChanges,
   createSandbox,
   destroySandbox,
   snapshotForRecovery,
-} from "./workspace/sandbox-lifecycle.ts";
-
-function say(line: string): void {
-  process.stdout.write(`${line}\n`);
-}
-
-function fail(summary: string, detail = ""): never {
-  process.stderr.write(`\n${summary}\n`);
-  if (detail.trim() !== "") process.stderr.write(`\n${detail.trimEnd()}\n`);
-  process.exit(1);
-}
+} from "../workspace/sandbox-lifecycle.ts";
 
 /**
  * The work item, if the argument names one in the project's feature list.
@@ -62,8 +54,32 @@ async function resolveWork(project: string, argument: string): Promise<{
   feature: Feature | undefined;
 }> {
   const list = await readFeatures(project);
-  if (list === undefined) return { title: argument, criteria: [], feature: undefined };
-  if (!list.ok) fail(list.reason, "Fix the feature list, or delete it to work from a free-form goal.");
+  if (list === undefined) {
+    if (argument === "") {
+      throw new OperatorError(
+        "Nothing to work on: there is no feature list and no goal was given.",
+        `Add an item with:  npm run add -- <id> --title "..." --criterion "..."\n`
+        + 'Or work from a goal:  npm run work -- "add a --json flag"',
+      );
+    }
+    return { title: argument, criteria: [], feature: undefined };
+  }
+  if (!list.ok) throw new OperatorError(list.reason, "Fix the feature list, or delete it to work from a free-form goal.");
+
+  if (argument === "") {
+    // The bare verb takes the next Must. This is the whole point of a
+    // MoSCoW list: the operator should not have to decide what is next
+    // every single time, and the list already says.
+    const next = nextItems(list.features)[0];
+    if (next === undefined) {
+      throw new OperatorError(
+        "Nothing left to work on: every item is done, blocked, or a won't-have.",
+        "Run `npm run look` to see the list.",
+      );
+    }
+    say(`taking the next ${next.priority}: ${next.id}`);
+    return { title: `${next.id}: ${next.title}`, criteria: next.criteria, feature: next };
+  }
 
   const feature = list.features.find((entry) => entry.id === argument);
   if (feature === undefined) {
@@ -112,29 +128,20 @@ function limitsFrom(environment: NodeJS.ProcessEnv): Limits {
   };
 }
 
-async function main(): Promise<void> {
-  const goal = process.argv.slice(2).join(" ").trim();
-  if (goal === "") {
-    fail(
-      "Use: npm run work -- <item-id or goal>",
-      'Example: npm run work -- entry-page\n         npm run work -- "add a --json flag to the report command"',
-    );
-  }
+export async function work(argv: readonly string[]): Promise<void> {
+  const goal = argv.join(" ").trim();
 
   let config;
   try {
     config = loadConfig();
   } catch (error) {
-    if (error instanceof ConfigError) fail(error.message, error.remedy);
+    if (error instanceof ConfigError) throw new OperatorError(error.message, error.remedy);
     throw error;
   }
 
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
   const testCommand = (process.env.HARNESS_TEST_COMMAND ?? "npm test").split(" ").filter(Boolean);
-  const counterSource = await readFile(
-    path.join(import.meta.dirname, "gates", "assert-counter.mjs"),
-    "utf8",
-  );
+  const counterSource = await readFile(counterPath(), "utf8");
 
   const work = await resolveWork(project, goal);
   if (work.feature !== undefined) say(`item: ${work.title}`);
@@ -157,17 +164,55 @@ async function main(): Promise<void> {
     user: `${String(process.getuid?.() ?? 501)}:${String(process.getgid?.() ?? 20)}`,
   };
 
+  const runId = await nextRunId(project);
+
+  /**
+   * Stops the run and records why. Every ending is recorded, not just the
+   * successful one: `look` exists to answer "what escalated and why", and
+   * it can only answer that from endings that were written down.
+   */
+  // Returns the error rather than throwing it, so every call site reads
+  // `throw await stop(...)`. An awaited `never` does not narrow control
+  // flow in TypeScript, and the alternative was a file full of
+  // unreachable-code errors hiding a real one.
+  const stop = async (
+    outcome: Outcome,
+    summary: string,
+    detail: string,
+    extra: Partial<RunRecord> = {},
+  ): Promise<OperatorError> => {
+    await appendRun(project, {
+      id: runId,
+      at: new Date().toISOString(),
+      project,
+      goal: work.feature?.id ?? goal,
+      attempts,
+      outcome,
+      gates: gateSummaries,
+      changes: [],
+      reason: summary,
+      ...extra,
+    });
+    return new OperatorError(summary, detail);
+  };
+
+  let attempts = 0;
+  let gateSummaries: string[] = [];
+
   try {
     let instruction = briefing(work.title, work.criteria);
     for (let attempt = 1; attempt <= 2; attempt += 1) {
+      attempts = attempt;
       if (attempt > 1) say(`\nattempt ${String(attempt)}, with a diagnosis`);
       const agent = await runAgent(
         layout,
         { goal: instruction, provider: config.provider, model: config.model, timeoutMs: config.agentTimeoutMs },
         (chunk) => process.stdout.write(chunk),
       );
-      if (agent.timedOut) fail(`agent: timed out after ${String(Math.round(config.agentTimeoutMs / 1000))}s`);
-      if (agent.code !== 0) fail(`agent: exited ${String(agent.code)}`, agent.stderr);
+      if (agent.timedOut) {
+        throw await stop("error", `agent: timed out after ${String(Math.round(config.agentTimeoutMs / 1000))}s`, "");
+      }
+      if (agent.code !== 0) throw await stop("error", `agent: exited ${String(agent.code)}`, agent.stderr);
 
       const { run, changes } = await runPipeline({
         config,
@@ -177,28 +222,45 @@ async function main(): Promise<void> {
         counterSource,
         limits: limitsFrom(process.env),
       });
+      gateSummaries = run.verdicts.map((entry) => entry.summary);
       for (const verdict of run.verdicts) say(verdict.summary);
       for (const name of run.skipped) say(`${name}: not applicable to this project`);
 
       if (!run.passed) {
         const failure = run.firstFailure;
-        if (failure?.kind === undefined) fail("a gate failed without saying why", "");
+        if (failure?.kind === undefined) throw await stop("error", "a gate failed without saying why", "");
         const diagnosis = diagnose(failure.kind, failure.detail);
         if (attempt === 2) {
-          fail("nothing was applied.", `${diagnosis.cause}\n\n${diagnosis.fix}\n\n${failure.detail}`);
+          throw await stop(
+            "gate-failed",
+            `${failure.name} gate: ${failure.summary}`,
+            `${diagnosis.cause}\n\n${diagnosis.fix}\n\n${failure.detail}`,
+          );
         }
         instruction = `${diagnosis.forAgent}\n\n---\n\nThe original goal:\n\n${briefing(work.title, work.criteria)}`;
         continue;
       }
 
       if (changes.length === 0) {
+        await appendRun(project, {
+          id: runId,
+          at: new Date().toISOString(),
+          project,
+          goal: work.feature?.id ?? goal,
+          attempts: attempt,
+          outcome: "no-changes",
+          gates: gateSummaries,
+          changes: [],
+        });
         say("no changes. nothing was applied.");
         return;
       }
       try {
         assertChangesAreApplicable(changes, sandbox.workDirectory);
       } catch (error) {
-        if (error instanceof BoundaryViolation) fail(`boundary: ${error.message}`, "nothing was applied.");
+        if (error instanceof BoundaryViolation) {
+          throw await stop("gate-failed", `boundary: ${error.message}`, "nothing was applied.");
+        }
         throw error;
       }
       say(`boundary: ${String(changes.length)} files, all inside the project`);
@@ -220,10 +282,16 @@ async function main(): Promise<void> {
         timeoutMs: config.agentTimeoutMs,
       });
       if (verdict.failure !== undefined) {
-        fail(`review: ${verdict.failure}`, "nothing was applied. A reviewer that cannot answer is never a pass.");
+        throw await stop(
+          "escalated",
+          `review: ${verdict.failure}`,
+          "nothing was applied. A reviewer that cannot answer is never a pass.",
+          { review: { verdict: "escalate", findings: [verdict.failure] } },
+        );
       }
       if (verdict.verdict === "escalate") {
-        fail(
+        throw await stop(
+          "escalated",
           "review: escalated to you.",
           [
             ...(verdict.unmet.length === 0 ? [] : ["Acceptance criteria the reviewer could not find satisfied:",
@@ -234,12 +302,12 @@ async function main(): Promise<void> {
             `Nothing was applied. The work is in ${sandbox.workDirectory}, which is about to be destroyed;`,
             "re-run to try again, or narrow the item.",
           ].join("\n"),
+          { review: { verdict: "escalate", findings: [...verdict.unmet, ...verdict.unaccounted] } },
         );
       }
       say(`review: passed, ${String(work.criteria.length)} criteria accounted for`);
 
       await rm(path.join(sandbox.workDirectory, CLAIM_FILE), { force: true });
-      const runId = await nextRunId(project);
       const recovery = await snapshotForRecovery(
         project,
         sandbox.workDirectory,
@@ -258,6 +326,7 @@ async function main(): Promise<void> {
         review: { verdict: verdict.verdict, findings: [...verdict.unmet, ...verdict.unaccounted] },
         changes,
       });
+      if (work.feature !== undefined) await markDone(project, work.feature.id);
       for (const change of changes) say(`  ${change.kind.padEnd(8)} ${change.file}`);
       say(`applied as ${runId}. undo with: npm run undo -- ${runId}`);
       say(`recovery: ${recovery.directory}`);
@@ -269,5 +338,3 @@ async function main(): Promise<void> {
     await destroySandbox(sandbox);
   }
 }
-
-await main();

@@ -11,10 +11,14 @@
     "test": "node --test test/*.test.ts",
     "check": "npm run build && npm test",
     "verify:boundary": "node --experimental-strip-types src/verify-boundary.ts",
-    "work": "node --experimental-strip-types src/work.ts",
+    "work": "node --experimental-strip-types src/cli.ts work",
     "verify:gates": "node --test --experimental-strip-types test/pipeline.test.ts",
     "verify:reviewer": "node --experimental-strip-types src/verify-reviewer.ts",
-    "undo": "node --experimental-strip-types src/undo.ts"
+    "undo": "node --experimental-strip-types src/cli.ts undo",
+    "add": "node --experimental-strip-types src/cli.ts add",
+    "look": "node --experimental-strip-types src/cli.ts look",
+    "show": "node --experimental-strip-types src/cli.ts show",
+    "harness": "node --experimental-strip-types src/cli.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
