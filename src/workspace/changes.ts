@@ -45,6 +45,16 @@ export interface Change {
 export const EXCLUDED_FROM_COPY = new Set([
   ".git",
   ".harness",
+  // The feature list. The model is given the item and its acceptance
+  // criteria in its instructions; it has no business reading the rest of
+  // the backlog and no business writing any of it. Nothing being judged
+  // may edit what it is judged against.
+  //
+  // Added after watching it happen: on a real project the model helpfully
+  // flipped its own item from todo to done. Only the status, and nothing
+  // refused it -- the same access would have let it rewrite a criterion
+  // it could not meet.
+  "features.json",
   ".secure-harness",
   ".env",
   ".env.local",

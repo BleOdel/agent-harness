@@ -147,3 +147,26 @@ test("secret-bearing directories never enter the copy, and are reported", async 
     await rm(path.dirname(directory), { recursive: true, force: true });
   }
 });
+
+test("the feature list never enters the copy", async () => {
+  // The model gets its item and criteria in the prompt. Giving it the
+  // file means giving it the power to edit what it is judged against.
+  // Watched happen: on a real project it flipped its own item from todo
+  // to done, and nothing refused it.
+  const directory = await project();
+  await writeFile(
+    path.join(directory, "features.json"),
+    JSON.stringify([{ id: "a", title: "A", priority: "must", status: "todo", criteria: ["c"], dependsOn: [] }]),
+    "utf8",
+  );
+  const sandbox = await createSandbox(directory);
+  try {
+    assert.equal((await readdir(sandbox.workDirectory)).includes("features.json"), false);
+    assert.ok(sandbox.withheld.includes("features.json"));
+    // And invisible to the diff, so it is never applied back either.
+    assert.deepEqual(await collectChanges(directory, sandbox.workDirectory), []);
+  } finally {
+    await destroySandbox(sandbox);
+    await rm(path.dirname(directory), { recursive: true, force: true });
+  }
+});
