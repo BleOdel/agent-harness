@@ -10,7 +10,8 @@
     "build": "tsc --noEmit",
     "test": "node --test test/*.test.ts",
     "check": "npm run build && npm test",
-    "verify:boundary": "node --experimental-strip-types src/verify-boundary.ts"
+    "verify:boundary": "node --experimental-strip-types src/verify-boundary.ts",
+    "work": "node --experimental-strip-types src/work.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
