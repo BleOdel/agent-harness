@@ -17,6 +17,8 @@ export interface Sandbox {
   readonly workDirectory: string;
   /** Removed by `destroy`, whatever happened. */
   readonly root: string;
+  /** Top-level entries kept out of the copy. Reported, never silent. */
+  readonly withheld: readonly string[];
 }
 
 export async function createSandbox(project: string): Promise<Sandbox> {
@@ -24,6 +26,7 @@ export async function createSandbox(project: string): Promise<Sandbox> {
   // must agree on one spelling; on macOS os.tmpdir() is a symlink.
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-work-")));
   const workDirectory = path.join(root, "work");
+  const withheld: string[] = [];
   await cp(project, workDirectory, {
     recursive: true,
     // Never dereference: a symlink in the operator's project stays a
@@ -34,10 +37,13 @@ export async function createSandbox(project: string): Promise<Sandbox> {
     filter: (source) => {
       const relative = path.relative(project, source);
       if (relative === "") return true;
-      return !EXCLUDED_FROM_COPY.has(relative.split(path.sep)[0] ?? "");
+      const head = relative.split(path.sep)[0] ?? "";
+      if (!EXCLUDED_FROM_COPY.has(head)) return true;
+      if (!withheld.includes(head)) withheld.push(head);
+      return false;
     },
   });
-  return { workDirectory, root };
+  return { workDirectory, root, withheld: withheld.sort() };
 }
 
 export async function destroySandbox(sandbox: Sandbox): Promise<void> {

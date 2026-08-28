@@ -24,11 +24,36 @@ export interface Change {
 /**
  * Never copied into the sandbox, and never applied back.
  *
+ * Two different reasons, deliberately in one list because the mechanism
+ * is the same and a second list is a second thing to forget.
+ *
  * `.git` is excluded so the model cannot rewrite history, move a branch,
  * or leave a commit that looks like the operator's. The operator commits;
  * the harness never does.
+ *
+ * The rest are secret-bearing by convention. The container keeps the
+ * model away from the host filesystem, but the copy is made *by* the
+ * host, so anything sitting inside the project walks in through the front
+ * door. Found the first time this ran against a real project: it still
+ * held the previous harness's `.secure-harness` directory, with a
+ * provider credential and an audit signing key in it.
+ *
+ * Exclusion is announced rather than silent -- a project whose tests need
+ * a `.env` will fail the gate, and the operator has to be able to see
+ * why.
  */
-export const EXCLUDED_FROM_COPY = new Set([".git", ".harness"]);
+export const EXCLUDED_FROM_COPY = new Set([
+  ".git",
+  ".harness",
+  ".secure-harness",
+  ".env",
+  ".env.local",
+  ".ssh",
+  ".aws",
+  ".gnupg",
+  ".npmrc",
+  ".netrc",
+]);
 
 /** Stands in for content that is never read, so a symlink can differ from a file. */
 const SYMLINK = "\u0000symlink";

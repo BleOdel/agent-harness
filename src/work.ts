@@ -65,6 +65,11 @@ async function main(): Promise<void> {
   // Printed before anything can go wrong with it, so a crash still leaves
   // the operator knowing where the run happened.
   say(`sandbox: ${sandbox.workDirectory}`);
+  if (sandbox.withheld.length > 0) {
+    // Said out loud: a test that needs one of these will fail the gate,
+    // and the operator would otherwise have no way to connect the two.
+    say(`withheld from the copy: ${sandbox.withheld.join(", ")}`);
+  }
 
   const layout: SandboxLayout = {
     dockerExecutable: config.dockerExecutable,

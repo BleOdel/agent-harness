@@ -103,3 +103,30 @@ test("a snapshot restores every kind of change", async () => {
     await rm(`${directory}-recovery`, { recursive: true, force: true });
   }
 });
+
+test("secret-bearing directories never enter the copy, and are reported", async () => {
+  // Found against a real project: it still held the previous harness's
+  // .secure-harness, containing a provider credential and a signing key.
+  // The container keeps the model off the host filesystem, but the copy
+  // is made by the host, so anything inside the project walks straight in.
+  const directory = await project();
+  await mkdir(path.join(directory, ".secure-harness"), { recursive: true });
+  await writeFile(path.join(directory, ".secure-harness", "auth.json"), '{"token":"secret"}');
+  await writeFile(path.join(directory, ".env"), "API_KEY=secret\n");
+  const sandbox = await createSandbox(directory);
+  try {
+    const copied = await readdir(sandbox.workDirectory);
+    assert.equal(copied.includes(".secure-harness"), false, "a credential directory reached the sandbox");
+    assert.equal(copied.includes(".env"), false, "a secrets file reached the sandbox");
+    // .git is in the report too. It is withheld for a different reason,
+    // but it can fail a gate the same way -- a test that shells out to
+    // git -- so the operator sees the whole list.
+    assert.deepEqual(sandbox.withheld, [".env", ".git", ".secure-harness"]);
+    // And they are invisible to the diff, so they are never applied back
+    // and never reported as deletions.
+    assert.deepEqual(await collectChanges(directory, sandbox.workDirectory), []);
+  } finally {
+    await destroySandbox(sandbox);
+    await rm(path.dirname(directory), { recursive: true, force: true });
+  }
+});
