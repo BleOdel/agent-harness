@@ -25,9 +25,9 @@ import { type SandboxLayout } from "../containment/sandbox.ts";
 import { CLAIM_FILE } from "../gates/claim.ts";
 import { counterPath } from "../gates/tests.ts";
 import { DEFAULT_LIMITS, type Limits } from "../gates/limits.ts";
-import { type Feature, markDone, nextItems, readFeatures, unmetDependencies } from "../features.ts";
+import { chooseNext, type Feature, markDone, readFeatures, unmetDependencies } from "../features.ts";
 import { runPipeline } from "../pipeline.ts";
-import { appendRun, nextRunId, type Outcome, recoveryPath, type RunRecord } from "../record/record.ts";
+import { appendRun, nextRunId, type Outcome, readRecord, recoveryPath, type RunRecord } from "../record/record.ts";
 import { renderDiff } from "../review/diff.ts";
 import { review } from "../review/reviewer.ts";
 import {
@@ -70,11 +70,27 @@ async function resolveWork(project: string, argument: string): Promise<{
     // The bare verb takes the next Must. This is the whole point of a
     // MoSCoW list: the operator should not have to decide what is next
     // every single time, and the list already says.
-    const next = nextItems(list.features)[0];
+    //
+    // An item whose last run changed nothing is stepped over rather than
+    // offered again. Left in, `work` hands the model an item it has
+    // already satisfied, and the model -- asked to do something -- finds
+    // something cosmetic to do. Watched happen on a real project: a
+    // number wrapped in <strong>, which the Reviewer then escalated.
+    const { runs } = await readRecord(project);
+    const { next, steppedOver } = chooseNext(list.features, (id) =>
+      runs.filter((run) => run.goal === id).at(-1)?.outcome);
     if (next === undefined) {
+      const idle = steppedOver;
       throw new OperatorError(
-        "Nothing left to work on: every item is done, blocked, or a won't-have.",
-        "Run `npm run look` to see the list.",
+        idle.length === 0
+          ? "Nothing left to work on: every item is done, blocked, or a won't-have."
+          : `Nothing left to work on. ${idle.map((f) => f.id).join(", ")} produced no changes `
+            + "last time, so they are being stepped over.",
+        idle.length === 0
+          ? "Run `npm run look` to see the list."
+          : "An item that changes nothing is usually already satisfied, or its criteria do not\n"
+            + "say anything the code does not already do. Check it with `npm run look`, then\n"
+            + "either sharpen the criteria or edit its status to \"done\" in features.json.",
       );
     }
     say(`taking the next ${next.priority}: ${next.id}`);

@@ -159,6 +159,30 @@ export function unmetDependencies(feature: Feature, all: readonly Feature[]): st
   return feature.dependsOn.filter((id) => byId.get(id)?.status !== "done");
 }
 
+/**
+ * Which item `work` takes next, and which it stepped over.
+ *
+ * An item whose last run changed nothing is stepped over rather than
+ * offered again. Left in the queue, `work` hands the model an item it has
+ * already satisfied, and a model asked to do something finds something
+ * cosmetic to do. Watched happen on a real project: a number wrapped in
+ * <strong>, which the Reviewer then escalated.
+ *
+ * A function rather than a few lines inside the command, so the rule can
+ * be tested rather than a copy of it.
+ */
+export function chooseNext(
+  features: readonly Feature[],
+  lastOutcomeOf: (id: string) => string | undefined,
+): { next: Feature | undefined; steppedOver: Feature[] } {
+  const queue = nextItems(features);
+  const steppedOver = queue.filter((feature) => lastOutcomeOf(feature.id) === "no-changes");
+  return {
+    next: queue.find((feature) => lastOutcomeOf(feature.id) !== "no-changes"),
+    steppedOver,
+  };
+}
+
 /** MoSCoW order, then declaration order. What to do next, when unsure. */
 export function nextItems(features: readonly Feature[]): Feature[] {
   const rank = (feature: Feature): number => PRIORITIES.indexOf(feature.priority);

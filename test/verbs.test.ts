@@ -91,3 +91,27 @@ test("add refuses to touch a feature list it cannot parse", async () => {
     await rm(path.dirname(directory), { recursive: true, force: true });
   }
 });
+
+test("work steps over an item whose last run changed nothing", async () => {
+  // Left in the queue, `work` hands the model an item it has already
+  // satisfied, and a model asked to do something finds something cosmetic
+  // to do. Watched happen on a real project: a number wrapped in
+  // <strong>, which the Reviewer escalated.
+  const { chooseNext, parseFeatures: parse } = await import("../src/features.ts");
+  const list = parse(JSON.stringify([
+    { id: "settled", title: "S", priority: "must", status: "todo", criteria: ["c"], dependsOn: [] },
+    { id: "pending", title: "P", priority: "should", status: "todo", criteria: ["c"], dependsOn: [] },
+  ]));
+  assert.equal(list.ok, true);
+  if (!list.ok) return;
+
+  const stepped = chooseNext(list.features, (id) => (id === "settled" ? "no-changes" : undefined));
+  assert.equal(stepped.next?.id, "pending", "the settled item was offered again");
+  assert.deepEqual(stepped.steppedOver.map((f) => f.id), ["settled"]);
+
+  // And it is only stepped over for that outcome. A run that failed a
+  // gate must still be retried, or one bad attempt retires the item.
+  const failed = chooseNext(list.features, (id) => (id === "settled" ? "gate-failed" : undefined));
+  assert.equal(failed.next?.id, "settled");
+  assert.deepEqual(failed.steppedOver, []);
+});
