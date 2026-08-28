@@ -23,7 +23,10 @@ import { ConfigError, loadConfig } from "./config.ts";
 import { type SandboxLayout } from "./containment/sandbox.ts";
 import { CLAIM_FILE } from "./gates/claim.ts";
 import { DEFAULT_LIMITS, type Limits } from "./gates/limits.ts";
+import { type Feature, readFeatures, unmetDependencies } from "./features.ts";
 import { runPipeline } from "./pipeline.ts";
+import { renderDiff } from "./review/diff.ts";
+import { review } from "./review/reviewer.ts";
 import {
   assertChangesAreApplicable,
   BoundaryViolation,
@@ -45,10 +48,44 @@ function fail(summary: string, detail = ""): never {
   process.exit(1);
 }
 
+/**
+ * The work item, if the argument names one in the project's feature list.
+ *
+ * A free-form goal still works. It just gives the Reviewer nothing exact
+ * to check against, and the run says so rather than reviewing against
+ * criteria it invented.
+ */
+async function resolveWork(project: string, argument: string): Promise<{
+  title: string;
+  criteria: readonly string[];
+  feature: Feature | undefined;
+}> {
+  const list = await readFeatures(project);
+  if (list === undefined) return { title: argument, criteria: [], feature: undefined };
+  if (!list.ok) fail(list.reason, "Fix the feature list, or delete it to work from a free-form goal.");
+
+  const feature = list.features.find((entry) => entry.id === argument);
+  if (feature === undefined) {
+    // Not an error: the operator may be describing work that has no item.
+    return { title: argument, criteria: [], feature: undefined };
+  }
+  const unmet = unmetDependencies(feature, list.features);
+  if (unmet.length > 0) {
+    // Reported, not enforced. The operator may know something the list
+    // does not; what they must not do is find out afterwards.
+    say(`note: ${feature.id} depends on ${unmet.join(", ")}, which are not done`);
+  }
+  return { title: `${feature.id}: ${feature.title}`, criteria: feature.criteria, feature };
+}
+
 /** Appended to the goal so the model knows what the gates will require. */
-function briefing(goal: string): string {
+function briefing(goal: string, criteria: readonly string[]): string {
   return [
     goal,
+    ...(criteria.length === 0
+      ? []
+      : ["", "Acceptance criteria, all of which must be satisfied:",
+         ...criteria.map((criterion, index) => `  ${String(index + 1)}. ${criterion}`)]),
     "",
     "Before you finish, write " + CLAIM_FILE + " in the project root:",
     "",
@@ -77,7 +114,10 @@ function limitsFrom(environment: NodeJS.ProcessEnv): Limits {
 async function main(): Promise<void> {
   const goal = process.argv.slice(2).join(" ").trim();
   if (goal === "") {
-    fail("Use: npm run work -- <goal>", 'Example: npm run work -- "add a --json flag to the report command"');
+    fail(
+      "Use: npm run work -- <item-id or goal>",
+      'Example: npm run work -- entry-page\n         npm run work -- "add a --json flag to the report command"',
+    );
   }
 
   let config;
@@ -94,6 +134,9 @@ async function main(): Promise<void> {
     path.join(import.meta.dirname, "gates", "assert-counter.mjs"),
     "utf8",
   );
+
+  const work = await resolveWork(project, goal);
+  if (work.feature !== undefined) say(`item: ${work.title}`);
 
   const sandbox = await createSandbox(project);
   say(`sandbox: ${sandbox.workDirectory}`);
@@ -114,7 +157,7 @@ async function main(): Promise<void> {
   };
 
   try {
-    let instruction = briefing(goal);
+    let instruction = briefing(work.title, work.criteria);
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       if (attempt > 1) say(`\nattempt ${String(attempt)}, with a diagnosis`);
       const agent = await runAgent(
@@ -143,7 +186,7 @@ async function main(): Promise<void> {
         if (attempt === 2) {
           fail("nothing was applied.", `${diagnosis.cause}\n\n${diagnosis.fix}\n\n${failure.detail}`);
         }
-        instruction = `${diagnosis.forAgent}\n\n---\n\nThe original goal:\n\n${briefing(goal)}`;
+        instruction = `${diagnosis.forAgent}\n\n---\n\nThe original goal:\n\n${briefing(work.title, work.criteria)}`;
         continue;
       }
 
@@ -158,6 +201,41 @@ async function main(): Promise<void> {
         throw error;
       }
       say(`boundary: ${String(changes.length)} files, all inside the project`);
+
+      // The last gate, and the only one about intent. Everything before
+      // it asks whether the code is sound; this asks whether it is the
+      // work that was asked for.
+      const verdict = await review(layout, {
+        title: work.title,
+        criteria: work.criteria.length > 0
+          ? work.criteria
+          // Without a feature list there is nothing exact to check
+          // against. Said out loud, because a Reviewer silently inventing
+          // its own criteria is a Reviewer nobody can calibrate.
+          : ["(no feature list: judge only whether the change is coherent and self-consistent)"],
+        diff: await renderDiff(project, sandbox.workDirectory, changes),
+        provider: config.provider,
+        model: config.model,
+        timeoutMs: config.agentTimeoutMs,
+      });
+      if (verdict.failure !== undefined) {
+        fail(`review: ${verdict.failure}`, "nothing was applied. A reviewer that cannot answer is never a pass.");
+      }
+      if (verdict.verdict === "escalate") {
+        fail(
+          "review: escalated to you.",
+          [
+            ...(verdict.unmet.length === 0 ? [] : ["Acceptance criteria the reviewer could not find satisfied:",
+              ...verdict.unmet.map((entry) => `  - ${entry}`), ""]),
+            ...(verdict.unaccounted.length === 0 ? [] : ["In the change, but nothing asked for it:",
+              ...verdict.unaccounted.map((entry) => `  - ${entry}`), ""]),
+            ...(verdict.notes.length === 0 ? [] : ["Notes:", ...verdict.notes.map((entry) => `  - ${entry}`), ""]),
+            `Nothing was applied. The work is in ${sandbox.workDirectory}, which is about to be destroyed;`,
+            "re-run to try again, or narrow the item.",
+          ].join("\n"),
+        );
+      }
+      say(`review: passed, ${String(work.criteria.length)} criteria accounted for`);
 
       await rm(path.join(sandbox.workDirectory, CLAIM_FILE), { force: true });
       const recovery = await snapshotForRecovery(project, changes);

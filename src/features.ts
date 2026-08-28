@@ -1,0 +1,136 @@
+/**
+ * The unit of work.
+ *
+ * Prose cannot be reviewed mechanically and cannot be checked off. An
+ * item has an id, acceptance criteria as separate strings, a status, and
+ * a MoSCoW priority -- so the Reviewer has something exact to compare the
+ * diff against, and so "done" is a claim about named criteria rather than
+ * a feeling.
+ *
+ * The file lives in the project, is written by the operator, and is never
+ * modified by the harness. A model that could edit its own acceptance
+ * criteria has none.
+ */
+
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
+export const FEATURES_FILE = "features.json";
+
+export const PRIORITIES = ["must", "should", "could", "wont"] as const;
+export type Priority = (typeof PRIORITIES)[number];
+
+export const STATUSES = ["todo", "doing", "done", "blocked"] as const;
+export type Status = (typeof STATUSES)[number];
+
+export interface Feature {
+  readonly id: string;
+  readonly title: string;
+  readonly priority: Priority;
+  readonly status: Status;
+  readonly criteria: readonly string[];
+  /** Ids that must be `done` first. Advisory: reported, never enforced silently. */
+  readonly dependsOn: readonly string[];
+}
+
+export type FeatureListResult =
+  | { readonly ok: true; readonly features: readonly Feature[] }
+  | { readonly ok: false; readonly reason: string };
+
+function fault(index: number, message: string): string {
+  return `${FEATURES_FILE}: item ${String(index)} ${message}`;
+}
+
+export function parseFeatures(text: string): FeatureListResult {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch (error) {
+    return { ok: false, reason: `${FEATURES_FILE} is not valid JSON: ${(error as Error).message}` };
+  }
+  const items = Array.isArray(raw) ? raw : (raw as { features?: unknown })?.features;
+  if (!Array.isArray(items)) {
+    return { ok: false, reason: `${FEATURES_FILE} must be an array of items, or an object with a "features" array.` };
+  }
+
+  const features: Feature[] = [];
+  const seen = new Set<string>();
+  for (const [index, entry] of items.entries()) {
+    const item = entry as Record<string, unknown>;
+    if (typeof item?.id !== "string" || item.id.trim() === "") {
+      return { ok: false, reason: fault(index, "has no id.") };
+    }
+    if (seen.has(item.id)) {
+      // Two items with one id means `work <id>` is ambiguous, and an
+      // ambiguous unit of work is not a unit of work.
+      return { ok: false, reason: `${FEATURES_FILE}: id ${item.id} appears more than once.` };
+    }
+    seen.add(item.id);
+    if (typeof item.title !== "string" || item.title.trim() === "") {
+      return { ok: false, reason: fault(index, `(${item.id}) has no title.`) };
+    }
+    if (!PRIORITIES.includes(item.priority as Priority)) {
+      return { ok: false, reason: fault(index, `(${item.id}) needs a priority: ${PRIORITIES.join(", ")}.`) };
+    }
+    if (!STATUSES.includes(item.status as Status)) {
+      return { ok: false, reason: fault(index, `(${item.id}) needs a status: ${STATUSES.join(", ")}.`) };
+    }
+    if (!Array.isArray(item.criteria) || item.criteria.length === 0
+      || item.criteria.some((c) => typeof c !== "string" || c.trim() === "")) {
+      return {
+        ok: false,
+        reason: fault(index, `(${item.id}) needs at least one non-empty acceptance criterion. `
+          + "An item with no criteria cannot be reviewed and cannot be finished."),
+      };
+    }
+    const dependsOn = item.dependsOn ?? [];
+    if (!Array.isArray(dependsOn) || dependsOn.some((d) => typeof d !== "string")) {
+      return { ok: false, reason: fault(index, `(${item.id}) has a malformed dependsOn.`) };
+    }
+    features.push({
+      id: item.id,
+      title: item.title,
+      priority: item.priority as Priority,
+      status: item.status as Status,
+      criteria: item.criteria as string[],
+      dependsOn: dependsOn as string[],
+    });
+  }
+
+  const ids = new Set(features.map((feature) => feature.id));
+  for (const feature of features) {
+    for (const dependency of feature.dependsOn) {
+      if (!ids.has(dependency)) {
+        return { ok: false, reason: `${FEATURES_FILE}: ${feature.id} depends on ${dependency}, which does not exist.` };
+      }
+    }
+  }
+  return { ok: true, features };
+}
+
+export async function readFeatures(project: string): Promise<FeatureListResult | undefined> {
+  let text;
+  try {
+    text = await readFile(path.join(project, FEATURES_FILE), "utf8");
+  } catch {
+    // No feature list is not an error. A free-form goal still works; the
+    // Reviewer just has less to check against, and says so.
+    return undefined;
+  }
+  return parseFeatures(text);
+}
+
+/** Unmet dependencies, so the operator is told rather than silently blocked. */
+export function unmetDependencies(feature: Feature, all: readonly Feature[]): string[] {
+  const byId = new Map(all.map((entry) => [entry.id, entry]));
+  return feature.dependsOn.filter((id) => byId.get(id)?.status !== "done");
+}
+
+/** MoSCoW order, then declaration order. What to do next, when unsure. */
+export function nextItems(features: readonly Feature[]): Feature[] {
+  const rank = (feature: Feature): number => PRIORITIES.indexOf(feature.priority);
+  return features
+    .filter((feature) => feature.status === "todo" || feature.status === "doing")
+    .filter((feature) => feature.priority !== "wont")
+    .sort((a, b) => rank(a) - rank(b));
+}
