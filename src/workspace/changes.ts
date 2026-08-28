@@ -58,7 +58,14 @@ export const EXCLUDED_FROM_COPY = new Set([
 /** Stands in for content that is never read, so a symlink can differ from a file. */
 const SYMLINK = "\u0000symlink";
 
-async function walk(root: string, prefix = ""): Promise<Map<string, string>> {
+/**
+ * Every file under `root` mapped to a fingerprint of its content.
+ *
+ * Exported because the build-determinism gate needs the same notion of
+ * "did anything change" as the apply step, and two notions of that would
+ * eventually disagree.
+ */
+export async function fingerprintTree(root: string, prefix = ""): Promise<Map<string, string>> {
   const found = new Map<string, string>();
   let entries;
   try {
@@ -70,7 +77,7 @@ async function walk(root: string, prefix = ""): Promise<Map<string, string>> {
     if (prefix === "" && EXCLUDED_FROM_COPY.has(entry.name)) continue;
     const relative = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
     if (entry.isDirectory()) {
-      for (const [key, value] of await walk(root, relative)) found.set(key, value);
+      for (const [key, value] of await fingerprintTree(root, relative)) found.set(key, value);
     } else {
       // Symlinks are recorded by path but never read for content. The
       // safety check below refuses them outright, so a symlink can be
@@ -87,7 +94,7 @@ async function walk(root: string, prefix = ""): Promise<Map<string, string>> {
 
 /** Every difference between the operator's project and the copy. */
 export async function collectChanges(original: string, copy: string): Promise<Change[]> {
-  const [before, after] = await Promise.all([walk(original), walk(copy)]);
+  const [before, after] = await Promise.all([fingerprintTree(original), fingerprintTree(copy)]);
   const changes: Change[] = [];
   for (const [file, content] of after) {
     const previous = before.get(file);

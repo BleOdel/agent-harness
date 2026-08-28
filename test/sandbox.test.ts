@@ -133,3 +133,27 @@ test("the mount list and the arguments cannot disagree", () => {
     );
   }
 });
+
+test("verification never has a network, and only the model run does", () => {
+  // "No network request during the run" is enforced by construction
+  // rather than watched for: a gate with no network cannot pass because a
+  // service was up or fail because one was down. Asserted here because it
+  // is a single argument, and a single argument is exactly the kind of
+  // thing that gets lost in a refactor.
+  const layout: SandboxLayout = {
+    dockerExecutable: "/usr/local/bin/docker",
+    imageId: `sha256:${"b".repeat(64)}`,
+    containerName: "harness-test",
+    workDirectory: "/tmp/work",
+    agentDirectory: "/tmp/agent",
+    piPackageDirectory: "/tmp/pi",
+    user: "501:20",
+  };
+  const verification = buildRunArguments(layout, "none", ["npm", "test"]);
+  assert.ok(verification.includes("--network=none"));
+  assert.equal(verification.includes("--network=bridge"), false);
+
+  const model = buildRunArguments(layout, "bridge", ["node", "cli.js"]);
+  assert.ok(model.includes("--network=bridge"));
+  assert.equal(model.includes("--network=none"), false);
+});

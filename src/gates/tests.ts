@@ -15,18 +15,11 @@ import path from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { buildRunArguments, CONTAINER_WORK, type SandboxLayout } from "../containment/sandbox.ts";
 import { run } from "../run.ts";
+import { failed, type GateVerdict, passed } from "./gate.ts";
 
 /** Written into the copy so the container can load it; removed before the diff. */
 export const COUNTER_IN_COPY = ".harness-assert-counter.mjs";
-const COUNT_FILE = ".harness-assert-count";
-
-export interface GateVerdict {
-  readonly passed: boolean;
-  /** One line. The operator reads this on success and nothing else. */
-  readonly summary: string;
-  /** Everything else. Shown only when `passed` is false. */
-  readonly detail: string;
-}
+export const COUNT_FILE = ".harness-assert-count";
 
 /** Sums the per-process counts. Absent or unreadable reads as zero. */
 async function assertionsExecuted(workDirectory: string): Promise<number> {
@@ -58,34 +51,25 @@ export async function runTestGate(
   const executed = await assertionsExecuted(layout.workDirectory);
 
   if (result.timedOut) {
-    return {
-      passed: false,
-      summary: `tests: timed out after ${String(Math.round(timeoutMs / 1000))}s`,
-      detail: result.stdout + result.stderr,
-    };
+    return failed(
+      "timed-out",
+      `tests: timed out after ${String(Math.round(timeoutMs / 1000))}s`,
+      result.stdout + result.stderr,
+    );
   }
   if (result.code !== 0) {
-    return {
-      passed: false,
-      summary: "tests: failed",
-      detail: result.stdout + result.stderr,
-    };
+    return failed("tests-failed", "tests: failed", result.stdout + result.stderr);
   }
   if (executed === 0) {
-    return {
-      passed: false,
-      // Deliberately not phrased as a passing suite. A suite that asserts
-      // nothing has not passed in any sense the operator cares about.
-      summary: "tests: exited zero but executed no assertions, so nothing was verified",
-      detail:
-        "The test command succeeded without a single assertion running. That is what an "
-        + "empty test file does, and what a test whose body never executes does.\n\n"
-        + result.stdout,
-    };
+    // Deliberately not phrased as a passing suite. A suite that asserts
+    // nothing has not passed in any sense the operator cares about.
+    return failed(
+      "tests-proved-nothing",
+      "tests: exited zero but executed no assertions, so nothing was verified",
+      "The test command succeeded without a single assertion running. That is what an "
+      + "empty test file does, and what a test whose body never executes does.\n\n"
+      + result.stdout,
+    );
   }
-  return {
-    passed: true,
-    summary: `tests: passed, ${String(executed)} assertions executed`,
-    detail: result.stdout,
-  };
+  return passed(`tests: passed, ${String(executed)} assertions executed`, result.stdout);
 }

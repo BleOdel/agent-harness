@@ -10,7 +10,16 @@ need, write what you like, run what you want.
 - **Assertions actually ran.** The gate counts executed assertions and
   refuses a suite that ran none. A test file with no `assert` call passes
   every runner and proves nothing; it will not get past this.
+- **Every test file is one the runner collects.** `npm test` globs
+  `test/*.test.ts` and does not recurse. A test anywhere else is green by
+  never running, and it hides whatever it was written to catch.
+- **`npm run build` changes nothing.** Committed artefacts must already
+  match what their sources produce.
 - **Every change is inside the project**, a real file, not a symlink.
+- **The claim matches reality.** Write `.harness-claim.json` naming every
+  file you changed, every file you deleted, and every acceptance criterion
+  with the file that verifies it. It is checked against the actual change
+  set, so it must be exact, and it is never applied to the repository.
 
 If you cannot make the tests pass, stop and say what blocked you. A
 disabled test, a deleted assertion, or a test rewritten to match broken
