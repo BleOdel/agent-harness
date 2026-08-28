@@ -13,7 +13,8 @@
     "verify:boundary": "node --experimental-strip-types src/verify-boundary.ts",
     "work": "node --experimental-strip-types src/work.ts",
     "verify:gates": "node --test --experimental-strip-types test/pipeline.test.ts",
-    "verify:reviewer": "node --experimental-strip-types src/verify-reviewer.ts"
+    "verify:reviewer": "node --experimental-strip-types src/verify-reviewer.ts",
+    "undo": "node --experimental-strip-types src/undo.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

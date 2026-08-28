@@ -25,6 +25,7 @@ import { CLAIM_FILE } from "./gates/claim.ts";
 import { DEFAULT_LIMITS, type Limits } from "./gates/limits.ts";
 import { type Feature, readFeatures, unmetDependencies } from "./features.ts";
 import { runPipeline } from "./pipeline.ts";
+import { appendRun, nextRunId, type Outcome, recoveryPath } from "./record/record.ts";
 import { renderDiff } from "./review/diff.ts";
 import { review } from "./review/reviewer.ts";
 import {
@@ -238,10 +239,28 @@ async function main(): Promise<void> {
       say(`review: passed, ${String(work.criteria.length)} criteria accounted for`);
 
       await rm(path.join(sandbox.workDirectory, CLAIM_FILE), { force: true });
-      const recovery = await snapshotForRecovery(project, changes);
+      const runId = await nextRunId(project);
+      const recovery = await snapshotForRecovery(
+        project,
+        sandbox.workDirectory,
+        changes,
+        recoveryPath(project, runId),
+      );
       await applyChanges(project, sandbox.workDirectory, changes);
+      await appendRun(project, {
+        id: runId,
+        at: new Date().toISOString(),
+        project,
+        goal: work.feature?.id ?? goal,
+        attempts: attempt,
+        outcome: "applied",
+        gates: run.verdicts.map((entry) => entry.summary),
+        review: { verdict: verdict.verdict, findings: [...verdict.unmet, ...verdict.unaccounted] },
+        changes,
+      });
       for (const change of changes) say(`  ${change.kind.padEnd(8)} ${change.file}`);
-      say(`applied. recovery: ${recovery.directory}`);
+      say(`applied as ${runId}. undo with: npm run undo -- ${runId}`);
+      say(`recovery: ${recovery.directory}`);
       return;
     }
   } finally {

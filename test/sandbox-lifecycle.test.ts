@@ -81,10 +81,22 @@ test("a snapshot restores every kind of change", async () => {
       "added src/new.ts",
     ]);
 
-    const recovery = await snapshotForRecovery(directory, changes);
+    const recovery = await snapshotForRecovery(
+      directory,
+      sandbox.workDirectory,
+      changes,
+      path.join(path.dirname(directory), "recovery-under-test"),
+    );
     await applyChanges(directory, sandbox.workDirectory, changes);
     assert.equal(await readFile(path.join(directory, "src", "app.ts"), "utf8"), "export const version = 2;\n");
     assert.equal(existsSync(path.join(directory, "README.md")), false);
+
+    // The snapshot holds both sides: `before` to restore from, `after` as
+    // the base a three-way merge needs when later work sits on top.
+    assert.equal(
+      await readFile(path.join(recovery.directory, "after", "src", "app.ts"), "utf8"),
+      "export const version = 2;\n",
+    );
 
     // Reverse it using only what the snapshot holds.
     const record = JSON.parse(await readFile(path.join(recovery.directory, "CHANGES.json"), "utf8")) as {
@@ -92,7 +104,12 @@ test("a snapshot restores every kind of change", async () => {
     };
     for (const change of record.changes) {
       if (change.kind === "added") await rm(path.join(directory, change.file), { force: true });
-      else await writeFile(path.join(directory, change.file), await readFile(path.join(recovery.directory, change.file)));
+      else {
+        await writeFile(
+          path.join(directory, change.file),
+          await readFile(path.join(recovery.directory, "before", change.file)),
+        );
+      }
     }
     assert.equal(await readFile(path.join(directory, "src", "app.ts"), "utf8"), "export const version = 1;\n");
     assert.equal(await readFile(path.join(directory, "README.md"), "utf8"), "# project\n");
@@ -100,7 +117,7 @@ test("a snapshot restores every kind of change", async () => {
   } finally {
     await destroySandbox(sandbox);
     await rm(path.dirname(directory), { recursive: true, force: true });
-    await rm(`${directory}-recovery`, { recursive: true, force: true });
+    await rm(path.join(path.dirname(directory), "recovery-under-test"), { recursive: true, force: true });
   }
 });
 

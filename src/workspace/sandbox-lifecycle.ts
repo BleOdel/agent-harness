@@ -56,30 +56,38 @@ export interface Recovery {
 }
 
 /**
- * Copies every file the change set will touch, as it is now, to a
- * directory outside the project. Written before anything is applied, so
- * an apply that fails halfway is still recoverable.
+ * Copies every file the change set touches -- as it is now, and as the
+ * change would leave it -- to a directory outside the project.
  *
- * Deletions are snapshotted too -- they are the changes that most need it.
+ * Both sides, not just the original. Restoring the original is enough to
+ * undo a change nothing has built on; undoing a change that later work
+ * sits on top of needs a base to merge against, and that base is what
+ * this run left behind. Deletions are snapshotted too: they are the
+ * changes that most need it.
+ *
+ * Written before anything is applied, so an apply that fails halfway is
+ * still recoverable.
  */
 export async function snapshotForRecovery(
   project: string,
+  copy: string,
   changes: readonly Change[],
+  directory: string,
 ): Promise<Recovery> {
-  const stamp = new Date().toISOString().replaceAll(/[:.]/gu, "-");
-  const directory = path.join(path.dirname(project), `${path.basename(project)}-recovery`, stamp);
   const files: string[] = [];
   for (const change of changes) {
-    if (change.kind === "added") continue;
-    const source = path.join(project, change.file);
-    const destination = path.join(directory, change.file);
-    await mkdir(path.dirname(destination), { recursive: true });
-    await writeFile(destination, await readFile(source));
+    if (change.kind !== "added") {
+      const destination = path.join(directory, "before", change.file);
+      await mkdir(path.dirname(destination), { recursive: true });
+      await writeFile(destination, await readFile(path.join(project, change.file)));
+    }
+    if (change.kind !== "deleted") {
+      const destination = path.join(directory, "after", change.file);
+      await mkdir(path.dirname(destination), { recursive: true });
+      await writeFile(destination, await readFile(path.join(copy, change.file)));
+    }
     files.push(change.file);
   }
-  // Records the additions too, so recovery knows what to remove. A
-  // snapshot that can restore edits but not undo new files leaves the
-  // repository in a state that never existed.
   await mkdir(directory, { recursive: true });
   await writeFile(
     path.join(directory, "CHANGES.json"),
