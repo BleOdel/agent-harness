@@ -63,9 +63,9 @@ irreversible.
 | M3 Reviewer | ~350 | 664 |
 | M4 reversibility | ~500 | 554 |
 | M5 surface | ~800 | 854 |
-| **total** | **~4,100** | **3,675** |
+| **total** | **~4,100** | **3,725** |
 
-Against v1's 26,000-line tree, of which 3,470 lines were cryptographic
+Against v1's 25,330 lines of source, of which 3,470 were cryptographic
 evidence machinery that one diagnosis ever read.
 
 99 tests, 0 failures. Three commands prove the parts that tests cannot:
