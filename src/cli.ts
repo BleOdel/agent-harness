@@ -18,6 +18,7 @@ import path from "node:path";
 import { add } from "./verbs/add.ts";
 import { OperatorError, say } from "./verbs/io.ts";
 import { look } from "./verbs/look.ts";
+import { plan } from "./verbs/plan.ts";
 import { show } from "./verbs/show.ts";
 import { undo } from "./verbs/undo.ts";
 import { work } from "./verbs/work.ts";
@@ -25,6 +26,7 @@ import { work } from "./verbs/work.ts";
 const USAGE = [
   "harness — build software in a sandbox, prove it, then apply it.",
   "",
+  "  npm run plan [-- <topic>]      an interview, in the sandbox, to settle criteria",
   "  npm run add  -- <id> --title \"...\" --criterion \"...\" [--priority must]",
   "  npm run work [-- <item-id or goal>]",
   "  npm run look",
@@ -42,6 +44,8 @@ async function main(): Promise<void> {
   switch (verb) {
     case "add":
       return add(project, rest);
+    case "plan":
+      return plan(rest);
     case "work":
       return work(rest);
     case "look":

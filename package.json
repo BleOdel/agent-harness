@@ -18,7 +18,8 @@
     "add": "node --experimental-strip-types src/cli.ts add",
     "look": "node --experimental-strip-types src/cli.ts look",
     "show": "node --experimental-strip-types src/cli.ts show",
-    "harness": "node --experimental-strip-types src/cli.ts"
+    "harness": "node --experimental-strip-types src/cli.ts",
+    "plan": "node --experimental-strip-types src/cli.ts plan"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

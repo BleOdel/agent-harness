@@ -20,11 +20,17 @@ export function run(
     onOutput?: (chunk: string) => void;
     /** Replaces the environment entirely. Omitted means inherit. */
     env?: NodeJS.ProcessEnv;
+    /**
+     * Hand the child this process's terminal. Nothing is captured, so
+     * `stdout` comes back empty -- the caller wanted a conversation, not
+     * a transcript.
+     */
+    interactive?: boolean;
   } = { timeoutMs: 300_000 },
 ): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(executable, [...args], {
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: options.interactive === true ? "inherit" : ["ignore", "pipe", "pipe"],
       ...(options.env === undefined ? {} : { env: options.env }),
     });
     let stdout = "";
@@ -35,12 +41,12 @@ export function run(
       child.kill("SIGKILL");
     }, options.timeoutMs);
     timer.unref();
-    child.stdout.on("data", (chunk: Buffer) => {
+    child.stdout?.on("data", (chunk: Buffer) => {
       const text = chunk.toString("utf8");
       stdout += text;
       options.onOutput?.(text);
     });
-    child.stderr.on("data", (chunk: Buffer) => {
+    child.stderr?.on("data", (chunk: Buffer) => {
       stderr += chunk.toString("utf8");
     });
     child.once("error", (error) => {

@@ -146,10 +146,11 @@ Only skills that work without a human are worth mounting. The interview
 and planning ones — anything marked `disable-model-invocation` — need
 someone to answer, and there is nobody inside the container.
 
-## The five verbs
+## The six verbs
 
 | | |
 |---|---|
+| `npm run plan [-- <topic>]` | an interview, in the sandbox, to settle criteria |
 | `npm run add -- <id> …` | put an item on the feature list |
 | `npm run work [-- <id>]` | build the next Must, or a named item |
 | `npm run look` | what happened, what is pending, what escalated and why |
@@ -158,6 +159,29 @@ someone to answer, and there is nobody inside the container.
 
 `work` with no argument takes the next Must from `features.json`. Point it
 at a project with `HARNESS_PROJECT`, or run it from inside one.
+
+### Why there is a sixth
+
+The plan said five, and the sixth earns the exception by closing a gap the
+five could not. `work` demands acceptance criteria and offers no help
+writing them, while everything downstream — the reviewer's judgement,
+whether an escalation means anything — rests on how good they are. `add`
+takes whatever string you type.
+
+`plan` runs Pi **interactively**, with your terminal attached to the
+container, so an interview skill can ask a round of questions and wait for
+your answers. `work` cannot do this: it runs with `--print`, one prompt in
+and one answer out, with nobody to wait for.
+
+Nothing a `plan` run does is ever applied. The model works in a disposable
+copy and writes one file, collected to `<project>-harness/plans/` rather
+than into the project. A plan is a document to argue with, not a change,
+and it faces none of the gates because it changes nothing they could
+check.
+
+The containment is identical to every other run — verified by asserting
+that an interactive argument list differs from a one-shot one by exactly
+`--interactive` and `--tty` and nothing else.
 
 ## How a run works
 

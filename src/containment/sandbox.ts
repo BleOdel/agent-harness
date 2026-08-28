@@ -147,6 +147,13 @@ export function buildRunArguments(
   layout: SandboxLayout,
   network: "none" | "bridge",
   command: readonly string[],
+  /**
+   * Attach a terminal. Only `plan` uses this: an interview skill asks a
+   * round of questions and waits for answers, which needs a human on the
+   * other end of stdin. Nothing about the containment changes -- the
+   * flags below are identical either way.
+   */
+  interactive = false,
 ): string[] {
   assertMountsAreSafe(layout);
   if (command.length === 0) {
@@ -163,6 +170,7 @@ export function buildRunArguments(
   return [
     "run",
     "--rm",
+    ...(interactive ? ["--interactive", "--tty"] : []),
     "--pull=never",
     "--read-only",
     "--cap-drop=ALL",
