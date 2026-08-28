@@ -18,48 +18,7 @@ import { realpath } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { buildRunArguments, CONTAINER_WORK, type SandboxLayout } from "./containment/sandbox.ts";
-
-/**
- * Runs inside the container. Each check is a distinct exit code so a
- * failure names which property broke rather than "the probe failed".
- */
-function probeScript(): string {
-  return [
-    "const fs = require('node:fs');",
-    // The model must not be root, or every other control is decoration.
-    "if (process.getuid?.() === 0) process.exit(10);",
-    // The work copy is the one place writes belong.
-    `try { fs.writeFileSync('${CONTAINER_WORK}/.probe', 'ok'); fs.unlinkSync('${CONTAINER_WORK}/.probe'); }`,
-    "  catch { process.exit(11); }",
-    // The container's own filesystem is not writable.
-    "for (const target of ['/probe-root', '/opt/pi-package/.probe', '/etc/probe']) {",
-    "  try { fs.writeFileSync(target, 'x'); process.exit(12); }",
-    "  catch (error) { if (!['EACCES','EROFS','ENOENT','EPERM'].includes(error?.code)) process.exit(13); }",
-    "}",
-    // No host filesystem. These exist on the host and must not be here.
-    "for (const target of ['/Users', '/home/blessingodeleye', '/var/root']) {",
-    "  if (fs.existsSync(target)) process.exit(14);",
-    "}",
-    // No capabilities, no way to gain any.
-    "const status = fs.readFileSync('/proc/self/status', 'utf8');",
-    "if (!/^CapEff:\\s+0+$/m.test(status)) process.exit(15);",
-    "if (!/^NoNewPrivs:\\s+1$/m.test(status)) process.exit(16);",
-    // No Docker socket, so no escape by asking Docker for one.
-    "if (fs.existsSync('/var/run/docker.sock')) process.exit(17);",
-    "process.stdout.write('boundary-ok');",
-  ].join("\n");
-}
-
-const FAILURES: Record<number, string> = {
-  10: "the container ran as root",
-  11: "the disposable work copy was not writable",
-  12: "the container filesystem was writable",
-  13: "a write failed for an unexpected reason",
-  14: "the host filesystem was visible inside the container",
-  15: "the container held Linux capabilities",
-  16: "no-new-privileges was not set",
-  17: "the Docker socket was reachable",
-};
+import { BOUNDARY_FAILURES, probeScript } from "./containment/probe.ts";
 
 function run(
   executable: string,
@@ -129,7 +88,7 @@ async function main(): Promise<void> {
     );
 
     if (result.code !== 0) {
-      const reason = FAILURES[result.code ?? -1]
+      const reason = BOUNDARY_FAILURES[result.code ?? -1]
         ?? `docker exited ${String(result.code)}: ${result.stderr.trim().slice(0, 300)}`;
       fail(reason);
     }
