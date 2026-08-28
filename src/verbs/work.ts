@@ -19,13 +19,14 @@ import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { runAgent } from "../agent/pi.ts";
 import { diagnose } from "../attribution.ts";
-import { ConfigError, loadConfig } from "../config.ts";
+import { ConfigError, loadConfig, setting } from "../config.ts";
 import { OperatorError, say } from "./io.ts";
 import { type SandboxLayout } from "../containment/sandbox.ts";
 import { CLAIM_FILE } from "../gates/claim.ts";
 import { counterPath } from "../gates/tests.ts";
 import { DEFAULT_LIMITS, type Limits } from "../gates/limits.ts";
 import { chooseNext, type Feature, markDone, readFeatures, unmetDependencies } from "../features.ts";
+import { listSkills } from "../agent/skills.ts";
 import { runPipeline } from "../pipeline.ts";
 import { appendRun, nextRunId, type Outcome, readRecord, recoveryPath, type RunRecord } from "../record/record.ts";
 import { renderDiff } from "../review/diff.ts";
@@ -155,8 +156,10 @@ export async function work(argv: readonly string[]): Promise<void> {
     throw error;
   }
 
-  const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
-  const testCommand = (process.env.HARNESS_TEST_COMMAND ?? "npm test").split(" ").filter(Boolean);
+  const project = path.resolve(setting(process.env, "HARNESS_PROJECT") ?? process.cwd());
+  const testCommand = (setting(process.env, "HARNESS_TEST_COMMAND") ?? "npm test")
+    .split(" ")
+    .filter(Boolean);
   const counterSource = await readFile(counterPath(), "utf8");
 
   const work = await resolveWork(project, goal);
@@ -177,8 +180,16 @@ export async function work(argv: readonly string[]): Promise<void> {
     workDirectory: sandbox.workDirectory,
     agentDirectory: config.agentDirectory,
     piPackageDirectory: config.piPackageDirectory,
+    ...(config.skillsDirectory === undefined ? {} : { skillsDirectory: config.skillsDirectory }),
     user: `${String(process.getuid?.() ?? 501)}:${String(process.getgid?.() ?? 20)}`,
   };
+  if (config.skillsDirectory !== undefined) {
+    // Named, not implied. Instructions reaching the model from outside the
+    // project are exactly the thing an operator should never discover by
+    // reading the source.
+    const loaded = await listSkills(config.skillsDirectory);
+    say(`skills: ${loaded.length === 0 ? "none found in " + config.skillsDirectory : loaded.join(", ")}`);
+  }
 
   const runId = await nextRunId(project);
 
@@ -222,7 +233,13 @@ export async function work(argv: readonly string[]): Promise<void> {
       if (attempt > 1) say(`\nattempt ${String(attempt)}, with a diagnosis`);
       const agent = await runAgent(
         layout,
-        { goal: instruction, provider: config.provider, model: config.model, timeoutMs: config.agentTimeoutMs },
+        {
+          goal: instruction,
+          provider: config.provider,
+          model: config.model,
+          timeoutMs: config.agentTimeoutMs,
+          skills: config.skillsDirectory !== undefined,
+        },
         (chunk) => process.stdout.write(chunk),
       );
       if (agent.timedOut) {

@@ -17,12 +17,37 @@ export interface Config {
   readonly piPackageDirectory: string;
   /** Pi's data directory on the host, holding its provider credential. */
   readonly agentDirectory: string;
+  /** Skills to load into the builder. Absent means none, asserted. */
+  readonly skillsDirectory: string | undefined;
   readonly provider: string | undefined;
   readonly model: string | undefined;
   /** Wall-clock ceiling for one model run, in milliseconds. */
   readonly agentTimeoutMs: number;
   /** Wall-clock ceiling for one gate run, in milliseconds. */
   readonly gateTimeoutMs: number;
+}
+
+/**
+ * An environment variable, with empty treated as absent.
+ *
+ * `??` is wrong for environment variables: a variable set to the empty
+ * string is set, so a default written as `env.X ?? "fallback"` silently
+ * yields "". Every `.env` file in existence contains commented-out
+ * settings written as `X=`, and sourcing one makes them empty rather than
+ * missing.
+ *
+ * This cost a long debugging session. HARNESS_TEST_COMMAND="" became an
+ * empty command list, Docker ran the image's default entrypoint instead
+ * of the tests, that exited 0 with no output, and the gate reported
+ * "exited zero but executed no assertions" -- a precise, confident, and
+ * entirely wrong diagnosis of a project whose tests were fine.
+ */
+export function setting(
+  environment: NodeJS.ProcessEnv,
+  name: string,
+): string | undefined {
+  const value = environment[name]?.trim();
+  return value === undefined || value === "" ? undefined : value;
 }
 
 export class ConfigError extends Error {
@@ -48,7 +73,7 @@ function positiveInteger(raw: string | undefined, fallback: number, name: string
 }
 
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config {
-  const dockerExecutable = environment.HARNESS_DOCKER ?? "/usr/local/bin/docker";
+  const dockerExecutable = setting(environment, "HARNESS_DOCKER") ?? "/usr/local/bin/docker";
   if (!existsSync(dockerExecutable)) {
     throw new ConfigError(
       `No Docker executable at ${dockerExecutable}.`,
@@ -56,7 +81,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
     );
   }
 
-  const imageId = environment.HARNESS_IMAGE_ID ?? "";
+  const imageId = setting(environment, "HARNESS_IMAGE_ID") ?? "";
   if (!/^sha256:[0-9a-f]{64}$/u.test(imageId)) {
     throw new ConfigError(
       "HARNESS_IMAGE_ID is not an immutable sha256 image id.",
@@ -65,7 +90,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
     );
   }
 
-  const piPackageDirectory = environment.HARNESS_PI_PACKAGE ?? "";
+  const piPackageDirectory = setting(environment, "HARNESS_PI_PACKAGE") ?? "";
   if (piPackageDirectory === "" || !existsSync(piPackageDirectory)) {
     throw new ConfigError(
       `Pi's package directory ${piPackageDirectory === "" ? "is unset" : `is not at ${piPackageDirectory}`}.`,
@@ -73,7 +98,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
     );
   }
 
-  const agentDirectory = environment.HARNESS_AGENT_DIR ?? "";
+  const agentDirectory = setting(environment, "HARNESS_AGENT_DIR") ?? "";
   if (agentDirectory === "" || !existsSync(agentDirectory)) {
     throw new ConfigError(
       `Pi's data directory ${agentDirectory === "" ? "is unset" : `is not at ${agentDirectory}`}.`,
@@ -82,14 +107,24 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
     );
   }
 
+  const skills = setting(environment, "HARNESS_SKILLS");
+  if (skills !== undefined && !existsSync(skills)) {
+    throw new ConfigError(
+      `No skills directory at ${skills}.`,
+      "Point HARNESS_SKILLS at a directory of skills, or unset it to run with none.\n"
+      + "Skills are loaded read-only into the builder and never reach the reviewer.",
+    );
+  }
+
   return {
     dockerExecutable,
     imageId,
     piPackageDirectory,
     agentDirectory,
-    provider: environment.HARNESS_PROVIDER?.trim() || undefined,
-    model: environment.HARNESS_MODEL?.trim() || undefined,
-    agentTimeoutMs: positiveInteger(environment.HARNESS_AGENT_TIMEOUT, 900_000, "HARNESS_AGENT_TIMEOUT"),
-    gateTimeoutMs: positiveInteger(environment.HARNESS_GATE_TIMEOUT, 300_000, "HARNESS_GATE_TIMEOUT"),
+    skillsDirectory: skills,
+    provider: setting(environment, "HARNESS_PROVIDER"),
+    model: setting(environment, "HARNESS_MODEL"),
+    agentTimeoutMs: positiveInteger(setting(environment, "HARNESS_AGENT_TIMEOUT"), 900_000, "HARNESS_AGENT_TIMEOUT"),
+    gateTimeoutMs: positiveInteger(setting(environment, "HARNESS_GATE_TIMEOUT"), 300_000, "HARNESS_GATE_TIMEOUT"),
   };
 }

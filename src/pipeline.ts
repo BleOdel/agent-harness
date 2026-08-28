@@ -17,7 +17,7 @@ import { CLAIM_FILE, checkClaim, checkCriteriaEvidence, readClaim } from "./gate
 import { type Gate, type GateRun, runGates } from "./gates/gate.ts";
 import { checkLimits, type Limits } from "./gates/limits.ts";
 import { checkTestCollection, resolveTestCommand } from "./gates/test-collection.ts";
-import { COUNTER_IN_COPY, COUNT_FILE, runTestGate } from "./gates/tests.ts";
+import { COUNTER_IN_COPY, COUNT_FILE, runTestGate, SHIM_IN_COPY } from "./gates/tests.ts";
 import { type Change, collectChanges } from "./workspace/changes.ts";
 
 export interface PipelineInputs {
@@ -48,6 +48,7 @@ export async function runPipeline(inputs: PipelineInputs): Promise<PipelineResul
   // as the apply step, or they are checking something else.
   const clean = async (): Promise<Change[]> => {
     await rm(path.join(work, COUNTER_IN_COPY), { force: true });
+    await rm(path.join(work, SHIM_IN_COPY), { force: true });
     await rm(path.join(work, COUNT_FILE), { force: true });
     const changes = await collectChanges(project, work);
     return changes.filter((change) => change.file !== CLAIM_FILE);

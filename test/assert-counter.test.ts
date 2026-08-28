@@ -85,6 +85,51 @@ test("a passing suite that asserts nothing counts zero", async () => {
   assert.equal(counted, 0);
 });
 
+test("named and namespace imports are counted, not only the default", async () => {
+  // ESM binds a named import to the original function when the module is
+  // linked, so patching the module object afterwards never reaches it.
+  // The counter reported zero for a fully tested module written this way,
+  // and the run was refused twice -- honest work rejected by the check
+  // meant to protect it. Found by a real run, not by this suite.
+  const { counted, code, ran } = await countFor([
+    'import test from "node:test";',
+    'import def from "node:assert/strict";',
+    'import { equal, ok } from "node:assert/strict";',
+    'import * as ns from "node:assert/strict";',
+    'test("every import style", () => {',
+    "  def.equal(1, 1);",
+    "  equal(1, 1);",
+    "  ok(true);",
+    "  ns.equal(1, 1);",
+    "});",
+  ].join("\n"));
+  assert.equal(code, 0);
+  assert.ok(ran, "the fixture suite did not run");
+  assert.equal(counted, 4);
+});
+
+test("the runner's own t.assert is counted, except for t.assert.ok", async () => {
+  // Measured, not assumed: four of these five reach the module functions
+  // the counter patched. t.assert.ok does not -- Node implements it
+  // natively. The number the gate reports is therefore a floor, and the
+  // only way to reach a false zero is a suite whose every assertion is
+  // t.assert.ok. The gate's failure text names that case so it is
+  // diagnosable rather than baffling.
+  const { counted, code, ran } = await countFor([
+    'import test from "node:test";',
+    'test("context assert", (t) => {',
+    "  t.assert.equal(1, 1);",
+    "  t.assert.strictEqual(1, 1);",
+    "  t.assert.deepEqual({ a: 1 }, { a: 1 });",
+    '  t.assert.match("ab", /a/);',
+    "  t.assert.ok(true);",
+    "});",
+  ].join("\n"));
+  assert.equal(code, 0);
+  assert.ok(ran);
+  assert.equal(counted, 4, "five executed; t.assert.ok is the known blind spot");
+});
+
 test("assertions are counted through the plain assert module too", async () => {
   const { counted, code, ran } = await countFor([
     'import test from "node:test";',

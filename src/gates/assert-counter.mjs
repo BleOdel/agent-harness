@@ -5,22 +5,44 @@
  * process the test command spawns -- including through `npm test`, which
  * is one layer of indirection that would defeat a per-file approach.
  *
- * A real file rather than a program built inside a string literal. The
- * boundary probe took that shortcut and lost a verification round to an
- * escape sequence consumed at emit time; nothing here is worth repeating
- * that for.
+ * Two mechanisms, because neither is sufficient alone:
+ *
+ * 1. A resolve hook that redirects `node:assert` to a shim whose every
+ *    export is wrapped. This is what catches named and namespace imports,
+ *    which bind at link time and are untouchable afterwards.
+ * 2. Patching the module objects, which catches `require("node:assert")`
+ *    and the test runner's own `t.assert.*`, since those reach the real
+ *    module rather than an import binding.
+ *
+ * Both increment one counter on globalThis, so a call counted by one is
+ * never counted again by the other.
  */
 
 import fs from "node:fs";
+import { registerHooks } from "node:module";
 import assert from "node:assert";
 import strict from "node:assert/strict";
 
-let executed = 0;
-const seen = new Set();
+globalThis.__harnessAssertions ??= 0;
+
+const SHIM = new URL("./assert-shim.mjs", import.meta.url).href;
+const REDIRECTED = new Set(["node:assert", "assert", "node:assert/strict", "assert/strict"]);
+
+registerHooks({
+  resolve(specifier, context, next) {
+    // The shim's own require of the real module must pass through, or it
+    // resolves to itself and the two deadlock.
+    if (REDIRECTED.has(specifier) && !(context.parentURL ?? "").startsWith(SHIM)) {
+      return { url: `${SHIM}?m=${encodeURIComponent(specifier)}`, shortCircuit: true };
+    }
+    return next(specifier, context);
+  },
+});
+
 const count = (fn) =>
   new Proxy(fn, {
     apply(target, self, args) {
-      executed += 1;
+      globalThis.__harnessAssertions += 1;
       return Reflect.apply(target, self, args);
     },
   });
@@ -28,12 +50,7 @@ const count = (fn) =>
 // node:assert/strict and assert.strict are the same object. Without the
 // identity check a two-assertion suite reports four -- a gate claiming
 // more verification than happened. Verified by removing it.
-//
-// There is deliberately no second dedupe on the functions themselves. One
-// was written here and removing it changed no count, because distinct
-// module objects hold distinct property slots even when the underlying
-// function is shared. A guard that cannot be made to fail is not
-// protection, it is furniture.
+const seen = new Set();
 for (const module of [assert, strict, assert.strict]) {
   if (!module || seen.has(module)) continue;
   seen.add(module);
@@ -53,7 +70,7 @@ process.on("exit", () => {
   const target = process.env.HARNESS_ASSERT_COUNT_FILE;
   if (!target) return;
   try {
-    fs.appendFileSync(target, `${executed}\n`);
+    fs.appendFileSync(target, `${globalThis.__harnessAssertions}\n`);
   } catch {
     // Nothing to do from inside an exit handler. A missing count reads as
     // zero, which fails the gate closed.

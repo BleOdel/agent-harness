@@ -157,3 +157,25 @@ test("verification never has a network, and only the model run does", () => {
   assert.ok(model.includes("--network=bridge"));
   assert.equal(model.includes("--network=none"), false);
 });
+
+test("a container is never started without a command", () => {
+  // Docker would run the image's default entrypoint. For a Node image
+  // that is a bare `node`: it reads EOF, exits 0, and prints nothing. A
+  // gate then sees a successful run that did nothing, and reports
+  // whatever absence looks like -- in practice, "your tests assert
+  // nothing" about a project whose tests were fine.
+  const layout: SandboxLayout = {
+    dockerExecutable: "/usr/local/bin/docker",
+    imageId: `sha256:${"e".repeat(64)}`,
+    containerName: "harness-empty-command",
+    workDirectory: "/tmp/work",
+    agentDirectory: "/tmp/agent",
+    piPackageDirectory: "/tmp/pi",
+    user: "501:20",
+  };
+  assert.throws(
+    () => buildRunArguments(layout, "none", []),
+    (error: unknown) => error instanceof ContainmentError && error.code === "EMPTY_COMMAND",
+  );
+  assert.doesNotThrow(() => buildRunArguments(layout, "none", ["npm", "test"]));
+});

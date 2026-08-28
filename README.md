@@ -115,6 +115,37 @@ npm run verify:boundary
 # no Docker socket, read-only container, writable copy only
 ```
 
+## Skills
+
+Pi loads skills — directories containing a `SKILL.md` — and the harness
+can mount a directory of them into the builder, read-only:
+
+```bash
+HARNESS_SKILLS=~/Developer/agent-skills npm run work
+```
+
+```
+skills: codebase-design, diagnosing-bugs, domain-modeling, tdd
+```
+
+Loading is deliberate in both directions. With no directory configured,
+the harness passes `--no-skills` rather than leaving Pi's own discovery to
+find whatever happens to be installed in its data directory — which is
+mounted writable, so something could appear there without anyone deciding
+it should. What loads is printed by name.
+
+**The reviewer never gets skills**, even when the builder does. Its job is
+fixed, and a skill could redefine what it finds acceptable — the one
+opinion here that must not depend on what is installed.
+
+**A skills directory inside the project is refused**, because it would be
+in the copy too, where the model could rewrite the instructions it is
+then given.
+
+Only skills that work without a human are worth mounting. The interview
+and planning ones — anything marked `disable-model-invocation` — need
+someone to answer, and there is nobody inside the container.
+
 ## The five verbs
 
 | | |

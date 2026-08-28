@@ -29,8 +29,19 @@ export function counterPath(): string {
   return path.join(import.meta.dirname, "assert-counter.mjs");
 }
 
+/**
+ * The shim the counter's resolve hook redirects to. A second file, and
+ * therefore a second thing to forget to copy: the counter registers a
+ * hook pointing at a sibling path, so a run with the counter and without
+ * the shim fails every test file with a resolution error.
+ */
+export function shimPath(): string {
+  return path.join(import.meta.dirname, "assert-shim.mjs");
+}
+
 /** Written into the copy so the container can load it; removed before the diff. */
 export const COUNTER_IN_COPY = ".harness-assert-counter.mjs";
+export const SHIM_IN_COPY = ".harness-assert-shim.mjs";
 export const COUNT_FILE = ".harness-assert-count";
 
 /** Sums the per-process counts. Absent or unreadable reads as zero. */
@@ -49,7 +60,14 @@ export async function runTestGate(
   command: readonly string[],
   timeoutMs: number,
 ): Promise<GateVerdict> {
-  await writeFile(path.join(layout.workDirectory, COUNTER_IN_COPY), counterSource, "utf8");
+  // The counter's hook resolves the shim as a sibling, so the two names
+  // in the copy must keep the same relationship as the two on disk.
+  await writeFile(
+    path.join(layout.workDirectory, COUNTER_IN_COPY),
+    counterSource.replace("./assert-shim.mjs", `./${SHIM_IN_COPY}`),
+    "utf8",
+  );
+  await writeFile(path.join(layout.workDirectory, SHIM_IN_COPY), await readFile(shimPath(), "utf8"), "utf8");
   await writeFile(path.join(layout.workDirectory, COUNT_FILE), "", "utf8");
 
   const args = buildRunArguments(layout, "none", command);
@@ -80,6 +98,11 @@ export async function runTestGate(
       "tests: exited zero but executed no assertions, so nothing was verified",
       "The test command succeeded without a single assertion running. That is what an "
       + "empty test file does, and what a test whose body never executes does.\n\n"
+      + "One known blind spot, if you believe the suite does assert: `t.assert.ok` is "
+      + "implemented natively by the test runner and is not observed. Every other "
+      + "assertion style is -- module, named import, namespace import, require, and the "
+      + "runner's other t.assert methods. A suite whose every assertion is t.assert.ok "
+      + "will read as zero here.\n\n"
       + result.stdout,
     );
   }

@@ -10,7 +10,12 @@
  * needs and writes what it likes, inside a copy it cannot escape.
  */
 
-import { buildRunArguments, CONTAINER_PI_PACKAGE, type SandboxLayout } from "../containment/sandbox.ts";
+import {
+  buildRunArguments,
+  CONTAINER_PI_PACKAGE,
+  CONTAINER_SKILLS,
+  type SandboxLayout,
+} from "../containment/sandbox.ts";
 import { run, type RunResult } from "../run.ts";
 
 export interface AgentRequest {
@@ -18,6 +23,8 @@ export interface AgentRequest {
   readonly provider: string | undefined;
   readonly model: string | undefined;
   readonly timeoutMs: number;
+  /** Whether a skills directory was mounted for this run. */
+  readonly skills: boolean;
 }
 
 export function buildAgentCommand(request: AgentRequest): string[] {
@@ -29,6 +36,11 @@ export function buildAgentCommand(request: AgentRequest): string[] {
     // There is no operator at the keyboard inside a container, and a
     // prompt nobody can answer is a hang, not a safeguard.
     "--approve",
+    // Loading is deliberate and stated, in both directions. Pi discovers
+    // skills on its own if left alone, so a skill dropped into its data
+    // directory would start reaching the builder with nothing in the
+    // output saying so. Either it is mounted and named, or it is off.
+    ...(request.skills ? ["--skill", CONTAINER_SKILLS] : ["--no-skills"]),
     ...(request.provider === undefined ? [] : ["--provider", request.provider]),
     ...(request.model === undefined ? [] : ["--model", request.model]),
     request.goal,

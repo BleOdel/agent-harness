@@ -133,24 +133,37 @@ export function parseReview(text: string): Review {
   return { verdict, unmet, unaccounted, notes: list(record.notes) };
 }
 
+/**
+ * The reviewer's command line, exported so its constraints can be
+ * asserted rather than described. Every flag here is load-bearing.
+ */
+export function buildReviewCommand(request: ReviewRequest): string[] {
+  return [
+    "node",
+    `${CONTAINER_PI_PACKAGE}/dist/cli.js`,
+    "--print",
+    "--approve",
+    // Read-only. The Reviewer has no business writing, and a reviewer
+    // that can edit can make the thing it is reviewing acceptable.
+    "--tools",
+    "read,grep",
+    // No session, so nothing of the builder's reasoning is reachable.
+    "--no-session",
+    // And no skills, ever -- not even when the builder has them. The
+    // reviewer has one job and a fixed way of doing it; a skill could
+    // redefine what it considers acceptable, which is the one opinion
+    // here that must not be configurable by whatever is installed.
+    "--no-skills",
+    ...(request.provider === undefined ? [] : ["--provider", request.provider]),
+    ...(request.model === undefined ? [] : ["--model", request.model]),
+    reviewPrompt(request),
+  ];
+}
+
 export async function review(layout: SandboxLayout, request: ReviewRequest): Promise<Review> {
   const result = await run(
     layout.dockerExecutable,
-    buildRunArguments(layout, "bridge", [
-      "node",
-      `${CONTAINER_PI_PACKAGE}/dist/cli.js`,
-      "--print",
-      "--approve",
-      // Read-only. The Reviewer has no business writing, and a reviewer
-      // that can edit can make the thing it is reviewing acceptable.
-      "--tools",
-      "read,grep",
-      // No session, so nothing of the builder's reasoning is reachable.
-      "--no-session",
-      ...(request.provider === undefined ? [] : ["--provider", request.provider]),
-      ...(request.model === undefined ? [] : ["--model", request.model]),
-      reviewPrompt(request),
-    ]),
+    buildRunArguments(layout, "bridge", buildReviewCommand(request)),
     { timeoutMs: request.timeoutMs },
   );
 

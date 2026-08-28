@@ -55,3 +55,30 @@ test("a nonsense timeout is refused rather than silently defaulted", () => {
   }
   assert.equal(loadConfig({ ...workable, HARNESS_AGENT_TIMEOUT: "60" }).agentTimeoutMs, 60_000);
 });
+
+test("an empty environment variable is absent, not empty", () => {
+  // `??` is wrong for environment variables: a variable set to "" is set,
+  // so `env.X ?? "default"` yields "". Every .env file contains settings
+  // written as `X=`, and sourcing one makes them empty rather than
+  // missing. HARNESS_TEST_COMMAND="" became an empty command list, Docker
+  // ran the image's default entrypoint instead of the tests, that exited
+  // 0 with no output, and the gate reported "exited zero but executed no
+  // assertions" about a project whose tests were fine.
+  const config = loadConfig({
+    ...workable,
+    HARNESS_PROVIDER: "",
+    HARNESS_MODEL: "   ",
+    HARNESS_SKILLS: "",
+    HARNESS_AGENT_TIMEOUT: "",
+  });
+  assert.equal(config.provider, undefined);
+  assert.equal(config.model, undefined);
+  assert.equal(config.skillsDirectory, undefined);
+  assert.equal(config.agentTimeoutMs, 900_000, "an empty timeout must fall back, not fail");
+});
+
+test("an empty HARNESS_DOCKER falls back rather than becoming an empty path", () => {
+  // It would otherwise resolve to "" and be refused as a missing
+  // executable, with a remedy pointing at a variable the operator did set.
+  assert.doesNotThrow(() => loadConfig({ ...workable, HARNESS_DOCKER: "" }));
+});

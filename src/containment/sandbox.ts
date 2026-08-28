@@ -15,6 +15,7 @@ import path from "node:path";
 export const CONTAINER_WORK = "/work";
 export const CONTAINER_AGENT = "/pi-agent";
 export const CONTAINER_PI_PACKAGE = "/opt/pi-package";
+export const CONTAINER_SKILLS = "/opt/skills";
 
 export interface SandboxLayout {
   readonly dockerExecutable: string;
@@ -26,6 +27,12 @@ export interface SandboxLayout {
   /** Pi's own data directory, holding its provider credential. */
   readonly agentDirectory: string;
   readonly piPackageDirectory: string;
+  /**
+   * Skills to load into the builder, if any. Read-only, and outside the
+   * project: a model that can edit its own instructions has none, which
+   * is the same rule that keeps `features.json` out of the copy.
+   */
+  readonly skillsDirectory?: string;
   /** Non-root uid:gid. */
   readonly user: string;
 }
@@ -72,6 +79,9 @@ export function mounts(layout: SandboxLayout): readonly {
     { source: layout.workDirectory, destination: CONTAINER_WORK, writable: true },
     { source: layout.agentDirectory, destination: CONTAINER_AGENT, writable: true },
     { source: layout.piPackageDirectory, destination: CONTAINER_PI_PACKAGE, writable: false },
+    ...(layout.skillsDirectory === undefined
+      ? []
+      : [{ source: layout.skillsDirectory, destination: CONTAINER_SKILLS, writable: false }]),
   ];
 }
 
@@ -99,6 +109,23 @@ export function assertMountsAreSafe(layout: SandboxLayout): void {
     }
   }
 
+  // Skills are instructions written by someone else, entering the model's
+  // context. That is safe here only because they are read-only and
+  // because everything the model does with them still faces the gates and
+  // the reviewer -- but a skills directory inside the project would be in
+  // the copy as well, where the model could rewrite it and then be
+  // instructed by its own edit.
+  if (layout.skillsDirectory !== undefined) {
+    const relative = path.relative(layout.workDirectory, path.resolve(layout.skillsDirectory));
+    if (relative === "" || !(relative.startsWith("..") || path.isAbsolute(relative))) {
+      throw new ContainmentError(
+        `Skills directory ${layout.skillsDirectory} is inside the project. `
+        + "The model would be able to edit the instructions it is given.",
+        "SKILLS_INSIDE_PROJECT",
+      );
+    }
+  }
+
   const writable = mounts(layout).filter((mount) => mount.writable);
   if (writable.length !== 2) {
     throw new ContainmentError(
@@ -122,6 +149,17 @@ export function buildRunArguments(
   command: readonly string[],
 ): string[] {
   assertMountsAreSafe(layout);
+  if (command.length === 0) {
+    // Without this, Docker runs the image's default entrypoint. For a
+    // Node image that is a bare `node`, which reads EOF, exits 0 and
+    // prints nothing -- so a gate sees a successful run that did nothing
+    // and reports whatever absence looks like. It reported "your tests
+    // assert nothing" about a project whose tests were fine.
+    throw new ContainmentError(
+      "Refusing to start a container with no command: it would run the image default.",
+      "EMPTY_COMMAND",
+    );
+  }
   return [
     "run",
     "--rm",
