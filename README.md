@@ -98,10 +98,15 @@ Three things that diagram is making precise:
 ## Setup
 
 ```bash
-npm install
+npm install && npm link
 cp .env.example .env      # then edit it
-set -a && . ./.env && set +a
 ```
+
+`npm link` puts `harness` on your PATH so you run it inside your own
+project. Settings are read from `~/.config/harness/config` or the
+harness's own `.env` — never from the project directory, because a
+project is a place a model has been writing and config decides how a run
+is contained.
 
 `.env.example` explains every value. The three that are required —
 the container image, Pi's package directory, and Pi's data directory — are
@@ -146,19 +151,33 @@ Only skills that work without a human are worth mounting. The interview
 and planning ones — anything marked `disable-model-invocation` — need
 someone to answer, and there is nobody inside the container.
 
-## The six verbs
+## The seven verbs
+
+Run them inside your project.
 
 | | |
 |---|---|
-| `npm run plan [-- <topic>]` | an interview, in the sandbox, to settle criteria |
-| `npm run add -- <id> …` | put an item on the feature list |
-| `npm run work [-- <id>]` | build the next Must, or a named item |
-| `npm run look` | what happened, what is pending, what escalated and why |
-| `npm run show -- <run-id>` | the exact diff a run applied |
-| `npm run undo -- <run-id>` | put it back |
+| `harness init` | create a project the gates can work with |
+| `harness plan [<topic>]` | an interview, in the sandbox, to settle criteria |
+| `harness add <id> …` | put an item on the feature list |
+| `harness add --from latest` | import the items a plan proposed |
+| `harness work [<id>]` | build the next Must, or a named item |
+| `harness look` | what happened, what is pending, what escalated and why |
+| `harness show <run-id>` | the exact diff a run applied |
+| `harness undo <run-id>` | put it back |
 
-`work` with no argument takes the next Must from `features.json`. Point it
-at a project with `HARNESS_PROJECT`, or run it from inside one.
+`work` with no argument takes the next Must from `features.json`. The
+project is the directory you are in, or `HARNESS_PROJECT` if you set it.
+
+## Start to finish
+
+```bash
+mkdir ~/Developer/site && cd ~/Developer/site
+harness init
+harness plan "what this website should be"
+harness add --from latest
+harness work
+```
 
 ### The chain
 

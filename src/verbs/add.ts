@@ -10,7 +10,7 @@
  * to make them say what "done" means.
  */
 
-import { readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   type Feature,
@@ -20,6 +20,7 @@ import {
   PRIORITIES,
   type Priority,
 } from "../features.ts";
+import { harnessDirectory } from "../record/record.ts";
 import { OperatorError, say } from "./io.ts";
 
 interface Parsed {
@@ -63,7 +64,7 @@ export function parseAddArguments(argv: readonly string[]): Parsed {
   if (id === undefined || positional.length !== 1) {
     throw new OperatorError(
       "An item needs exactly one id.",
-      'Use: npm run add -- <id> --title "..." --criterion "..."',
+      'Use: harness add <id> --title "..." --criterion "..."',
     );
   }
   if (title === undefined || title.trim() === "") {
@@ -95,6 +96,26 @@ export function parseAddArguments(argv: readonly string[]): Parsed {
  * is a person reading the list, which is why every item is printed before
  * any of it is written.
  */
+/**
+ * Resolves `latest` to the newest proposal a `plan` run left behind.
+ *
+ * Plans are stored under a timestamped directory, and making the operator
+ * paste that path is the kind of friction that gets a good idea abandoned.
+ */
+async function resolveProposal(project: string, given: string): Promise<string> {
+  if (given !== "latest") return path.resolve(given);
+  const plans = path.join(harnessDirectory(project), "plans");
+  const stamps = await readdir(plans).catch(() => [] as string[]);
+  const newest = stamps.sort().at(-1);
+  if (newest === undefined) {
+    throw new OperatorError(
+      "No plan has been run for this project yet.",
+      "Run `harness plan` first, or pass the path to an items file.",
+    );
+  }
+  return path.join(plans, newest, "items.json");
+}
+
 async function itemsFromFile(source: string): Promise<Feature[]> {
   const text = await readFile(source, "utf8").catch(() => undefined);
   if (text === undefined) {
@@ -114,7 +135,7 @@ async function itemsFromFile(source: string): Promise<Feature[]> {
 export async function add(project: string, argv: readonly string[]): Promise<void> {
   const fromIndex = argv.indexOf("--from");
   const incoming = fromIndex >= 0
-    ? await itemsFromFile(path.resolve(argv[fromIndex + 1] ?? ""))
+    ? await itemsFromFile(await resolveProposal(project, argv[fromIndex + 1] ?? "latest"))
     : [{ ...parseAddArguments(argv), status: "todo" as const }];
 
   const file = path.join(project, FEATURES_FILE);
@@ -147,6 +168,6 @@ export async function add(project: string, argv: readonly string[]): Promise<voi
   }
   say("");
   say(incoming.length === 1
-    ? `work on it with: npm run work -- ${incoming[0]?.id ?? ""}`
-    : `${String(incoming.length)} items added. Start the first Must with: npm run work`);
+    ? `work on it with: harness work ${incoming[0]?.id ?? ""}`
+    : `${String(incoming.length)} items added. Start the first Must with: harness work`);
 }

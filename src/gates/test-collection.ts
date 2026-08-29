@@ -118,5 +118,8 @@ export async function checkTestCollection(
     );
   }
 
-  return passed(`test collection: all ${String(onDisk.length)} test files are collected`);
+  return passed(
+    `test collection: all ${String(onDisk.length)} test `
+    + `${onDisk.length === 1 ? "file is" : "files are"} collected`,
+  );
 }

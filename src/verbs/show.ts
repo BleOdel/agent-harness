@@ -24,12 +24,12 @@ const read = async (file: string): Promise<string[] | undefined> => {
 export async function show(project: string, argv: readonly string[]): Promise<void> {
   const wanted = argv[0];
   if (wanted === undefined) {
-    throw new OperatorError("Which run?", "Use: npm run show -- <run-id>. `npm run look` lists them.");
+    throw new OperatorError("Which run?", "Use: harness show <run-id>. `harness look` lists them.");
   }
   const { runs } = await readRecord(project);
   const run = runs.find((entry) => entry.id === wanted);
   if (run === undefined) {
-    throw new OperatorError(`No run ${wanted} in this project.`, "Run `npm run look` to see what there is.");
+    throw new OperatorError(`No run ${wanted} in this project.`, "Run `harness look` to see what there is.");
   }
 
   say(`${run.id}  ${run.at.slice(0, 19).replace("T", " ")}  ${run.outcome}`);

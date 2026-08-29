@@ -1,5 +1,5 @@
 /**
- *   plan [<topic>]
+ *   harness plan [<topic>]
  *
  * An interview, inside the sandbox, with your terminal attached.
  *
@@ -174,7 +174,7 @@ export async function plan(argv: readonly string[]): Promise<void> {
     // spent an hour agreeing with you, and importing unread is how a
     // backlog fills with items nobody chose.
     say("Read the items, then import the ones you want:");
-    say(`  npm run add -- --from ${path.join(directory, ITEMS_FILE)}`);
+    say("  harness add --from latest");
   } finally {
     await destroySandbox(sandbox);
   }

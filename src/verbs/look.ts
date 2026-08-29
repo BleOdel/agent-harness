@@ -59,7 +59,7 @@ export async function look(project: string): Promise<void> {
 
   if (list === undefined) {
     say("No feature list in this project. Work from a goal, or add an item:");
-    say('  npm run add -- <id> --title "..." --criterion "..."');
+    say('  harness add <id> --title "..." --criterion "..."');
   } else if (!list.ok) {
     say(`The feature list cannot be read: ${list.reason}`);
   } else {
@@ -72,7 +72,7 @@ export async function look(project: string): Promise<void> {
     const next = nextItems(list.features)[0];
     say(next === undefined
       ? "Nothing left to work on."
-      : `Next: ${next.id}.  Start it with: npm run work`);
+      : `Next: ${next.id}.  Start it with: harness work`);
     say();
   }
 
@@ -85,5 +85,5 @@ export async function look(project: string): Promise<void> {
   }
   if (runs.length > 8) say(`  ... ${String(runs.length - 8)} earlier runs`);
   say();
-  say("  npm run show -- <id>   the exact diff        npm run undo -- <id>   put it back");
+  say("  harness show <id>   the exact diff        harness undo <id>   put it back");
 }

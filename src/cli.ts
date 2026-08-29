@@ -15,8 +15,10 @@
  */
 
 import path from "node:path";
+import { applyConfigFile } from "./config.ts";
 import { add } from "./verbs/add.ts";
 import { OperatorError, say } from "./verbs/io.ts";
+import { init } from "./verbs/init.ts";
 import { look } from "./verbs/look.ts";
 import { plan } from "./verbs/plan.ts";
 import { show } from "./verbs/show.ts";
@@ -26,24 +28,30 @@ import { work } from "./verbs/work.ts";
 const USAGE = [
   "harness — build software in a sandbox, prove it, then apply it.",
   "",
-  "  npm run plan [-- <topic>]      an interview, in the sandbox, to settle criteria",
-  "  npm run add  -- <id> --title \"...\" --criterion \"...\" [--priority must]",
-  "  npm run work [-- <item-id or goal>]",
-  "  npm run look",
-  "  npm run show -- <run-id>",
-  "  npm run undo -- <run-id>",
+  "  harness init                  create a project the gates can work with",
+  "  harness plan [<topic>]        an interview, in the sandbox, to settle criteria",
+  "  harness add <id> --title \"...\" --criterion \"...\" [--priority must]",
+  "  harness add --from latest     import the items a plan proposed",
+  "  harness work [<item-id or goal>]",
+  "  harness look",
+  "  harness show <run-id>",
+  "  harness undo <run-id>",
   "",
-  "With no arguments, `work` takes the next Must from the feature list.",
-  "Set HARNESS_PROJECT to work on a project other than the current directory.",
+  "Run it inside your project. With no arguments, `work` takes the next Must.",
+  "Settings come from ~/.config/harness/config, or the harness's own .env.",
 ].join("\n");
 
 async function main(): Promise<void> {
+  // Before anything else, and only from the operator's own machine.
+  applyConfigFile();
   const [verb, ...rest] = process.argv.slice(2);
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
 
   switch (verb) {
     case "add":
       return add(project, rest);
+    case "init":
+      return init(project);
     case "plan":
       return plan(rest);
     case "work":

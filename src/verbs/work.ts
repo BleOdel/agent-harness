@@ -1,5 +1,5 @@
 /**
- *   npm run work -- <goal>
+ *   harness work <goal>
  *
  * Copy the project, let the model work in the copy, prove the result,
  * apply it with a recovery snapshot, destroy the copy.
@@ -59,8 +59,8 @@ async function resolveWork(project: string, argument: string): Promise<{
     if (argument === "") {
       throw new OperatorError(
         "Nothing to work on: there is no feature list and no goal was given.",
-        `Add an item with:  npm run add -- <id> --title "..." --criterion "..."\n`
-        + 'Or work from a goal:  npm run work -- "add a --json flag"',
+        `Add an item with:  harness add <id> --title "..." --criterion "..."\n`
+        + 'Or work from a goal:  harness work "add a --json flag"',
       );
     }
     return { title: argument, criteria: [], feature: undefined };
@@ -88,9 +88,9 @@ async function resolveWork(project: string, argument: string): Promise<{
           : `Nothing left to work on. ${idle.map((f) => f.id).join(", ")} produced no changes `
             + "last time, so they are being stepped over.",
         idle.length === 0
-          ? "Run `npm run look` to see the list."
+          ? "Run `harness look` to see the list."
           : "An item that changes nothing is usually already satisfied, or its criteria do not\n"
-            + "say anything the code does not already do. Check it with `npm run look`, then\n"
+            + "say anything the code does not already do. Check it with `harness look`, then\n"
             + "either sharpen the criteria or edit its status to \"done\" in features.json.",
       );
     }
@@ -361,7 +361,7 @@ export async function work(argv: readonly string[]): Promise<void> {
       });
       if (work.feature !== undefined) await markDone(project, work.feature.id);
       for (const change of changes) say(`  ${change.kind.padEnd(8)} ${change.file}`);
-      say(`applied as ${runId}. undo with: npm run undo -- ${runId}`);
+      say(`applied as ${runId}. undo with: harness undo ${runId}`);
       say(`recovery: ${recovery.directory}`);
       return;
     }

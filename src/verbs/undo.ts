@@ -1,6 +1,6 @@
 /**
- *   npm run undo -- <run-id>
- *   npm run undo            (lists what can be undone)
+ *   harness undo <run-id>
+ *   harness undo            (lists what can be undone)
  *
  * Reverses one applied run, at any point, including after later runs
  * changed the same files.
@@ -49,14 +49,14 @@ export async function undo(project: string, argv: readonly string[]): Promise<vo
     for (const run of undoable) {
       say(`  ${run.id.padEnd(5)} ${run.at.slice(0, 19).replace("T", " ")}  ${String(run.changes.length)} files  ${run.goal}`);
     }
-    say("\nUndo one with: npm run undo -- <run-id>");
+    say("\nUndo one with: harness undo <run-id>");
     return;
   }
 
   const run = undoable.find((entry) => entry.id === wanted);
   if (run === undefined) {
     const known = runs.find((entry) => entry.id === wanted);
-    if (known === undefined) throw new OperatorError(`no run ${wanted} in this project.`, "Run `npm run undo` to list what can be undone.");
+    if (known === undefined) throw new OperatorError(`no run ${wanted} in this project.`, "Run `harness undo` to list what can be undone.");
     const reverser = reverserOf(runs, wanted);
     throw new OperatorError(
       `${wanted} cannot be undone.`,
@@ -139,7 +139,7 @@ export async function undo(project: string, argv: readonly string[]): Promise<vo
   for (const outcome of outcomes) {
     say(`  ${outcome.action.padEnd(11)} ${outcome.file}${outcome.detail === undefined ? "" : `  (${outcome.detail})`}`);
   }
-  say(`\nundid ${run.id}, recorded as ${undoId}. Undo that with: npm run undo -- ${undoId}`);
+  say(`\nundid ${run.id}, recorded as ${undoId}. Undo that with: harness undo ${undoId}`);
   if (restated) say(`${item} is now ${status}.`);
   // Said plainly rather than implied. An undo reverses one run exactly;
   // whether the project still holds together afterwards is a different

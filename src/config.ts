@@ -8,7 +8,8 @@
  * directory are all required, and each refusal says how to fix it.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 
 export interface Config {
   readonly dockerExecutable: string;
@@ -70,6 +71,65 @@ function positiveInteger(raw: string | undefined, fallback: number, name: string
     );
   }
   return value * 1000;
+}
+
+/**
+ * Settings read from a file, so the operator does not have to source one
+ * by hand before every command.
+ *
+ * Searched in order: $HARNESS_CONFIG, ~/.config/harness/config, and the
+ * harness's own .env. **Never the project directory.** The harness
+ * install is the operator's; a project directory is a place a model has
+ * been writing, and a project-level config would let a change applied
+ * last run alter how the next run is contained.
+ *
+ * The real environment always wins, so a variable set on the command line
+ * overrides the file rather than the other way round.
+ */
+export function configFileLocations(environment: NodeJS.ProcessEnv = process.env): string[] {
+  const explicit = setting(environment, "HARNESS_CONFIG");
+  const home = environment.HOME ?? "";
+  return [
+    ...(explicit === undefined ? [] : [explicit]),
+    ...(home === "" ? [] : [path.join(home, ".config", "harness", "config")]),
+    path.join(import.meta.dirname, "..", ".env"),
+  ];
+}
+
+/** KEY=VALUE lines. Comments and blanks ignored; surrounding quotes trimmed. */
+export function parseConfigFile(text: string): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed === "" || trimmed.startsWith("#")) continue;
+    const equals = trimmed.indexOf("=");
+    if (equals <= 0) continue;
+    const key = trimmed.slice(0, equals).trim();
+    const raw = trimmed.slice(equals + 1).trim();
+    values[key] = raw.replace(/^(["'])(.*)\1$/u, "$2");
+  }
+  return values;
+}
+
+/**
+ * Fills in anything the environment does not already define. Returns the
+ * file it used, so the operator can be told where a setting came from
+ * when one turns out to be wrong.
+ */
+export function applyConfigFile(environment: NodeJS.ProcessEnv = process.env): string | undefined {
+  for (const location of configFileLocations(environment)) {
+    let text;
+    try {
+      text = readFileSync(location, "utf8");
+    } catch {
+      continue;
+    }
+    for (const [key, value] of Object.entries(parseConfigFile(text))) {
+      if (setting(environment, key) === undefined) environment[key] = value;
+    }
+    return location;
+  }
+  return undefined;
 }
 
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config {
