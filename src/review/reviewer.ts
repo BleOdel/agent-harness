@@ -154,6 +154,9 @@ export function buildReviewCommand(request: ReviewRequest): string[] {
     // redefine what it considers acceptable, which is the one opinion
     // here that must not be configurable by whatever is installed.
     "--no-skills",
+    // And no extensions, for the same reason and more strongly: an
+    // extension could give the reviewer tools it must not have.
+    "--no-extensions",
     ...(request.provider === undefined ? [] : ["--provider", request.provider]),
     ...(request.model === undefined ? [] : ["--model", request.model]),
     reviewPrompt(request),

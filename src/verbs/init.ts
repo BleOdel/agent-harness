@@ -107,7 +107,11 @@ behaviour is worse than an honest failure.
 ## What not to do
 
 - Do not commit or touch git history. \`.git\` is not in your copy at all.
-- Do not add a dependency without being asked.
+- **Adding a dependency:** if you genuinely need a package, install it and
+  add it to \`package.json\`, then say in your summary what it is for. Do
+  not reach for one to save a few lines -- prefer a built-in. Note that
+  \`node_modules\` never leaves the sandbox, so the operator is told to
+  install it on their own machine afterwards.
 - Do not weaken a check to make a test pass.
 - Do not build anything no acceptance criterion asked for.
 `;

@@ -27,6 +27,7 @@ import { counterPath } from "../gates/tests.ts";
 import { DEFAULT_LIMITS, type Limits } from "../gates/limits.ts";
 import { chooseNext, type Feature, markDone, readFeatures, unmetDependencies } from "../features.ts";
 import { listSkills } from "../agent/skills.ts";
+import { missingInProject } from "../deps.ts";
 import { runPipeline } from "../pipeline.ts";
 import { appendRun, nextRunId, type Outcome, readRecord, recoveryPath, type RunRecord } from "../record/record.ts";
 import { renderDiff } from "../review/diff.ts";
@@ -359,9 +360,20 @@ export async function work(argv: readonly string[]): Promise<void> {
         review: { verdict: verdict.verdict, findings: [...verdict.unmet, ...verdict.unaccounted] },
         changes,
       });
+      // node_modules is never applied, so a run that added a package
+      // brings back the declaration without the package. Every gate
+      // passed inside the sandbox, where it was installed; on this
+      // machine the project will not run until it is installed here too.
+      const missing = await missingInProject(project);
+
       if (work.feature !== undefined) await markDone(project, work.feature.id);
       for (const change of changes) say(`  ${change.kind.padEnd(8)} ${change.file}`);
       say(`applied as ${runId}. undo with: harness undo ${runId}`);
+      if (missing.length > 0) {
+        say("");
+        say(`This run declared ${missing.join(", ")}, which ${missing.length === 1 ? "is" : "are"} not installed here.`);
+        say("Install with:  harness deps --install");
+      }
       say(`recovery: ${recovery.directory}`);
       return;
     }

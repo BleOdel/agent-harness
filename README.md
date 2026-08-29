@@ -120,6 +120,46 @@ npm run verify:boundary
 # no Docker socket, read-only container, writable copy only
 ```
 
+## Dependencies
+
+You install them; the harness never does on its own. `node_modules` is
+copied into the sandbox so the tests can run, and the gates run with **no
+network at all**, so nothing can be fetched during verification.
+
+`node_modules` is also never applied back — it is generated, and npm
+touches it merely by running. That leaves one gap, and `harness deps`
+closes it: a run that installs a package inside the sandbox brings back
+the `package.json` declaration without the package. Every gate passes
+there, where it exists; on your machine the project would not run.
+
+So `work` checks after applying, and says so:
+
+```
+applied as r4. undo with: harness undo r4
+
+This run declared zod, which is not installed here.
+Install with:  harness deps --install
+```
+
+`harness deps` on its own only reports. `--install` runs `npm install` in
+your project — **the one command in this tool that reaches outside a
+container**, which is why it takes a deliberate second word. Installing a
+package runs whatever install scripts it ships, with your permissions,
+outside every boundary the rest of this maintains.
+
+## Extensions
+
+Off, always, for both agents — `--no-extensions`.
+
+Pi discovers extensions from its own data directory, which the harness
+mounts writable, and an extension can register tools and flags. The whole
+argument here rests on knowing what the model can do, and "whatever
+happens to be installed" is not knowing. The harness previously said
+nothing either way, which meant discovery was live and silent.
+
+If they are ever wanted they get the same treatment skills did: a
+read-only mount, off by default, named in the output.
+
 ## Skills
 
 Pi loads skills — directories containing a `SKILL.md` — and the harness
@@ -165,6 +205,7 @@ Run them inside your project.
 | `harness look` | what happened, what is pending, what escalated and why |
 | `harness show <run-id>` | the exact diff a run applied |
 | `harness undo <run-id>` | put it back |
+| `harness deps [--install]` | packages a run declared but did not install |
 
 `work` with no argument takes the next Must from `features.json`. The
 project is the directory you are in, or `HARNESS_PROJECT` if you set it.

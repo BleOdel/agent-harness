@@ -41,6 +41,14 @@ export function buildAgentCommand(request: AgentRequest): string[] {
     // directory would start reaching the builder with nothing in the
     // output saying so. Either it is mounted and named, or it is off.
     ...(request.skills ? ["--skill", CONTAINER_SKILLS] : ["--no-skills"]),
+    // Extensions are off, always, and said rather than assumed. Pi
+    // discovers them from its own data directory -- which this harness
+    // mounts writable -- and an extension can register tools and flags.
+    // The whole argument here rests on knowing what the model can do, and
+    // "whatever happens to be installed" is not knowing. If they are ever
+    // wanted, they get the same treatment skills did: a read-only mount,
+    // named in the output, off by default.
+    "--no-extensions",
     ...(request.provider === undefined ? [] : ["--provider", request.provider]),
     ...(request.model === undefined ? [] : ["--model", request.model]),
     request.goal,

@@ -18,6 +18,7 @@ import path from "node:path";
 import { applyConfigFile } from "./config.ts";
 import { add } from "./verbs/add.ts";
 import { OperatorError, say } from "./verbs/io.ts";
+import { deps } from "./verbs/deps.ts";
 import { init } from "./verbs/init.ts";
 import { look } from "./verbs/look.ts";
 import { plan } from "./verbs/plan.ts";
@@ -36,6 +37,7 @@ const USAGE = [
   "  harness look",
   "  harness show <run-id>",
   "  harness undo <run-id>",
+  "  harness deps [--install]      packages a run declared but did not install",
   "",
   "Run it inside your project. With no arguments, `work` takes the next Must.",
   "Settings come from ~/.config/harness/config, or the harness's own .env.",
@@ -52,6 +54,8 @@ async function main(): Promise<void> {
       return add(project, rest);
     case "init":
       return init(project);
+    case "deps":
+      return deps(project, rest);
     case "plan":
       return plan(rest);
     case "work":
