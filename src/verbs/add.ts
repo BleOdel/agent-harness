@@ -12,7 +12,14 @@
 
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { FEATURES_FILE, parseFeatures, PRIORITIES, type Priority } from "../features.ts";
+import {
+  type Feature,
+  FEATURES_FILE,
+  parseFeatures,
+  parseProposedItems,
+  PRIORITIES,
+  type Priority,
+} from "../features.ts";
 import { OperatorError, say } from "./io.ts";
 
 interface Parsed {
@@ -79,18 +86,54 @@ export function parseAddArguments(argv: readonly string[]): Parsed {
   return { id, title, priority: priority as Priority, criteria, dependsOn };
 }
 
-export async function add(project: string, argv: readonly string[]): Promise<void> {
-  const parsed = parseAddArguments(argv);
-  const file = path.join(project, FEATURES_FILE);
+/**
+ * Items a `plan` run proposed, read from a file the operator names.
+ *
+ * The model never writes the feature list. It proposes; the operator runs
+ * the command that accepts. Same shape as `work` -- propose inside the
+ * sandbox, then a gate before anything lands -- except that here the gate
+ * is a person reading the list, which is why every item is printed before
+ * any of it is written.
+ */
+async function itemsFromFile(source: string): Promise<Feature[]> {
+  const text = await readFile(source, "utf8").catch(() => undefined);
+  if (text === undefined) {
+    throw new OperatorError(
+      `No file at ${source}.`,
+      "A plan run writes items.json beside its PLAN.md, under <project>-harness/plans/.",
+    );
+  }
+  const proposed = parseProposedItems(text);
+  if (!proposed.ok) throw new OperatorError(proposed.reason, `Fix ${source}, or add the items by hand.`);
+  if (proposed.features.length === 0) {
+    throw new OperatorError(`${source} proposes no items.`, "");
+  }
+  return [...proposed.features];
+}
 
+export async function add(project: string, argv: readonly string[]): Promise<void> {
+  const fromIndex = argv.indexOf("--from");
+  const incoming = fromIndex >= 0
+    ? await itemsFromFile(path.resolve(argv[fromIndex + 1] ?? ""))
+    : [{ ...parseAddArguments(argv), status: "todo" as const }];
+
+  const file = path.join(project, FEATURES_FILE);
   const existing = await readFile(file, "utf8").catch(() => "[]");
   const list = parseFeatures(existing);
   if (!list.ok) throw new OperatorError(list.reason, `Fix ${FEATURES_FILE} before adding to it.`);
-  if (list.features.some((feature) => feature.id === parsed.id)) {
-    throw new OperatorError(`${parsed.id} is already in the feature list.`, "Pick another id.");
+
+  const taken = new Set(list.features.map((feature) => feature.id));
+  const clashes = incoming.filter((item) => taken.has(item.id)).map((item) => item.id);
+  if (clashes.length > 0) {
+    throw new OperatorError(
+      `Already in the feature list: ${clashes.join(", ")}.`,
+      fromIndex >= 0
+        ? "Nothing was imported. Remove those items from the proposal, or rename them."
+        : "Pick another id.",
+    );
   }
 
-  const next = [...list.features, { ...parsed, status: "todo" as const }];
+  const next = [...list.features, ...incoming];
   // Validated through the same parser that reads it, so an item can never
   // be written that the harness would then refuse to load.
   const text = `${JSON.stringify(next, null, 2)}\n`;
@@ -98,6 +141,12 @@ export async function add(project: string, argv: readonly string[]): Promise<voi
   if (!check.ok) throw new OperatorError(`The resulting list would be invalid: ${check.reason}`);
 
   await writeFile(file, text, "utf8");
-  say(`added ${parsed.id} (${parsed.priority}), ${String(parsed.criteria.length)} criteria`);
-  say(`work on it with: npm run work -- ${parsed.id}`);
+  for (const item of incoming) {
+    say(`added ${item.id} (${item.priority}), ${String(item.criteria.length)} criteria`);
+    for (const criterion of item.criteria) say(`    ${criterion}`);
+  }
+  say("");
+  say(incoming.length === 1
+    ? `work on it with: npm run work -- ${incoming[0]?.id ?? ""}`
+    : `${String(incoming.length)} items added. Start the first Must with: npm run work`);
 }

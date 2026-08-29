@@ -39,6 +39,8 @@ import { OperatorError, say } from "./io.ts";
 
 /** Written by the model in the copy, collected afterwards. */
 export const PLAN_FILE = "PLAN.md";
+/** The same items, machine-readable, so they need not be retyped. */
+export const ITEMS_FILE = "items.json";
 
 export function planPrompt(topic: string, skills: readonly string[]): string {
   return [
@@ -57,12 +59,27 @@ export function planPrompt(topic: string, skills: readonly string[]): string {
     "",
     "Read the project first. Facts are your job, not mine.",
     "",
-    `When we are done, write ${PLAN_FILE} in the project root containing the`,
-    "decisions we settled and a proposed list of work items. Each item needs an",
-    "id, a title, a MoSCoW priority, and acceptance criteria written so that a",
-    "reviewer who cannot see this conversation could tell whether the work",
-    "satisfies them. Criteria are the point: everything downstream depends on",
-    "them being exact.",
+    "When we are done, write two files in the project root.",
+    "",
+    `${PLAN_FILE} -- the decisions we settled, in prose, and why.`,
+    "",
+    `${ITEMS_FILE} -- the same work items as JSON, and nothing else:`,
+    "",
+    "[",
+    '  { "id": "short-kebab-id",',
+    '    "title": "what this item delivers",',
+    '    "priority": "must" | "should" | "could" | "wont",',
+    '    "criteria": ["one per acceptance criterion"],',
+    '    "dependsOn": ["ids of items that must be done first"] }',
+    "]",
+    "",
+    "Ids are short and readable: someone will type them. Do not include a",
+    "status field; nothing is done yet.",
+    "",
+    "Write the criteria so that a reviewer who cannot see this conversation",
+    "could tell whether the work satisfies them. They are the point --",
+    "everything downstream depends on them being exact, and a criterion",
+    "nobody can check either passes vacuously or blocks forever.",
   ].join("\n");
 }
 
@@ -129,20 +146,35 @@ export async function plan(argv: readonly string[]): Promise<void> {
       { timeoutMs: config.agentTimeoutMs, interactive: true },
     );
 
-    const written = await readFile(path.join(sandbox.workDirectory, PLAN_FILE), "utf8")
-      .catch(() => undefined);
-    if (written === undefined) {
-      say(`\nno ${PLAN_FILE} was written, so nothing was kept.`);
+    const collect = async (name: string): Promise<string | undefined> =>
+      readFile(path.join(sandbox.workDirectory, name), "utf8").catch(() => undefined);
+    const [written, items] = await Promise.all([collect(PLAN_FILE), collect(ITEMS_FILE)]);
+    if (written === undefined && items === undefined) {
+      say(`\nNo ${PLAN_FILE} was written, so nothing was kept.`);
       return;
     }
+
     // Beside the project, never inside it. A plan is not a change, and
     // routing it through the apply path would mean gating a document.
     const stamp = new Date().toISOString().replaceAll(/[:.]/gu, "-");
-    const destination = path.join(harnessDirectory(project), "plans", `${stamp}.md`);
-    await mkdir(path.dirname(destination), { recursive: true });
-    await writeFile(destination, written, "utf8");
-    say(`\nplan: ${destination}`);
-    say("Turn its items into work with: npm run add -- <id> --title \"...\" --criterion \"...\"");
+    const directory = path.join(harnessDirectory(project), "plans", stamp);
+    await mkdir(directory, { recursive: true });
+    if (written !== undefined) await writeFile(path.join(directory, PLAN_FILE), written, "utf8");
+    if (items !== undefined) await writeFile(path.join(directory, ITEMS_FILE), items, "utf8");
+
+    say("");
+    if (written !== undefined) say(`plan:  ${path.join(directory, PLAN_FILE)}`);
+    if (items === undefined) {
+      say(`No ${ITEMS_FILE} was written, so the items have to be added by hand.`);
+      return;
+    }
+    say(`items: ${path.join(directory, ITEMS_FILE)}`);
+    say("");
+    // Read it first. The list is a proposal from a model that has just
+    // spent an hour agreeing with you, and importing unread is how a
+    // backlog fills with items nobody chose.
+    say("Read the items, then import the ones you want:");
+    say(`  npm run add -- --from ${path.join(directory, ITEMS_FILE)}`);
   } finally {
     await destroySandbox(sandbox);
   }

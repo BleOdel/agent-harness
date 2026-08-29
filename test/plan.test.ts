@@ -50,7 +50,18 @@ test("the plan asks for criteria a stranger could check", () => {
   // to someone who was in the room are the failure this verb exists to
   // prevent.
   const prompt = planPrompt("", []);
-  assert.match(prompt, new RegExp(`write ${PLAN_FILE}`, "u"));
+  assert.match(prompt, new RegExp(PLAN_FILE, "u"));
   assert.match(prompt, /reviewer who cannot see this conversation/u);
-  assert.match(prompt, /MoSCoW priority/u);
+  assert.match(prompt, /priority/u);
+});
+
+test("the plan asks for machine-readable items, so nothing is retyped", async () => {
+  // Hand-transcribing a plan into `add` commands is where criteria
+  // quality degrades: it is tedious, and tedious copying gets shortened.
+  const { ITEMS_FILE } = await import("../src/verbs/plan.ts");
+  const prompt = planPrompt("", []);
+  assert.match(prompt, new RegExp(ITEMS_FILE, "u"));
+  assert.match(prompt, /"dependsOn"/u);
+  // And explicitly not a status: that field is the harness's own verdict.
+  assert.match(prompt, /Do not include a\s+status field/u);
 });

@@ -160,6 +160,34 @@ someone to answer, and there is nobody inside the container.
 `work` with no argument takes the next Must from `features.json`. Point it
 at a project with `HARNESS_PROJECT`, or run it from inside one.
 
+### The chain
+
+```
+plan  ──►  PLAN.md + items.json  ──►  add --from  ──►  features.json  ──►  work
+interview      the interview's         you read it        the backlog        build
+               conclusions,            and accept
+               machine-readable
+```
+
+`plan` writes its work items twice: as prose in `PLAN.md`, and as JSON in
+`items.json`. Import the second rather than retyping the first:
+
+```bash
+npm run add -- --from <project>-harness/plans/<stamp>/items.json
+```
+
+**The model still never writes `features.json`.** It proposes; you run the
+command that accepts. That is the same shape as `work` — propose inside
+the sandbox, then a gate before anything lands — except the gate here is
+you reading the list. Read it: a proposal comes from a model that has just
+spent an interview agreeing with you.
+
+A proposed `status` is discarded rather than trusted. Status is the
+harness's own verdict, reached through the gates and the reviewer, and an
+item importable as already done would let a model mark its homework before
+doing it. An import that clashes with an existing id writes nothing at
+all, rather than landing half a backlog.
+
 ### Why there is a sixth
 
 The plan said five, and the sixth earns the exception by closing a gap the

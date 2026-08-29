@@ -73,7 +73,7 @@ test("add refuses a duplicate id rather than shadowing the first", async () => {
     await add(directory, ["one", "--title", "First", "--criterion", "it works"]);
     await assert.rejects(
       () => add(directory, ["one", "--title", "Again", "--criterion", "x"]),
-      (error: unknown) => error instanceof OperatorError && /already in the feature list/u.test(error.message),
+      (error: unknown) => error instanceof OperatorError && /Already in the feature list/u.test(error.message),
     );
   } finally {
     await rm(path.dirname(directory), { recursive: true, force: true });
@@ -114,4 +114,89 @@ test("work steps over an item whose last run changed nothing", async () => {
   const failed = chooseNext(list.features, (id) => (id === "settled" ? "gate-failed" : undefined));
   assert.equal(failed.next?.id, "settled");
   assert.deepEqual(failed.steppedOver, []);
+});
+
+test("proposed items import without being retyped", async () => {
+  // The model proposes; the operator runs the command that accepts. The
+  // model still never writes features.json.
+  const directory = await project();
+  try {
+    const proposal = path.join(path.dirname(directory), "items.json");
+    await writeFile(proposal, JSON.stringify([
+      { id: "router", title: "Command router", priority: "must", criteria: ["--help exits zero"] },
+      { id: "store", title: "Storage", priority: "should", criteria: ["notes round-trip"], dependsOn: ["router"] },
+    ]), "utf8");
+
+    await add(directory, ["--from", proposal]);
+    const list = parseFeatures(await readFile(path.join(directory, "features.json"), "utf8"));
+    assert.equal(list.ok, true);
+    if (!list.ok) return;
+    assert.deepEqual(list.features.map((f) => f.id), ["router", "store"]);
+    assert.deepEqual(list.features[1]!.dependsOn, ["router"]);
+  } finally {
+    await rm(path.dirname(directory), { recursive: true, force: true });
+  }
+});
+
+test("a proposed status is discarded, never trusted", async () => {
+  // Status is the harness's own verdict, reached through the gates and
+  // the reviewer. A model that could import an item as already done would
+  // be marking its own homework before doing it.
+  const directory = await project();
+  try {
+    const proposal = path.join(path.dirname(directory), "items.json");
+    await writeFile(proposal, JSON.stringify([
+      { id: "sneaky", title: "T", priority: "must", status: "done", criteria: ["c"] },
+    ]), "utf8");
+    await add(directory, ["--from", proposal]);
+    const list = parseFeatures(await readFile(path.join(directory, "features.json"), "utf8"));
+    assert.equal(list.ok, true);
+    if (list.ok) assert.equal(list.features[0]!.status, "todo");
+  } finally {
+    await rm(path.dirname(directory), { recursive: true, force: true });
+  }
+});
+
+test("an import that clashes with an existing id writes nothing at all", async () => {
+  // Partial import would leave a backlog that matches neither the
+  // proposal nor what was there before.
+  const directory = await project();
+  try {
+    await add(directory, ["router", "--title", "Router", "--criterion", "c"]);
+    const proposal = path.join(path.dirname(directory), "items.json");
+    await writeFile(proposal, JSON.stringify([
+      { id: "fresh", title: "New", priority: "must", criteria: ["c"] },
+      { id: "router", title: "Clash", priority: "must", criteria: ["c"] },
+    ]), "utf8");
+
+    await assert.rejects(() => add(directory, ["--from", proposal]), OperatorError);
+    const list = parseFeatures(await readFile(path.join(directory, "features.json"), "utf8"));
+    assert.equal(list.ok, true);
+    if (list.ok) assert.deepEqual(list.features.map((f) => f.id), ["router"], "a clash imported part of the file");
+  } finally {
+    await rm(path.dirname(directory), { recursive: true, force: true });
+  }
+});
+
+test("a malformed proposal is refused with the reason", async () => {
+  const directory = await project();
+  try {
+    const proposal = path.join(path.dirname(directory), "items.json");
+    for (const [content, expected] of [
+      ["{ not json", /not valid JSON/u],
+      ["{}", /must be an array/u],
+      ["[]", /proposes no items/u],
+      ['[{"id":"a","title":"T","priority":"must"}]', /acceptance criterion/u],
+      ['[{"id":"a","title":"T","priority":"urgent","criteria":["c"]}]', /priority/u],
+    ] as const) {
+      await writeFile(proposal, content, "utf8");
+      await assert.rejects(
+        () => add(directory, ["--from", proposal]),
+        (error: unknown) => error instanceof OperatorError && expected.test(error.message),
+        `${content} was accepted`,
+      );
+    }
+  } finally {
+    await rm(path.dirname(directory), { recursive: true, force: true });
+  }
 });

@@ -108,6 +108,38 @@ export function parseFeatures(text: string): FeatureListResult {
   return { ok: true, features };
 }
 
+/**
+ * Items proposed by a `plan` run, normalised into the shape the feature
+ * list uses.
+ *
+ * A proposal omits `status`: nothing has been done yet, and letting a
+ * model declare an item already "done" would hand it the one field the
+ * harness reserves for its own verdict. Anything it sets is discarded
+ * here rather than trusted.
+ *
+ * Validation goes through the same parser that reads the real list, so a
+ * proposal that would not load is refused before it can be imported
+ * rather than after.
+ */
+export function parseProposedItems(text: string): FeatureListResult {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch (error) {
+    return { ok: false, reason: `the proposal is not valid JSON: ${(error as Error).message}` };
+  }
+  const items = Array.isArray(raw) ? raw : (raw as { items?: unknown; features?: unknown })?.items
+    ?? (raw as { features?: unknown })?.features;
+  if (!Array.isArray(items)) {
+    return { ok: false, reason: 'the proposal must be an array of items, or an object with an "items" array.' };
+  }
+  const normalised = items.map((entry) => {
+    const item = entry as Record<string, unknown>;
+    return { ...item, status: "todo" };
+  });
+  return parseFeatures(JSON.stringify(normalised));
+}
+
 export async function readFeatures(project: string): Promise<FeatureListResult | undefined> {
   let text;
   try {
