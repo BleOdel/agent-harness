@@ -121,3 +121,46 @@ test("an ordinary change set is applicable", () => {
     );
   });
 });
+
+test("generated directories are copied but never diffed or applied", async () => {
+  // node_modules must reach the sandbox -- the tests need it -- and must
+  // never reach the change set. npm touches files under it as a side
+  // effect of running, so a project with dependencies reported hundreds
+  // of changes it had not made, blew the size ceiling, and failed every
+  // run. Measured on a project with one dev dependency: 671 of 676 files
+  // walked were node_modules.
+  const root = await scratch();
+  try {
+    const before = path.join(root, "before");
+    const after = path.join(root, "after");
+    for (const [directory, marker] of [[before, "old"], [after, "new"]] as const) {
+      await mkdir(path.join(directory, "node_modules", "pkg"), { recursive: true });
+      await mkdir(path.join(directory, "packages", "a", "node_modules"), { recursive: true });
+      await mkdir(path.join(directory, "dist"), { recursive: true });
+      await writeFile(path.join(directory, "node_modules", "pkg", "index.js"), marker);
+      await writeFile(path.join(directory, "packages", "a", "node_modules", "x.js"), marker);
+      await writeFile(path.join(directory, "dist", "bundle.js"), marker);
+      await writeFile(path.join(directory, "src.js"), marker);
+    }
+    // Only the real source file differs, though every file differs on disk.
+    assert.deepEqual(await collectChanges(before, after), [change("src.js", "modified")]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a change inside a generated directory is refused if one ever appears", async () => {
+  // Belt and braces: the diff cannot produce one, but a caller
+  // constructing a change set by other means must not get it applied.
+  assert.throws(
+    () => { assertChangesAreApplicable([change("node_modules/pkg/index.js", "modified")], "/tmp/copy"); },
+    (error: unknown) => error instanceof BoundaryViolation && /generated/u.test(error.message),
+  );
+  assert.throws(
+    () => { assertChangesAreApplicable([change("packages/a/node_modules/x.js", "added")], "/tmp/copy"); },
+    BoundaryViolation,
+  );
+  assert.doesNotThrow(() => {
+    assertChangesAreApplicable([change("src/node-utils.js", "added")], "/tmp/copy");
+  });
+});

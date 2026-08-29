@@ -65,6 +65,34 @@ export const EXCLUDED_FROM_COPY = new Set([
   ".netrc",
 ]);
 
+/**
+ * Copied into the sandbox, because the tests need them, but never diffed
+ * and never applied back.
+ *
+ * These are generated: nobody edits `node_modules` by hand, and whatever
+ * the model does to it dies with the sandbox. Diffing them is not merely
+ * wasteful -- it is wrong. `npm` touches files under `node_modules` as a
+ * side effect of running, so a project with dependencies reported
+ * hundreds of "changes" it had not made, blew the size ceiling, and
+ * failed every run. Measured on a project with one dev dependency: 671 of
+ * the 676 files walked.
+ *
+ * Distinct from EXCLUDED_FROM_COPY, which is about what must never enter
+ * the container at all. The two questions are different and were
+ * conflated in one list.
+ */
+export const NEVER_APPLIED = new Set([
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  ".next",
+  ".cache",
+  ".turbo",
+  ".venv",
+  "__pycache__",
+]);
+
 /** Stands in for content that is never read, so a symlink can differ from a file. */
 const SYMLINK = "\u0000symlink";
 
@@ -85,6 +113,9 @@ export async function fingerprintTree(root: string, prefix = ""): Promise<Map<st
   }
   for (const entry of entries) {
     if (prefix === "" && EXCLUDED_FROM_COPY.has(entry.name)) continue;
+    // At any depth, not only the top: a monorepo has a node_modules under
+    // every package.
+    if (NEVER_APPLIED.has(entry.name)) continue;
     const relative = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
     if (entry.isDirectory()) {
       for (const [key, value] of await fingerprintTree(root, relative)) found.set(key, value);
@@ -155,9 +186,17 @@ export function assertChangesAreApplicable(changes: readonly Change[], copy: str
     if (relative.startsWith("..") || path.isAbsolute(relative)) {
       throw new BoundaryViolation(`${change.file} resolves outside the project.`, change.file);
     }
-    const head = change.file.split("/")[0] ?? "";
+    const segments = change.file.split("/");
+    const head = segments[0] ?? "";
     if (EXCLUDED_FROM_COPY.has(head)) {
       throw new BoundaryViolation(`${change.file} is inside ${head}, which the harness never applies.`, change.file);
+    }
+    const generated = segments.find((segment) => NEVER_APPLIED.has(segment));
+    if (generated !== undefined) {
+      throw new BoundaryViolation(
+        `${change.file} is inside ${generated}, which is generated and never applied.`,
+        change.file,
+      );
     }
   }
 }
