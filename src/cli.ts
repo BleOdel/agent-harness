@@ -27,6 +27,7 @@ import { remove } from "./verbs/remove.ts";
 import { run as runAll } from "./verbs/run.ts";
 import { show } from "./verbs/show.ts";
 import { undo } from "./verbs/undo.ts";
+import { view } from "./verbs/view.ts";
 import { work } from "./verbs/work.ts";
 
 const USAGE = [
@@ -40,6 +41,7 @@ const USAGE = [
   "  harness run [--max N]         work items until one needs you",
   "  harness look",
   "  harness show <run-id>",
+  "  harness view [--open]         the whole record as a page you can read",
   "  harness undo <run-id>",
   "  harness commit [<run-id>]     commit what a run applied (never pushes)",
   "  harness remove [<path>] --yes a project and its harness state, together",
@@ -74,6 +76,8 @@ async function main(): Promise<void> {
       return look(project);
     case "show":
       return show(project, rest);
+    case "view":
+      return view(project, rest);
     case "undo":
       return undo(project, rest);
     case "remove":

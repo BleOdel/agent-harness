@@ -204,6 +204,7 @@ Run them inside your project.
 | `harness work [<id>]` | build the next Must, or a named item |
 | `harness look` | what happened, what is pending, what escalated and why |
 | `harness show <run-id>` | the exact diff a run applied |
+| `harness view [--open]` | the whole record as a page you can read |
 | `harness undo <run-id>` | put it back |
 | `harness run [--max N]` | work items until one needs you |
 | `harness commit [<run-id>]` | commit what a run applied — never pushes |
@@ -373,6 +374,34 @@ PASSED  control: honest work that asks for nothing extra
 The control is not optional. "Caught all four" proves nothing about a
 reviewer that escalates everything, and a reviewer that escalates
 everything is one you learn to ignore.
+
+## Reading what happened
+
+```bash
+harness view --open
+```
+
+`show` prints a diff to a terminal, and on a real run that was 1,526
+lines. Nobody reads that — which means the one human check in this design
+quietly does not happen. The information was never the problem; the shape
+of it was.
+
+`view` writes the record as a single HTML file: every run, its gate
+verdicts, the Reviewer's findings, and each file's diff separately and
+collapsible, with the acceptance criteria above them. Runs reversed by a
+later undo are marked as such rather than shown as though they still
+stand.
+
+**It runs nothing.** No server, no container, no model, no credentials —
+it turns files already on disk into HTML. Everything it shows comes from
+`record.jsonl` and the `before`/`after` copies in `recovery/`. That is why
+it needs no permission and why there is nothing in it to trust.
+
+Everything it renders — file contents, criteria, the Reviewer's words —
+comes from a project a model has been writing in, so all of it is escaped.
+A viewer that executed any of it would be a route out of the sandbox
+through the one tool that was supposed to be safe precisely because it
+runs nothing.
 
 ## Undo
 
