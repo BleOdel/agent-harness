@@ -79,3 +79,31 @@ test("a file too large to show says so instead of showing part of it", async () 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("a binary file is named, never embedded in the prompt", async () => {
+  // The diff becomes a command-line argument, and spawn refuses one
+  // containing a null byte. A .DS_Store reached a real change set, its
+  // bytes went into the reviewer's prompt, and the harness crashed with
+  // ERR_INVALID_ARG_VALUE after every gate had passed.
+  const { isBinary } = await import("../src/review/diff.ts");
+  assert.equal(isBinary("plain text"), false);
+  assert.equal(isBinary(`has a \u0000 null`), true);
+
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-binary-")));
+  try {
+    await mkdir(path.join(root, "copy"), { recursive: true });
+    await mkdir(path.join(root, "project"), { recursive: true });
+    await writeFile(path.join(root, "copy", "logo.png"), Buffer.from([0x89, 0x50, 0x00, 0x1a, 0x0a]));
+    await writeFile(path.join(root, "copy", "readme.md"), "# hello\n");
+
+    const rendered = await renderDiff(path.join(root, "project"), path.join(root, "copy"), [
+      { file: "logo.png", kind: "added", symlink: false },
+      { file: "readme.md", kind: "added", symlink: false },
+    ]);
+    assert.match(rendered, /logo\.png\n\s+\(binary file, not shown\)/u);
+    assert.match(rendered, /\+ # hello/u, "the text file must still be shown");
+    assert.equal(rendered.includes("\u0000"), false, "a null byte reached the prompt");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

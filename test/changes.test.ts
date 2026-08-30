@@ -164,3 +164,24 @@ test("a change inside a generated directory is refused if one ever appears", asy
     assertChangesAreApplicable([change("src/node-utils.js", "added")], "/tmp/copy");
   });
 });
+
+test("operating-system litter never reaches the change set", async () => {
+  // macOS writes .DS_Store into any directory Finder has looked at. On
+  // the first real run it produced fifteen claim discrepancies for files
+  // nobody had touched, and cost the attempt.
+  const root = await scratch();
+  try {
+    const before = path.join(root, "before");
+    const after = path.join(root, "after");
+    for (const [directory, marker] of [[before, "old"], [after, "new"]] as const) {
+      await mkdir(path.join(directory, "src"), { recursive: true });
+      await writeFile(path.join(directory, ".DS_Store"), marker);
+      await writeFile(path.join(directory, "src", ".DS_Store"), marker);
+      await writeFile(path.join(directory, "Thumbs.db"), marker);
+      await writeFile(path.join(directory, "src", "app.js"), marker);
+    }
+    assert.deepEqual(await collectChanges(before, after), [change("src/app.js", "modified")]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

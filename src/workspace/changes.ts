@@ -82,6 +82,14 @@ export const EXCLUDED_FROM_COPY = new Set([
  * conflated in one list.
  */
 export const NEVER_APPLIED = new Set([
+  // Operating-system litter. macOS writes .DS_Store into any directory
+  // Finder has looked at, so it appears in change sets nobody made, it is
+  // binary, and the model has to account for it in its claim. On the
+  // first real run it produced fifteen claim discrepancies and cost the
+  // attempt.
+  ".DS_Store",
+  "Thumbs.db",
+  "desktop.ini",
   "node_modules",
   "dist",
   "build",

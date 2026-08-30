@@ -54,12 +54,28 @@ export function diffLines(before: readonly string[], after: readonly string[]): 
   return out;
 }
 
-async function lines(file: string): Promise<string[] | undefined> {
+/**
+ * A file is binary if it contains a null byte -- the same rule `git`
+ * uses, and the one that matters here: the diff becomes a command-line
+ * argument, and `spawn` refuses an argument containing a null byte.
+ *
+ * Found by a real run. A `.DS_Store` reached the change set, its bytes
+ * went into the reviewer's prompt, and the harness crashed with
+ * ERR_INVALID_ARG_VALUE after the gates had passed -- so a run that had
+ * done everything right died on the way to being reviewed.
+ */
+export const isBinary = (text: string): boolean => text.includes("\u0000");
+
+const BINARY = Symbol("binary");
+
+async function lines(file: string): Promise<string[] | typeof BINARY | undefined> {
+  let text;
   try {
-    return (await readFile(file, "utf8")).split("\n");
+    text = await readFile(file, "utf8");
   } catch {
     return undefined;
   }
+  return isBinary(text) ? BINARY : text.split("\n");
 }
 
 export async function renderDiff(
@@ -78,6 +94,13 @@ export async function renderDiff(
     }
     const before = change.kind === "added" ? [] : (await lines(path.join(project, change.file)) ?? []);
     const after = change.kind === "deleted" ? [] : (await lines(path.join(copy, change.file)) ?? []);
+
+    if (before === BINARY || after === BINARY) {
+      // Said, not shown. There is nothing useful to show, and its bytes
+      // cannot travel in a command-line argument.
+      sections.push(`${header}\n  (binary file, not shown)`);
+      continue;
+    }
 
     if (before.length + after.length > MAX_FILE_LINES) {
       // Said plainly. A Reviewer that is shown a truncated file and not
