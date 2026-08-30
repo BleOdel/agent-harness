@@ -324,6 +324,20 @@ export async function work(argv: readonly string[]): Promise<void> {
         );
       }
       if (verdict.verdict === "escalate") {
+        const findings = [...verdict.unmet, ...verdict.unaccounted, ...verdict.notes];
+        if (attempt === 1) {
+          // One informed attempt before troubling the operator. The
+          // reviewer's findings are exactly the diagnosis the builder
+          // never got: it wrote the change believing it was finished, and
+          // stopping here would send it back with nothing new to work
+          // from. A second escalation still goes to a person, so nothing
+          // is automated past the human -- only past a wasted round trip.
+          say("");
+          for (const finding of findings) say(`  - ${finding}`);
+          instruction = `${diagnose("review-escalated", findings.map((f) => `- ${f}`).join("\n")).forAgent}`
+            + `\n\n---\n\nThe original goal:\n\n${briefing(work.title, work.criteria)}`;
+          continue;
+        }
         throw await stop(
           "escalated",
           "review: escalated to you.",

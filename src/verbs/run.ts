@@ -36,10 +36,14 @@ export async function run(argv: readonly string[]): Promise<void> {
         // that failed twice, an empty queue. All of them mean the same
         // thing to this loop -- a person is needed, so stop rather than
         // start the next item on top of an unexamined one.
-        say("");
-        say(`Stopped after ${String(done)} ${done === 1 ? "item" : "items"}.`);
-        say("");
-        throw error;
+        //
+        // The count goes in the error, not before it. Printed first it
+        // appeared above the reason, so the run read as having stopped
+        // for no stated cause.
+        throw new OperatorError(
+          error.message,
+          `${error.remedy}\n\nStopped after ${String(done)} ${done === 1 ? "item" : "items"}.`,
+        );
       }
       throw error;
     }

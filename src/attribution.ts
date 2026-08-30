@@ -49,6 +49,17 @@ const DIAGNOSES: Record<FailureKind, { cause: string; fix: string }> = {
       + "does not mention, or the claim describes work that did not happen.",
     fix: "Make the claim exactly describe the change set, or make the change set match the claim. Do not pad the claim to silence the gate.",
   },
+  "review-escalated": {
+    cause:
+      "A second reviewer, which did not write the change and cannot see how it was "
+      + "reasoned about, judged it against the acceptance criteria and found something "
+      + "unsatisfied or something present that nothing asked for.",
+    fix:
+      "Address each finding directly. If a criterion is genuinely satisfied and the "
+      + "reviewer is wrong, say why in your summary rather than changing the code to "
+      + "look compliant -- a second escalation goes to the operator, and a reasoned "
+      + "disagreement is more useful to them than a silent edit.",
+  },
   "too-large": {
     cause: "The change exceeds the ceiling for one run, which usually means the goal was misunderstood rather than large.",
     fix: "Do the smallest part of the goal that stands on its own, and stop there.",

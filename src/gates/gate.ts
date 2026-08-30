@@ -26,6 +26,7 @@ export type FailureKind =
   | "claim-mismatch"
   | "too-large"
   | "timed-out"
+  | "review-escalated"
   | "boundary";
 
 export interface GateVerdict {
