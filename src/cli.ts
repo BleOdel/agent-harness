@@ -18,10 +18,13 @@ import path from "node:path";
 import { applyConfigFile } from "./config.ts";
 import { add } from "./verbs/add.ts";
 import { OperatorError, say } from "./verbs/io.ts";
+import { commit } from "./verbs/commit.ts";
 import { deps } from "./verbs/deps.ts";
 import { init } from "./verbs/init.ts";
 import { look } from "./verbs/look.ts";
 import { plan } from "./verbs/plan.ts";
+import { remove } from "./verbs/remove.ts";
+import { run as runAll } from "./verbs/run.ts";
 import { show } from "./verbs/show.ts";
 import { undo } from "./verbs/undo.ts";
 import { work } from "./verbs/work.ts";
@@ -34,9 +37,12 @@ const USAGE = [
   "  harness add <id> --title \"...\" --criterion \"...\" [--priority must]",
   "  harness add --from latest     import the items a plan proposed",
   "  harness work [<item-id or goal>]",
+  "  harness run [--max N]         work items until one needs you",
   "  harness look",
   "  harness show <run-id>",
   "  harness undo <run-id>",
+  "  harness commit [<run-id>]     commit what a run applied (never pushes)",
+  "  harness remove [<path>] --yes a project and its harness state, together",
   "  harness deps [--install]      packages a run declared but did not install",
   "",
   "Run it inside your project. With no arguments, `work` takes the next Must.",
@@ -54,18 +60,24 @@ async function main(): Promise<void> {
       return add(project, rest);
     case "init":
       return init(project);
+    case "commit":
+      return commit(project, rest);
     case "deps":
       return deps(project, rest);
     case "plan":
       return plan(rest);
     case "work":
       return work(rest);
+    case "run":
+      return runAll(rest);
     case "look":
       return look(project);
     case "show":
       return show(project, rest);
     case "undo":
       return undo(project, rest);
+    case "remove":
+      return remove(project, rest);
     case undefined:
     case "help":
     case "--help":

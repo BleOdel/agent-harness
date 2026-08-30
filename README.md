@@ -205,7 +205,10 @@ Run them inside your project.
 | `harness look` | what happened, what is pending, what escalated and why |
 | `harness show <run-id>` | the exact diff a run applied |
 | `harness undo <run-id>` | put it back |
+| `harness run [--max N]` | work items until one needs you |
+| `harness commit [<run-id>]` | commit what a run applied — never pushes |
 | `harness deps [--install]` | packages a run declared but did not install |
+| `harness remove <path> --yes` | a project and its harness state, together |
 
 `work` with no argument takes the next Must from `features.json`. The
 project is the directory you are in, or `HARNESS_PROJECT` if you set it.
@@ -303,6 +306,47 @@ that an interactive argument list differs from a one-shot one by exactly
 5. **Apply.** With a recovery snapshot of both sides, and a line in an
    append-only record.
 6. **Destroy.** The sandbox goes, on every path, including a crash.
+
+## Running unattended
+
+```bash
+harness run --max 5
+```
+
+Works items until the queue empties or **something needs a person** —
+an escalation, a gate that failed twice, an empty queue. It stops there
+rather than starting the next item on top of an unexamined one. That is
+the whole discipline: an escalation nobody reads while later work builds
+on it is exactly the failure the reviewer exists to prevent, and
+automating past it would undo the point.
+
+It is safe to run unattended only because every guarantee holds per item.
+Each is copied, gated, reviewed, snapshotted and applied on its own, so
+five items are five of those rather than one large one.
+
+## Git
+
+The model never sees git. `.git` is not in the sandbox copy, so history
+cannot be rewritten, a branch cannot be moved, and no commit can be made
+that looks like yours.
+
+`harness commit` runs on the host, when you ask, and only ever adds a
+commit — no push, no branch, no amend. The message records what the work
+was meant to satisfy and what proved it:
+
+```
+Truncate text to a length
+
+Applied by the harness as r2.
+
+  tests: passed, 6 assertions executed
+  test collection: all 3 test files are collected
+  claim: all 3 criteria point at real files
+  review: pass
+```
+
+Six months later the useful question about a commit is not what changed —
+the diff says that — but what it was supposed to satisfy.
 
 ## Why the Reviewer exists
 
