@@ -86,3 +86,74 @@ test("the header counts only runs still standing", () => {
   ]);
   assert.match(page, /3 runs recorded &middot; 1 still standing/u);
 });
+
+test("the tree lists every run that touched a file, and files no run touched", async () => {
+  // The question a diff cannot answer: what is this file now, and which
+  // runs made it that way.
+  const { collectTree } = await import("../src/view/files.ts");
+  const { mkdir, mkdtemp, rm, writeFile } = await import("node:fs/promises");
+  const os = await import("node:os");
+  const path = await import("node:path");
+
+  const root = await mkdtemp(path.join(os.tmpdir(), "harness-tree-"));
+  try {
+    await mkdir(path.join(root, "src"), { recursive: true });
+    await writeFile(path.join(root, "src", "busy.js"), "export const a = 1;\n");
+    await writeFile(path.join(root, "src", "quiet.js"), "export const b = 2;\n");
+    await mkdir(path.join(root, "node_modules", "pkg"), { recursive: true });
+    await writeFile(path.join(root, "node_modules", "pkg", "index.js"), "noise");
+
+    const change = (file: string) => ({ file, kind: "modified" as const, symlink: false });
+    const tree = await collectTree(root, [
+      { ...run({ id: "r1" }), changes: [change("src/busy.js")] },
+      { ...run({ id: "r2" }), changes: [change("src/busy.js")] },
+      { ...run({ id: "r5" }), changes: [change("src/busy.js")] },
+    ]);
+
+    const busy = tree.files.find((f) => f.path === "src/busy.js");
+    const quiet = tree.files.find((f) => f.path === "src/quiet.js");
+    assert.deepEqual(busy?.touchedBy, ["r1", "r2", "r5"], "a file changed by three runs must list all three");
+    assert.deepEqual(quiet?.touchedBy, [], "a file no run has touched is still listed");
+    assert.match(quiet?.text ?? "", /export const b/u, "and still opens");
+    assert.equal(tree.files.some((f) => f.path.startsWith("node_modules")), false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a file too large to carry is listed with the reason, not hidden", async () => {
+  // The page carries its own contents, so there is a ceiling. A tree that
+  // hid what it could not embed would misdescribe the project rather than
+  // the page.
+  const { collectTree, MAX_FILE_BYTES } = await import("../src/view/files.ts");
+  const { mkdtemp, rm, writeFile } = await import("node:fs/promises");
+  const os = await import("node:os");
+  const path = await import("node:path");
+
+  const root = await mkdtemp(path.join(os.tmpdir(), "harness-tree-big-"));
+  try {
+    await writeFile(path.join(root, "huge.txt"), "x".repeat(MAX_FILE_BYTES + 1));
+    await writeFile(path.join(root, "logo.png"), Buffer.from([0x89, 0x50, 0x00, 0x0a]));
+    const tree = await collectTree(root, []);
+    assert.equal(tree.files.length, 2);
+    assert.equal(tree.omitted, 2);
+    assert.match(tree.files.find((f) => f.path === "huge.txt")?.note ?? "", /too large/u);
+    assert.match(tree.files.find((f) => f.path === "logo.png")?.note ?? "", /Binary/u);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("file contents are escaped in the page like everything else", async () => {
+  const { renderPage: render } = await import("../src/view/render.ts");
+  const page = render("p", [], {
+    files: [{
+      path: "x.js", directory: "", name: "x.js", bytes: 10,
+      text: '<script>alert("x")</script>', note: undefined, touchedBy: ["r1"],
+    }],
+    omitted: 0,
+  });
+  assert.equal(page.includes('<script>alert'), false);
+  assert.ok(page.includes("&lt;script&gt;"));
+  assert.match(page, /href="#r1"/u, "a touching run is a link to its diff");
+});

@@ -12,6 +12,7 @@
  */
 
 import type { RunRecord } from "../record/record.ts";
+import type { ProjectTree } from "./files.ts";
 
 export interface FileDiff {
   readonly file: string;
@@ -135,10 +136,116 @@ summary{cursor:pointer;padding:.55rem 0;display:flex;gap:.75rem;align-items:base
 .l.del{background:color-mix(in srgb,var(--del) 12%,transparent)}
 .l.ctx{color:var(--dim)}
 .note{color:var(--dim);font-size:.9rem;margin:.5rem 0}
+.shell{display:grid;grid-template-columns:17.5rem minmax(0,1fr);gap:1.75rem;align-items:start}
+@media(max-width:820px){.shell{grid-template-columns:1fr}}
+aside{position:sticky;top:1rem;max-height:calc(100vh - 2rem);overflow:auto}
+@media(max-width:820px){aside{position:static;max-height:22rem}}
+.side-h{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin:0 0 .5rem}
+.tree{list-style:none;margin:0;padding:0;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+.tree .dir{color:var(--dim);font-size:.7rem;letter-spacing:.06em;padding:.75rem 0 .15rem;word-break:break-all}
+/* box-sizing after all:unset -- the reset wipes it back to content-box,
+   so width:100% plus padding overflowed the sidebar by exactly the
+   padding and clipped the right-hand column. */
+.tree button{all:unset;box-sizing:border-box;cursor:pointer;display:flex;gap:.5rem;width:100%;align-items:baseline;padding:.12rem .25rem;border-radius:3px;color:var(--fg)}
+.tree button:hover{background:var(--line);color:var(--accent)}
+.tree button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.tree button[aria-expanded="true"]{background:var(--line);color:var(--accent)}
+.fname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fruns{color:var(--dim);font-size:.72rem;flex:none;width:1.5rem;text-align:right}
+.untouched{color:var(--line)}
+.omitted{color:var(--dim);font-size:.75rem;margin:.75rem 0 0}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:0 0 1.25rem;overflow:hidden}
+.panel header{display:flex;gap:1rem;align-items:baseline;padding:.7rem 1.25rem;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.fpath{font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;flex:1;word-break:break-all}
+.who{color:var(--dim);font-size:.78rem}
+.who a{color:var(--accent)}
+.panel .src{margin:0;padding:.85rem 1.25rem;overflow-x:auto;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+.col{min-width:0}
 `;
 
-export function renderPage(project: string, views: readonly RunView[]): string {
+/**
+ * The tree, and every file's contents, carried in the page.
+ *
+ * Contents are hidden panels rather than fetched on demand: a `file://`
+ * page cannot read its neighbours, so anything not embedded is not
+ * available at all.
+ */
+function fileBrowser(tree: ProjectTree): string {
+  if (tree.files.length === 0) return "";
+  const rows: string[] = [];
+  let directory: string | undefined;
+  for (const [index, file] of tree.files.entries()) {
+    if (file.directory !== directory) {
+      directory = file.directory;
+      rows.push(`<li class="dir">${escape(directory === "" ? "/" : directory)}</li>`);
+    }
+    // A count, not a list. Run ids beside the filename kept overflowing
+    // the column and printing a truncated list that read as the whole one
+    // -- and the full set is in the panel, which is where anyone asking
+    // "which runs" is going next anyway.
+    const runs = file.touchedBy.length === 0
+      ? '<span class="untouched" title="never changed by a run">&mdash;</span>'
+      : `<span title="changed by ${escape(file.touchedBy.join(", "))}">${String(file.touchedBy.length)}</span>`;
+    rows.push(
+      `<li><button type="button" data-file="f${String(index)}">`
+      + `<span class="fname">${escape(file.name)}</span>`
+      + `<span class="fruns">${runs}</span></button></li>`,
+    );
+  }
+
+  const panels = tree.files.map((file, index) => {
+    const links = file.touchedBy.length === 0
+      ? "never changed by a run"
+      : `changed by ${file.touchedBy.map((id) => `<a href="#${escape(id)}">${escape(id)}</a>`).join(", ")}`;
+    const body = file.text === undefined
+      ? `<p class="note">${escape(file.note ?? "Not available.")}</p>`
+      : `<pre class="src">${escape(file.text)}</pre>`;
+    return `<article class="panel" id="f${String(index)}" hidden>`
+      + `<header><span class="fpath">${escape(file.path)}</span>`
+      + `<span class="who">${links}</span></header>${body}</article>`;
+  });
+
+  return [
+    `<p class="side-h">Files</p>`,
+    `<ul class="tree">${rows.join("")}</ul>`,
+    tree.omitted === 0 ? "" : `<p class="omitted">${String(tree.omitted)} files listed but not included</p>`,
+    `<!--panels-->${panels.join("")}`,
+  ].join("");
+}
+
+/**
+ * Shows one file panel at a time. Real buttons, so the tree is reachable
+ * by keyboard; no framework, because the page has to work from a file://
+ * URL with nothing to fetch and nothing to install.
+ */
+const SCRIPT = `<script>
+(function () {
+  var open = null;
+  function show(id) {
+    if (open) { open.el.hidden = true; open.btn.setAttribute("aria-expanded", "false"); }
+    if (open && open.id === id) { open = null; return; }
+    var el = document.getElementById(id);
+    var btn = document.querySelector('[data-file="' + id + '"]');
+    if (!el || !btn) return;
+    el.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+    open = { id: id, el: el, btn: btn };
+    el.scrollIntoView({ block: "nearest" });
+  }
+  document.querySelectorAll("[data-file]").forEach(function (btn) {
+    btn.setAttribute("aria-expanded", "false");
+    btn.addEventListener("click", function () { show(btn.getAttribute("data-file")); });
+  });
+})();
+</script>`;
+
+export function renderPage(
+  project: string,
+  views: readonly RunView[],
+  tree: ProjectTree = { files: [], omitted: 0 },
+): string {
   const applied = views.filter((v) => v.run.outcome === "applied" && v.standing).length;
+  const browser = fileBrowser(tree);
   return [
     "<!doctype html>",
     '<html lang="en"><head><meta charset="utf-8">',
@@ -147,8 +254,13 @@ export function renderPage(project: string, views: readonly RunView[]): string {
     `<style>${STYLE}</style></head><body><main>`,
     `<h1>${escape(project)}</h1>`,
     `<p class="sub">${String(views.length)} runs recorded &middot; ${String(applied)} still standing &middot; read-only</p>`,
+    browser === "" ? "" : `<div class="shell"><aside>${browser.split("<!--panels-->")[0] ?? ""}</aside><div class="col">`,
+    browser === "" ? "" : (browser.split("<!--panels-->")[1] ?? ""),
     ...views.map(runSection),
-    "</main></body></html>",
+    browser === "" ? "" : "</div></div>",
+    "</main>",
+    browser === "" ? "" : SCRIPT,
+    "</body></html>",
     "",
   ].join("\n");
 }

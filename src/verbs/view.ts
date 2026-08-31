@@ -17,6 +17,7 @@ import path from "node:path";
 import { readFeatures } from "../features.ts";
 import { harnessDirectory, readRecord, recoveryPath, undoableRuns } from "../record/record.ts";
 import { diffLines, isBinary } from "../review/diff.ts";
+import { collectTree } from "../view/files.ts";
 import { type FileDiff, renderPage, type RunView } from "../view/render.ts";
 import { OperatorError, say } from "./io.ts";
 
@@ -85,11 +86,12 @@ export async function view(project: string, argv: readonly string[]): Promise<vo
     });
   }
 
+  const tree = await collectTree(project, runs);
   const destination = path.join(harnessDirectory(project), "view.html");
   await mkdir(path.dirname(destination), { recursive: true });
-  await writeFile(destination, renderPage(path.basename(project), views), "utf8");
+  await writeFile(destination, renderPage(path.basename(project), views, tree), "utf8");
 
-  say(`${String(views.length)} runs written to:`);
+  say(`${String(views.length)} runs and ${String(tree.files.length)} files written to:`);
   say(`  ${destination}`);
   if (argv.includes("--open")) {
     spawn("open", [destination], { stdio: "ignore", detached: true }).unref();

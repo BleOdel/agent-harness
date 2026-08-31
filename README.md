@@ -416,10 +416,18 @@ quietly does not happen. The information was never the problem; the shape
 of it was.
 
 `view` writes the record as a single HTML file: every run, its gate
-verdicts, the Reviewer's findings, and each file's diff separately and
-collapsible, with the acceptance criteria above them. Runs reversed by a
+verdicts, the Reviewer's findings, each file's diff separately and
+collapsible with the acceptance criteria above them, and the project's
+own files down the side — click one to read it, with a link to every run
+that changed it. Runs reversed by a
 later undo are marked as such rather than shown as though they still
 stand.
+
+File contents are carried in the page rather than fetched, because a
+`file://` page cannot read its neighbours. That puts a ceiling on it, so
+the ceiling is explicit: a file too large or binary is still *listed*,
+with the reason it is not shown. A tree that hid what it could not carry
+would misdescribe your project rather than the page.
 
 **It runs nothing.** No server, no container, no model, no credentials —
 it turns files already on disk into HTML. Everything it shows comes from
