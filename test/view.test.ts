@@ -270,16 +270,30 @@ test("the figure says which agent is working, and admits when none is", async ()
   const gating = figureSvg("gating");
 
   // Somebody is drawn for both agents, and they are not the same person.
-  assert.match(building, /class="body"/u);
-  assert.match(reviewing, /class="body"/u);
+  assert.match(building, /class="shirt"/u);
+  assert.match(reviewing, /class="shirt"/u);
   assert.match(reviewing, /class="glasses"/u, "the reviewer is told apart at a glance");
   assert.equal(building.includes('class="glasses"'), false);
   assert.notEqual(building, reviewing, "the two agents must look different");
 
   // And nobody is drawn while the gates run, which is the point.
-  assert.equal(gating.includes('class="body"'), false, "nobody is at the desk while the gates run");
+  assert.equal(gating.includes('class="shirt"'), false, "nobody is at the desk while the gates run");
   assert.equal(gating.includes('class="skin"'), false);
   assert.match(gating, /class="chair"/u, "an empty chair, not a missing picture");
+});
+
+test("a scene is several held frames, not a sliding transform", async () => {
+  // Pixel art moves by swapping discrete poses. A transform slides the
+  // same pixels around, which reads as a vector being animated rather
+  // than a sprite acting.
+  const { figureSvg, FIGURE_STYLE } = await import("../src/view/figures.ts");
+  const building = figureSvg("building");
+  const frames = [...building.matchAll(/class="fr fr\d+"/gu)].length;
+  assert.ok(frames >= 4, `expected several frames, found ${String(frames)}`);
+  assert.match(FIGURE_STYLE, /steps\(1\)/u, "frames are held, never blended");
+  // And one gesture among the typing, so it is not a two-frame loop.
+  assert.ok(new Set([...building.matchAll(/<g class="fr fr\d+">(.*?)<\/g>/gsu)].map((m) => m[1])).size >= 3,
+    "the frames must not all be the same two poses");
 });
 
 test("the live banner ships every figure, so switching needs no request", async () => {
@@ -304,12 +318,14 @@ test("the figures are pixels, aligned to a grid and rendered crisply", async () 
   // Drawn as rects on a 4-unit grid with crispEdges. Anti-aliasing or an
   // off-grid coordinate turns pixel art into a smudge, and both are easy
   // to introduce without noticing.
-  const { figureSvg, FIGURE_STYLE } = await import("../src/view/figures.ts");
+  const { figureSvg, FIGURE_STYLE, UNIT } = await import("../src/view/figures.ts");
   assert.match(FIGURE_STYLE, /shape-rendering:crispEdges/u);
 
   const svg = figureSvg("building");
   const coords = [...svg.matchAll(/(?:x|y|width|height)="(\d+)"/gu)].map((m) => Number(m[1]));
   assert.ok(coords.length > 40, `expected a grid of rects, found ${String(coords.length)} numbers`);
-  assert.deepEqual(coords.filter((n) => n % 4 !== 0), [], "every pixel sits on the 4-unit grid");
+  // Read from the module rather than restated, so changing the pixel size
+  // is not a failing test.
+  assert.deepEqual(coords.filter((n) => n % UNIT !== 0), [], "every pixel sits on the grid");
   assert.equal(svg.includes("<path"), false, "paths are how pixel art stops being pixel art");
 });
