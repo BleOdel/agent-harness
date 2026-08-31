@@ -42,6 +42,7 @@ const USAGE = [
   "  harness look",
   "  harness show <run-id>",
   "  harness view [--open]         the whole record as a page you can read",
+  "  harness view --serve          the same page, watching a run as it happens",
   "  harness undo <run-id>",
   "  harness commit [<run-id>]     commit what a run applied (never pushes)",
   "  harness remove [<path>] --yes a project and its harness state, together",

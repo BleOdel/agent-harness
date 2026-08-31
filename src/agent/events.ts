@@ -61,6 +61,14 @@ export class EventStream {
   private usage: AgentUsage = emptyUsage();
   /** Lines that were not JSON at all, kept so a failure can be explained. */
   readonly unparsed: string[] = [];
+  /**
+   * Called as each turn completes.
+   *
+   * Without it a watcher hears nothing between the start of a run and its
+   * end -- which for a model turn is a minute or more, long enough for a
+   * heartbeat to give the run up for dead. It was, on the first live test.
+   */
+  onTurn: ((usage: AgentUsage) => void) | undefined;
 
   /** Feeds a chunk, returning text to show the operator. */
   push(chunk: string): string {
@@ -101,6 +109,7 @@ export class EventStream {
         return this.delta(event);
       case "turn_end":
         this.count(event.message as Message | undefined);
+        this.onTurn?.(this.usage);
         return "";
       default:
         return "";

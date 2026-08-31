@@ -29,6 +29,7 @@ import { DEFAULT_LIMITS, type Limits } from "../gates/limits.ts";
 import { chooseNext, type Feature, markDone, readFeatures, unmetDependencies } from "../features.ts";
 import { listSkills } from "../agent/skills.ts";
 import { missingInProject } from "../deps.ts";
+import { clearStatus, type Phase, writeStatus } from "../view/status.ts";
 import { runPipeline } from "../pipeline.ts";
 import { appendRun, nextRunId, type Outcome, readRecord, recoveryPath, type RunRecord } from "../record/record.ts";
 import { renderDiff } from "../review/diff.ts";
@@ -238,15 +239,57 @@ export async function work(argv: readonly string[]): Promise<void> {
 
   let attempts = 0;
   let gateSummaries: string[] = [];
+  const startedAt = new Date().toISOString();
+
+  /**
+   * The record is written once, when a run ends. This is the other file:
+   * rewritten as the run proceeds, so `view --serve` has something to show
+   * before there is a result. Nothing reads it afterwards.
+   */
+  // Usage of the attempt currently in flight, so a watcher sees turns and
+  // tokens accumulate rather than a single frozen line.
+  let inFlight: AgentUsage = emptyUsage();
+  let phase: Phase = "building";
+
+  const mark = async (next: Phase = phase, extra: { tool?: string } = {}): Promise<void> => {
+    phase = next;
+    // Never fatal. This file exists so somebody can watch; a run must not
+    // die because nobody could. Its first version did exactly that.
+    await writeStatus(project, {
+      at: new Date().toISOString(),
+      pid: process.pid,
+      item: work.feature?.id ?? goal,
+      attempt: attempts,
+      phase: next,
+      startedAt,
+      turns: spent.turns + inFlight.turns,
+      ...(extra.tool === undefined ? {} : { tool: extra.tool }),
+      tokens: spent.totalTokens + inFlight.totalTokens,
+      costUsd: spent.costUsd + inFlight.costUsd,
+      gates: gateSummaries,
+    }).catch(() => undefined);
+  };
   // Summed across attempts: an item that needed two tries cost both, and
   // reporting only the last would understate every retry in the record.
   let spent: AgentUsage = emptyUsage();
+
+  /**
+   * A heartbeat on the clock, not on the work.
+   *
+   * The first version only refreshed the status when a turn completed, so
+   * a single slow turn -- and a model turn is routinely longer than the
+   * staleness threshold -- made a running job look dead. Watched happen:
+   * "no update for 21s, the run has stopped", while it was still going.
+   */
+  const beat = setInterval(() => { void mark(); }, 4_000);
+  beat.unref();
 
   try {
     let instruction = briefing(work.title, work.criteria);
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       attempts = attempt;
       if (attempt > 1) say(`\nattempt ${String(attempt)}, with a diagnosis`);
+      await mark("building");
       const agent = await runAgent(
         layout,
         {
@@ -257,7 +300,12 @@ export async function work(argv: readonly string[]): Promise<void> {
           skills: config.skillsDirectory !== undefined,
         },
         (chunk) => process.stdout.write(chunk),
+        (usage) => {
+          inFlight = usage;
+          void mark("building");
+        },
       );
+      inFlight = emptyUsage();
       spent = {
         ...agent.usage,
         input: spent.input + agent.usage.input,
@@ -286,6 +334,7 @@ export async function work(argv: readonly string[]): Promise<void> {
         limits: limitsFrom(process.env),
       });
       gateSummaries = run.verdicts.map((entry) => entry.summary);
+      await mark("gating");
       for (const verdict of run.verdicts) say(verdict.summary);
       for (const name of run.skipped) say(`${name}: not applicable to this project`);
 
@@ -339,6 +388,7 @@ export async function work(argv: readonly string[]): Promise<void> {
       }
       say(`boundary: ${String(changes.length)} files, all inside the project`);
 
+      await mark("reviewing");
       // The last gate, and the only one about intent. Everything before
       // it asks whether the code is sound; this asks whether it is the
       // work that was asked for.
@@ -396,6 +446,7 @@ export async function work(argv: readonly string[]): Promise<void> {
       say(`review: passed, ${String(work.criteria.length)} criteria accounted for`);
 
       await rm(path.join(sandbox.workDirectory, CLAIM_FILE), { force: true });
+      await mark("applying");
       const recovery = await snapshotForRecovery(
         project,
         sandbox.workDirectory,
@@ -445,6 +496,10 @@ export async function work(argv: readonly string[]): Promise<void> {
   } finally {
     // Every path, including a crash. A sandbox that survives a failure is
     // a stale copy the operator will one day mistake for the project.
+    clearInterval(beat);
     await destroySandbox(sandbox);
+    // And the run marker, so a watching page does not show this as still
+    // going. A kill -9 skips this, which is what the heartbeat is for.
+    await clearStatus(project).catch(() => undefined);
   }
 }

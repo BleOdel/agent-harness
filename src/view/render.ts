@@ -136,6 +136,9 @@ summary{cursor:pointer;padding:.55rem 0;display:flex;gap:.75rem;align-items:base
 .l.del{background:color-mix(in srgb,var(--del) 12%,transparent)}
 .l.ctx{color:var(--dim)}
 .note{color:var(--dim);font-size:.9rem;margin:.5rem 0}
+.live{background:var(--accent);color:var(--card);border-radius:8px;padding:.7rem 1.25rem;
+  margin:0 0 1.25rem;font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+.live.stopped{background:var(--line);color:var(--dim)}
 .strip{display:flex;gap:2.5rem;flex-wrap:wrap;align-items:flex-start;background:var(--card);
   border:1px solid var(--line);border-radius:10px;padding:1rem 1.5rem;margin:0 0 2rem}
 .cell{display:flex;flex-direction:column;gap:.15rem}
@@ -284,10 +287,48 @@ function summaryStrip(views: readonly RunView[]): string {
   ].join("");
 }
 
+/**
+ * Polls `/status` while a run is in flight. Only included when the page
+ * is served -- a file:// page cannot fetch, so shipping this into a saved
+ * file would give a permanently silent banner.
+ */
+const LIVE_SCRIPT = `<script>
+(function () {
+  var box = document.getElementById("live");
+  if (!box) return;
+  function paint(s) {
+    if (!s || !s.live) {
+      box.hidden = !s || !s.reason;
+      if (s && s.reason) { box.className = "live stopped"; box.textContent = s.reason; }
+      return;
+    }
+    var d = s.status;
+    var secs = Math.round((Date.now() - Date.parse(d.startedAt)) / 1000);
+    var mins = Math.floor(secs / 60);
+    box.hidden = false;
+    box.className = "live";
+    box.textContent = d.phase + " " + d.item
+      + (d.attempt > 1 ? " (attempt " + d.attempt + ")" : "")
+      + " \u00b7 " + d.turns + " turns"
+      + (d.tokens ? " \u00b7 " + d.tokens.toLocaleString("en-GB") + " tokens" : "")
+      + " \u00b7 " + (mins ? mins + "m " + (secs % 60) + "s" : secs + "s");
+  }
+  function tick() {
+    fetch("/status", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(paint)
+      .catch(function () { box.hidden = true; });
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>`;
+
 export function renderPage(
   project: string,
   views: readonly RunView[],
   tree: ProjectTree = { files: [], omitted: 0 },
+  live = false,
 ): string {
   const applied = views.filter((v) => v.run.outcome === "applied" && v.standing).length;
   const browser = fileBrowser(tree);
@@ -299,6 +340,7 @@ export function renderPage(
     `<style>${STYLE}</style></head><body><main>`,
     `<h1>${escape(project)}</h1>`,
     `<p class="sub">${String(views.length)} runs recorded &middot; ${String(applied)} still standing &middot; read-only</p>`,
+    live ? '<div class="live" id="live" hidden></div>' : "",
     summaryStrip(views),
     browser === "" ? "" : `<div class="shell"><aside>${browser.split("<!--panels-->")[0] ?? ""}</aside><div class="col">`,
     browser === "" ? "" : (browser.split("<!--panels-->")[1] ?? ""),
@@ -306,6 +348,7 @@ export function renderPage(
     browser === "" ? "" : "</div></div>",
     "</main>",
     browser === "" ? "" : SCRIPT,
+    live ? LIVE_SCRIPT : "",
     "</body></html>",
     "",
   ].join("\n");

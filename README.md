@@ -205,6 +205,7 @@ Run them inside your project.
 | `harness look` | what happened, what is pending, what escalated and why |
 | `harness show <run-id>` | the exact diff a run applied |
 | `harness view [--open]` | the whole record as a page you can read |
+| `harness view --serve` | the same page, watching a run as it happens |
 | `harness undo <run-id>` | put it back |
 | `harness run [--max N]` | work items until one needs you |
 | `harness commit [<run-id>]` | commit what a run applied — never pushes |
@@ -428,6 +429,37 @@ File contents are carried in the page rather than fetched, because a
 the ceiling is explicit: a file too large or binary is still *listed*,
 with the reason it is not shown. A tree that hid what it could not carry
 would misdescribe your project rather than the page.
+
+### Watching a run
+
+```bash
+harness view --serve          # then harness work in another terminal
+watching site at  http://127.0.0.1:7373
+```
+
+The page polls once a second and shows the phase, the item, turns, tokens
+and cost as they accumulate. Runs are still started with `harness work` —
+this only watches.
+
+Four rules hold it to that, each one line and each tested:
+
+- binds `127.0.0.1` explicitly, never every interface;
+- answers `GET` and refuses everything else with a 405;
+- serves two fixed routes, so there is no path to traverse;
+- has **no route that writes, applies, starts or approves anything**.
+
+That last one is not a limitation to lift later. A console that can act is
+a console that can act by accident, and this design rests on nothing
+reaching a repository that was not proved and decided.
+
+A port already in use is an error rather than a quiet reassignment, so you
+can never end up reading a page served by yesterday's process. That rule
+caught a stale server twice while this was being built.
+
+The run writes its progress every four seconds regardless of what it is
+doing, and the page disbelieves a status older than fifteen. So a harness
+killed mid-run shows as stopped within seconds, and a slow model turn does
+not.
 
 **It runs nothing.** No server, no container, no model, no credentials —
 it turns files already on disk into HTML. Everything it shows comes from

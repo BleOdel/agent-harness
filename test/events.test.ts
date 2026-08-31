@@ -104,3 +104,16 @@ test("the summary line reads as a person would want it", async () => {
   assert.match(line, /42% cached/u);
   assert.match(line, /\$0\.0262/u);
 });
+
+test("each completed turn is announced as it happens", async () => {
+  // Without this a watcher hears nothing between the start of a run and
+  // its end. A model turn is a minute or more, which is long enough for
+  // the heartbeat to give the run up for dead -- and it did, on the first
+  // live test of the server.
+  const stream = new EventStream();
+  const seen: number[] = [];
+  stream.onTurn = (usage) => { seen.push(usage.turns); };
+  stream.push(await readFile(FIXTURE, "utf8"));
+  stream.finish();
+  assert.deepEqual(seen, [1, 2], "one call per turn, with the running count");
+});

@@ -69,8 +69,10 @@ export async function runAgent(
   layout: SandboxLayout,
   request: AgentRequest,
   onOutput: (chunk: string) => void,
+  onTurn?: (usage: AgentUsage) => void,
 ): Promise<RunResult & { usage: AgentUsage }> {
   const events = new EventStream();
+  events.onTurn = onTurn;
   const result = await run(
     layout.dockerExecutable,
     buildRunArguments(layout, "bridge", buildAgentCommand(request)),
