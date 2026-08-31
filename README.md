@@ -375,6 +375,35 @@ The control is not optional. "Caught all four" proves nothing about a
 reviewer that escalates everything, and a reviewer that escalates
 everything is one you learn to ignore.
 
+## What a run cost
+
+Every run records the model, its token counts split by kind, and the cost
+in dollars. `work` prints one line as it finishes and `look` keeps a
+running total:
+
+```
+model: gpt-5.6-sol · 10 turns · 41,175 tokens · 61% cached · $0.1243
+...
+HISTORY  2 runs, 2 still standing  ·  107,078 tokens, $0.31
+```
+
+This comes from Pi's `--mode json` event stream rather than being
+estimated, and the harness renders the readable commentary back out —
+prose as it streams, tool calls named rather than dumped, and anything
+that is not JSON passed through untouched so a warning is never
+swallowed.
+
+Two things the numbers get right that are easy to get wrong. Usage is
+summed from `turn_end` only: the same figures appear on five other event
+types, and counting more than one multiplies a turn by how often its
+partial state was reported. And `input` is the *non-cached* share of the
+prompt — `totalTokens = input + output + cacheRead` — so the cached
+percentage is measured against the whole prompt. Measuring it against
+`input` alone reported "207% cached" on the first live run.
+
+Runs recorded before this existed have no usage, and `look` says so
+rather than quietly totalling half the history.
+
 ## Reading what happened
 
 ```bash

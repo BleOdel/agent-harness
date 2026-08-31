@@ -77,7 +77,17 @@ export async function look(project: string): Promise<void> {
   }
 
   const applied = undoableRuns(runs);
-  say(`HISTORY  ${String(runs.length)} runs, ${String(applied.length)} still standing`);
+  // What it has cost, when the record knows. Silence rather than a zero
+  // for runs made before usage was captured: a total that quietly omits
+  // half the history is worse than no total.
+  const measured = runs.filter((run) => run.usage !== undefined);
+  const spent = measured.reduce((total, run) => total + (run.usage?.costUsd ?? 0), 0);
+  const tokens = measured.reduce((total, run) => total + (run.usage?.totalTokens ?? 0), 0);
+  say(`HISTORY  ${String(runs.length)} runs, ${String(applied.length)} still standing`
+    + (measured.length === 0
+      ? ""
+      : `  ·  ${tokens.toLocaleString("en-GB")} tokens, $${spent.toFixed(2)}`
+        + (measured.length === runs.length ? "" : ` across ${String(measured.length)} measured`)));
   say();
   for (const run of runs.slice(-8)) {
     const marker = run.outcome === "applied" ? "+" : run.outcome === "no-changes" ? "=" : "!";

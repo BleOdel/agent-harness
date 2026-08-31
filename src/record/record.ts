@@ -40,6 +40,18 @@ export interface RunRecord {
   /** One line per gate, as the operator saw them. */
   readonly gates: readonly string[];
   readonly review?: { readonly verdict: string; readonly findings: readonly string[] };
+  /** What the model cost, summed across the run's turns. */
+  readonly usage?: {
+    readonly provider?: string;
+    readonly model?: string;
+    readonly input: number;
+    readonly output: number;
+    readonly cacheRead: number;
+    readonly reasoning: number;
+    readonly totalTokens: number;
+    readonly costUsd: number;
+    readonly turns: number;
+  };
   readonly changes: readonly Change[];
   /** Why it stopped, when it did. */
   readonly reason?: string;

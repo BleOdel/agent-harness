@@ -16,6 +16,7 @@ import {
   CONTAINER_SKILLS,
   type SandboxLayout,
 } from "../containment/sandbox.ts";
+import { type AgentUsage, EventStream } from "./events.ts";
 import { run, type RunResult } from "../run.ts";
 
 export interface AgentRequest {
@@ -32,6 +33,11 @@ export function buildAgentCommand(request: AgentRequest): string[] {
     "node",
     `${CONTAINER_PI_PACKAGE}/dist/cli.js`,
     "--print",
+    // Structured events rather than prose. Prose gave no model, no token
+    // counts, no cost and no turn boundaries; this gives all of them, and
+    // EventStream renders the readable part back out.
+    "--mode",
+    "json",
     // Trusts the project's own AGENTS.md without an interactive prompt.
     // There is no operator at the keyboard inside a container, and a
     // prompt nobody can answer is a hang, not a safeguard.
@@ -63,10 +69,13 @@ export async function runAgent(
   layout: SandboxLayout,
   request: AgentRequest,
   onOutput: (chunk: string) => void,
-): Promise<RunResult> {
-  return run(
+): Promise<RunResult & { usage: AgentUsage }> {
+  const events = new EventStream();
+  const result = await run(
     layout.dockerExecutable,
     buildRunArguments(layout, "bridge", buildAgentCommand(request)),
-    { timeoutMs: request.timeoutMs, onOutput },
+    { timeoutMs: request.timeoutMs, onOutput: (chunk) => { onOutput(events.push(chunk)); } },
   );
+  onOutput(events.finish());
+  return { ...result, usage: events.current() };
 }

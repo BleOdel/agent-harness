@@ -17,6 +17,7 @@
 
 import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
+import { type AgentUsage, describeUsage, emptyUsage } from "../agent/events.ts";
 import { runAgent } from "../agent/pi.ts";
 import { diagnose } from "../attribution.ts";
 import { ConfigError, loadConfig, setting } from "../config.ts";
@@ -219,6 +220,17 @@ export async function work(argv: readonly string[]): Promise<void> {
       gates: gateSummaries,
       changes: [],
       reason: summary,
+      ...(spent.turns === 0 ? {} : { usage: {
+        ...(spent.provider === undefined ? {} : { provider: spent.provider }),
+        ...(spent.model === undefined ? {} : { model: spent.model }),
+        input: spent.input,
+        output: spent.output,
+        cacheRead: spent.cacheRead,
+        reasoning: spent.reasoning,
+        totalTokens: spent.totalTokens,
+        costUsd: spent.costUsd,
+        turns: spent.turns,
+      } }),
       ...extra,
     });
     return new OperatorError(summary, detail);
@@ -226,6 +238,9 @@ export async function work(argv: readonly string[]): Promise<void> {
 
   let attempts = 0;
   let gateSummaries: string[] = [];
+  // Summed across attempts: an item that needed two tries cost both, and
+  // reporting only the last would understate every retry in the record.
+  let spent: AgentUsage = emptyUsage();
 
   try {
     let instruction = briefing(work.title, work.criteria);
@@ -243,6 +258,20 @@ export async function work(argv: readonly string[]): Promise<void> {
         },
         (chunk) => process.stdout.write(chunk),
       );
+      spent = {
+        ...agent.usage,
+        input: spent.input + agent.usage.input,
+        output: spent.output + agent.usage.output,
+        cacheRead: spent.cacheRead + agent.usage.cacheRead,
+        cacheWrite: spent.cacheWrite + agent.usage.cacheWrite,
+        reasoning: spent.reasoning + agent.usage.reasoning,
+        totalTokens: spent.totalTokens + agent.usage.totalTokens,
+        costUsd: spent.costUsd + agent.usage.costUsd,
+        turns: spent.turns + agent.usage.turns,
+      };
+      say("");
+      say(describeUsage(spent));
+
       if (agent.timedOut) {
         throw await stop("error", `agent: timed out after ${String(Math.round(config.agentTimeoutMs / 1000))}s`, "");
       }
@@ -285,6 +314,17 @@ export async function work(argv: readonly string[]): Promise<void> {
           outcome: "no-changes",
           gates: gateSummaries,
           changes: [],
+      ...(spent.turns === 0 ? {} : { usage: {
+        ...(spent.provider === undefined ? {} : { provider: spent.provider }),
+        ...(spent.model === undefined ? {} : { model: spent.model }),
+        input: spent.input,
+        output: spent.output,
+        cacheRead: spent.cacheRead,
+        reasoning: spent.reasoning,
+        totalTokens: spent.totalTokens,
+        costUsd: spent.costUsd,
+        turns: spent.turns,
+      } }),
         });
         say("no changes. nothing was applied.");
         return;
@@ -373,6 +413,17 @@ export async function work(argv: readonly string[]): Promise<void> {
         gates: run.verdicts.map((entry) => entry.summary),
         review: { verdict: verdict.verdict, findings: [...verdict.unmet, ...verdict.unaccounted] },
         changes,
+      ...(spent.turns === 0 ? {} : { usage: {
+        ...(spent.provider === undefined ? {} : { provider: spent.provider }),
+        ...(spent.model === undefined ? {} : { model: spent.model }),
+        input: spent.input,
+        output: spent.output,
+        cacheRead: spent.cacheRead,
+        reasoning: spent.reasoning,
+        totalTokens: spent.totalTokens,
+        costUsd: spent.costUsd,
+        turns: spent.turns,
+      } }),
       });
       // node_modules is never applied, so a run that added a package
       // brings back the declaration without the package. Every gate

@@ -81,6 +81,12 @@ function runSection(view: RunView): string {
     `<p class="meta">${escape(run.at.slice(0, 16).replace("T", " "))}`,
     ` &middot; <span class="outcome">${escape(OUTCOME_LABEL[run.outcome] ?? run.outcome)}</span>`,
     run.attempts > 1 ? ` &middot; ${String(run.attempts)} attempts` : "",
+    run.usage === undefined ? "" : ` &middot; <span class="usage">${escape(run.usage.model ?? "model")}`
+      + ` &middot; ${run.usage.totalTokens.toLocaleString("en-GB")} tokens`
+      + (run.usage.cacheRead > 0
+        ? ` &middot; ${String(Math.round((run.usage.cacheRead
+          / (run.usage.input + run.usage.cacheRead)) * 100))}% cached` : "")
+      + ` &middot; $${run.usage.costUsd.toFixed(4)}</span>`,
     reversed ? ' &middot; <span class="outcome">reversed by a later undo</span>' : "",
     `</p></header>`,
     view.criteria.length === 0 ? "" : `<div class="criteria"><h3>Acceptance criteria</h3><ul>${
@@ -111,6 +117,7 @@ h2{font-size:1.05rem;margin:0;display:flex;gap:.75rem;align-items:baseline;flex-
 h2 .goal{font-weight:400;color:var(--dim)}
 .meta{margin:.15rem 0 0;color:var(--dim);font-size:.85rem}
 .outcome{color:var(--fg);font-weight:600}
+.usage{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em}
 h3{font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);margin:1.25rem 0 .4rem}
 .criteria li{margin:.2rem 0}
 .gates{list-style:none;padding:0;margin:1rem 0 0;font:13px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim)}
