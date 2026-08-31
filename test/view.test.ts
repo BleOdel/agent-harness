@@ -219,3 +219,39 @@ test("a project with no feature list shows no queue", async () => {
   const page = render("p", [], { files: [], omitted: 0 }, false, []);
   assert.equal(page.includes('class="queue"'), false);
 });
+
+test("the page says which harness built it", async () => {
+  // `--serve` reads the code once, at startup, so every later fix is
+  // invisible until restart -- and a page that is merely out of date looks
+  // exactly like a feature that does not work. Three rounds of "I don't
+  // see it" went by before anyone checked the clock.
+  const { renderPage: render } = await import("../src/view/render.ts");
+  const written = render("p", [], { files: [], omitted: 0 }, false, [], "2026-08-31 19:56");
+  assert.match(written, /harness of 2026-08-31 19:56/u);
+  assert.equal(written.includes("restart to pick up"), false, "a written file cannot be stale in that way");
+
+  const served = render("p", [], { files: [], omitted: 0 }, true, [], "2026-08-31 19:39");
+  assert.match(served, /restart to pick up a newer harness/u);
+});
+
+test("times are shown in the reader's clock, not UTC", async () => {
+  // The record stores UTC, which is right for a record and wrong to show.
+  // On a machine an hour ahead every run appeared to have happened an hour
+  // before it did, and the build marker -- whose entire job is being
+  // compared against "now" -- was off by the same hour. Nothing said so,
+  // because a time that is merely wrong still looks like a time.
+  const { localTime } = await import("../src/view/render.ts");
+  const iso = "2026-08-31T18:41:00.000Z";
+  const expected = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  assert.equal(
+    localTime(iso),
+    `${String(expected.getFullYear())}-${pad(expected.getMonth() + 1)}-${pad(expected.getDate())}`
+      + ` ${pad(expected.getHours())}:${pad(expected.getMinutes())}`,
+  );
+  // And it must not simply echo the UTC string back.
+  if (expected.getTimezoneOffset() !== 0) {
+    assert.notEqual(localTime(iso), "2026-08-31 18:41");
+  }
+  assert.equal(localTime("not a date"), "not a date", "an unreadable time is shown as-is");
+});

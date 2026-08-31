@@ -20,7 +20,7 @@ import { diffLines, isBinary } from "../review/diff.ts";
 import { createViewServer, listen, LOOPBACK } from "../view/server.ts";
 import { assess, processAlive, statusPath, type Status } from "../view/status.ts";
 import { collectTree } from "../view/files.ts";
-import { type FileDiff, type QueueItem, renderPage, type RunView } from "../view/render.ts";
+import { type FileDiff, localTime, type QueueItem, renderPage, type RunView } from "../view/render.ts";
 import { OperatorError, say } from "./io.ts";
 
 /** Kept small on purpose: an unreadably long diff is what this verb exists to fix. */
@@ -49,6 +49,20 @@ async function fileDiff(snapshot: string, file: string, kind: string): Promise<F
     lines: lines.slice(0, MAX_LINES_PER_FILE),
     note: `Showing the first ${String(MAX_LINES_PER_FILE)} of ${String(lines.length)} changed lines.`,
   };
+}
+
+/**
+ * When the running harness was last modified.
+ *
+ * Read from this module's own file rather than a version constant, so it
+ * cannot be right in the source and wrong in the process actually serving.
+ */
+async function builtAt(): Promise<string | undefined> {
+  const { stat } = await import("node:fs/promises");
+  const when = await stat(new URL(import.meta.url)).then((s) => s.mtime).catch(() => undefined);
+  // Local, like every other time shown. This one is compared against the
+  // reader's own clock by definition, so UTC would be actively misleading.
+  return when === undefined ? undefined : localTime(when.toISOString());
 }
 
 /** Builds the page from what is on disk. Called per request when serving. */
@@ -83,7 +97,9 @@ async function build(project: string, live: boolean): Promise<string> {
     state: runs.filter((run) => run.goal === feature.id).at(-1)?.outcome ?? feature.status,
     next: feature.id === next?.id,
   }));
-  return renderPage(path.basename(project), views, await collectTree(project, runs), live, items);
+  return renderPage(
+    path.basename(project), views, await collectTree(project, runs), live, items, await builtAt(),
+  );
 }
 
 async function serve(project: string, port: number): Promise<void> {
@@ -104,6 +120,10 @@ async function serve(project: string, port: number): Promise<void> {
   });
   const bound = await listen(server, port);
   say(`watching ${path.basename(project)} at  http://${LOOPBACK}:${String(bound)}`);
+  // Said at startup as well as in the page: this process holds the code it
+  // was started with, and nothing else will tell you when that stops being
+  // true.
+  say(`serving the harness as of ${await builtAt() ?? "unknown"} — restart to pick up changes`);
   say("");
   say("Read-only: it serves the page and the run status, and has no route that");
   say("writes, applies or starts anything. Runs are still started with `harness work`.");

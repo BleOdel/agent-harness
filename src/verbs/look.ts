@@ -15,6 +15,7 @@
 
 import { readFeatures, nextItems, type Feature } from "../features.ts";
 import { readRecord, type RunRecord, undoableRuns } from "../record/record.ts";
+import { localTime } from "../view/render.ts";
 import { clip, pad, say } from "./io.ts";
 
 function stateOfItem(feature: Feature, runs: readonly RunRecord[]): string {
@@ -91,7 +92,7 @@ export async function look(project: string): Promise<void> {
   say();
   for (const run of runs.slice(-8)) {
     const marker = run.outcome === "applied" ? "+" : run.outcome === "no-changes" ? "=" : "!";
-    say(`  ${marker} ${pad(run.id, 5)} ${run.at.slice(0, 16).replace("T", " ")}  ${pad(run.outcome, 12)} ${clip(run.goal, 44)}`);
+    say(`  ${marker} ${pad(run.id, 5)} ${localTime(run.at)}  ${pad(run.outcome, 12)} ${clip(run.goal, 44)}`);
   }
   if (runs.length > 8) say(`  ... ${String(runs.length - 8)} earlier runs`);
   say();

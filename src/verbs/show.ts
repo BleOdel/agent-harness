@@ -10,6 +10,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { readRecord, recoveryPath } from "../record/record.ts";
+import { localTime } from "../view/render.ts";
 import { diffLines } from "../review/diff.ts";
 import { OperatorError, say } from "./io.ts";
 
@@ -32,7 +33,7 @@ export async function show(project: string, argv: readonly string[]): Promise<vo
     throw new OperatorError(`No run ${wanted} in this project.`, "Run `harness look` to see what there is.");
   }
 
-  say(`${run.id}  ${run.at.slice(0, 19).replace("T", " ")}  ${run.outcome}`);
+  say(`${run.id}  ${localTime(run.at)}  ${run.outcome}`);
   say(`goal: ${run.goal}`);
   if (run.attempts > 1) say(`attempts: ${String(run.attempts)}`);
   say();

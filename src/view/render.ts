@@ -36,6 +36,23 @@ export interface RunView {
   readonly standing: boolean;
 }
 
+/**
+ * A timestamp in the reader's own clock.
+ *
+ * The record stores UTC, which is right for a record and wrong to show:
+ * on a machine an hour ahead, every run appeared to have happened an hour
+ * before it did, and the build marker -- whose whole job is being compared
+ * against "now" -- was off by the same hour. Nothing said so, because a
+ * time that is merely wrong still looks like a time.
+ */
+export function localTime(iso: string): string {
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return iso;
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return `${String(when.getFullYear())}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}`
+    + ` ${pad(when.getHours())}:${pad(when.getMinutes())}`;
+}
+
 /** Anything from the project could contain markup; none of it is trusted. */
 export function escape(text: string): string {
   return text
@@ -80,7 +97,7 @@ function runSection(view: RunView): string {
   return [
     `<section class="run ${escape(run.outcome)}${reversed ? " reversed" : ""}" id="${escape(run.id)}">`,
     `<header><h2>${escape(run.id)}<span class="goal">${escape(view.title ?? run.goal)}</span></h2>`,
-    `<p class="meta">${escape(run.at.slice(0, 16).replace("T", " "))}`,
+    `<p class="meta">${escape(localTime(run.at))}`,
     ` &middot; <span class="outcome">${escape(OUTCOME_LABEL[run.outcome] ?? run.outcome)}</span>`,
     run.attempts > 1 ? ` &middot; ${String(run.attempts)} attempts` : "",
     run.usage === undefined ? "" : ` &middot; <span class="usage">${escape(run.usage.model ?? "model")}`
@@ -137,6 +154,7 @@ summary{cursor:pointer;padding:.55rem 0;display:flex;gap:.75rem;align-items:base
 .l.del{background:color-mix(in srgb,var(--del) 12%,transparent)}
 .l.ctx{color:var(--dim)}
 .note{color:var(--dim);font-size:.9rem;margin:.5rem 0}
+.built{color:var(--dim);font-size:.72rem;margin:2.5rem 0 0;text-align:right}
 .live{background:var(--accent);color:var(--card);border-radius:8px;padding:.7rem 1.25rem;
   margin:0 0 1.25rem;font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
 .live.stopped{background:var(--line);color:var(--dim)}
@@ -375,6 +393,15 @@ export function renderPage(
   tree: ProjectTree = { files: [], omitted: 0 },
   live = false,
   items: readonly QueueItem[] = [],
+  /**
+   * When the harness that produced this page was last changed.
+   *
+   * `--serve` reads the code once, at startup, so every later fix is
+   * invisible until it is restarted -- and a page that is merely out of
+   * date looks exactly like a feature that does not work. It cost three
+   * rounds of "I don't see it" before anyone thought to check the clock.
+   */
+  builtAt: string | undefined = undefined,
 ): string {
   const applied = views.filter((v) => v.run.outcome === "applied" && v.standing).length;
   const browser = fileBrowser(tree);
@@ -398,6 +425,9 @@ export function renderPage(
     panels,
     ...views.map(runSection),
     hasSidebar ? "</div></div>" : "",
+    builtAt === undefined
+      ? ""
+      : `<p class="built">harness of ${escape(builtAt)}${live ? " &middot; serving live; restart to pick up a newer harness" : ""}</p>`,
     "</main>",
     browser === "" ? "" : SCRIPT,
     live ? LIVE_SCRIPT : "",

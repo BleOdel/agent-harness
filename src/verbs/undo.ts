@@ -31,6 +31,7 @@ import {
 import { type FileOutcome, planUndo } from "../recovery/plan-undo.ts";
 import { markStatus } from "../features.ts";
 import type { Change } from "../workspace/changes.ts";
+import { localTime } from "../view/render.ts";
 import { OperatorError, say } from "./io.ts";
 
 export async function undo(project: string, argv: readonly string[]): Promise<void> {
@@ -47,7 +48,7 @@ export async function undo(project: string, argv: readonly string[]): Promise<vo
     if (undoable.length === 0) throw new OperatorError("nothing to undo.", "No applied run in this project is still standing.");
     say("undoable runs, newest last:\n");
     for (const run of undoable) {
-      say(`  ${run.id.padEnd(5)} ${run.at.slice(0, 19).replace("T", " ")}  ${String(run.changes.length)} files  ${run.goal}`);
+      say(`  ${run.id.padEnd(5)} ${localTime(run.at)}  ${String(run.changes.length)} files  ${run.goal}`);
     }
     say("\nUndo one with: harness undo <run-id>");
     return;
