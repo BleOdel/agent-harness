@@ -268,10 +268,18 @@ test("the figure says which agent is working, and admits when none is", async ()
   const building = figureSvg("building");
   const reviewing = figureSvg("reviewing");
   const gating = figureSvg("gating");
-  assert.match(building, /class="who builder"/u);
-  assert.match(reviewing, /class="who reviewer"/u);
-  assert.equal(gating.includes('class="who'), false, "nobody is at the desk while the gates run");
+
+  // Somebody is drawn for both agents, and they are not the same person.
+  assert.match(building, /class="body"/u);
+  assert.match(reviewing, /class="body"/u);
+  assert.match(reviewing, /class="glasses"/u, "the reviewer is told apart at a glance");
+  assert.equal(building.includes('class="glasses"'), false);
   assert.notEqual(building, reviewing, "the two agents must look different");
+
+  // And nobody is drawn while the gates run, which is the point.
+  assert.equal(gating.includes('class="body"'), false, "nobody is at the desk while the gates run");
+  assert.equal(gating.includes('class="skin"'), false);
+  assert.match(gating, /class="chair"/u, "an empty chair, not a missing picture");
 });
 
 test("the live banner ships every figure, so switching needs no request", async () => {
@@ -290,4 +298,18 @@ test("motion is dropped for readers who ask for that", async () => {
   const { FIGURE_STYLE } = await import("../src/view/figures.ts");
   assert.match(FIGURE_STYLE, /prefers-reduced-motion:reduce/u);
   assert.match(FIGURE_STYLE, /animation:none/u);
+});
+
+test("the figures are pixels, aligned to a grid and rendered crisply", async () => {
+  // Drawn as rects on a 4-unit grid with crispEdges. Anti-aliasing or an
+  // off-grid coordinate turns pixel art into a smudge, and both are easy
+  // to introduce without noticing.
+  const { figureSvg, FIGURE_STYLE } = await import("../src/view/figures.ts");
+  assert.match(FIGURE_STYLE, /shape-rendering:crispEdges/u);
+
+  const svg = figureSvg("building");
+  const coords = [...svg.matchAll(/(?:x|y|width|height)="(\d+)"/gu)].map((m) => Number(m[1]));
+  assert.ok(coords.length > 40, `expected a grid of rects, found ${String(coords.length)} numbers`);
+  assert.deepEqual(coords.filter((n) => n % 4 !== 0), [], "every pixel sits on the 4-unit grid");
+  assert.equal(svg.includes("<path"), false, "paths are how pixel art stops being pixel art");
 });
