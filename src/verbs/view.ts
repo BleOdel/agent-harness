@@ -14,13 +14,13 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { readFeatures } from "../features.ts";
+import { chooseNext, readFeatures } from "../features.ts";
 import { harnessDirectory, readRecord, recoveryPath, undoableRuns } from "../record/record.ts";
 import { diffLines, isBinary } from "../review/diff.ts";
 import { createViewServer, listen, LOOPBACK } from "../view/server.ts";
 import { assess, processAlive, statusPath, type Status } from "../view/status.ts";
 import { collectTree } from "../view/files.ts";
-import { type FileDiff, renderPage, type RunView } from "../view/render.ts";
+import { type FileDiff, type QueueItem, renderPage, type RunView } from "../view/render.ts";
 import { OperatorError, say } from "./io.ts";
 
 /** Kept small on purpose: an unreadably long diff is what this verb exists to fix. */
@@ -76,7 +76,14 @@ async function build(project: string, live: boolean): Promise<string> {
         })),
     });
   }
-  return renderPage(path.basename(project), views, await collectTree(project, runs), live);
+  const { next } = chooseNext(features, (id) =>
+    runs.filter((run) => run.goal === id).at(-1)?.outcome);
+  const items: QueueItem[] = features.map((feature) => ({
+    feature,
+    state: runs.filter((run) => run.goal === feature.id).at(-1)?.outcome ?? feature.status,
+    next: feature.id === next?.id,
+  }));
+  return renderPage(path.basename(project), views, await collectTree(project, runs), live, items);
 }
 
 async function serve(project: string, port: number): Promise<void> {
@@ -124,39 +131,14 @@ export async function view(project: string, argv: readonly string[]): Promise<vo
   }
   if (malformed.length > 0) say(`warning: ${String(malformed.length)} unreadable lines in the record`);
 
-  const list = await readFeatures(project);
-  const features = list !== undefined && list.ok ? list.features : [];
-  const standing = new Set(undoableRuns(runs).map((run) => run.id));
-
-  const views: RunView[] = [];
-  for (const run of [...runs].reverse()) {
-    const snapshot = recoveryPath(project, run.id);
-    const feature = features.find((entry) => entry.id === run.goal);
-    views.push({
-      run,
-      title: feature?.title,
-      criteria: feature?.criteria ?? [],
-      standing: standing.has(run.id),
-      files: existsSync(snapshot)
-        ? await Promise.all(run.changes.map((change) => fileDiff(snapshot, change.file, change.kind)))
-        // Said rather than silently empty: a run whose snapshot is gone
-        // still happened, and showing it with no files would read as a
-        // run that changed nothing.
-        : run.changes.map((change) => ({
-          file: change.file,
-          kind: change.kind,
-          lines: [],
-          note: "The recovery snapshot for this run is gone, so its diff cannot be shown.",
-        })),
-    });
-  }
-
-  const tree = await collectTree(project, runs);
+  // One renderer for both paths. The server had its own copy, and the
+  // queue was added only to that one -- so `harness view` quietly produced
+  // a page missing a section the served page had.
   const destination = path.join(harnessDirectory(project), "view.html");
   await mkdir(path.dirname(destination), { recursive: true });
-  await writeFile(destination, renderPage(path.basename(project), views, tree), "utf8");
+  await writeFile(destination, await build(project, false), "utf8");
 
-  say(`${String(views.length)} runs and ${String(tree.files.length)} files written to:`);
+  say(`${String(runs.length)} runs written to:`);
   say(`  ${destination}`);
   if (argv.includes("--open")) {
     spawn("open", [destination], { stdio: "ignore", detached: true }).unref();

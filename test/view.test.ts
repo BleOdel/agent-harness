@@ -195,3 +195,27 @@ test("a partly measured record says how much it is not counting", async () => {
   ]);
   assert.match(page, /2 earlier runs were recorded before usage was captured/u);
 });
+
+test("the queue marks what is done and which item is next", async () => {
+  // Which item is next is the one thing here a reader cannot work out
+  // for themselves: MoSCoW order, minus what is done, minus anything
+  // whose last run changed nothing.
+  const { renderPage: render } = await import("../src/view/render.ts");
+  const feature = (id: string, status: string, priority = "must") =>
+    ({ id, title: id, priority, status, criteria: ["c"], dependsOn: [] }) as never;
+  const page = render("p", [], { files: [], omitted: 0 }, false, [
+    { feature: feature("built", "done"), state: "applied", next: false },
+    { feature: feature("current", "todo"), state: "todo", next: true },
+    { feature: feature("later", "todo", "should"), state: "todo", next: false },
+  ]);
+  assert.match(page, /class="dot done"/u);
+  assert.match(page, /class="dot next"/u);
+  assert.match(page, /class="is-next"/u);
+  assert.match(page, /2 left/u, "done items are not counted as remaining");
+});
+
+test("a project with no feature list shows no queue", async () => {
+  const { renderPage: render } = await import("../src/view/render.ts");
+  const page = render("p", [], { files: [], omitted: 0 }, false, []);
+  assert.equal(page.includes('class="queue"'), false);
+});

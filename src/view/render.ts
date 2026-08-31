@@ -12,6 +12,7 @@
  */
 
 import type { RunRecord } from "../record/record.ts";
+import type { Feature } from "../features.ts";
 import type { ProjectTree } from "./files.ts";
 
 export interface FileDiff {
@@ -150,7 +151,19 @@ summary{cursor:pointer;padding:.55rem 0;display:flex;gap:.75rem;align-items:base
 @media(max-width:820px){.shell{grid-template-columns:1fr}}
 aside{position:sticky;top:1rem;max-height:calc(100vh - 2rem);overflow:auto}
 @media(max-width:820px){aside{position:static;max-height:22rem}}
-.side-h{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin:0 0 .5rem}
+.side-h{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin:0 0 .5rem;display:flex;gap:.5rem;align-items:baseline}
+.side-h + .side-h{margin-top:1.75rem}
+.queue + .side-h{margin-top:1.75rem}
+.qleft{margin-left:auto;text-transform:none;letter-spacing:0;font-size:.72rem}
+.queue{list-style:none;margin:0;padding:0;font-size:.83rem}
+.queue li{display:flex;gap:.5rem;align-items:baseline;padding:.15rem .25rem;border-radius:3px}
+.queue li.is-next{background:var(--line)}
+.qid{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qpri{color:var(--dim);font-size:.68rem;text-transform:uppercase;letter-spacing:.05em}
+.dot{width:6px;height:6px;border-radius:50%;flex:none;transform:translateY(-1px);background:var(--line)}
+.dot.done{background:var(--add)}
+.dot.next{background:var(--accent)}
+.dot.blocked{background:var(--del)}
 .tree{list-style:none;margin:0;padding:0;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
 .tree .dir{color:var(--dim);font-size:.7rem;letter-spacing:.06em;padding:.75rem 0 .15rem;word-break:break-all}
 /* box-sizing after all:unset -- the reset wipes it back to content-box,
@@ -172,6 +185,38 @@ aside{position:sticky;top:1rem;max-height:calc(100vh - 2rem);overflow:auto}
 .panel .src{margin:0;padding:.85rem 1.25rem;overflow-x:auto;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
 .col{min-width:0}
 `;
+
+export interface QueueItem {
+  readonly feature: Feature;
+  /** What the last run for this item did, when there was one. */
+  readonly state: string;
+  readonly next: boolean;
+}
+
+/**
+ * The backlog, in the order `work` will take it.
+ *
+ * `look` has always shown this in the terminal; the page had the data
+ * loaded and did not use it. Which item is next is the one thing here a
+ * reader cannot work out for themselves -- MoSCoW order, minus what is
+ * done, minus anything whose last run changed nothing.
+ */
+function queue(items: readonly QueueItem[]): string {
+  if (items.length === 0) return "";
+  const rows = items.map((item) => {
+    const done = item.feature.status === "done";
+    const mark = done ? "done" : item.next ? "next" : item.feature.status;
+    return `<li class="${item.next ? "is-next" : ""}">`
+      + `<span class="dot ${escape(mark)}"></span>`
+      + `<span class="qid">${escape(item.feature.id)}</span>`
+      + `<span class="qpri">${escape(item.feature.priority)}</span></li>`;
+  });
+  const left = items.filter((item) => item.feature.status !== "done").length;
+  return [
+    `<p class="side-h">Queue <span class="qleft">${String(left)} left</span></p>`,
+    `<ul class="queue">${rows.join("")}</ul>`,
+  ].join("");
+}
 
 /**
  * The tree, and every file's contents, carried in the page.
@@ -329,9 +374,16 @@ export function renderPage(
   views: readonly RunView[],
   tree: ProjectTree = { files: [], omitted: 0 },
   live = false,
+  items: readonly QueueItem[] = [],
 ): string {
   const applied = views.filter((v) => v.run.outcome === "applied" && v.standing).length;
   const browser = fileBrowser(tree);
+  // The sidebar exists if either half has something to show. Tying the
+  // queue's presence to the file tree meant a project with a backlog and
+  // no readable files silently lost its backlog.
+  const sidebar = `${queue(items)}${browser.split("<!--panels-->")[0] ?? ""}`;
+  const panels = browser === "" ? "" : (browser.split("<!--panels-->")[1] ?? "");
+  const hasSidebar = sidebar !== "";
   return [
     "<!doctype html>",
     '<html lang="en"><head><meta charset="utf-8">',
@@ -342,10 +394,10 @@ export function renderPage(
     `<p class="sub">${String(views.length)} runs recorded &middot; ${String(applied)} still standing &middot; read-only</p>`,
     live ? '<div class="live" id="live" hidden></div>' : "",
     summaryStrip(views),
-    browser === "" ? "" : `<div class="shell"><aside>${browser.split("<!--panels-->")[0] ?? ""}</aside><div class="col">`,
-    browser === "" ? "" : (browser.split("<!--panels-->")[1] ?? ""),
+    hasSidebar ? `<div class="shell"><aside>${sidebar}</aside><div class="col">` : "",
+    panels,
     ...views.map(runSection),
-    browser === "" ? "" : "</div></div>",
+    hasSidebar ? "</div></div>" : "",
     "</main>",
     browser === "" ? "" : SCRIPT,
     live ? LIVE_SCRIPT : "",
