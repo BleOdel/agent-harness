@@ -10,9 +10,17 @@ from, and worth remembering when reading the sizes.
 **Is this a Node tool, or a general one?**
 
 The assertion counter hooks `node:assert`. Test collection expands shell
-globs. `deps` runs `npm install`. Point the harness at a Python or Go
-project today and `work` still runs, the Reviewer still reviews, and the
-gate that makes the whole thing trustworthy silently counts nothing.
+globs. `deps` runs `npm install`.
+
+Point the harness at a Python, Go, Swift or Kotlin project and **every run
+is refused**. Measured: a project whose tests are a shell script exiting
+zero with everything passing gets `tests: exited zero but executed no
+assertions, so nothing was verified`. The gate fails closed, which is the
+right direction and makes the harness unusable rather than untrustworthy.
+
+An earlier draft of this file said the gate "silently counts nothing",
+implying it passes. It does not, and the difference matters: the failure
+is loud, immediate, and the same on every run.
 
 That is not a bug to fix in passing. It decides whether N2 below is the
 most important milestone here or one that should never be built.
@@ -62,7 +70,8 @@ Two gates are Node-specific and everything else already is not. Make
 those two pluggable:
 
 - **assertion counting** — today an `--import` hook over `node:assert`;
-  for pytest it is a `conftest.py` plugin counting `assert` rewrites;
+  for pytest a `conftest.py` plugin counting rewritten asserts; for JUnit
+  or XCTest, parsing the runner's own XML report;
 - **test collection** — today shell-glob expansion; elsewhere it is
   whatever that runner's discovery does.
 
@@ -74,6 +83,13 @@ untouched.
 pipeline, including a deliberately assertion-free test suite that the
 gate must refuse. Second language proves the abstraction; a third would
 only confirm it.
+
+**The container is the other half.** It runs `node:26-bookworm-slim`,
+which has no Android SDK, no Swift toolchain and no Xcode. Android would
+need a different image; iOS cannot work in this model at all, because
+Xcode does not run on Linux. A React Native or Expo project is the
+interesting middle: its JavaScript layer is testable here today, and only
+the native build is not.
 
 **Kill criterion:** if the adapter for a second language cannot reach the
 same standard as the Node one — a suite that asserts nothing must be
