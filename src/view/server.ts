@@ -35,7 +35,13 @@ export function createViewServer(routes: ServerRoutes): Server {
         // Nothing here is meant to be embedded anywhere, and the page
         // carries file contents from a project a model has been writing in.
         "x-content-type-options": "nosniff",
-        "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'",
+        // connect-src is required, and its absence is not a small
+        // omission: default-src 'none' governs it, so the page loaded, the
+        // polling script ran, and every request was blocked by this very
+        // header. The banner then hid itself, which looked exactly like a
+        // run that was not happening.
+        "content-security-policy":
+          "default-src 'none'; connect-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'",
       });
       response.end(body);
     };

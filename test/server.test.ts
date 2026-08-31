@@ -164,3 +164,17 @@ test("status can be written before the harness directory exists", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("the policy permits the page to poll itself", async () => {
+  // default-src 'none' governs connect-src, so without it the page loads,
+  // the script runs, and every poll is blocked by the server's own
+  // header. The banner then hides itself, which looks precisely like a
+  // run that is not happening -- a silent failure that says the opposite
+  // of what is true.
+  await withServer(async (base) => {
+    const policy = (await fetch(base)).headers.get("content-security-policy") ?? "";
+    assert.match(policy, /connect-src 'self'/u, "the page cannot reach /status");
+    assert.match(policy, /default-src 'none'/u, "everything else must still be denied");
+    assert.equal(/connect-src [^;]*\*/u.test(policy), false, "connect-src must not be widened to anywhere");
+  });
+});
