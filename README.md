@@ -438,7 +438,13 @@ watching site at  http://127.0.0.1:7373
 ```
 
 The page polls once a second and shows the phase, the item, turns, tokens
-and cost as they accumulate. Runs are still started with `harness work` —
+and cost as they accumulate — with a figure at the desk saying which agent
+is working. The builder and the reviewer look different because they are
+different: separate processes, separate containers, no shared context.
+
+And while the gates run, **nobody is at the desk**. That is not a missing
+picture: the gates are ordinary code, no model is involved, and it is the
+one thing a figure says better than a word. Runs are still started with `harness work` —
 this only watches.
 
 Four rules hold it to that, each one line and each tested:

@@ -13,6 +13,7 @@
 
 import type { RunRecord } from "../record/record.ts";
 import type { Feature } from "../features.ts";
+import { FIGURE_STYLE, figureLabel, figureSvg, type Figure } from "./figures.ts";
 import type { ProjectTree } from "./files.ts";
 
 export interface FileDiff {
@@ -121,8 +122,8 @@ function runSection(view: RunView): string {
 }
 
 const STYLE = `
-:root{--bg:#fbfaf7;--fg:#14171a;--dim:#5f6b72;--line:#e2ded4;--add:#0a7f42;--del:#b3261e;--accent:#1a49c4;--card:#fff}
-@media(prefers-color-scheme:dark){:root{--bg:#101315;--fg:#eef1f2;--dim:#93a1a8;--line:#283135;--add:#4ade80;--del:#f87171;--accent:#7aa2ff;--card:#161b1e}}
+:root{--bg:#fbfaf7;--fg:#14171a;--dim:#5f6b72;--line:#e2ded4;--add:#0a7f42;--del:#b3261e;--accent:#1a49c4;--rev:#8a4b00;--card:#fff}
+@media(prefers-color-scheme:dark){:root{--bg:#101315;--fg:#eef1f2;--dim:#93a1a8;--line:#283135;--add:#4ade80;--del:#f87171;--accent:#7aa2ff;--rev:#e0a458;--card:#161b1e}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
 main{width:min(100% - 2rem,64rem);margin:0 auto;padding:3rem 0 6rem}
@@ -155,9 +156,13 @@ summary{cursor:pointer;padding:.55rem 0;display:flex;gap:.75rem;align-items:base
 .l.ctx{color:var(--dim)}
 .note{color:var(--dim);font-size:.9rem;margin:.5rem 0}
 .built{color:var(--dim);font-size:.72rem;margin:2.5rem 0 0;text-align:right}
-.live{background:var(--accent);color:var(--card);border-radius:8px;padding:.7rem 1.25rem;
-  margin:0 0 1.25rem;font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
-.live.stopped{background:var(--line);color:var(--dim)}
+.live{display:flex;gap:1rem;align-items:center;background:var(--card);border:1px solid var(--line);
+  border-left:4px solid var(--accent);border-radius:10px;padding:.6rem 1.25rem;margin:0 0 1.25rem}
+.live.reviewing{border-left-color:var(--rev)}
+.live.gating,.live.stopped{border-left-color:var(--line)}
+.live-text{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);min-width:0}
+.live-text b{display:block;font-size:14px;color:var(--fg);font-weight:600}
+${FIGURE_STYLE}
 .strip{display:flex;gap:2.5rem;flex-wrap:wrap;align-items:flex-start;background:var(--card);
   border:1px solid var(--line);border-radius:10px;padding:1rem 1.5rem;margin:0 0 2rem}
 .cell{display:flex;flex-direction:column;gap:.15rem}
@@ -355,26 +360,59 @@ function summaryStrip(views: readonly RunView[]): string {
  * is served -- a file:// page cannot fetch, so shipping this into a saved
  * file would give a permanently silent banner.
  */
+const PHASES: Figure[] = ["building", "gating", "reviewing", "applying", "idle"];
+
+/** All five ship with the page; the script swaps which one is shown. */
+const FIGURE_MARKUP = PHASES
+  .map((phase) => `<template id="fig-${phase}">${figureSvg(phase)}</template>`)
+  .join("");
+
+const FIGURE_LABELS = JSON.stringify(
+  Object.fromEntries(PHASES.map((phase) => [phase, figureLabel(phase)])),
+);
+
 const LIVE_SCRIPT = `<script>
 (function () {
   var box = document.getElementById("live");
   if (!box) return;
-  function paint(s) {
-    if (!s || !s.live) {
-      box.hidden = !s || !s.reason;
-      if (s && s.reason) { box.className = "live stopped"; box.textContent = s.reason; }
-      return;
-    }
-    var d = s.status;
+  var labels = ${FIGURE_LABELS};
+  var figBox = document.getElementById("live-fig");
+  var whoBox = document.getElementById("live-who");
+  var detailBox = document.getElementById("live-detail");
+  var showing = null;
+  function figure(phase) {
+    if (showing === phase) return;
+    var tpl = document.getElementById("fig-" + phase);
+    if (!tpl) return;
+    figBox.replaceChildren(tpl.content.cloneNode(true));
+    showing = phase;
+  }
+  function detail(d) {
     var secs = Math.round((Date.now() - Date.parse(d.startedAt)) / 1000);
     var mins = Math.floor(secs / 60);
-    box.hidden = false;
-    box.className = "live";
-    box.textContent = d.phase + " " + d.item
+    return " \u00b7 " + d.item
       + (d.attempt > 1 ? " (attempt " + d.attempt + ")" : "")
       + " \u00b7 " + d.turns + " turns"
       + (d.tokens ? " \u00b7 " + d.tokens.toLocaleString("en-GB") + " tokens" : "")
       + " \u00b7 " + (mins ? mins + "m " + (secs % 60) + "s" : secs + "s");
+  }
+  function paint(s) {
+    if (!s || !s.live) {
+      box.hidden = !s || !s.reason;
+      if (s && s.reason) {
+        box.className = "live stopped";
+        figure("idle");
+        whoBox.textContent = "stopped";
+        detailBox.textContent = " \u00b7 " + s.reason;
+      }
+      return;
+    }
+    var d = s.status;
+    box.hidden = false;
+    box.className = "live " + d.phase;
+    figure(d.phase);
+    whoBox.textContent = labels[d.phase] || d.phase;
+    detailBox.textContent = detail(d);
   }
   function tick() {
     fetch("/status", { cache: "no-store" })
@@ -419,7 +457,8 @@ export function renderPage(
     `<style>${STYLE}</style></head><body><main>`,
     `<h1>${escape(project)}</h1>`,
     `<p class="sub">${String(views.length)} runs recorded &middot; ${String(applied)} still standing &middot; read-only</p>`,
-    live ? '<div class="live" id="live" hidden></div>' : "",
+    live ? '<div class="live" id="live" hidden><span id="live-fig"></span>'
+      + '<span class="live-text"><b id="live-who"></b><span id="live-detail"></span></span></div>' : "",
     summaryStrip(views),
     hasSidebar ? `<div class="shell"><aside>${sidebar}</aside><div class="col">` : "",
     panels,
@@ -430,6 +469,7 @@ export function renderPage(
       : `<p class="built">harness of ${escape(builtAt)}${live ? " &middot; serving live; restart to pick up a newer harness" : ""}</p>`,
     "</main>",
     browser === "" ? "" : SCRIPT,
+    live ? FIGURE_MARKUP : "",
     live ? LIVE_SCRIPT : "",
     "</body></html>",
     "",

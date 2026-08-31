@@ -255,3 +255,39 @@ test("times are shown in the reader's clock, not UTC", async () => {
   }
   assert.equal(localTime("not a date"), "not a date", "an unreadable time is shown as-is");
 });
+
+test("the figure says which agent is working, and admits when none is", async () => {
+  // Two agents work on a change and they are not interchangeable. The
+  // useful thing a picture adds over a word is that `gating` has nobody
+  // at the desk: the gates are ordinary code, and no model is running.
+  const { figureLabel, figureSvg } = await import("../src/view/figures.ts");
+  assert.match(figureLabel("building"), /builder/u);
+  assert.match(figureLabel("reviewing"), /reviewer/u);
+  assert.match(figureLabel("gating"), /no model involved/u);
+
+  const building = figureSvg("building");
+  const reviewing = figureSvg("reviewing");
+  const gating = figureSvg("gating");
+  assert.match(building, /class="who builder"/u);
+  assert.match(reviewing, /class="who reviewer"/u);
+  assert.equal(gating.includes('class="who'), false, "nobody is at the desk while the gates run");
+  assert.notEqual(building, reviewing, "the two agents must look different");
+});
+
+test("the live banner ships every figure, so switching needs no request", async () => {
+  // A file:// page cannot fetch, and a served page should not need a
+  // round trip to change a picture.
+  const { renderPage: render } = await import("../src/view/render.ts");
+  const served = render("p", [], { files: [], omitted: 0 }, true, [], "2026-01-01 00:00");
+  for (const phase of ["building", "gating", "reviewing", "applying", "idle"]) {
+    assert.ok(served.includes(`id="fig-${phase}"`), `${phase} is missing`);
+  }
+  const written = render("p", [], { files: [], omitted: 0 }, false, [], "2026-01-01 00:00");
+  assert.equal(written.includes('id="fig-building"'), false, "a written page has no live banner to fill");
+});
+
+test("motion is dropped for readers who ask for that", async () => {
+  const { FIGURE_STYLE } = await import("../src/view/figures.ts");
+  assert.match(FIGURE_STYLE, /prefers-reduced-motion:reduce/u);
+  assert.match(FIGURE_STYLE, /animation:none/u);
+});
