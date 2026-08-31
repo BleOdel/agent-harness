@@ -136,6 +136,13 @@ summary{cursor:pointer;padding:.55rem 0;display:flex;gap:.75rem;align-items:base
 .l.del{background:color-mix(in srgb,var(--del) 12%,transparent)}
 .l.ctx{color:var(--dim)}
 .note{color:var(--dim);font-size:.9rem;margin:.5rem 0}
+.strip{display:flex;gap:2.5rem;flex-wrap:wrap;align-items:flex-start;background:var(--card);
+  border:1px solid var(--line);border-radius:10px;padding:1rem 1.5rem;margin:0 0 2rem}
+.cell{display:flex;flex-direction:column;gap:.15rem}
+.cell .k{font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.cell .v{font:17px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+.cell .v small{color:var(--dim);font-size:.7rem;margin-left:.35rem}
+.partial{flex-basis:100%;margin:.35rem 0 0;color:var(--dim);font-size:.78rem}
 .shell{display:grid;grid-template-columns:17.5rem minmax(0,1fr);gap:1.75rem;align-items:start}
 @media(max-width:820px){.shell{grid-template-columns:1fr}}
 aside{position:sticky;top:1rem;max-height:calc(100vh - 2rem);overflow:auto}
@@ -239,6 +246,44 @@ const SCRIPT = `<script>
 })();
 </script>`;
 
+/**
+ * Totals across the record. Static: every figure here is already written
+ * down, so it needs no server and no live connection.
+ *
+ * Silent when nothing has been measured. Runs recorded before usage was
+ * captured carry none, and a strip reading "$0.00" over half a history
+ * would be worse than no strip.
+ */
+function summaryStrip(views: readonly RunView[]): string {
+  const measured = views.filter((view) => view.run.usage !== undefined);
+  if (measured.length === 0) return "";
+  const sum = (pick: (usage: NonNullable<RunRecord["usage"]>) => number): number =>
+    measured.reduce((total, view) => total + pick(view.run.usage!), 0);
+
+  const tokens = sum((u) => u.totalTokens);
+  const input = sum((u) => u.input);
+  const cacheRead = sum((u) => u.cacheRead);
+  const cached = input + cacheRead === 0 ? 0 : Math.round((cacheRead / (input + cacheRead)) * 100);
+  const models = [...new Set(measured.map((view) => view.run.usage?.model).filter((m): m is string => m !== undefined))];
+
+  const cell = (key: string, value: string, extra = ""): string =>
+    `<div class="cell"><span class="k">${escape(key)}</span>`
+    + `<span class="v">${escape(value)}${extra === "" ? "" : `<small>${escape(extra)}</small>`}</span></div>`;
+
+  return [
+    '<div class="strip">',
+    cell("Model", models.length === 1 ? models[0] ?? "" : `${String(models.length)} models`),
+    cell("Turns", sum((u) => u.turns).toLocaleString("en-GB")),
+    cell("Tokens", tokens.toLocaleString("en-GB"), cached > 0 ? ` ${String(cached)}% cached` : ""),
+    cell("Output", sum((u) => u.output).toLocaleString("en-GB")),
+    cell("Cost", `$${sum((u) => u.costUsd).toFixed(2)}`),
+    measured.length === views.length
+      ? ""
+      : `<p class="partial">${String(views.length - measured.length)} earlier runs were recorded before usage was captured, and are not counted here.</p>`,
+    "</div>",
+  ].join("");
+}
+
 export function renderPage(
   project: string,
   views: readonly RunView[],
@@ -254,6 +299,7 @@ export function renderPage(
     `<style>${STYLE}</style></head><body><main>`,
     `<h1>${escape(project)}</h1>`,
     `<p class="sub">${String(views.length)} runs recorded &middot; ${String(applied)} still standing &middot; read-only</p>`,
+    summaryStrip(views),
     browser === "" ? "" : `<div class="shell"><aside>${browser.split("<!--panels-->")[0] ?? ""}</aside><div class="col">`,
     browser === "" ? "" : (browser.split("<!--panels-->")[1] ?? ""),
     ...views.map(runSection),

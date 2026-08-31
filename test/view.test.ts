@@ -157,3 +157,41 @@ test("file contents are escaped in the page like everything else", async () => {
   assert.ok(page.includes("&lt;script&gt;"));
   assert.match(page, /href="#r1"/u, "a touching run is a link to its diff");
 });
+
+test("totals are shown when runs have been measured", async () => {
+  const { renderPage: render } = await import("../src/view/render.ts");
+  const usage = {
+    model: "gpt-5.6-sol", input: 20_809, output: 2_086, cacheRead: 43_008,
+    reasoning: 895, totalTokens: 65_903, costUsd: 0.1881, turns: 14,
+  };
+  const page = render("p", [
+    view({ run: { ...run({ id: "r1" }), usage } }),
+    view({ run: { ...run({ id: "r2" }), usage } }),
+  ]);
+  assert.match(page, /131,806/u, "tokens are summed across runs");
+  assert.match(page, /\$0\.38/u);
+  assert.match(page, /28 *</u, "turns are summed");
+  assert.match(page, /67% cached/u, "measured against the whole prompt, not input alone");
+});
+
+test("a record with no usage shows no totals rather than zeroes", async () => {
+  // Every run before usage capture existed carries none. A strip reading
+  // "$0.00" over a real history is worse than no strip.
+  const { renderPage: render } = await import("../src/view/render.ts");
+  const page = render("p", [view(), view()]);
+  assert.equal(page.includes('class="strip"'), false);
+});
+
+test("a partly measured record says how much it is not counting", async () => {
+  const { renderPage: render } = await import("../src/view/render.ts");
+  const usage = {
+    model: "m", input: 100, output: 10, cacheRead: 0, reasoning: 0,
+    totalTokens: 110, costUsd: 0.01, turns: 1,
+  };
+  const page = render("p", [
+    view({ run: { ...run({ id: "r1" }), usage } }),
+    view({ run: run({ id: "r2" }) }),
+    view({ run: run({ id: "r3" }) }),
+  ]);
+  assert.match(page, /2 earlier runs were recorded before usage was captured/u);
+});
