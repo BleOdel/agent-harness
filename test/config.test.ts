@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import test from "node:test";
 import { ConfigError, loadConfig } from "../src/config.ts";
 
@@ -78,7 +79,18 @@ test("an empty environment variable is absent, not empty", () => {
 });
 
 test("an empty HARNESS_DOCKER falls back rather than becoming an empty path", () => {
-  // It would otherwise resolve to "" and be refused as a missing
-  // executable, with a remedy pointing at a variable the operator did set.
-  assert.doesNotThrow(() => loadConfig({ ...workable, HARNESS_DOCKER: "" }));
+  // The fallback may not be installed: the unit suite also runs without
+  // Docker. Check which path was selected in both environments.
+  const fallback = "/usr/local/bin/docker";
+  for (const value of ["", "   "]) {
+    const load = () => loadConfig({ ...workable, HARNESS_DOCKER: value });
+    if (existsSync(fallback)) {
+      assert.equal(load().dockerExecutable, fallback);
+    } else {
+      assert.throws(load, (error: unknown) =>
+        error instanceof ConfigError
+        && error.message === `No Docker executable at ${fallback}.`
+        && error.remedy.includes("HARNESS_DOCKER"));
+    }
+  }
 });
