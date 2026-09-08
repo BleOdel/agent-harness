@@ -26,7 +26,6 @@ import path from "node:path";
 import {
   buildRunArguments,
   CONTAINER_PI_PACKAGE,
-  CONTAINER_SKILLS,
   CONTAINER_WORK,
   type SandboxLayout,
 } from "../containment/sandbox.ts";
@@ -34,6 +33,7 @@ import { ConfigError, loadConfig, setting } from "../config.ts";
 import { harnessDirectory } from "../record/record.ts";
 import { run } from "../run.ts";
 import { listSkills } from "../agent/skills.ts";
+import { resourceArguments } from "../agent/resources.ts";
 import { createSandbox, destroySandbox } from "../workspace/sandbox-lifecycle.ts";
 import { OperatorError, say } from "./io.ts";
 
@@ -48,7 +48,7 @@ export function planPrompt(topic: string, skills: readonly string[]): string {
       ? "Interview me about what this project should do next."
       : `Interview me about: ${topic}`,
     "",
-    ...(skills.includes("grill-me") || skills.includes("grilling")
+    ...(skills.includes("grilling")
       ? ["Use your grilling skill. Work in rounds: ask every question whose",
          "prerequisites are already settled, numbered, each with your recommended",
          "answer, then wait for my answers before the next round."]
@@ -81,6 +81,25 @@ export function planPrompt(topic: string, skills: readonly string[]): string {
     "everything downstream depends on them being exact, and a criterion",
     "nobody can check either passes vacuously or blocks forever.",
   ].join("\n");
+}
+
+/** The interactive command, shared with the launcher-policy checks. */
+export function buildPlanCommand(request: {
+  topic: string;
+  skills: readonly string[];
+  skillsConfigured: boolean;
+  provider: string | undefined;
+  model: string | undefined;
+}): string[] {
+  return [
+    "node",
+    `${CONTAINER_PI_PACKAGE}/dist/cli.js`,
+    "--approve",
+    ...resourceArguments(request.skillsConfigured),
+    ...(request.provider === undefined ? [] : ["--provider", request.provider]),
+    ...(request.model === undefined ? [] : ["--model", request.model]),
+    planPrompt(request.topic, request.skills),
+  ];
 }
 
 export async function plan(argv: readonly string[]): Promise<void> {
@@ -131,16 +150,10 @@ export async function plan(argv: readonly string[]): Promise<void> {
       buildRunArguments(
         layout,
         "bridge",
-        [
-          "node",
-          `${CONTAINER_PI_PACKAGE}/dist/cli.js`,
-          "--approve",
-          // No --print: this one is a conversation.
-          ...(config.skillsDirectory === undefined ? ["--no-skills"] : ["--skill", CONTAINER_SKILLS]),
-          ...(config.provider === undefined ? [] : ["--provider", config.provider]),
-          ...(config.model === undefined ? [] : ["--model", config.model]),
-          planPrompt(topic, skills),
-        ],
+        buildPlanCommand({
+          topic, skills, skillsConfigured: config.skillsDirectory !== undefined,
+          provider: config.provider, model: config.model,
+        }),
         true,
       ),
       { timeoutMs: config.agentTimeoutMs, interactive: true },

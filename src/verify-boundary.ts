@@ -19,6 +19,7 @@ import os from "node:os";
 import path from "node:path";
 import { buildRunArguments, CONTAINER_WORK, type SandboxLayout } from "./containment/sandbox.ts";
 import { BOUNDARY_FAILURES, probeScript } from "./containment/probe.ts";
+import { applyConfigFile } from "./config.ts";
 
 function run(
   executable: string,
@@ -43,6 +44,7 @@ function fail(message: string): never {
 }
 
 async function main(): Promise<void> {
+  applyConfigFile();
   const dockerExecutable = process.env.HARNESS_DOCKER ?? "/usr/local/bin/docker";
   const imageId = process.env.HARNESS_IMAGE_ID ?? "";
   const piPackage = process.env.HARNESS_PI_PACKAGE

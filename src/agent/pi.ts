@@ -13,11 +13,11 @@
 import {
   buildRunArguments,
   CONTAINER_PI_PACKAGE,
-  CONTAINER_SKILLS,
   type SandboxLayout,
 } from "../containment/sandbox.ts";
 import { type AgentUsage, EventStream } from "./events.ts";
 import { run, type RunResult } from "../run.ts";
+import { resourceArguments } from "./resources.ts";
 
 export interface AgentRequest {
   readonly goal: string;
@@ -42,19 +42,7 @@ export function buildAgentCommand(request: AgentRequest): string[] {
     // There is no operator at the keyboard inside a container, and a
     // prompt nobody can answer is a hang, not a safeguard.
     "--approve",
-    // Loading is deliberate and stated, in both directions. Pi discovers
-    // skills on its own if left alone, so a skill dropped into its data
-    // directory would start reaching the builder with nothing in the
-    // output saying so. Either it is mounted and named, or it is off.
-    ...(request.skills ? ["--skill", CONTAINER_SKILLS] : ["--no-skills"]),
-    // Extensions are off, always, and said rather than assumed. Pi
-    // discovers them from its own data directory -- which this harness
-    // mounts writable -- and an extension can register tools and flags.
-    // The whole argument here rests on knowing what the model can do, and
-    // "whatever happens to be installed" is not knowing. If they are ever
-    // wanted, they get the same treatment skills did: a read-only mount,
-    // named in the output, off by default.
-    "--no-extensions",
+    ...resourceArguments(request.skills),
     ...(request.provider === undefined ? [] : ["--provider", request.provider]),
     ...(request.model === undefined ? [] : ["--model", request.model]),
     request.goal,

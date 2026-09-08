@@ -47,7 +47,7 @@ test("with skills configured, they are loaded from the read-only mount", () => {
     command.slice(command.indexOf("--skill"), command.indexOf("--skill") + 2),
     ["--skill", CONTAINER_SKILLS],
   );
-  assert.equal(command.includes("--no-skills"), false);
+  assert.ok(command.includes("--no-skills"), "explicit skills must not enable other discovery");
 });
 
 test("the skills mount is read-only, and does not change the writable count", () => {

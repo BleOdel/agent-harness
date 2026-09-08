@@ -11,6 +11,7 @@
     "test": "node --test test/*.test.ts",
     "check": "npm run build && npm test",
     "verify:boundary": "node --experimental-strip-types src/verify-boundary.ts",
+    "verify:skills": "node src/verify-skills.ts",
     "work": "node --experimental-strip-types src/cli.ts work",
     "verify:gates": "node --experimental-strip-types src/verify-gates.ts",
     "verify:reviewer": "node --experimental-strip-types src/verify-reviewer.ts",

@@ -1,4 +1,8 @@
-# What's next
+# Follow-up work beyond the team roadmap
+
+`TEAM_PLAN.md` is the authoritative implementation order: M0 through M6,
+including assigned agents and verified integration. This file retains the
+other v2 follow-ups for later prioritization.
 
 v2 is built. M0–M5 shipped, the scorecard is in `V2_RESULTS.md`, and
 nothing from the original plan is outstanding. Everything below came from
@@ -118,29 +122,21 @@ stop.
 
 ## N4 — CI
 
-**~100 lines. Only once more than one person runs this.**
-
-`npm run check` on every push, and the three `verify:` commands on a
-schedule, since they need Docker and a model. The value is not catching
-regressions — the suite does that — but proving the thing works on a
-machine that is not mine, which nothing has ever established.
-
----
+Implemented locally in team M0: a push/PR check workflow and an explicit
+manual Docker/model verification workflow. See `TEAM_M0_RESULTS.md` for
+validation and runner setup status.
 
 ## Recommended order
 
-**N3, then N1, then decide about N2.** N3 is a morning's work and clears
-the debts. N1 is the highest-value thing here and closes the one question
-the design cannot currently answer. N2 is the largest and its value is
-entirely conditional on a decision nobody has made yet.
-
-N4 waits until someone other than its author is running this.
+Complete `TEAM_PLAN.md` M0–M6. Revisit N1–N3 after the coordinated team
+release, unless one blocks a milestone's acceptance checks.
 
 ## Not planned, and why
 
-**Subagents and orchestration agents.** Pi has neither, and ordering is
-MoSCoW plus `dependsOn` computed by plain code. Nothing needs a model to
-decide what is next, and a model that did would be a new thing to verify.
+**Unrestricted worker-spawned subagents.** Pi has a subagent extension
+example, but assigned workers in this harness will be launched and tracked
+by the host controller. Shared interfaces, dependency ordering and serial
+integration belong to `TEAM_PLAN.md`.
 
 **Tool registration.** The builder has `bash` and writes its own scripts.
 Named, persistent tools mean Pi extensions, which are off deliberately:

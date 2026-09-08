@@ -16,7 +16,7 @@
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { loadConfig } from "./config.ts";
+import { applyConfigFile, loadConfig } from "./config.ts";
 import type { SandboxLayout } from "./containment/sandbox.ts";
 import { review, type Review } from "./review/reviewer.ts";
 
@@ -200,6 +200,7 @@ function findings(result: Review): string {
 }
 
 async function main(): Promise<void> {
+  applyConfigFile();
   const config = loadConfig();
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-reviewer-")));
   try {

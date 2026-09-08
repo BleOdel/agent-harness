@@ -1,4 +1,8 @@
-# Harness v2 — build plan
+# Harness v2 — historical build plan
+
+The original sequential v2 plan below is preserved as historical context.
+`TEAM_PLAN.md` now owns future scope and milestone ordering. Its assigned
+team work supersedes the orchestration exclusions below.
 
 Reads with `V2_SCOPE.md`. That says what v2 is; this says how it gets
 built, in what order, and what proves each step. Consolidated after three
@@ -134,7 +138,7 @@ asked, and is anything here unaccounted for? It returns a condensed
 verdict, never a transcript, and either passes silently or escalates with
 reasons.
 
-Separate process rather than a sub-agent — Pi has none built in, and one
+Separate process rather than a builder-owned reviewer, because one
 reviewing inside the builder's session would be reviewing its own
 reasoning.
 

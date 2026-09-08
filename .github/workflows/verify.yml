@@ -1,0 +1,33 @@
+name: Verify configured harness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: harness-verification
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    # This runner has Docker and provider credentials; only operator-selected main runs.
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, harness-verification]
+    timeout-minutes: 30
+    env:
+      HARNESS_CONFIG: ${{ vars.HARNESS_VERIFY_CONFIG }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm run verify:skills
+      - run: npm run verify:boundary
+      - run: npm run verify:gates
+      - run: npm run verify:reviewer

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PLAN_FILE, planPrompt } from "../src/verbs/plan.ts";
+import { buildPlanCommand, PLAN_FILE, planPrompt } from "../src/verbs/plan.ts";
 import { buildRunArguments, type SandboxLayout } from "../src/containment/sandbox.ts";
 
 const layout: SandboxLayout = {
@@ -35,6 +35,31 @@ test("the interview is one-shot only in the sense that it ends: no --print", () 
   const prompt = planPrompt("what should recall do", ["grilling", "tdd"]);
   assert.match(prompt, /Interview me about: what should recall do/u);
   assert.match(prompt, /wait for my answers before the next round/u);
+  const command = buildPlanCommand({
+    topic: "what should recall do", skills: ["grilling", "tdd"], skillsConfigured: true,
+    provider: undefined, model: undefined,
+  });
+  assert.equal(command.includes("--print"), false);
+  assert.equal(command.includes("--mode"), false);
+  assert.equal(command.at(-1), prompt);
+});
+
+test("planning disables implicit skills and extensions with or without a configured directory", () => {
+  for (const skillsConfigured of [false, true]) {
+    const command = buildPlanCommand({
+      topic: "x", skills: [], skillsConfigured, provider: "provider", model: "model",
+    });
+    assert.ok(command.includes("--no-skills"), "planning must disable implicit skill discovery");
+    assert.ok(command.includes("--no-extensions"), "planning must disable extension discovery");
+    assert.equal(command.includes("--skill"), skillsConfigured);
+    if (skillsConfigured) {
+      assert.equal(command[command.indexOf("--skill") + 1], "/opt/skills");
+    }
+  }
+});
+
+test("an alias without the actual grilling definition does not claim that skill is available", () => {
+  assert.doesNotMatch(planPrompt("x", ["grill-me"]), /Use your grilling skill/u);
 });
 
 test("the prompt names the grilling skill only when it is actually loaded", () => {

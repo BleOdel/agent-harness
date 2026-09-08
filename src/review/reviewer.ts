@@ -5,10 +5,9 @@
  * shared context with the builder. It answers one question: does this do
  * what was asked, and is anything here unaccounted for?
  *
- * A separate process rather than a sub-agent, deliberately. Pi has no
- * built-in sub-agents, and a reviewer running inside the builder's
- * session would be reviewing its own reasoning -- it would already
- * believe every justification that produced the diff.
+ * A separate process keeps the reviewer independent of the builder's
+ * session and the reasoning that produced the diff. Future team workers
+ * retain this separation; Pi extension support does not replace it.
  *
  * This is the only part of the pipeline that judges *intent*. Every gate
  * before it asks whether the code is sound. None of them can ask whether
@@ -18,6 +17,7 @@
 
 import { buildRunArguments, CONTAINER_PI_PACKAGE, type SandboxLayout } from "../containment/sandbox.ts";
 import { run } from "../run.ts";
+import { resourceArguments } from "../agent/resources.ts";
 
 export interface ReviewRequest {
   readonly title: string;
@@ -153,10 +153,7 @@ export function buildReviewCommand(request: ReviewRequest): string[] {
     // reviewer has one job and a fixed way of doing it; a skill could
     // redefine what it considers acceptable, which is the one opinion
     // here that must not be configurable by whatever is installed.
-    "--no-skills",
-    // And no extensions, for the same reason and more strongly: an
-    // extension could give the reviewer tools it must not have.
-    "--no-extensions",
+    ...resourceArguments(false),
     ...(request.provider === undefined ? [] : ["--provider", request.provider]),
     ...(request.model === undefined ? [] : ["--model", request.model]),
     reviewPrompt(request),

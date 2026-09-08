@@ -15,7 +15,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { ConfigError, loadConfig } from "./config.ts";
+import { applyConfigFile, ConfigError, loadConfig } from "./config.ts";
 
 function fail(message: string, remedy = ""): never {
   process.stderr.write(`gates NOT verified: ${message}\n`);
@@ -24,6 +24,7 @@ function fail(message: string, remedy = ""): never {
 }
 
 try {
+  applyConfigFile();
   loadConfig();
 } catch (error) {
   if (error instanceof ConfigError) fail(error.message, error.remedy);

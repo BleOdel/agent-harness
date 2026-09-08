@@ -3,6 +3,11 @@
 A coding agent that works in a sandbox, proves what it built, then applies
 it — or escalates to you.
 
+The current execution loop is sequential. `TEAM_PLAN.md` is the active
+roadmap toward assigned agents in isolated containers with verified
+integration. `TEAM_M0_RESULTS.md` records the first milestone; the original
+v2 milestone documents remain historical evidence.
+
 ```
 npm run add  -- feed --title "RSS feed" --criterion "feed.xml is generated from site data"
 npm run work
@@ -149,7 +154,8 @@ outside every boundary the rest of this maintains.
 
 ## Extensions
 
-Off, always, for both agents — `--no-extensions`.
+Off for the builder, interactive planner and reviewer — `--no-extensions`.
+All three launchers share this resource policy.
 
 Pi discovers extensions from its own data directory, which the harness
 mounts writable, and an extension can register tools and flags. The whole
@@ -173,11 +179,16 @@ HARNESS_SKILLS=~/Developer/agent-skills npm run work
 skills: codebase-design, diagnosing-bugs, domain-modeling, tdd
 ```
 
-Loading is deliberate in both directions. With no directory configured,
-the harness passes `--no-skills` rather than leaving Pi's own discovery to
-find whatever happens to be installed in its data directory — which is
-mounted writable, so something could appear there without anyone deciding
-it should. What loads is printed by name.
+The harness always passes `--no-skills` to disable implicit discovery.
+When a directory is configured, it additionally passes `--skill /opt/skills`;
+Pi still loads explicitly selected paths with discovery off. This matters:
+`--skill` alone adds to global and project skills rather than replacing them.
+The same rule applies to interactive planning.
+
+The printed names are folders found by the harness scanner. Pi validates
+the definitions and advertises their descriptions; full instructions are
+loaded on demand. A printed name does not prove that a skill was used.
+`npm run verify:skills` checks this behavior with the pinned Pi loader.
 
 **The reviewer never gets skills**, even when the builder does. Its job is
 fixed, and a skill could redefine what it finds acceptable — the one
@@ -187,9 +198,12 @@ opinion here that must not depend on what is installed.
 in the copy too, where the model could rewrite the instructions it is
 then given.
 
-Only skills that work without a human are worth mounting. The interview
-and planning ones — anything marked `disable-model-invocation` — need
-someone to answer, and there is nobody inside the container.
+Choose skills that fit the run: interview skills belong in `plan`, where
+a human can answer. `disable-model-invocation` only hides a skill from the
+model catalog; it does not classify every human-dependent workflow. The
+current builder still receives the whole configured directory. Role-specific
+selection and adapted unattended skills are planned before team execution.
+`SKILLS_ASSESSMENT.md` records the current compatibility gaps.
 
 ## The seven verbs
 
@@ -492,14 +506,17 @@ turn.
 ## Verifying it yourself
 
 ```bash
-npm run check             # typecheck and the unit suite — needs nothing but Node
+npm run check             # typecheck and unit suite; local HTTP tests need loopback access
+npm run verify:skills     # real Pi loader, no Docker or model calls
 npm run verify:boundary   # the container, against a real daemon
 npm run verify:gates      # each gate broken in turn, confirmed to stop the apply
 npm run verify:reviewer   # the four real defects, plus the control
 ```
 
-The three `verify:` commands need Docker, a configured image and a real
-model, and each one **fails loudly rather than skipping** when it cannot
+Boundary and gate verification need Docker and a configured image.
+Reviewer verification also calls the configured model; skill verification
+only needs the installed Pi package. These commands read the same config
+files as the CLI, and each **fails loudly rather than skipping** when it cannot
 run — because a check that skips quietly reads as a pass, and this project
 has now shipped that defect twice and caught it twice.
 
@@ -509,10 +526,11 @@ skips there by name, and `verify:gates` is what refuses to skip it.
 
 ## What it deliberately does not have
 
-Sealed read scopes, turn budgets, a skill catalog, sprints and stakeholder
-roles, graph orchestration, sub-agents, signed evidence export. Each was
-either measured as cost in the predecessor or coordinates nobody when
-there is one operator.
+The shipped sequential harness has no team scheduler or integration
+controller yet. These are required outcomes in `TEAM_PLAN.md`, which
+supersedes their original exclusion from v2. Unrestricted worker-spawned
+subagents, arbitrary extensions, ceremonies and signed evidence export
+remain outside the first team release.
 
 The record is append-only JSONL with **no cryptography**. The predecessor
 spent 3,470 lines — 13% of its tree — on HMAC chaining, signing and
@@ -546,3 +564,18 @@ thing, and by breaking each check to confirm it could fail.
 is v1: 25,330 lines of source, human approval in front of every change. This is a
 clean-room rebuild sharing no code with it, at 3,725 lines. `SCOPE.md`
 explains what was given up and what was gained.
+
+## Continuous verification
+
+`.github/workflows/check.yml` runs `npm ci` and `npm run check` on pushes
+and pull requests using `.nvmrc`. `.github/workflows/verify.yml` is manually
+dispatched on main against a Linux self-hosted runner labeled
+`harness-verification`. Provision that runner with Docker, Pi 0.80.6, an
+immutable container image and provider authentication. Set repository variable
+`HARNESS_VERIFY_CONFIG` to its host-side config path. Credentials stay outside
+the checkout. The reviewer step uses the configured provider and incurs model
+usage; its current verification command does not report dollar spend.
+Do not run this credentialed workflow on untrusted changes.
+
+These workflow files take effect after publication to GitHub; adding them
+locally does not provision a runner or establish a passing remote run.
