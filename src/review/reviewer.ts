@@ -16,7 +16,7 @@
  */
 
 import { buildRunArguments, CONTAINER_PI_PACKAGE, type SandboxLayout } from "../containment/sandbox.ts";
-import { run } from "../run.ts";
+import { runContained } from "../containment/process.ts";
 import { resourceArguments } from "../agent/resources.ts";
 
 export interface ReviewRequest {
@@ -161,9 +161,10 @@ export function buildReviewCommand(request: ReviewRequest): string[] {
 }
 
 export async function review(layout: SandboxLayout, request: ReviewRequest): Promise<Review> {
-  const result = await run(
-    layout.dockerExecutable,
-    buildRunArguments(layout, "bridge", buildReviewCommand(request)),
+  const isolated: SandboxLayout = { ...layout, purpose: "review" };
+  const result = await runContained(
+    isolated,
+    buildRunArguments(isolated, "bridge", buildReviewCommand(request)),
     { timeoutMs: request.timeoutMs },
   );
 

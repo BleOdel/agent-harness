@@ -27,7 +27,8 @@ export type FailureKind =
   | "too-large"
   | "timed-out"
   | "review-escalated"
-  | "boundary";
+  | "boundary"
+  | "environment-blocked";
 
 export interface GateVerdict {
   readonly passed: boolean;

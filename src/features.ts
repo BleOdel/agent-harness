@@ -30,6 +30,8 @@ export interface Feature {
   readonly criteria: readonly string[];
   /** Ids that must be `done` before this item may start. */
   readonly dependsOn: readonly string[];
+  /** Operator-authorized changes to dependencies or shared contracts. */
+  readonly kind?: "implementation" | "shared-inputs";
 }
 
 export type FeatureListResult =
@@ -86,6 +88,7 @@ export function parseFeatures(text: string): FeatureListResult {
     if (!Array.isArray(dependsOn) || dependsOn.some((d) => typeof d !== "string")) {
       return { ok: false, reason: fault(index, `(${item.id}) has a malformed dependsOn.`) };
     }
+    if (item.kind !== undefined && item.kind !== "implementation" && item.kind !== "shared-inputs") return { ok: false, reason: fault(index, "has an unsupported assignment kind.") };
     features.push({
       id: item.id,
       title: item.title,
@@ -93,6 +96,7 @@ export function parseFeatures(text: string): FeatureListResult {
       status: item.status as Status,
       criteria: item.criteria as string[],
       dependsOn: dependsOn as string[],
+      ...(item.kind === undefined ? {} : { kind: item.kind as "implementation" | "shared-inputs" }),
     });
   }
 
@@ -266,4 +270,12 @@ function pendingItems(features: readonly Feature[]): Feature[] {
 /** Eligible work in MoSCoW order, then declaration order. */
 export function nextItems(features: readonly Feature[]): Feature[] {
   return pendingItems(features).filter(feature => unmetDependencies(feature, features).length === 0);
+}
+
+/** A shared environment changed; without finer dependency ownership all accepted items are affected. */
+export async function invalidateSharedInputs(project: string, except: string): Promise<void> {
+  const list = await readFeatures(project);
+  if (!list?.ok) throw new Error("Cannot invalidate tasks: feature list is missing or invalid.");
+  const next = list.features.map(f => f.id !== except && (f.status === "done" || f.status === "doing") ? { ...f, status: "needs-revalidation" } : f);
+  await writeFile(path.join(project, FEATURES_FILE), JSON.stringify(next, null, 2) + "\n");
 }

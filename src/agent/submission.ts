@@ -1,5 +1,5 @@
 /** Completed work and requests for operator input share one submission file. */
-import { readFile } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
 import { CLAIM_FILE, type Claim, parseClaim } from "../gates/claim.ts";
 
@@ -26,6 +26,8 @@ export function parseSubmission(text: string): Submission {
 }
 
 export async function readSubmission(directory: string): Promise<Submission> {
+  const stat = await lstat(path.join(directory, CLAIM_FILE)).catch(() => undefined);
+  if (!stat?.isFile()) return { ok: false, reason: "The submission must be a regular file." };
   const text = await readFile(path.join(directory, CLAIM_FILE), "utf8").catch(() => undefined);
   return text === undefined ? { ok: false, reason: `${CLAIM_FILE} was not written.` } : parseSubmission(text);
 }

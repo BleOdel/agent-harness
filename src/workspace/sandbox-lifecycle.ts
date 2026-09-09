@@ -7,10 +7,11 @@
  * slowly accumulating the operator's disk.
  */
 
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { type Change, EXCLUDED_FROM_COPY } from "./changes.ts";
+import { captureBaseline, type Snapshot } from "./candidate.ts";
+import { type Change, EXCLUDED_FROM_COPY, NEVER_APPLIED } from "./changes.ts";
 
 export interface Sandbox {
   /** The disposable copy. The only writable mount the model gets. */
@@ -111,4 +112,19 @@ export async function applyChanges(
     await mkdir(path.dirname(destination), { recursive: true });
     await writeFile(destination, await readFile(path.join(copy, change.file)));
   }
+}
+
+export interface RunWorkspace { readonly root: string; readonly baseline: Snapshot; readonly sandbox: Sandbox; }
+export async function createRunWorkspace(project: string): Promise<RunWorkspace> {
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-controller-")));
+  try {
+    const baseline = await captureBaseline(project, path.join(root, "baseline"));
+    const sandbox = await createSandbox(baseline.directory);
+    const withheld = (await readdir(project)).filter(name => EXCLUDED_FROM_COPY.has(name) || NEVER_APPLIED.has(name));
+    return { root, baseline, sandbox: { ...sandbox, withheld } };
+  } catch (error) { await rm(root, { recursive: true, force: true }); throw error; }
+}
+export async function destroyRunWorkspace(workspace: RunWorkspace): Promise<void> {
+  await destroySandbox(workspace.sandbox);
+  await rm(workspace.root, { recursive: true, force: true });
 }

@@ -44,15 +44,21 @@ gates pass.
 
 | property | enforced by |
 |---|---|
-| no host filesystem | container with no host mount except the disposable copy |
-| no other project | the copy is the only thing mounted |
-| nothing private inside | audit state, credentials, `.env` and keys are never mounted |
-| no network but the provider | egress pinned to one origin |
+| no unrestricted host filesystem | only explicit disposable input and agent-resource mounts |
+| no live project | workers, preparation and verifiers receive disposable directories; reviewer source is read-only |
+| no credentials in preparation or verification | these containers mount only disposable inputs, with no Pi, agent data or skills |
+| offline verification | gates and installation-script proof use `--network=none`; model and package-download containers use bridge networking |
 | no persistence | the container and copy are destroyed after every run |
 | no privilege | non-root, read-only root filesystem, no added capabilities, no Docker socket |
 
-Only the harness writes to the repository, and only after every gate
-passes. Every write is snapshotted first.
+The host freezes baseline and candidate source outside worker-writable
+directories. Every executable verifier gets fresh source and dependencies;
+its writes cannot enter application or the next verifier. Workers are
+stopped before capture, including after a Docker-client timeout. Baseline
+and candidate digests are rechecked before application. This does not yet
+provide a writer lock or crash-consistent multi-file transaction; an edit
+after the final check remains a race until team M5. Every applied write is
+snapshotted first.
 
 ## What this design gives up, relative to the previous one
 
@@ -95,9 +101,10 @@ by breaking the thing it protects and confirming it fails. That practice
 is part of the design, not a nicety.
 
 **5. The provider credential is inside the container.** Pi needs it to
-work. Egress is pinned to the provider's origin, so exfiltration requires
-the provider itself to be the adversary — which is out of scope, as is a
-compromised Pi package.
+work. Builder and reviewer containers use bridge networking; egress is
+not pinned to a provider origin. A capable worker can read the mounted
+credential and reach the network. M2 removes this exposure from package
+preparation and verification, but does not implement model egress filtering.
 
 **6. Prompt injection through repository content.** The model reads the
 whole project, so anything in it can attempt to instruct the model.

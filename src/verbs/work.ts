@@ -15,7 +15,7 @@
  * the cause.
  */
 
-import { readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { type AgentUsage, describeUsage, emptyUsage } from "../agent/events.ts";
 import { readSubmission } from "../agent/submission.ts";
@@ -24,15 +24,17 @@ import { diagnose } from "../attribution.ts";
 import { ConfigError, loadConfig, setting } from "../config.ts";
 import { OperatorError, say } from "./io.ts";
 import { type SandboxLayout } from "../containment/sandbox.ts";
-import { CLAIM_FILE } from "../gates/claim.ts";
+import { CLAIM_FILE, readClaim } from "../gates/claim.ts";
 import { counterPath } from "../gates/tests.ts";
 import { DEFAULT_LIMITS, type Limits } from "../gates/limits.ts";
-import { chooseNext, type Feature, markDone, markStatus, readFeatures, unmetDependencies } from "../features.ts";
+import { chooseNext, type Feature, markDone, markStatus, invalidateSharedInputs, readFeatures, unmetDependencies } from "../features.ts";
 import { listSkills } from "../agent/skills.ts";
 import { missingInProject } from "../deps.ts";
 import { clearStatus, type Phase, writeStatus } from "../view/status.ts";
+import { assertLiveBaseline, assertSnapshot, captureCandidate, InputChangeRequired, type Candidate } from "../workspace/candidate.ts";
+import { EnvironmentBlocked, installEnvironment, prepareEnvironment } from "../workspace/dependencies.ts";
 import { runPipeline } from "../pipeline.ts";
-import { appendRun, nextRunId, type Outcome, readRecord, recoveryPath, type RunRecord } from "../record/record.ts";
+import { appendRun, harnessDirectory, nextRunId, type Outcome, readRecord, recoveryPath, type RunRecord } from "../record/record.ts";
 import { renderDiff } from "../review/diff.ts";
 import { review } from "../review/reviewer.ts";
 import {
@@ -41,8 +43,8 @@ import {
 } from "../workspace/changes.ts";
 import {
   applyChanges,
-  createSandbox,
-  destroySandbox,
+  createRunWorkspace,
+  destroyRunWorkspace,
   snapshotForRecovery,
 } from "../workspace/sandbox-lifecycle.ts";
 
@@ -100,12 +102,12 @@ async function resolveWork(project: string, argument: string): Promise<{
         idle.length === 0
           ? "Nothing left to work on: every item is done or a won't-have."
           : `Nothing left to work on. ${idle.map((f) => f.id).join(", ")} produced no changes `
-            + "last time, so they are being stepped over.",
+          + "last time, so they are being stepped over.",
         idle.length === 0
           ? "Run `harness look` to see the list."
           : "An item that changes nothing is usually already satisfied, or its criteria do not\n"
-            + "say anything the code does not already do. Check it with `harness look`, then\n"
-            + "either sharpen the criteria or edit its status to \"done\" in features.json.",
+          + "say anything the code does not already do. Check it with `harness look`, then\n"
+          + "either sharpen the criteria or edit its status to \"done\" in features.json.",
       );
     }
     say(`taking the next ${next.priority}: ${next.id}`);
@@ -128,13 +130,13 @@ async function resolveWork(project: string, argument: string): Promise<{
 }
 
 /** Appended to the goal so the model knows what the gates will require. */
-function briefing(goal: string, criteria: readonly string[]): string {
+function briefing(goal: string, criteria: readonly string[], sharedInputs = false): string {
   return [
     goal,
     ...(criteria.length === 0
       ? []
       : ["", "Acceptance criteria, all of which must be satisfied:",
-         ...criteria.map((criterion, index) => `  ${String(index + 1)}. ${criterion}`)]),
+        ...criteria.map((criterion, index) => `  ${String(index + 1)}. ${criterion}`)]),
     "",
     "Before you finish, write " + CLAIM_FILE + " in the project root:",
     "",
@@ -147,6 +149,8 @@ function briefing(goal: string, criteria: readonly string[]): string {
     "It is checked against what actually changed, so it must be exact. It is",
     "not applied to the repository.",
     "",
+    sharedInputs ? "This is a dedicated shared-inputs assignment: dependency and contract changes within the criteria are authorized."
+      : "Dependency manifests, lockfiles and shared contracts require a dedicated shared-inputs assignment. Submit a blocked change request instead of changing them.",
     "If missing input or an unresolved decision prevents completion, stop and",
     "write this instead. Do not guess or claim completion:",
     '{"outcome":"blocked","reason":"what prevents completion","requestedInput":"the specific input needed"}',
@@ -185,7 +189,10 @@ export async function work(argv: readonly string[]): Promise<void> {
   const work = await resolveWork(project, goal);
   if (work.feature !== undefined) say(`item: ${work.title}`);
 
-  const sandbox = await createSandbox(project);
+  const workspace = await createRunWorkspace(project);
+  const { sandbox, baseline } = workspace;
+  let candidateDigest: string | undefined;
+  let environmentKey: string | undefined;
   say(`sandbox: ${sandbox.workDirectory}`);
   if (sandbox.withheld.length > 0) {
     // Said out loud: a test that needs one of these will fail the gate,
@@ -235,20 +242,25 @@ export async function work(argv: readonly string[]): Promise<void> {
       goal: work.feature?.id ?? goal,
       attempts,
       outcome,
+      baselineDigest: baseline.digest,
+      ...(candidateDigest === undefined ? {} : { candidateDigest }),
+      ...(environmentKey === undefined ? {} : { environmentKey }),
       gates: gateSummaries,
       changes: [],
       reason: summary,
-      ...(spent.turns === 0 ? {} : { usage: {
-        ...(spent.provider === undefined ? {} : { provider: spent.provider }),
-        ...(spent.model === undefined ? {} : { model: spent.model }),
-        input: spent.input,
-        output: spent.output,
-        cacheRead: spent.cacheRead,
-        reasoning: spent.reasoning,
-        totalTokens: spent.totalTokens,
-        costUsd: spent.costUsd,
-        turns: spent.turns,
-      } }),
+      ...(spent.turns === 0 ? {} : {
+        usage: {
+          ...(spent.provider === undefined ? {} : { provider: spent.provider }),
+          ...(spent.model === undefined ? {} : { model: spent.model }),
+          input: spent.input,
+          output: spent.output,
+          cacheRead: spent.cacheRead,
+          reasoning: spent.reasoning,
+          totalTokens: spent.totalTokens,
+          costUsd: spent.costUsd,
+          turns: spent.turns,
+        }
+      }),
       ...extra,
     });
     return new OperatorError(summary, detail);
@@ -302,7 +314,17 @@ export async function work(argv: readonly string[]): Promise<void> {
   beat.unref();
 
   try {
-    let instruction = briefing(work.title, work.criteria);
+    let environment;
+    try {
+      environment = await prepareEnvironment(baseline.directory, path.join(workspace.root, "environment"), layout, config.gateTimeoutMs, config.installPolicy);
+      environmentKey = environment.key;
+      await installEnvironment(baseline.directory, sandbox.workDirectory, environment, layout, config.gateTimeoutMs);
+    } catch (error) {
+      if (!(error instanceof EnvironmentBlocked)) throw error;
+      if (work.feature !== undefined) await markStatus(project, work.feature.id, "blocked");
+      throw await stop("environment-blocked", "environment-blocked: clean dependencies are unavailable", error.message, { requestedInput: error.message });
+    }
+    let instruction = briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs");
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       attempts = attempt;
       if (attempt > 1) say(`\nattempt ${String(attempt)}, with a diagnosis`);
@@ -350,14 +372,37 @@ export async function work(argv: readonly string[]): Promise<void> {
           { requestedInput: submission.requestedInput });
       }
 
-      const { run, changes } = await runPipeline({
+      let candidate: Candidate;
+      try {
+        candidate = await captureCandidate(baseline, sandbox.workDirectory, path.join(workspace.root, `candidate-${attempt}`), {
+          sharedInputs: work.feature?.kind === "shared-inputs",
+          limits: limitsFrom(process.env),
+          ...(config.contractPaths === undefined ? {} : { contractPaths: config.contractPaths }),
+        });
+      } catch (error) {
+        if (error instanceof InputChangeRequired) {
+          if (work.feature !== undefined) await markStatus(project, work.feature.id, "blocked");
+          throw await stop("blocked", "blocked: shared input change requested", error.message, { requestedInput: error.message });
+        }
+        if (error instanceof BoundaryViolation) throw await stop("gate-failed", `boundary: ${error.message}`, "Nothing was applied.");
+        throw error;
+      }
+      candidateDigest = candidate.digest;
+      const proof = await runPipeline({
         config,
-        layout,
-        project,
+        layout: { ...layout, workDirectory: candidate.directory },
+        project: baseline.directory,
+        claim: await readClaim(sandbox.workDirectory),
+        environment,
         testCommand,
         counterSource,
         limits: limitsFrom(process.env),
       });
+      const { run, changes } = proof;
+      environmentKey = proof.environmentKey;
+      const manifests = path.join(harnessDirectory(project), "candidates", runId);
+      await mkdir(manifests, { recursive: true });
+      await writeFile(path.join(manifests, `attempt-${attempt}.json`), JSON.stringify({ baselineDigest: baseline.digest, candidateDigest: candidate.digest, files: candidate.files, changes, environmentKey, sharedInputsChanged: candidate.sharedInputsChanged }, null, 2) + "\n");
       gateSummaries = run.verdicts.map((entry) => entry.summary);
       await mark("gating");
       for (const verdict of run.verdicts) say(verdict.summary);
@@ -366,6 +411,10 @@ export async function work(argv: readonly string[]): Promise<void> {
       if (!run.passed) {
         const failure = run.firstFailure;
         if (failure?.kind === undefined) throw await stop("error", "a gate failed without saying why", "");
+        if (failure.kind === "environment-blocked") {
+          if (work.feature !== undefined) await markStatus(project, work.feature.id, "blocked");
+          throw await stop("environment-blocked", failure.summary, failure.detail, { requestedInput: failure.detail });
+        }
         const diagnosis = diagnose(failure.kind, failure.detail);
         if (attempt === 2) {
           throw await stop(
@@ -374,10 +423,13 @@ export async function work(argv: readonly string[]): Promise<void> {
             `${diagnosis.cause}\n\n${diagnosis.fix}\n\n${failure.detail}`,
           );
         }
-        instruction = `${diagnosis.forAgent}\n\n---\n\nThe original goal:\n\n${briefing(work.title, work.criteria)}`;
+        instruction = `${diagnosis.forAgent}\n\n---\n\nThe original goal:\n\n${briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs")}`;
         continue;
       }
 
+      try { await assertLiveBaseline(project, baseline); } catch (error) {
+        throw await stop("error", (error as Error).message, "Nothing was applied.");
+      }
       const mustReviewUnchanged = work.feature?.status === "needs-revalidation" || work.feature?.status === "blocked";
       if (changes.length === 0 && !mustReviewUnchanged) {
         await appendRun(project, {
@@ -389,23 +441,25 @@ export async function work(argv: readonly string[]): Promise<void> {
           outcome: "no-changes",
           gates: gateSummaries,
           changes: [],
-      ...(spent.turns === 0 ? {} : { usage: {
-        ...(spent.provider === undefined ? {} : { provider: spent.provider }),
-        ...(spent.model === undefined ? {} : { model: spent.model }),
-        input: spent.input,
-        output: spent.output,
-        cacheRead: spent.cacheRead,
-        reasoning: spent.reasoning,
-        totalTokens: spent.totalTokens,
-        costUsd: spent.costUsd,
-        turns: spent.turns,
-      } }),
+          ...(spent.turns === 0 ? {} : {
+            usage: {
+              ...(spent.provider === undefined ? {} : { provider: spent.provider }),
+              ...(spent.model === undefined ? {} : { model: spent.model }),
+              input: spent.input,
+              output: spent.output,
+              cacheRead: spent.cacheRead,
+              reasoning: spent.reasoning,
+              totalTokens: spent.totalTokens,
+              costUsd: spent.costUsd,
+              turns: spent.turns,
+            }
+          }),
         });
         say("no changes. nothing was applied.");
         return;
       }
       try {
-        assertChangesAreApplicable(changes, sandbox.workDirectory);
+        assertChangesAreApplicable(changes, candidate.directory);
       } catch (error) {
         if (error instanceof BoundaryViolation) {
           throw await stop("gate-failed", `boundary: ${error.message}`, "nothing was applied.");
@@ -418,7 +472,7 @@ export async function work(argv: readonly string[]): Promise<void> {
       // The last gate, and the only one about intent. Everything before
       // it asks whether the code is sound; this asks whether it is the
       // work that was asked for.
-      const verdict = await review(layout, {
+      const verdict = await review({ ...layout, workDirectory: candidate.directory, purpose: "review" }, {
         title: work.title,
         criteria: work.criteria.length > 0
           ? work.criteria
@@ -426,7 +480,7 @@ export async function work(argv: readonly string[]): Promise<void> {
           // against. Said out loud, because a Reviewer silently inventing
           // its own criteria is a Reviewer nobody can calibrate.
           : ["(no feature list: judge only whether the change is coherent and self-consistent)"],
-        diff: await renderDiff(project, sandbox.workDirectory, changes),
+        diff: await renderDiff(baseline.directory, candidate.directory, changes),
         provider: config.provider,
         model: config.model,
         timeoutMs: config.agentTimeoutMs,
@@ -451,7 +505,7 @@ export async function work(argv: readonly string[]): Promise<void> {
           say("");
           for (const finding of findings) say(`  - ${finding}`);
           instruction = `${diagnose("review-escalated", findings.map((f) => `- ${f}`).join("\n")).forAgent}`
-            + `\n\n---\n\nThe original goal:\n\n${briefing(work.title, work.criteria)}`;
+            + `\n\n---\n\nThe original goal:\n\n${briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs")}`;
           continue;
         }
         throw await stop(
@@ -471,15 +525,18 @@ export async function work(argv: readonly string[]): Promise<void> {
       }
       say(`review: passed, ${String(work.criteria.length)} criteria accounted for`);
 
-      await rm(path.join(sandbox.workDirectory, CLAIM_FILE), { force: true });
+      await assertSnapshot(candidate);
+      try { await assertLiveBaseline(project, baseline); } catch (error) {
+        throw await stop("error", (error as Error).message, "Nothing was applied.");
+      }
       await mark("applying");
       const recovery = await snapshotForRecovery(
         project,
-        sandbox.workDirectory,
+        candidate.directory,
         changes,
         recoveryPath(project, runId),
       );
-      await applyChanges(project, sandbox.workDirectory, changes);
+      await applyChanges(project, candidate.directory, changes);
       await appendRun(project, {
         id: runId,
         at: new Date().toISOString(),
@@ -487,20 +544,25 @@ export async function work(argv: readonly string[]): Promise<void> {
         goal: work.feature?.id ?? goal,
         attempts: attempt,
         outcome: "applied",
+        baselineDigest: baseline.digest,
+        candidateDigest: candidate.digest,
+        ...(environmentKey === undefined ? {} : { environmentKey }),
         gates: run.verdicts.map((entry) => entry.summary),
         review: { verdict: verdict.verdict, findings: [...verdict.unmet, ...verdict.unaccounted] },
         changes,
-      ...(spent.turns === 0 ? {} : { usage: {
-        ...(spent.provider === undefined ? {} : { provider: spent.provider }),
-        ...(spent.model === undefined ? {} : { model: spent.model }),
-        input: spent.input,
-        output: spent.output,
-        cacheRead: spent.cacheRead,
-        reasoning: spent.reasoning,
-        totalTokens: spent.totalTokens,
-        costUsd: spent.costUsd,
-        turns: spent.turns,
-      } }),
+        ...(spent.turns === 0 ? {} : {
+          usage: {
+            ...(spent.provider === undefined ? {} : { provider: spent.provider }),
+            ...(spent.model === undefined ? {} : { model: spent.model }),
+            input: spent.input,
+            output: spent.output,
+            cacheRead: spent.cacheRead,
+            reasoning: spent.reasoning,
+            totalTokens: spent.totalTokens,
+            costUsd: spent.costUsd,
+            turns: spent.turns,
+          }
+        }),
       });
       // node_modules is never applied, so a run that added a package
       // brings back the declaration without the package. Every gate
@@ -508,6 +570,7 @@ export async function work(argv: readonly string[]): Promise<void> {
       // machine the project will not run until it is installed here too.
       const missing = await missingInProject(project);
 
+      if (candidate.sharedInputsChanged && work.feature !== undefined) await invalidateSharedInputs(project, work.feature.id);
       if (work.feature !== undefined) await markDone(project, work.feature.id, changes.length > 0);
       for (const change of changes) say(`  ${change.kind.padEnd(8)} ${change.file}`);
       say(`applied as ${runId}. undo with: harness undo ${runId}`);
@@ -523,7 +586,7 @@ export async function work(argv: readonly string[]): Promise<void> {
     // Every path, including a crash. A sandbox that survives a failure is
     // a stale copy the operator will one day mistake for the project.
     clearInterval(beat);
-    await destroySandbox(sandbox);
+    await destroyRunWorkspace(workspace);
     // And the run marker, so a watching page does not show this as still
     // going. A kill -9 skips this, which is what the heartbeat is for.
     await clearStatus(project).catch(() => undefined);

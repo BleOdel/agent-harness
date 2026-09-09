@@ -13,8 +13,8 @@
 
 import path from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
-import { buildRunArguments, CONTAINER_WORK, type SandboxLayout } from "../containment/sandbox.ts";
-import { run } from "../run.ts";
+import { buildVerificationArguments, CONTAINER_WORK, type SandboxLayout } from "../containment/sandbox.ts";
+import { runContained } from "../containment/process.ts";
 import { failed, type GateVerdict, passed } from "./gate.ts";
 
 /**
@@ -70,14 +70,14 @@ export async function runTestGate(
   await writeFile(path.join(layout.workDirectory, SHIM_IN_COPY), await readFile(shimPath(), "utf8"), "utf8");
   await writeFile(path.join(layout.workDirectory, COUNT_FILE), "", "utf8");
 
-  const args = buildRunArguments(layout, "none", command);
+  const args = buildVerificationArguments(layout, "none", command);
   args.splice(
     args.indexOf(layout.imageId),
     0,
     `--env=NODE_OPTIONS=--import=${CONTAINER_WORK}/${COUNTER_IN_COPY}`,
     `--env=HARNESS_ASSERT_COUNT_FILE=${CONTAINER_WORK}/${COUNT_FILE}`,
   );
-  const result = await run(layout.dockerExecutable, args, { timeoutMs });
+  const result = await runContained(layout, args, { timeoutMs });
   const executed = await assertionsExecuted(layout.workDirectory);
 
   if (result.timedOut) {

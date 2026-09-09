@@ -8,8 +8,8 @@
  */
 
 import path from "node:path";
-import { buildRunArguments, type SandboxLayout } from "../containment/sandbox.ts";
-import { run } from "../run.ts";
+import { buildVerificationArguments, type SandboxLayout } from "../containment/sandbox.ts";
+import { runContained } from "../containment/process.ts";
 import { fingerprintTree } from "../workspace/changes.ts";
 import { failed, type GateVerdict, passed } from "./gate.ts";
 
@@ -18,9 +18,9 @@ export async function checkTypecheck(
   command: readonly string[],
   timeoutMs: number,
 ): Promise<GateVerdict> {
-  const result = await run(
-    layout.dockerExecutable,
-    buildRunArguments(layout, "none", command),
+  const result = await runContained(
+    layout,
+    buildVerificationArguments(layout, "none", command),
     { timeoutMs },
   );
   if (result.timedOut) {
@@ -46,9 +46,9 @@ export async function checkBuildReproducible(
   timeoutMs: number,
 ): Promise<GateVerdict> {
   const before = await fingerprintTree(layout.workDirectory);
-  const result = await run(
-    layout.dockerExecutable,
-    buildRunArguments(layout, "none", command),
+  const result = await runContained(
+    layout,
+    buildVerificationArguments(layout, "none", command),
     { timeoutMs },
   );
   if (result.timedOut) {

@@ -14,7 +14,7 @@
  * that is a human question, and it is what M3's Reviewer is for.
  */
 
-import { readFile } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { Change } from "../workspace/changes.ts";
 import { failed, type GateVerdict, passed } from "./gate.ts";
@@ -82,6 +82,7 @@ export function parseClaim(text: string): ClaimResult {
 export async function readClaim(workDirectory: string): Promise<ClaimResult> {
   let text;
   try {
+    if (!(await lstat(path.join(workDirectory, CLAIM_FILE))).isFile()) return { ok: false, reason: "The claim must be a regular file." };
     text = await readFile(path.join(workDirectory, CLAIM_FILE), "utf8");
   } catch {
     return {

@@ -42,7 +42,7 @@ export async function look(project: string): Promise<void> {
     say();
   }
 
-  const escalations = runs.filter((run) => run.outcome === "escalated" || run.outcome === "gate-failed" || run.outcome === "blocked");
+  const escalations = runs.filter((run) => run.outcome === "escalated" || run.outcome === "gate-failed" || run.outcome === "blocked" || run.outcome === "environment-blocked");
   const stillOpen = escalations.filter(
     (run) => !runs.some((later) => later.goal === run.goal && later.outcome === "applied" && later.at > run.at),
   );
@@ -94,7 +94,7 @@ export async function look(project: string): Promise<void> {
     + (measured.length === 0
       ? ""
       : `  ·  ${tokens.toLocaleString("en-GB")} tokens, $${spent.toFixed(2)}`
-        + (measured.length === runs.length ? "" : ` across ${String(measured.length)} measured`)));
+      + (measured.length === runs.length ? "" : ` across ${String(measured.length)} measured`)));
   say();
   for (const run of runs.slice(-8)) {
     const marker = run.outcome === "applied" ? "+" : run.outcome === "no-changes" ? "=" : "!";

@@ -1,131 +1,110 @@
-/**
- * The gates, in the order they run, and what happens when one fails.
- *
- * Order is not arbitrary. Each gate assumes the state the previous one
- * established, and cheap gates that produce specific diagnoses run before
- * expensive ones that produce vague ones. Tests first because a failing
- * suite makes every later verdict meaningless; the claim last because it
- * is the only gate about intent rather than about the code.
- */
-
+/** Each executable gate receives a fresh copy of frozen source and clean dependencies. */
 import path from "node:path";
-import { rm } from "node:fs/promises";
+import os from "node:os";
+import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import type { Config } from "./config.ts";
 import type { SandboxLayout } from "./containment/sandbox.ts";
 import { checkBuildReproducible, checkTypecheck, packageScript } from "./gates/commands.ts";
-import { CLAIM_FILE, checkClaim, checkCriteriaEvidence, readClaim } from "./gates/claim.ts";
-import { type Gate, type GateRun, runGates } from "./gates/gate.ts";
+import { CLAIM_FILE, checkClaim, checkCriteriaEvidence, readClaim, type ClaimResult } from "./gates/claim.ts";
+import { failed, type Gate, type GateRun, type GateVerdict, runGates } from "./gates/gate.ts";
 import { checkLimits, type Limits } from "./gates/limits.ts";
 import { checkTestCollection, resolveTestCommand } from "./gates/test-collection.ts";
-import { COUNTER_IN_COPY, COUNT_FILE, runTestGate, SHIM_IN_COPY } from "./gates/tests.ts";
+import { runTestGate } from "./gates/tests.ts";
 import { type Change, collectChanges } from "./workspace/changes.ts";
+import { captureBaseline, assertSnapshot } from "./workspace/candidate.ts";
+import { EnvironmentBlocked, installEnvironment, prepareEnvironment, type PreparedEnvironment } from "./workspace/dependencies.ts";
 
 export interface PipelineInputs {
   readonly config: Config;
+  /** workDirectory points at frozen candidate source, never the builder directory. */
   readonly layout: SandboxLayout;
+  /** The immutable starting source against which candidate changes are measured. */
   readonly project: string;
   readonly testCommand: readonly string[];
   readonly counterSource: string;
   readonly limits: Limits;
+  readonly claim?: ClaimResult;
+  readonly environment?: PreparedEnvironment;
 }
-
 export interface PipelineResult {
   readonly run: GateRun;
   readonly changes: readonly Change[];
+  readonly environmentKey?: string;
 }
-
-/** Roughly how much text moved, without diffing: enough for a ceiling. */
-function linesIn(changes: readonly Change[], contents: ReadonlyMap<string, number>): number {
-  return changes.reduce((total, change) => total + (contents.get(change.file) ?? 0), 0);
-}
-
 export async function runPipeline(inputs: PipelineInputs): Promise<PipelineResult> {
-  const { layout, project, config } = inputs;
-  const work = layout.workDirectory;
-
-  // Computed once, before the gate files are written, and reused. The
-  // claim gate and the size gate must be looking at the same change set
-  // as the apply step, or they are checking something else.
-  const clean = async (): Promise<Change[]> => {
-    await rm(path.join(work, COUNTER_IN_COPY), { force: true });
-    await rm(path.join(work, SHIM_IN_COPY), { force: true });
-    await rm(path.join(work, COUNT_FILE), { force: true });
-    const changes = await collectChanges(project, work);
-    return changes.filter((change) => change.file !== CLAIM_FILE);
-  };
-
+  const { layout, config } = inputs;
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-verification-")));
   let changes: Change[] = [];
-  const gates: Gate[] = [
-    {
-      name: "tests",
-      applies: () => true,
-      check: async () =>
-        runTestGate(layout, inputs.counterSource, inputs.testCommand, config.gateTimeoutMs),
-    },
-    {
-      name: "test-collection",
-      applies: () => true,
-      check: async () =>
-        checkTestCollection(
-          work,
-          await resolveTestCommand(work, inputs.testCommand, packageScript),
-        ),
-    },
-    {
-      name: "typecheck",
-      // Only projects that declare one. A project without a typecheck
-      // script is not failed for not having it, and the run reports the
-      // gate as not applicable rather than as passed.
-      applies: async () => (await packageScript(work, "typecheck")) !== undefined,
-      check: async () =>
-        checkTypecheck(layout, ["npm", "run", "typecheck"], config.gateTimeoutMs),
-    },
-    {
-      name: "build",
-      applies: async () => (await packageScript(work, "build")) !== undefined,
-      check: async () =>
-        checkBuildReproducible(layout, ["npm", "run", "build"], config.gateTimeoutMs),
-    },
-    {
-      name: "size",
-      applies: () => true,
-      check: async () => {
-        changes = await clean();
-        const { readFile } = await import("node:fs/promises");
-        const lineCounts = new Map<string, number>();
-        for (const change of changes) {
-          if (change.kind === "deleted") continue;
-          try {
-            const text = await readFile(path.join(work, change.file), "utf8");
-            lineCounts.set(change.file, text.split("\n").length);
-          } catch {
-            lineCounts.set(change.file, 0);
+  try {
+    // Even direct callers cannot let a test modify the source used by review/apply.
+    const source = await captureBaseline(layout.workDirectory, path.join(root, "source"));
+    const claim = inputs.claim ?? await readClaim(layout.workDirectory);
+    changes = (await collectChanges(inputs.project, source.directory)).filter(c => c.file !== CLAIM_FILE);
+    let environment = inputs.environment;
+    const manifest = await readFile(path.join(source.directory, "package.json"), "utf8").catch(() => undefined);
+    const lock = await readFile(path.join(source.directory, "package-lock.json"), "utf8").catch(() => undefined);
+    if (!environment || environment.manifest !== manifest || environment.lock !== lock) {
+      environment = await prepareEnvironment(source.directory, path.join(root, "environment"), layout, config.gateTimeoutMs, config.installPolicy);
+    }
+    const prepared = environment;
+    const verify = async (name: string, check: (local: SandboxLayout) => Promise<GateVerdict>): Promise<GateVerdict> => {
+      const work = path.join(root, name);
+      await installEnvironment(source.directory, work, prepared, layout, config.gateTimeoutMs);
+      const verdict = await check({ ...layout, workDirectory: work });
+      await assertSnapshot(source);
+      return verdict;
+    };
+    const gates: Gate[] = [
+      {
+        name: "tests",
+        applies: () => true,
+        check: () => verify("tests", local => runTestGate(local, inputs.counterSource, inputs.testCommand, config.gateTimeoutMs)),
+      },
+      {
+        name: "test-collection",
+        applies: () => true,
+        check: async () => checkTestCollection(source.directory, await resolveTestCommand(source.directory, inputs.testCommand, packageScript)),
+      },
+      {
+        name: "typecheck",
+        applies: async () => await packageScript(source.directory, "typecheck") !== undefined,
+        check: () => verify("typecheck", local => checkTypecheck(local, ["npm", "run", "typecheck"], config.gateTimeoutMs)),
+      },
+      {
+        name: "build",
+        applies: async () => await packageScript(source.directory, "build") !== undefined,
+        check: () => verify("build", local => checkBuildReproducible(local, ["npm", "run", "build"], config.gateTimeoutMs)),
+      },
+      {
+        name: "size",
+        applies: () => true,
+        check: async () => {
+          let lines = 0;
+          for (const change of changes) {
+            if (change.kind !== "deleted") {
+              lines += (await readFile(path.join(source.directory, change.file), "utf8")).split("\n").length;
+            }
           }
-        }
-        return checkLimits(changes, linesIn(changes, lineCounts), inputs.limits);
+          return checkLimits(changes, lines, inputs.limits);
+        },
       },
-    },
-    {
-      name: "claim",
-      applies: () => true,
-      check: async () => {
-        const result = await readClaim(work);
-        if (!result.ok) {
-          const { failed } = await import("./gates/gate.ts");
-          return failed("claim-missing", `claim: ${result.reason}`);
-        }
-        const shape = checkClaim(result.claim, changes);
-        if (!shape.passed) return shape;
-        const { fingerprintTree } = await import("./workspace/changes.ts");
-        return checkCriteriaEvidence(result.claim, new Set((await fingerprintTree(work)).keys()));
+      {
+        name: "claim",
+        applies: () => true,
+        check: async () => {
+          if (!claim.ok) return failed("claim-missing", `claim: ${claim.reason}`);
+          const verdict = checkClaim(claim.claim, changes);
+          return verdict.passed ? checkCriteriaEvidence(claim.claim, new Set(Object.keys(source.files))) : verdict;
+        },
       },
-    },
-  ];
-
-  const run = await runGates(gates);
-  // The size gate is what populates `changes`, so a failure before it
-  // leaves the set empty. Nothing downstream may treat that as "no
-  // changes"; the caller only applies on a full pass.
-  if (run.passed && changes.length === 0) changes = await clean();
-  return { run, changes };
+    ];
+    const result = await runGates(gates);
+    return { run: result, changes, environmentKey: prepared.key };
+  } catch (error) {
+    if (!(error instanceof EnvironmentBlocked)) throw error;
+    const verdict = { ...failed("environment-blocked", "environment-blocked: clean verification inputs are unavailable", error.message), name: "environment" };
+    return { run: { passed: false, firstFailure: verdict, verdicts: [verdict], skipped: [] }, changes };
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 }

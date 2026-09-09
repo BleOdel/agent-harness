@@ -200,3 +200,9 @@ test("a malformed proposal is refused with the reason", async () => {
     await rm(path.dirname(directory), { recursive: true, force: true });
   }
 });
+
+test("shared input changes need an explicit assignment kind", () => {
+  assert.equal(parseAddArguments(["deps", "--title", "Update dependencies", "--criterion", "lock installs offline", "--shared-inputs"]).kind, "shared-inputs");
+  const result = parseFeatures(JSON.stringify([{ id: "deps", title: "Update dependencies", criteria: ["works"], status: "todo", priority: "must", kind: "unexpected" }]));
+  assert.equal(result.ok, false);
+});

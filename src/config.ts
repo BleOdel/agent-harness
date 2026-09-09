@@ -26,6 +26,8 @@ export interface Config {
   readonly agentTimeoutMs: number;
   /** Wall-clock ceiling for one gate run, in milliseconds. */
   readonly gateTimeoutMs: number;
+  readonly installPolicy?: import("./workspace/dependencies.ts").InstallPolicy;
+  readonly contractPaths?: readonly string[];
 }
 
 /**
@@ -176,9 +178,21 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
     );
   }
 
+  const scripts = setting(environment, "HARNESS_NPM_SCRIPTS") ?? "deny";
+  if (scripts !== "deny" && scripts !== "allow") throw new ConfigError("HARNESS_NPM_SCRIPTS must be deny or allow.", "Use deny unless the project requires installation scripts.");
+  let flags: unknown; let contracts: unknown;
+  try {
+    flags = JSON.parse(setting(environment, "HARNESS_NPM_FLAGS") ?? "[]");
+    contracts = JSON.parse(setting(environment, "HARNESS_CONTRACT_PATHS") ?? '["contracts"]');
+  } catch { throw new ConfigError("Npm flags and contract paths must be JSON arrays.", "Check HARNESS_NPM_FLAGS and HARNESS_CONTRACT_PATHS."); }
+  if (!Array.isArray(flags) || flags.some(f => typeof f !== "string" || !["--legacy-peer-deps", "--install-links", "--no-bin-links"].includes(f))) throw new ConfigError("Unsupported HARNESS_NPM_FLAGS.", "Use --legacy-peer-deps, --install-links or --no-bin-links in a JSON array.");
+  if (!Array.isArray(contracts) || contracts.some(p => typeof p !== "string" || !p || path.isAbsolute(p) || p.includes("\\") || p.split("/").some((part: string) => !part || part === "." || part === ".."))) throw new ConfigError("Contract paths must be project-relative files or directories.", "Set HARNESS_CONTRACT_PATHS to a JSON array of normalized relative paths.");
+
   return {
     dockerExecutable,
     imageId,
+    installPolicy: { scripts, flags: flags as string[] },
+    contractPaths: contracts as string[],
     piPackageDirectory,
     agentDirectory,
     skillsDirectory: skills,

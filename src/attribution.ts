@@ -13,6 +13,7 @@
 import type { FailureKind } from "./gates/gate.ts";
 
 const DIAGNOSES: Record<FailureKind, { cause: string; fix: string }> = {
+  "environment-blocked": { cause: "Clean dependencies could not be prepared or installed offline.", fix: "Repair the manifest, lockfile, cache or explicit installation policy before retrying." },
   "tests-failed": {
     cause: "The test suite failed. The code does not do what its own tests require.",
     fix: "Make the failing tests pass by fixing the code. Do not delete, skip, or weaken a test to get there.",

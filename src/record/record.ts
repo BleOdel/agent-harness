@@ -27,7 +27,7 @@ export const recordPath = (project: string): string =>
 export const recoveryPath = (project: string, runId: string): string =>
   path.join(harnessDirectory(project), "recovery", runId);
 
-export type Outcome = "applied" | "gate-failed" | "escalated" | "no-changes" | "error" | "blocked";
+export type Outcome = "applied" | "gate-failed" | "escalated" | "no-changes" | "error" | "blocked" | "environment-blocked";
 
 export interface RunRecord {
   readonly id: string;
@@ -57,6 +57,9 @@ export interface RunRecord {
   readonly reason?: string;
   /** The input a blocked builder needs from the operator. */
   readonly requestedInput?: string;
+  readonly baselineDigest?: string;
+  readonly candidateDigest?: string;
+  readonly environmentKey?: string;
   /** Set on an undo run, naming the run it reversed. */
   readonly reverses?: string;
 }

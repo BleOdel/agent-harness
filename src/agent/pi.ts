@@ -16,7 +16,8 @@ import {
   type SandboxLayout,
 } from "../containment/sandbox.ts";
 import { type AgentUsage, EventStream } from "./events.ts";
-import { run, type RunResult } from "../run.ts";
+import { type RunResult } from "../run.ts";
+import { runContained } from "../containment/process.ts";
 import { resourceArguments } from "./resources.ts";
 
 export interface AgentRequest {
@@ -61,8 +62,8 @@ export async function runAgent(
 ): Promise<RunResult & { usage: AgentUsage }> {
   const events = new EventStream();
   events.onTurn = onTurn;
-  const result = await run(
-    layout.dockerExecutable,
+  const result = await runContained(
+    layout,
     buildRunArguments(layout, "bridge", buildAgentCommand(request)),
     { timeoutMs: request.timeoutMs, onOutput: (chunk) => { onOutput(events.push(chunk)); } },
   );

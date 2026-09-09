@@ -29,6 +29,7 @@ interface Parsed {
   readonly priority: Priority;
   readonly criteria: readonly string[];
   readonly dependsOn: readonly string[];
+  readonly kind?: "shared-inputs";
 }
 
 export function parseAddArguments(argv: readonly string[]): Parsed {
@@ -37,6 +38,7 @@ export function parseAddArguments(argv: readonly string[]): Parsed {
   let priority: string = "must";
   const criteria: string[] = [];
   const dependsOn: string[] = [];
+  let sharedInputs = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index]!;
@@ -53,8 +55,10 @@ export function parseAddArguments(argv: readonly string[]): Parsed {
     } else if (value === "--depends-on") {
       if (next !== undefined) dependsOn.push(next);
       index += 1;
+    } else if (value === "--shared-inputs") {
+      sharedInputs = true;
     } else if (value.startsWith("--")) {
-      throw new OperatorError(`Unknown option ${value}.`, "Options: --title --criterion --priority --depends-on");
+      throw new OperatorError(`Unknown option ${value}.`, "Options: --title --criterion --priority --depends-on --shared-inputs");
     } else {
       positional.push(value);
     }
@@ -84,7 +88,7 @@ export function parseAddArguments(argv: readonly string[]): Parsed {
       `Use one of: ${PRIORITIES.join(", ")}.`,
     );
   }
-  return { id, title, priority: priority as Priority, criteria, dependsOn };
+  return { id, title, priority: priority as Priority, criteria, dependsOn, ...(sharedInputs ? { kind: "shared-inputs" as const } : {}) };
 }
 
 /**
@@ -164,6 +168,7 @@ export async function add(project: string, argv: readonly string[]): Promise<voi
   await writeFile(file, text, "utf8");
   for (const item of incoming) {
     say(`added ${item.id} (${item.priority}), ${String(item.criteria.length)} criteria`);
+    if (item.kind === "shared-inputs") say("    dedicated shared-inputs assignment");
     for (const criterion of item.criteria) say(`    ${criterion}`);
   }
   say("");

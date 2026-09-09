@@ -30,4 +30,5 @@ jobs:
       - run: npm run verify:skills
       - run: npm run verify:boundary
       - run: npm run verify:gates
+      - run: npm run verify:candidates
       - run: npm run verify:reviewer

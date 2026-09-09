@@ -70,6 +70,7 @@ const OUTCOME_LABEL: Record<string, string> = {
   "no-changes": "no changes",
   error: "error",
   blocked: "blocked — input needed",
+  "environment-blocked": "blocked — verification environment unavailable",
 };
 
 function diffBlock(file: FileDiff): string {
@@ -110,12 +111,9 @@ function runSection(view: RunView): string {
       + ` &middot; $${run.usage.costUsd.toFixed(4)}</span>`,
     reversed ? ' &middot; <span class="outcome">reversed by a later undo</span>' : "",
     `</p></header>`,
-    view.criteria.length === 0 ? "" : `<div class="criteria"><h3>Acceptance criteria</h3><ul>${
-      view.criteria.map((c) => `<li>${escape(c)}</li>`).join("")}</ul></div>`,
-    run.gates.length === 0 ? "" : `<ul class="gates">${
-      run.gates.map((g) => `<li>${escape(g)}</li>`).join("")}</ul>`,
-    findings.length === 0 ? "" : `<div class="findings"><h3>The reviewer said</h3><ul>${
-      findings.map((f) => `<li>${escape(f)}</li>`).join("")}</ul></div>`,
+    view.criteria.length === 0 ? "" : `<div class="criteria"><h3>Acceptance criteria</h3><ul>${view.criteria.map((c) => `<li>${escape(c)}</li>`).join("")}</ul></div>`,
+    run.gates.length === 0 ? "" : `<ul class="gates">${run.gates.map((g) => `<li>${escape(g)}</li>`).join("")}</ul>`,
+    findings.length === 0 ? "" : `<div class="findings"><h3>The reviewer said</h3><ul>${findings.map((f) => `<li>${escape(f)}</li>`).join("")}</ul></div>`,
     run.reason === undefined ? "" : `<p class="reason">${escape(run.reason)}</p>`,
     run.requestedInput === undefined ? "" : `<p class="reason">Needed: ${escape(run.requestedInput)}</p>`,
     view.files.length === 0 ? "" : `<div class="files">${view.files.map(diffBlock).join("")}</div>`,

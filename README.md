@@ -5,8 +5,9 @@ it — or escalates to you.
 
 The current execution loop is sequential. `TEAM_PLAN.md` is the active
 roadmap toward assigned agents in isolated containers with verified
-integration. `TEAM_M0_RESULTS.md` records the first milestone; the original
-v2 milestone documents remain historical evidence.
+integration. `TEAM_M0_RESULTS.md`, `TEAM_M1_RESULTS.md` and
+`TEAM_M2_RESULTS.md` record the team milestones; the original v2 milestone
+documents remain historical evidence.
 
 ```
 npm run add  -- feed --title "RSS feed" --criterion "feed.xml is generated from site data"
@@ -53,29 +54,19 @@ The container is the whole guarantee. Everything else exists to decide
 what may cross back out of it.
 
 ```mermaid
-flowchart TB
-    P[("your project<br/>never mounted, never writable")]
-
-    P -. "copy — .git, features.json<br/>and secrets withheld" .-> C
-
-    subgraph BOX["one container: non-root · read-only rootfs · no capabilities · no host filesystem · no Docker socket"]
-        direction TB
-        C["the disposable copy<br/>the only writable mount"]
-        B["Pi — builder<br/>tools on · provider network"]
-        G["six gates<br/>no network at all"]
-        V["Pi — reviewer<br/>read-only · own process · no shared context"]
-        C <--> B
-        B --> G
-        G --> V
-    end
-
-    G -. "a gate fails" .-> D["named diagnosis<br/>what failed · why it matters<br/>what would count as fixed"]
-    D -. "one more attempt" .-> B
-
-    V -- "escalate" --> E["stops.<br/>nothing applied"]
-    V -- "pass" --> A["snapshot before and after,<br/>then apply"]
-    A --> W[("your project, changed<br/>+ one line in the record")]
+flowchart LR
+  P[(Live project)] --> B[(Frozen baseline)]
+  B --> W[Disposable builder copy]
+  W -->|stop container and capture| C[(Frozen candidate)]
+  D[Credential-free package preparation] -->|cache copied; fresh offline install| G[Separate verifier workspaces]
+  C --> G
+  C --> R[Reviewer: source read-only]
+  G --> A{Accept}
+  R --> A
+  P -. recheck baseline .-> A
+  A -->|apply frozen candidate files| P
 ```
+
 
 `undo r1` reverses any of it later, three ways, keeping whatever ran after.
 
@@ -127,24 +118,56 @@ npm run verify:boundary
 
 ## Dependencies
 
-You install them; the harness never does on its own. `node_modules` is
-copied into the sandbox so the tests can run, and the gates run with **no
-network at all**, so nothing can be fetched during verification.
+The builder and verifiers receive dependencies installed from a fixed
+`package.json` and `package-lock.json`. The host's and worker's
+`node_modules` are never used as verification evidence or applied back.
+A dependency-free project may omit the lockfile. The initial preparation
+policy supports one package root, npm lockfile versions 2/3 and
+integrity-pinned HTTPS artifacts. Workspaces, Git/local dependencies and
+shrinkwrap files stop with `environment-blocked` rather than falling back.
 
-`node_modules` is also never applied back — it is generated, and npm
-touches it merely by running. That leaves one gap, and `harness deps`
-closes it: a run that installs a package inside the sandbox brings back
-the `package.json` declaration without the package. Every gate passes
-there, where it exists; on your machine the project would not run.
+A separate container downloads package artifacts with installation scripts
+disabled. It receives only the fixed package inputs, no Pi credentials or
+skills. A fresh offline `npm ci` proves the prepared cache is usable. Every
+executable gate then gets its own source copy, cache copy and offline
+installation. Tests cannot alter the source or dependencies a later gate
+uses. These are the clean-install properties described by [npm ci](https://docs.npmjs.com/cli/v11/commands/npm-ci/).
 
-So `work` checks after applying, and says so:
+The environment key includes both package files, the immutable image,
+container Node/npm versions and platform, installation flags and script
+policy. Cache misses, lock mismatches and unsupported requirements are
+recorded as `environment-blocked`, with no review or application.
 
+Installation scripts default to denied. The harness checks both lock
+metadata and unpacked package manifests. An operator can set
+`HARNESS_NPM_SCRIPTS=allow` to exercise required scripts during the offline
+proof and each offline installation. Scripts that change candidate source
+are refused; dependency and generated outputs may be produced. Credentials
+are absent and networking remains disabled during those scripts.
+
+`HARNESS_NPM_FLAGS` accepts a JSON array containing `--legacy-peer-deps`,
+`--install-links` or `--no-bin-links` when the lockfile needs them. Other
+installation flags are refused. A dependency-free environment skips installation but still records the
+container runtime in its identity.
+
+Dependency manifests and shared contracts need a dedicated assignment:
+
+```bash
+harness add update-deps --shared-inputs --title "Update locked dependencies" --criterion "The locked environment installs offline and all checks pass"
 ```
-applied as r4. undo with: harness undo r4
 
-This run declared zod, which is not installed here.
-Install with:  harness deps --install
-```
+This sets `kind: "shared-inputs"` in `features.json`. Ordinary assignments
+that change package manifests, lockfiles or protected contracts become
+blocked change requests. Contracts default to `contracts/`; set
+`HARNESS_CONTRACT_PATHS` to a JSON array of other protected paths.
+Accepting a shared-input update creates a new environment/candidate version
+and conservatively marks other completed work for revalidation. Candidates
+record their baseline and environment identities and cannot accept against
+a changed live baseline. Fine-grained ownership arrives with the controller.
+
+Dependencies are still not installed into the operator's project implicitly.
+After application, `work` reports missing local dependencies and points to
+`harness deps --install`.
 
 `harness deps` on its own only reports. `--install` runs `npm install` in
 your project — **the one command in this tool that reaches outside a
@@ -328,14 +351,17 @@ not restore downstream acceptance. Revalidation follows dependency order
 and must pass all applicable gates and a fresh review, even with no code
 changes. An explicitly retried blocked item follows the same review rule.
 
-This milestone tracks changes accepted or undone by the harness. Detecting
-arbitrary outside edits requires the baseline work in team M2. Source
-application, run recording and status updates retain the existing failure
-semantics; a recoverable application journal is planned for team M5.
+M2 also checks live source and requirements against the starting baseline
+before acceptance and again before application. The final check is not a
+writer lock: a concurrent edit after it is still a race. Source application,
+run recording and status updates retain the existing failure semantics;
+writer coordination and a recoverable application journal are planned for M5.
 
 ## How a run works
 
-1. **Select and copy.** Prerequisites are checked first. Your project is copied into a disposable sandbox. The
+1. **Select and freeze.** Prerequisites are checked first. The harness
+   captures source and requirements identities in a host-owned baseline,
+   then creates a disposable worker copy from that baseline. The
    project itself is never mounted. Withheld from the copy, and announced
    rather than dropped silently: `.git`, `features.json`, `.harness`,
    `.secure-harness`, `.env`, `.env.local`, `.ssh`, `.aws`, `.gnupg`,
@@ -344,7 +370,11 @@ semantics; a recoverable application journal is planned for team M5.
    provider's network. It reads what it needs and writes what it likes —
    to the copy. A valid blocked submission stops here and records the input
    needed; the remaining gates, review and apply are skipped.
-3. **Prove.** Six gates, with no network at all. The first answers two
+3. **Freeze and prove.** The worker container is stopped before output is
+   captured. Paths, symlinks, scope and shared-input permissions are checked
+   before creating a frozen candidate outside the worker directory. Each
+   executable gate receives a fresh disposable verification workspace,
+   with clean dependencies and no network or provider credentials. The first answers two
    questions, and the second is the one people forget to ask:
 
    - the test suite passes;
@@ -359,12 +389,15 @@ semantics; a recoverable application journal is planned for team M5.
    A failing gate hands the model a **named diagnosis** — what failed, why
    it matters, what would count as fixed — and it gets one more attempt.
    Never a log to guess from.
-4. **Review.** A second Pi process, read-only, no shared context with the
+4. **Review.** A second Pi process mounts frozen source read-only, with no
+   skills and no shared context with the
    builder, judges the diff against the item's acceptance criteria. It
    answers two questions: is each criterion actually satisfied, and is
    anything here unaccounted for? It passes silently or escalates to you.
-5. **Apply.** With a recovery snapshot of both sides, and a line in an
-   append-only record.
+5. **Apply.** Recheck the live baseline and candidate identity, then apply
+   only frozen candidate files. Test-generated files never become source.
+   Recovery snapshots and append-only records carry the resulting change.
+   Host-owned attempt manifests live under `<project>-harness/candidates/`.
 6. **Destroy.** The sandbox goes, on every path, including a crash.
 
 ## Running unattended
@@ -554,10 +587,12 @@ npm run check             # typecheck and unit suite; local HTTP tests need loop
 npm run verify:skills     # real Pi loader, no Docker or model calls
 npm run verify:boundary   # the container, against a real daemon
 npm run verify:gates      # each gate broken in turn, confirmed to stop the apply
+npm run verify:candidates # worker-dependency tampering, fresh verifiers and offline installs
 npm run verify:reviewer   # the four real defects, plus the control
 ```
 
-Boundary and gate verification need Docker and a configured image.
+Boundary, gate and candidate verification need Docker and a configured
+image. Candidate verification downloads one pinned public fixture package.
 Reviewer verification also calls the configured model; skill verification
 only needs the installed Pi package. These commands read the same config
 files as the CLI, and each **fails loudly rather than skipping** when it cannot
@@ -565,8 +600,9 @@ run — because a check that skips quietly reads as a pass, and this project
 has now shipped that defect twice and caught it twice.
 
 `npm run check` is the exception, deliberately: the unit suite has to run
-on a machine with no Docker at all, so the one test that needs a daemon
-skips there by name, and `verify:gates` is what refuses to skip it.
+on a machine with no Docker at all, so the two Docker suites skip there by
+name. `verify:gates` and `verify:candidates` refuse to report skipped suites
+as verification.
 
 ## What it deliberately does not have
 

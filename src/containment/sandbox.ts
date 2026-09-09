@@ -35,6 +35,7 @@ export interface SandboxLayout {
   readonly skillsDirectory?: string;
   /** Non-root uid:gid. */
   readonly user: string;
+  readonly purpose?: "agent" | "verification" | "review";
 }
 
 /**
@@ -75,11 +76,14 @@ export function mounts(layout: SandboxLayout): readonly {
   readonly destination: string;
   readonly writable: boolean;
 }[] {
-  return [
+  if (layout.purpose === "verification") return [
     { source: layout.workDirectory, destination: CONTAINER_WORK, writable: true },
+  ];
+  return [
+    { source: layout.workDirectory, destination: CONTAINER_WORK, writable: layout.purpose !== "review" },
     { source: layout.agentDirectory, destination: CONTAINER_AGENT, writable: true },
     { source: layout.piPackageDirectory, destination: CONTAINER_PI_PACKAGE, writable: false },
-    ...(layout.skillsDirectory === undefined
+    ...(layout.skillsDirectory === undefined || layout.purpose === "review"
       ? []
       : [{ source: layout.skillsDirectory, destination: CONTAINER_SKILLS, writable: false }]),
   ];
@@ -127,9 +131,10 @@ export function assertMountsAreSafe(layout: SandboxLayout): void {
   }
 
   const writable = mounts(layout).filter((mount) => mount.writable);
-  if (writable.length !== 2) {
+  const expected = layout.purpose === "verification" || layout.purpose === "review" ? 1 : 2;
+  if (writable.length !== expected) {
     throw new ContainmentError(
-      `Exactly two writable mounts are permitted, found ${String(writable.length)}.`,
+      `Expected ${String(expected)} writable mounts, found ${String(writable.length)}.`,
       "MOUNT_WRITABLE_COUNT",
     );
   }
@@ -195,10 +200,15 @@ export function buildRunArguments(
       `type=bind,src=${mount.source},dst=${mount.destination}${mount.writable ? "" : ",readonly"}`,
     ]),
     "--env=HOME=/home/node",
-    `--env=PI_CODING_AGENT_DIR=${CONTAINER_AGENT}`,
+    ...(layout.purpose === "verification" ? [] : [`--env=PI_CODING_AGENT_DIR=${CONTAINER_AGENT}`]),
     "--env=NODE_DISABLE_COMPILE_CACHE=1",
     "--env=NO_COLOR=1",
     layout.imageId,
     ...command,
   ];
+}
+
+/** Gates and package preparation never receive model credentials, Pi or skills. */
+export function buildVerificationArguments(layout: SandboxLayout, network: "none" | "bridge", command: readonly string[]): string[] {
+  return buildRunArguments({ ...layout, purpose: "verification" }, network, command);
 }

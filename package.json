@@ -13,6 +13,7 @@
     "verify:boundary": "node --experimental-strip-types src/verify-boundary.ts",
     "verify:skills": "node src/verify-skills.ts",
     "work": "node --experimental-strip-types src/cli.ts work",
+    "verify:candidates": "node src/verify-candidates.ts",
     "verify:gates": "node --experimental-strip-types src/verify-gates.ts",
     "verify:reviewer": "node --experimental-strip-types src/verify-reviewer.ts",
     "undo": "node --experimental-strip-types src/cli.ts undo",
