@@ -18,6 +18,7 @@
 import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { type AgentUsage, describeUsage, emptyUsage } from "../agent/events.ts";
+import { readSubmission } from "../agent/submission.ts";
 import { runAgent } from "../agent/pi.ts";
 import { diagnose } from "../attribution.ts";
 import { ConfigError, loadConfig, setting } from "../config.ts";
@@ -26,7 +27,7 @@ import { type SandboxLayout } from "../containment/sandbox.ts";
 import { CLAIM_FILE } from "../gates/claim.ts";
 import { counterPath } from "../gates/tests.ts";
 import { DEFAULT_LIMITS, type Limits } from "../gates/limits.ts";
-import { chooseNext, type Feature, markDone, readFeatures, unmetDependencies } from "../features.ts";
+import { chooseNext, type Feature, markDone, markStatus, readFeatures, unmetDependencies } from "../features.ts";
 import { listSkills } from "../agent/skills.ts";
 import { missingInProject } from "../deps.ts";
 import { clearStatus, type Phase, writeStatus } from "../view/status.ts";
@@ -81,13 +82,23 @@ async function resolveWork(project: string, argument: string): Promise<{
     // something cosmetic to do. Watched happen on a real project: a
     // number wrapped in <strong>, which the Reviewer then escalated.
     const { runs } = await readRecord(project);
-    const { next, steppedOver } = chooseNext(list.features, (id) =>
+    const { next, steppedOver, waiting } = chooseNext(list.features, (id) =>
       runs.filter((run) => run.goal === id).at(-1)?.outcome);
     if (next === undefined) {
+      const blocked = list.features.filter((f) => f.status === "blocked" && f.priority !== "wont");
+      if (waiting.length > 0 || blocked.length > 0) {
+        throw new OperatorError(
+          "Work is waiting: " + [
+            ...waiting.map((f) => `${f.id} needs ${unmetDependencies(f, list.features).join(", ")}`),
+            ...blocked.map((f) => `${f.id} is blocked`),
+          ].join("; "),
+          "Complete the prerequisites or resolve the blocked input. Run `harness look` for details.",
+        );
+      }
       const idle = steppedOver;
       throw new OperatorError(
         idle.length === 0
-          ? "Nothing left to work on: every item is done, blocked, or a won't-have."
+          ? "Nothing left to work on: every item is done or a won't-have."
           : `Nothing left to work on. ${idle.map((f) => f.id).join(", ")} produced no changes `
             + "last time, so they are being stepped over.",
         idle.length === 0
@@ -108,9 +119,10 @@ async function resolveWork(project: string, argument: string): Promise<{
   }
   const unmet = unmetDependencies(feature, list.features);
   if (unmet.length > 0) {
-    // Reported, not enforced. The operator may know something the list
-    // does not; what they must not do is find out afterwards.
-    say(`note: ${feature.id} depends on ${unmet.join(", ")}, which are not done`);
+    throw new OperatorError(
+      `${feature.id} is waiting for ${unmet.join(", ")}, which are not done.`,
+      "Complete these prerequisites before starting this item. Run `harness look` to see their status.",
+    );
   }
   return { title: `${feature.id}: ${feature.title}`, criteria: feature.criteria, feature };
 }
@@ -134,6 +146,11 @@ function briefing(goal: string, criteria: readonly string[]): string {
     "",
     "It is checked against what actually changed, so it must be exact. It is",
     "not applied to the repository.",
+    "",
+    "If missing input or an unresolved decision prevents completion, stop and",
+    "write this instead. Do not guess or claim completion:",
+    '{"outcome":"blocked","reason":"what prevents completion","requestedInput":"the specific input needed"}',
+    "A blocked result stops without review or apply; partial edits are discarded.",
   ].join("\n");
 }
 
@@ -325,6 +342,14 @@ export async function work(argv: readonly string[]): Promise<void> {
       }
       if (agent.code !== 0) throw await stop("error", `agent: exited ${String(agent.code)}`, agent.stderr);
 
+      const submission = await readSubmission(sandbox.workDirectory);
+      if (submission.ok && submission.outcome === "blocked") {
+        if (work.feature !== undefined) await markStatus(project, work.feature.id, "blocked");
+        throw await stop("blocked", `blocked: ${submission.reason}`,
+          `Needed: ${submission.requestedInput}\nResolve this input, then retry the item explicitly. Partial edits were not applied.`,
+          { requestedInput: submission.requestedInput });
+      }
+
       const { run, changes } = await runPipeline({
         config,
         layout,
@@ -353,7 +378,8 @@ export async function work(argv: readonly string[]): Promise<void> {
         continue;
       }
 
-      if (changes.length === 0) {
+      const mustReviewUnchanged = work.feature?.status === "needs-revalidation" || work.feature?.status === "blocked";
+      if (changes.length === 0 && !mustReviewUnchanged) {
         await appendRun(project, {
           id: runId,
           at: new Date().toISOString(),
@@ -482,7 +508,7 @@ export async function work(argv: readonly string[]): Promise<void> {
       // machine the project will not run until it is installed here too.
       const missing = await missingInProject(project);
 
-      if (work.feature !== undefined) await markDone(project, work.feature.id);
+      if (work.feature !== undefined) await markDone(project, work.feature.id, changes.length > 0);
       for (const change of changes) say(`  ${change.kind.padEnd(8)} ${change.file}`);
       say(`applied as ${runId}. undo with: harness undo ${runId}`);
       if (missing.length > 0) {

@@ -69,6 +69,7 @@ const OUTCOME_LABEL: Record<string, string> = {
   "gate-failed": "stopped by a gate",
   "no-changes": "no changes",
   error: "error",
+  blocked: "blocked — input needed",
 };
 
 function diffBlock(file: FileDiff): string {
@@ -116,6 +117,7 @@ function runSection(view: RunView): string {
     findings.length === 0 ? "" : `<div class="findings"><h3>The reviewer said</h3><ul>${
       findings.map((f) => `<li>${escape(f)}</li>`).join("")}</ul></div>`,
     run.reason === undefined ? "" : `<p class="reason">${escape(run.reason)}</p>`,
+    run.requestedInput === undefined ? "" : `<p class="reason">Needed: ${escape(run.requestedInput)}</p>`,
     view.files.length === 0 ? "" : `<div class="files">${view.files.map(diffBlock).join("")}</div>`,
     `</section>`,
   ].join("");
@@ -179,13 +181,15 @@ aside{position:sticky;top:1rem;max-height:calc(100vh - 2rem);overflow:auto}
 .queue + .side-h{margin-top:1.75rem}
 .qleft{margin-left:auto;text-transform:none;letter-spacing:0;font-size:.72rem}
 .queue{list-style:none;margin:0;padding:0;font-size:.83rem}
-.queue li{display:flex;gap:.5rem;align-items:baseline;padding:.15rem .25rem;border-radius:3px}
+.queue li{display:flex;flex-wrap:wrap;gap:.5rem;align-items:baseline;padding:.15rem .25rem;border-radius:3px}
 .queue li.is-next{background:var(--line)}
 .qid{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qpri{color:var(--dim);font-size:.68rem;text-transform:uppercase;letter-spacing:.05em}
 .dot{width:6px;height:6px;border-radius:50%;flex:none;transform:translateY(-1px);background:var(--line)}
 .dot.done{background:var(--add)}
 .dot.next{background:var(--accent)}
+.qstate{flex-basis:100%;color:var(--dim);font-size:.72rem;overflow-wrap:anywhere}
+.dot.needs-revalidation{background:var(--rev)}
 .dot.blocked{background:var(--del)}
 .tree{list-style:none;margin:0;padding:0;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
 .tree .dir{color:var(--dim);font-size:.7rem;letter-spacing:.06em;padding:.75rem 0 .15rem;word-break:break-all}
@@ -214,6 +218,7 @@ export interface QueueItem {
   /** What the last run for this item did, when there was one. */
   readonly state: string;
   readonly next: boolean;
+  readonly waitingFor?: readonly string[];
 }
 
 /**
@@ -232,7 +237,8 @@ function queue(items: readonly QueueItem[]): string {
     return `<li class="${item.next ? "is-next" : ""}">`
       + `<span class="dot ${escape(mark)}"></span>`
       + `<span class="qid">${escape(item.feature.id)}</span>`
-      + `<span class="qpri">${escape(item.feature.priority)}</span></li>`;
+      + `<span class="qpri">${escape(item.feature.priority)}</span>`
+      + `<span class="qstate">${escape(item.state)}${item.waitingFor?.length ? ` · waiting for: ${escape(item.waitingFor.join(", "))}` : ""}</span></li>`;
   });
   const left = items.filter((item) => item.feature.status !== "done").length;
   return [

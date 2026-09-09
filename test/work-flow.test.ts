@@ -1,0 +1,183 @@
+import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { promisify } from "node:util";
+import { type Feature, readFeatures } from "../src/features.ts";
+import { harnessDirectory, readRecord } from "../src/record/record.ts";
+import { statusPath } from "../src/view/status.ts";
+
+const execute = promisify(execFile);
+const cli = path.resolve(import.meta.dirname, "../src/cli.ts");
+const item = (id: string, dependsOn: string[] = [], status: Feature["status"] = "todo"): Feature =>
+  ({ id, title: id, priority: "must", status, dependsOn, criteria: ["works"] });
+
+async function fixture(features: Feature[], mode = "blocked") {
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-flow-")));
+  const project = path.join(root, "project");
+  await mkdir(path.join(project, "test"), { recursive: true });
+  await writeFile(path.join(project, "features.json"), JSON.stringify(features));
+  await writeFile(path.join(project, "app.js"), "export const value = 1;\n");
+  await writeFile(path.join(project, "test/app.test.js"), 'import assert from "node:assert/strict"; assert.equal(1, 1);\n');
+  await writeFile(path.join(project, "package.json"), JSON.stringify({ type: "module", scripts: { test: "node --test test/*.test.js" } }));
+  const docker = path.join(root, "docker");
+  // Only the external processes are substituted. Queue, sandbox, gates,
+  // record, apply, cleanup and both operator views execute production code.
+  await writeFile(docker, `#!${process.execPath}
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const args = process.argv.slice(2);
+const mount = args.find(a => a.startsWith('type=bind,src=') && a.includes(',dst=/work'));
+const work = mount.split(',src=')[1].split(',dst=')[0];
+const mode = process.env.FLOW_MODE;
+const kind = args.includes('--mode') ? 'builder' : args.includes('read,grep') ? 'reviewer' : 'gate';
+fs.appendFileSync(process.env.FLOW_LOG, JSON.stringify({kind, work}) + '\\n');
+if (kind === 'builder') {
+  const blocked = mode === 'blocked' || mode === 'invalid';
+  const claim = blocked
+    ? {outcome:'blocked', reason:'A decision is missing', requestedInput: mode === 'invalid' ? '' : 'Choose <region>'}
+    : {outcome:'completed', files:mode === 'changed' ? ['app.js'] : [], deletions:[], criteria:[{criterion:'works', verifiedBy:'test/app.test.js'}]};
+  fs.writeFileSync(path.join(work,'.harness-claim.json'),JSON.stringify(claim));
+  if (blocked || mode === 'changed') fs.writeFileSync(path.join(work,'app.js'),'export const value = 2;\\n');
+} else if (kind === 'reviewer') {
+  process.stdout.write(JSON.stringify({verdict: mode === 'reject' ? 'escalate' : 'pass', unmet: mode === 'reject' ? ['works'] : [], unaccounted:[], notes:[]}));
+} else {
+  // Run the real fixture suite with the real assertion shim on the host.
+  const result = spawnSync(process.execPath, ['--import',path.join(work,'.harness-assert-counter.mjs'),'--test','test/app.test.js'], {
+    cwd: work, env: {...process.env, HARNESS_ASSERT_COUNT_FILE:path.join(work,'.harness-assert-count')}, stdio:'inherit'
+  });
+  process.exit(result.status ?? 1);
+}
+`);
+  await chmod(docker, 0o755);
+  const config = path.join(root, "config");
+  await writeFile(config, "# isolated test settings\n");
+  const { NODE_TEST_CONTEXT: _context, NODE_OPTIONS: _options, ...environment } = process.env;
+  const env: NodeJS.ProcessEnv = { ...environment, HARNESS_CONFIG: config, HARNESS_PROJECT: project,
+    HARNESS_DOCKER: docker, HARNESS_IMAGE_ID: `sha256:${"a".repeat(64)}`, HARNESS_AGENT_DIR: root,
+    HARNESS_PI_PACKAGE: root, HARNESS_SKILLS: "", HARNESS_TEST_COMMAND: "npm test",
+    FLOW_MODE: mode, FLOW_LOG: path.join(root, "calls") };
+  return { root, project,
+    async run(...args: string[]) {
+      try { const r = await execute(process.execPath, [cli, ...args], { cwd: project, env }); return { code: 0, text: r.stdout + r.stderr }; }
+      catch (e) { const r = e as Error & { code: number; stdout: string; stderr: string }; return { code: r.code, text: r.stdout + r.stderr }; }
+    },
+    async calls(): Promise<{kind: string; work: string}[]> {
+      return (await readFile(path.join(root, "calls"), "utf8").catch(() => "")).trim().split("\n").filter(Boolean).map(line => JSON.parse(line));
+    },
+    async close() { await rm(root, { recursive: true, force: true }); },
+  };
+}
+
+test("explicit unmet dependencies stop before creating a sandbox or launching an agent", async () => {
+  const f = await fixture([item("client", ["api"]), item("api")]);
+  try {
+    const result = await f.run("work", "client");
+    assert.notEqual(result.code, 0);
+    assert.match(result.text, /client.*api/u);
+    assert.doesNotMatch(result.text, /sandbox:/u);
+    assert.deepEqual(await f.calls(), []);
+    assert.deepEqual((await readRecord(f.project)).runs, []);
+  } finally { await f.close(); }
+});
+
+test("automatic work selects the eligible prerequisite; a blocked submission applies nothing", async () => {
+  const f = await fixture([item("client", ["api"]), item("api")]);
+  try {
+    const result = await f.run("work");
+    assert.notEqual(result.code, 0);
+    assert.match(result.text, /taking the next must: api/u);
+    const calls = await f.calls();
+    assert.deepEqual(calls.map(c => c.kind), ["builder"]);
+    const run = (await readRecord(f.project)).runs[0]!;
+    assert.equal(run.goal, "api");
+    assert.equal(run.outcome, "blocked");
+    assert.equal(run.reason, "blocked: A decision is missing");
+    assert.equal(run.requestedInput, "Choose <region>");
+    assert.equal(run.review, undefined);
+    assert.deepEqual(run.changes, []);
+    assert.deepEqual(run.gates, []);
+    const list = await readFeatures(f.project);
+    assert.ok(list?.ok);
+    assert.equal(list.features[1]!.status, "blocked");
+    assert.equal(await readFile(path.join(f.project, "app.js"), "utf8"), "export const value = 1;\n");
+    await assert.rejects(readFile(path.join(calls[0]!.work, "app.js")), { code: "ENOENT" });
+    assert.equal(JSON.parse(await readFile(statusPath(f.project), "utf8")).phase, "idle");
+    assert.match((await f.run("look")).text, /Choose <region>/u);
+    assert.equal((await f.run("view")).code, 0);
+    const html = await readFile(path.join(harnessDirectory(f.project), "view.html"), "utf8");
+    assert.match(html, /Choose &lt;region&gt;/u);
+    assert.match(html, /waiting for: api/u);
+  } finally { await f.close(); }
+});
+
+test("a waiting backlog is distinguished from an empty backlog without launching work", async () => {
+  const f = await fixture([item("api", [], "blocked"), item("client", ["api"])]);
+  try {
+    assert.match((await f.run("work")).text, /waiting.*client.*api/isu);
+    assert.match((await f.run("look")).text, /waiting/iu);
+    assert.deepEqual(await f.calls(), []);
+    await writeFile(path.join(f.project, "features.json"), "[]");
+    assert.match((await f.run("work")).text, /Nothing left/u);
+  } finally { await f.close(); }
+});
+
+test("a blocked submission missing requested input cannot become an accepted change", async () => {
+  const f = await fixture([item("api")], "invalid");
+  try {
+    assert.notEqual((await f.run("work")).code, 0);
+    const run = (await readRecord(f.project)).runs[0]!;
+    assert.equal(run.outcome, "gate-failed");
+    assert.equal((await f.calls()).some(c => c.kind === "reviewer"), false);
+    assert.equal(await readFile(path.join(f.project, "app.js"), "utf8"), "export const value = 1;\n");
+  } finally { await f.close(); }
+});
+
+for (const mode of ["completed", "reject"]) {
+  test(`no-change revalidation requires gates and review (${mode})`, async () => {
+    const f = await fixture([item("api", [], "done"), item("client", ["api"], "needs-revalidation")], mode);
+    try {
+      const result = await f.run("work");
+      const calls = await f.calls();
+      assert.ok(calls.some(c => c.kind === "gate"), result.text);
+      assert.ok(calls.some(c => c.kind === "reviewer"), result.text);
+      const list = await readFeatures(f.project);
+      assert.ok(list?.ok);
+      assert.equal(list.features[1]!.status, mode === "completed" ? "done" : "needs-revalidation");
+      assert.equal((await readRecord(f.project)).runs[0]!.outcome, mode === "completed" ? "applied" : "escalated");
+    } finally { await f.close(); }
+  });
+}
+
+test("accepted prerequisite reruns and repeated undo preserve code and invalidate downstream completion", async () => {
+  const f = await fixture([item("api", [], "done"), item("client", ["api"], "done"), item("app", ["client"], "done")], "changed");
+  try {
+    const result = await f.run("work", "api");
+    assert.equal(result.code, 0, result.text);
+    const statuses = async () => { const list = await readFeatures(f.project); assert.ok(list?.ok); return list.features.map(f => f.status); };
+    assert.deepEqual(await statuses(), ["done", "needs-revalidation", "needs-revalidation"]);
+    for (const [id, status, value] of [["r1", "todo", 1], ["r2", "done", 2], ["r3", "todo", 1]] as const) {
+      const reversed = await f.run("undo", id);
+      assert.equal(reversed.code, 0, reversed.text);
+      assert.deepEqual(await statuses(), [status, "needs-revalidation", "needs-revalidation"]);
+      assert.equal(await readFile(path.join(f.project, "app.js"), "utf8"), `export const value = ${value};\n`);
+    }
+    assert.equal((await readRecord(f.project)).runs.length, 4);
+    assert.match((await f.run("look")).text, /needs-revalidation/u);
+  } finally { await f.close(); }
+});
+
+test("an explicitly retried blocked item can complete unchanged after review", async () => {
+  const f = await fixture([item("api", [], "blocked")], "completed");
+  try {
+    const result = await f.run("work", "api");
+    assert.equal(result.code, 0, result.text);
+    assert.ok((await f.calls()).some(c => c.kind === "reviewer"), result.text);
+    const list = await readFeatures(f.project);
+    assert.ok(list?.ok);
+    assert.equal(list.features[0]!.status, "done");
+  } finally { await f.close(); }
+});

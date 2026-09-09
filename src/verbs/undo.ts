@@ -67,6 +67,21 @@ export async function undo(project: string, argv: readonly string[]): Promise<vo
     );
   }
 
+  let rootRun = run;
+  let depth = 1;
+  const seen = new Set([run.id]);
+  while (rootRun.reverses !== undefined) {
+    const parent = runs.find((entry) => entry.id === rootRun.reverses);
+    if (parent === undefined || seen.has(parent.id)) {
+      throw new OperatorError("The undo chain is incomplete or cyclic.", "Repair the record before undoing this run.");
+    }
+    seen.add(parent.id);
+    rootRun = parent;
+    depth += 1;
+  }
+  const item = rootRun.goal;
+  const status = depth % 2 === 1 ? "todo" : "done";
+
   const snapshot = recoveryPath(project, run.id);
   if (!existsSync(snapshot)) {
     throw new OperatorError(`the recovery snapshot for ${run.id} is missing.`, `Expected it at ${snapshot}.`);
@@ -129,13 +144,7 @@ export async function undo(project: string, argv: readonly string[]): Promise<vo
   // Undoing an *undo* re-applies the original, so the item it completed
   // becomes done again. Status has to travel the same round trip the
   // files do, or the list and the repository disagree after two undos.
-  const original = run.reverses === undefined
-    ? undefined
-    : runs.find((entry) => entry.id === run.reverses);
-  const [item, status] = original === undefined
-    ? [run.goal, "todo" as const]
-    : [original.goal, "done" as const];
-  const restated = await markStatus(project, item, status);
+  const restated = await markStatus(project, item, status, writes.size > 0);
 
   for (const outcome of outcomes) {
     say(`  ${outcome.action.padEnd(11)} ${outcome.file}${outcome.detail === undefined ? "" : `  (${outcome.detail})`}`);

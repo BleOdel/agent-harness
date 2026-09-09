@@ -7,9 +7,8 @@
  * diff against, and so "done" is a claim about named criteria rather than
  * a feeling.
  *
- * The file lives in the project, is written by the operator, and is never
- * modified by the harness. A model that could edit its own acceptance
- * criteria has none.
+ * The operator owns requirements; the host records completion and
+ * invalidation. The model never receives this file in its sandbox.
  */
 
 import { readFile, writeFile } from "node:fs/promises";
@@ -20,7 +19,7 @@ export const FEATURES_FILE = "features.json";
 export const PRIORITIES = ["must", "should", "could", "wont"] as const;
 export type Priority = (typeof PRIORITIES)[number];
 
-export const STATUSES = ["todo", "doing", "done", "blocked"] as const;
+export const STATUSES = ["todo", "doing", "done", "blocked", "needs-revalidation"] as const;
 export type Status = (typeof STATUSES)[number];
 
 export interface Feature {
@@ -29,7 +28,7 @@ export interface Feature {
   readonly priority: Priority;
   readonly status: Status;
   readonly criteria: readonly string[];
-  /** Ids that must be `done` first. Advisory: reported, never enforced silently. */
+  /** Ids that must be `done` before this item may start. */
   readonly dependsOn: readonly string[];
 }
 
@@ -105,6 +104,26 @@ export function parseFeatures(text: string): FeatureListResult {
       }
     }
   }
+  const byId = new Map(features.map(feature => [feature.id, feature]));
+  const finished = new Set<string>();
+  const visiting: string[] = [];
+  const visit = (id: string): string[] | undefined => {
+    const index = visiting.indexOf(id);
+    if (index >= 0) return [...visiting.slice(index), id];
+    if (finished.has(id)) return undefined;
+    visiting.push(id);
+    for (const dependency of byId.get(id)!.dependsOn) {
+      const cycle = visit(dependency);
+      if (cycle !== undefined) return cycle;
+    }
+    visiting.pop();
+    finished.add(id);
+    return undefined;
+  };
+  for (const feature of features) {
+    const cycle = visit(feature.id);
+    if (cycle !== undefined) return { ok: false, reason: `${FEATURES_FILE}: dependency cycle: ${cycle.join(" -> ")}.` };
+  }
   return { ok: true, features };
 }
 
@@ -165,15 +184,33 @@ export async function readFeatures(project: string): Promise<FeatureListResult |
  * plan's own M5 verification -- build an application following nothing
  * but `look` -- on the second run.
  */
-export async function markStatus(project: string, id: string, status: Status): Promise<boolean> {
+export async function markStatus(project: string, id: string, status: Status, invalidateDependents = false): Promise<boolean> {
   const file = path.join(project, FEATURES_FILE);
   const text = await readFile(file, "utf8").catch(() => undefined);
   if (text === undefined) return false;
   const list = parseFeatures(text);
   if (!list.ok) return false;
-  if (!list.features.some((feature) => feature.id === id)) return false;
+  const previous = list.features.find((feature) => feature.id === id);
+  if (previous === undefined) return false;
+  const affected = new Set<string>([id]);
+  if (invalidateDependents || (previous.status === "done" && status !== "done")) {
+    // Follow through unfinished intermediates too: a completed grandchild
+    // may still rely on the changed ancestor's previous behavior.
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const feature of list.features) {
+        if (!affected.has(feature.id) && feature.dependsOn.some(dependency => affected.has(dependency))) {
+          affected.add(feature.id);
+          changed = true;
+        }
+      }
+    }
+  }
   const next = list.features.map((feature) =>
-    feature.id === id ? { ...feature, status } : feature);
+    feature.id === id ? { ...feature, status }
+      : affected.has(feature.id) && (feature.status === "done" || feature.status === "doing")
+        ? { ...feature, status: "needs-revalidation" as const }
+        : feature);
   const rendered = `${JSON.stringify(next, null, 2)}\n`;
   // Through the same parser that reads it: the harness must never write a
   // list it would then refuse to load.
@@ -182,10 +219,10 @@ export async function markStatus(project: string, id: string, status: Status): P
   return true;
 }
 
-export const markDone = async (project: string, id: string): Promise<boolean> =>
-  markStatus(project, id, "done");
+export const markDone = async (project: string, id: string, changed = true): Promise<boolean> =>
+  markStatus(project, id, "done", changed);
 
-/** Unmet dependencies, so the operator is told rather than silently blocked. */
+/** Prerequisites whose acceptance the current feature list does not establish. */
 export function unmetDependencies(feature: Feature, all: readonly Feature[]): string[] {
   const byId = new Map(all.map((entry) => [entry.id, entry]));
   return feature.dependsOn.filter((id) => byId.get(id)?.status !== "done");
@@ -206,20 +243,27 @@ export function unmetDependencies(feature: Feature, all: readonly Feature[]): st
 export function chooseNext(
   features: readonly Feature[],
   lastOutcomeOf: (id: string) => string | undefined,
-): { next: Feature | undefined; steppedOver: Feature[] } {
+): { next: Feature | undefined; steppedOver: Feature[]; waiting: Feature[] } {
   const queue = nextItems(features);
-  const steppedOver = queue.filter((feature) => lastOutcomeOf(feature.id) === "no-changes");
+  const skip = (feature: Feature): boolean =>
+    feature.status !== "needs-revalidation" && lastOutcomeOf(feature.id) === "no-changes";
+  const steppedOver = queue.filter(skip);
   return {
-    next: queue.find((feature) => lastOutcomeOf(feature.id) !== "no-changes"),
+    next: queue.find((feature) => !skip(feature)),
     steppedOver,
+    waiting: pendingItems(features).filter(feature => unmetDependencies(feature, features).length > 0),
   };
 }
 
-/** MoSCoW order, then declaration order. What to do next, when unsure. */
-export function nextItems(features: readonly Feature[]): Feature[] {
+function pendingItems(features: readonly Feature[]): Feature[] {
   const rank = (feature: Feature): number => PRIORITIES.indexOf(feature.priority);
   return features
-    .filter((feature) => feature.status === "todo" || feature.status === "doing")
+    .filter((feature) => feature.status === "todo" || feature.status === "doing" || feature.status === "needs-revalidation")
     .filter((feature) => feature.priority !== "wont")
     .sort((a, b) => rank(a) - rank(b));
+}
+
+/** Eligible work in MoSCoW order, then declaration order. */
+export function nextItems(features: readonly Feature[]): Feature[] {
+  return pendingItems(features).filter(feature => unmetDependencies(feature, features).length === 0);
 }

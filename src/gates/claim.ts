@@ -53,6 +53,10 @@ export function parseClaim(text: string): ClaimResult {
   }
   const record = raw as Record<string, unknown>;
 
+  if (record.outcome !== undefined && record.outcome !== "completed") {
+    return { ok: false, reason: 'A completion claim must have outcome "completed" (or omit it for legacy claims).' };
+  }
+
   const files = asStringArray(record.files ?? [], "files");
   if (typeof files === "string") return { ok: false, reason: files };
   const deletions = asStringArray(record.deletions ?? [], "deletions");

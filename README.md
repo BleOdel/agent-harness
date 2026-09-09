@@ -290,16 +290,60 @@ The containment is identical to every other run — verified by asserting
 that an interactive argument list differs from a one-shot one by exactly
 `--interactive` and `--tty` and nothing else.
 
+## Prerequisites, blocked work and revalidation
+
+`harness work` selects the highest-priority eligible item, preserving list
+order within a priority. All of its `dependsOn` items must be `done`.
+Explicit `harness work <id>` also enforces prerequisites before creating a
+sandbox or starting Pi. Missing references, self-dependencies and cycles
+are rejected when the feature list is read, added to, or imported; a cycle
+is reported as a path such as `api -> client -> api`.
+
+An empty queue is different from a waiting queue. `look` and `view` show
+unfinished prerequisites, blocked items and items needing revalidation.
+The automatic queue excludes blocked and won't-have items. Existing
+no-change results are stepped over, except when revalidation is required.
+
+A builder that needs a decision writes this to `.harness-claim.json`:
+
+```json
+{
+  "outcome": "blocked",
+  "reason": "The deployment region has not been approved.",
+  "requestedInput": "Which deployment region should be used?"
+}
+```
+
+Both text fields must be nonempty. The host records the blocked result,
+marks the item `blocked`, and destroys the sandbox without review or
+application. Partial edits are discarded. `look` and `view` show the
+reason and requested input. Resolve the input in the task's requirements
+or project context, then retry with `harness work <id>`. Ordinary claims
+remain compatible; they may optionally specify `"outcome": "completed"`.
+
+Undoing a prerequisite or accepting a rerun that changes its files marks
+completed downstream items `needs-revalidation`, transitively. Their code,
+criteria and run history remain available. Restoring a prerequisite does
+not restore downstream acceptance. Revalidation follows dependency order
+and must pass all applicable gates and a fresh review, even with no code
+changes. An explicitly retried blocked item follows the same review rule.
+
+This milestone tracks changes accepted or undone by the harness. Detecting
+arbitrary outside edits requires the baseline work in team M2. Source
+application, run recording and status updates retain the existing failure
+semantics; a recoverable application journal is planned for team M5.
+
 ## How a run works
 
-1. **Copy.** Your project is copied into a disposable sandbox. The
+1. **Select and copy.** Prerequisites are checked first. Your project is copied into a disposable sandbox. The
    project itself is never mounted. Withheld from the copy, and announced
    rather than dropped silently: `.git`, `features.json`, `.harness`,
    `.secure-harness`, `.env`, `.env.local`, `.ssh`, `.aws`, `.gnupg`,
    `.npmrc`, `.netrc`.
 2. **Build.** Pi runs in the container with tools enabled and the
    provider's network. It reads what it needs and writes what it likes —
-   to the copy.
+   to the copy. A valid blocked submission stops here and records the input
+   needed; the remaining gates, review and apply are skipped.
 3. **Prove.** Six gates, with no network at all. The first answers two
    questions, and the second is the one people forget to ask:
 

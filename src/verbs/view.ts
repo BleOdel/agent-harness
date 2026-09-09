@@ -14,13 +14,14 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { chooseNext, readFeatures } from "../features.ts";
+import { chooseNext, readFeatures, unmetDependencies } from "../features.ts";
 import { harnessDirectory, readRecord, recoveryPath, undoableRuns } from "../record/record.ts";
 import { diffLines, isBinary } from "../review/diff.ts";
 import { createViewServer, listen, LOOPBACK } from "../view/server.ts";
 import { assess, processAlive, statusPath, type Status } from "../view/status.ts";
 import { collectTree } from "../view/files.ts";
 import { type FileDiff, localTime, type QueueItem, renderPage, type RunView } from "../view/render.ts";
+import { stateOfItem } from "./look.ts";
 import { OperatorError, say } from "./io.ts";
 
 /** Kept small on purpose: an unreadably long diff is what this verb exists to fix. */
@@ -94,7 +95,8 @@ async function build(project: string, live: boolean): Promise<string> {
     runs.filter((run) => run.goal === id).at(-1)?.outcome);
   const items: QueueItem[] = features.map((feature) => ({
     feature,
-    state: runs.filter((run) => run.goal === feature.id).at(-1)?.outcome ?? feature.status,
+    state: stateOfItem(feature, runs),
+    waitingFor: unmetDependencies(feature, features),
     next: feature.id === next?.id,
   }));
   return renderPage(

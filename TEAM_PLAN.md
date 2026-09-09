@@ -3,7 +3,7 @@
 Implementation roadmap · 8 September 2026
 
 Based on `BleOdel/agent-harness` at `0cc7c34b534fe60d46f66d19304db0c9b9c21b99`.
-M0 is complete locally; M1–M6 remain pending. Team commands, schemas and later milestone modules below remain proposed. See `TEAM_M0_RESULTS.md` for checks and deployment status.
+M0 is published with passing GitHub CI. M1 is implemented locally; M2–M6 remain pending. Team commands, schemas and later milestone modules below remain proposed. See `TEAM_M0_RESULTS.md` and `TEAM_M1_RESULTS.md` for checks and publication status.
 
 ## Outcome and scope
 
@@ -201,7 +201,7 @@ Show role, task, prerequisites, phase, review/integration results, repair attemp
 
 Estimate: roughly 17–27 focused engineering days for the original milestones, plus 1–2 days for the assessed skill adaptations: approximately 18–29 days overall, with additional contingency for package preparation and provider/session behavior. This is a planning estimate, not a measured commitment. M4 is the first functional demonstration; M5 is required before relying on the team for project writes. M6 completes the initial operating experience.
 
-Start with a narrow M1 change: enforce prerequisites in both automatic and explicit selection, reject cycles, and add behavioral regression tests. Keep blocked submission and undo invalidation as subsequent reviewable changes within M1. M2 then makes those tasks safe to accept before orchestration grows.
+M1 implements prerequisite enforcement, cycle checks, structured blocked results and downstream revalidation. The next milestone is M2: immutable baselines and isolated verification inputs, before orchestration grows.
 
 ## Release evidence
 
@@ -219,4 +219,4 @@ The release is complete when the issue-tracker demonstration passes, the incompa
 - [Sandbox lifecycle](https://github.com/BleOdel/agent-harness/blob/0cc7c34b534fe60d46f66d19304db0c9b9c21b99/src/workspace/sandbox-lifecycle.ts): copy and recovery primitives to extend.
 - [Pi subagent extension example](https://github.com/earendil-works/pi/tree/main/packages/coding-agent/examples/extensions/subagent): implementation reference; this plan keeps worker isolation and acceptance in the host controller.
 
-Milestone status is recorded separately from this design: see `TEAM_M0_RESULTS.md`. Later milestones remain pending until their exit checks pass.
+Milestone status is recorded separately from this design: see `TEAM_M0_RESULTS.md` and `TEAM_M1_RESULTS.md`. Later milestones remain pending until their exit checks pass.

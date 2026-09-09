@@ -13,13 +13,13 @@
  * accumulates unread.
  */
 
-import { readFeatures, nextItems, type Feature } from "../features.ts";
+import { readFeatures, chooseNext, unmetDependencies, type Feature } from "../features.ts";
 import { readRecord, type RunRecord, undoableRuns } from "../record/record.ts";
 import { localTime } from "../view/render.ts";
 import { clip, pad, say } from "./io.ts";
 
-function stateOfItem(feature: Feature, runs: readonly RunRecord[]): string {
-  if (feature.status === "done") return "done";
+export function stateOfItem(feature: Feature, runs: readonly RunRecord[]): string {
+  if (["done", "blocked", "needs-revalidation"].includes(feature.status)) return feature.status;
   const last = runs.filter((run) => run.goal === feature.id).at(-1);
   if (last === undefined) return feature.status;
   // Whether that run is *still standing* matters. Reporting "applied" for
@@ -42,7 +42,7 @@ export async function look(project: string): Promise<void> {
     say();
   }
 
-  const escalations = runs.filter((run) => run.outcome === "escalated" || run.outcome === "gate-failed");
+  const escalations = runs.filter((run) => run.outcome === "escalated" || run.outcome === "gate-failed" || run.outcome === "blocked");
   const stillOpen = escalations.filter(
     (run) => !runs.some((later) => later.goal === run.goal && later.outcome === "applied" && later.at > run.at),
   );
@@ -53,6 +53,7 @@ export async function look(project: string): Promise<void> {
     for (const run of stillOpen) {
       say(`  ${pad(run.id, 5)} ${clip(run.goal, 40)}`);
       say(`        ${run.reason ?? "(no reason recorded)"}`);
+      if (run.requestedInput !== undefined) say(`        Needed: ${run.requestedInput}`);
       for (const finding of run.review?.findings ?? []) say(`        - ${clip(finding, 90)}`);
       say();
     }
@@ -67,12 +68,17 @@ export async function look(project: string): Promise<void> {
     say("ITEMS");
     say();
     for (const feature of list.features) {
+      const waiting = unmetDependencies(feature, list.features);
       say(`  ${pad(feature.priority, 7)} ${pad(feature.id, 16)} ${pad(stateOfItem(feature, runs), 28)} ${clip(feature.title, 44)}`);
+      if (waiting.length > 0) say(`          waiting for: ${waiting.join(", ")}`);
     }
     say();
-    const next = nextItems(list.features)[0];
+    const { next, waiting, steppedOver } = chooseNext(list.features, (id) =>
+      runs.filter((run) => run.goal === id).at(-1)?.outcome);
     say(next === undefined
-      ? "Nothing left to work on."
+      ? waiting.length > 0 || list.features.some((f) => f.status === "blocked" && f.priority !== "wont")
+        ? "Work is waiting on prerequisites or operator input."
+        : steppedOver.length > 0 ? "No eligible work: previous no-change items are being stepped over." : "Nothing left to work on."
       : `Next: ${next.id}.  Start it with: harness work`);
     say();
   }
