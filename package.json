@@ -21,7 +21,8 @@
     "look": "node --experimental-strip-types src/cli.ts look",
     "show": "node --experimental-strip-types src/cli.ts show",
     "harness": "node --experimental-strip-types src/cli.ts",
-    "plan": "node --experimental-strip-types src/cli.ts plan"
+    "plan": "node --experimental-strip-types src/cli.ts plan",
+    "verify:team": "node src/verify-team.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -34,6 +35,7 @@
   "files": [
     "src",
     "README.md",
-    ".env.example"
+    ".env.example",
+    "profiles"
   ]
 }

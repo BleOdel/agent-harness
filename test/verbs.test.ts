@@ -206,3 +206,10 @@ test("shared input changes need an explicit assignment kind", () => {
   const result = parseFeatures(JSON.stringify([{ id: "deps", title: "Update dependencies", criteria: ["works"], status: "todo", priority: "must", kind: "unexpected" }]));
   assert.equal(result.ok, false);
 });
+
+test("add accepts explicit team role, change scope and contract references", () => {
+  const result = parseAddArguments(["api", "--title", "API", "--criterion", "works", "--role", "backend", "--scope", "src/**", "--scope", "test/**", "--contract", "api-v1"]);
+  assert.equal(result.assignedRole, "backend");
+  assert.deepEqual(result.changeScope, ["src/**", "test/**"]);
+  assert.deepEqual(result.contracts, ["api-v1"]);
+});

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "roles": [
+    { "id": "builder", "instructions": "Implement the accepted task and its interfaces. Keep changes within the assigned scope. If a required decision or capability is missing, submit a structured blocked result instead of waiting for human input.", "skills": ["tdd", "codebase-design"] }
+  ],
+  "skills": [
+    { "id": "tdd", "path": "skills/tdd", "interaction": "unattended", "requires": ["read", "bash", "edit", "write"], "dependencies": ["codebase-design"], "resources": ["EVIDENCE.md"] },
+    { "id": "codebase-design", "path": "skills/codebase-design", "interaction": "unattended", "requires": ["read"], "dependencies": [], "resources": [] },
+    { "id": "diagnosing-bugs", "path": "skills/diagnosing-bugs", "interaction": "unattended", "requires": ["read", "bash", "edit", "write"], "dependencies": ["tdd"], "resources": [] }
+  ],
+  "contracts": {}
+}

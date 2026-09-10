@@ -12,13 +12,15 @@
  * model never sees it.
  */
 
+import { withWriter } from "../workspace/writer-lock.ts";
+
 import path from "node:path";
 import { changedPaths, commitMessage, git, isRepository } from "../git.ts";
 import { readFeatures } from "../features.ts";
 import { readRecord, undoableRuns } from "../record/record.ts";
 import { OperatorError, say } from "./io.ts";
 
-export async function commit(project: string, argv: readonly string[]): Promise<void> {
+async function commitUnlocked(project: string, argv: readonly string[]): Promise<void> {
   if (!(await isRepository(project))) {
     throw new OperatorError(
       `${path.basename(project)} is not a git repository.`,
@@ -72,4 +74,8 @@ export async function commit(project: string, argv: readonly string[]): Promise<
   say(message.split("\n").map((line) => `  ${line}`).join("\n").trimEnd());
   say("");
   say("Not pushed. That is your call:  git push");
+}
+
+export async function commit(project: string, argv: readonly string[]): Promise<void> {
+  return withWriter(project, "commit", () => commitUnlocked(project, argv));
 }

@@ -3,8 +3,8 @@
  *
  * Works items until the queue empties or something needs a person.
  *
- * This is the only unattended verb, and the only reason it can exist is
- * that every guarantee holds per item: each one is copied, gated,
+ * This sequential workflow applies each item separately. It can do so because
+ * every guarantee holds per item: each one is copied, gated,
  * reviewed, snapshotted and applied on its own. Running ten items is ten
  * of those, not one big one.
  *
@@ -14,12 +14,16 @@
  * to prevent -- automating past it would undo the point.
  */
 
+import { withWriter } from "../workspace/writer-lock.ts";
+
+import path from "node:path";
+
 import { OperatorError, say } from "./io.ts";
 import { work } from "./work.ts";
 
 const DEFAULT_MAX = 10;
 
-export async function run(argv: readonly string[]): Promise<void> {
+async function runUnlocked(argv: readonly string[]): Promise<void> {
   const flag = argv.indexOf("--max");
   const max = flag >= 0 ? Number(argv[flag + 1]) : DEFAULT_MAX;
   if (!Number.isInteger(max) || max <= 0) {
@@ -50,4 +54,8 @@ export async function run(argv: readonly string[]): Promise<void> {
   }
   say("");
   say(`Stopped at the limit of ${String(max)} items. Run again to continue.`);
+}
+
+export async function run(argv: readonly string[]): Promise<void> {
+  return withWriter(path.resolve(process.env.HARNESS_PROJECT ?? process.cwd()), "run", () => runUnlocked(argv));
 }

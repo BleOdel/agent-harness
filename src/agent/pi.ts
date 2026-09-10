@@ -27,6 +27,7 @@ export interface AgentRequest {
   readonly timeoutMs: number;
   /** Whether a skills directory was mounted for this run. */
   readonly skills: boolean;
+  readonly sessionDirectory?: string;
 }
 
 export function buildAgentCommand(request: AgentRequest): string[] {
@@ -44,6 +45,7 @@ export function buildAgentCommand(request: AgentRequest): string[] {
     // prompt nobody can answer is a hang, not a safeguard.
     "--approve",
     ...resourceArguments(request.skills),
+    ...(request.sessionDirectory === undefined ? [] : ["--session-dir", request.sessionDirectory]),
     ...(request.provider === undefined ? [] : ["--provider", request.provider]),
     ...(request.model === undefined ? [] : ["--model", request.model]),
     request.goal,
@@ -59,7 +61,7 @@ export async function runAgent(
   request: AgentRequest,
   onOutput: (chunk: string) => void,
   onTurn?: (usage: AgentUsage) => void,
-): Promise<RunResult & { usage: AgentUsage }> {
+): Promise<RunResult & { usage: AgentUsage; observedReads: string[]; providerError: string | undefined }> {
   const events = new EventStream();
   events.onTurn = onTurn;
   const result = await runContained(
@@ -68,5 +70,5 @@ export async function runAgent(
     { timeoutMs: request.timeoutMs, onOutput: (chunk) => { onOutput(events.push(chunk)); } },
   );
   onOutput(events.finish());
-  return { ...result, usage: events.current() };
+  return { ...result, usage: events.current(), observedReads: events.skillReads(), providerError: events.failure() };
 }

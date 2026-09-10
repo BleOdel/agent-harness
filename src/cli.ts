@@ -28,6 +28,8 @@ import { run as runAll } from "./verbs/run.ts";
 import { show } from "./verbs/show.ts";
 import { undo } from "./verbs/undo.ts";
 import { view } from "./verbs/view.ts";
+import { recoverWriter } from "./workspace/writer-lock.ts";
+import { team } from "./verbs/team.ts";
 import { work } from "./verbs/work.ts";
 
 const USAGE = [
@@ -38,6 +40,10 @@ const USAGE = [
   "  harness add <id> --title \"...\" --criterion \"...\" [--priority must]",
   "  harness add --from latest     import the items a plan proposed",
   "  harness work [<item-id or goal>]",
+  "  harness team run             stage accepted assignments, concurrency one",
+  "  harness team inspect <id>     read durable team state",
+  "  harness team recover <id>     reconcile interrupted attempts, without applying",
+  "  harness recover-lock <token> recover a dead writer explicitly",
   "  harness run [--max N]         work items until one needs you",
   "  harness look",
   "  harness show <run-id>",
@@ -59,6 +65,13 @@ async function main(): Promise<void> {
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
 
   switch (verb) {
+    case "team":
+      return team(project, rest);
+    case "recover-lock":
+      if (rest.length !== 1) throw new OperatorError("Use: harness recover-lock <owner-token>");
+      await recoverWriter(project, rest[0]!);
+      say("Writer lock recovered. Reconcile interrupted team attempts before starting new work.");
+      return;
     case "add":
       return add(project, rest);
     case "init":

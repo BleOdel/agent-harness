@@ -3,10 +3,11 @@
 A coding agent that works in a sandbox, proves what it built, then applies
 it — or escalates to you.
 
-The current execution loop is sequential. `TEAM_PLAN.md` is the active
+Ordinary `work` applies one verified item. `team run` now coordinates accepted
+role assignments at concurrency one and retains their results in staging. `TEAM_PLAN.md` is the active
 roadmap toward assigned agents in isolated containers with verified
 integration. `TEAM_M0_RESULTS.md`, `TEAM_M1_RESULTS.md` and
-`TEAM_M2_RESULTS.md` record the team milestones; the original v2 milestone
+`TEAM_M2_RESULTS.md` and `TEAM_M3_RESULTS.md` record the team milestones; the original v2 milestone
 documents remain historical evidence.
 
 ```
@@ -659,3 +660,71 @@ Do not run this credentialed workflow on untrusted changes.
 
 These workflow files take effect after publication to GitHub; adding them
 locally does not provision a runner or establish a passing remote run.
+
+## Team controller (M3)
+
+```sh
+harness add api --title "Implement API" --criterion "Valid requests persist" --role backend --scope 'src/api/**' --scope 'test/**' --contract issues-v1
+harness team run --profile /path/to/accepted-team.json --max-workers 1
+harness team inspect <team-run-id>
+```
+
+A profile has `version: 1`, `roles`, `skills`, and a `contracts` map from accepted
+IDs to project-relative files. See [the bundled profile](profiles/team.json).
+Roles specify an ID, instructions, selected skill IDs, optional provider/model,
+optional `timeoutMs`, and optional `limits: {maxFiles, maxLines}`. The host's
+configured timeout caps a role timeout. Multiple roles require `assignedRole`
+on each task. A one-role profile defaults existing tasks to that role. Omitted
+scope means `**`; contracts default to none. Scope patterns accept `*` within a
+path segment and `**` for any number of segments; traversal and other glob
+operators are refused.
+
+By default, the bundled `builder` role uses adapted TDD and design skills.
+`HARNESS_SKILLS` still configures ordinary work/planning; team skills come only
+from its accepted profile. Skill entries declare `id`, relative `path`,
+`interaction`, `requires`, `dependencies`, and `resources`. Only declared files
+are copied. Supported unattended tool requirements are `read`, `bash`, `edit`
+and `write`. See [the adaptation notes](SKILLS_ASSESSMENT.md#m3-unattended-adaptations).
+
+Each team run lives under `<project>-harness/teams/<team-run-id>/`. Its `events/`
+directory is authoritative, `state.json` is a rebuildable projection, `baselines/`
+holds immutable accepted staging, and `attempts/` retains candidate and verification
+evidence. Only the controller advances staging after gates and independent review.
+It leaves live source and `features.json` unchanged. Do not treat staging as a
+live application transaction; team apply/resume belongs to M5.
+
+Defaults are two attempts per task, 20 dispatches, one hour, and $10 of reported
+cost. Set `--max-attempts`, `--max-dispatches`, `--max-ms`, or `--max-cost-usd` to
+change them. Limits stop new dispatch; an in-flight request may exceed a cost
+budget, and totals exclude unreported usage, including the current reviewer
+protocol. Each retry starts from accepted staging with a fresh session and the
+previous diagnosis. Environment-blocked results wait for operator input.
+
+Mutating commands share one canonical project writer lock, stored beside the
+project as `<project>-harness.writer-lock`. After a controller crash:
+
+```sh
+harness recover-lock <exact-owner-token>
+harness team recover <team-run-id>
+harness team inspect <team-run-id>
+```
+
+The first command refuses a live owner or a different token/host. The second
+stops containers matching both run and attempt labels, removes private auth and
+session copies, verifies retained staging, and marks unfinished attempts
+interrupted. It preserves committed integration events and never assumes an
+unfinished worker passed. Recovery does not restart or apply the run. If a crash
+leaves a `.recovery` guard, inspect the guard's PID and the lock before manually
+removing that guard; ordinary commands never steal it. External editors are not
+controlled by this cooperating-writer lock.
+
+Team authentication is copied per builder and reviewer; global settings are not
+copied, and provider/model settings come from the role or harness configuration.
+Private token refreshes are not merged back to the operator's auth file. Restore
+provider authentication before retrying authentication failures. Skill availability,
+observed reads, and reported workflow evidence are recorded separately; they are
+not proof of compliance.
+
+Run `npm run verify:team` in a configured Docker environment for the M3 isolation
+and crash checks. It uses deterministic worker processes and no model credentials.
+`npm run verify:skills` also checks the adapted role bundles against pinned Pi.

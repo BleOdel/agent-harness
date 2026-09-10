@@ -3,7 +3,7 @@
 Implementation roadmap · 8 September 2026
 
 Based on `BleOdel/agent-harness` at `0cc7c34b534fe60d46f66d19304db0c9b9c21b99`.
-M0 and M1 are published with passing GitHub CI. M2 is implemented locally; M3–M6 remain pending. Team commands, schemas and later milestone modules below remain proposed. See `TEAM_M0_RESULTS.md`, `TEAM_M1_RESULTS.md` and `TEAM_M2_RESULTS.md` for checks and publication status.
+M0–M2 are published with passing GitHub CI. M3 is implemented locally with concurrency one and staging-only results; M4–M6 remain pending. The M4–M6 commands and modules below remain proposed. See `TEAM_M0_RESULTS.md`, `TEAM_M1_RESULTS.md`, `TEAM_M2_RESULTS.md` and `TEAM_M3_RESULTS.md` for checks and publication status.
 
 ## Outcome and scope
 
@@ -201,7 +201,7 @@ Show role, task, prerequisites, phase, review/integration results, repair attemp
 
 Estimate: roughly 17–27 focused engineering days for the original milestones, plus 1–2 days for the assessed skill adaptations: approximately 18–29 days overall, with additional contingency for package preparation and provider/session behavior. This is a planning estimate, not a measured commitment. M4 is the first functional demonstration; M5 is required before relying on the team for project writes. M6 completes the initial operating experience.
 
-M1 implements prerequisite enforcement, cycle checks, structured blocked results and downstream revalidation. M2 supplies frozen baselines/candidates and clean verification inputs. The next milestone is M3: durable controller state and isolated assignments, starting with concurrency one.
+M1 implements prerequisite enforcement, cycle checks, structured blocked results and downstream revalidation. M2 supplies frozen baselines/candidates and clean verification inputs. M3 supplies durable controller events, isolated role assignments and writer exclusion at concurrency one. The next milestone is M4: concurrent builders and verified integration. M3 keeps team results in staging; live batch application remains in M5.
 
 ## Release evidence
 
@@ -219,4 +219,4 @@ The release is complete when the issue-tracker demonstration passes, the incompa
 - [Sandbox lifecycle](https://github.com/BleOdel/agent-harness/blob/0cc7c34b534fe60d46f66d19304db0c9b9c21b99/src/workspace/sandbox-lifecycle.ts): copy and recovery primitives to extend.
 - [Pi subagent extension example](https://github.com/earendil-works/pi/tree/main/packages/coding-agent/examples/extensions/subagent): implementation reference; this plan keeps worker isolation and acceptance in the host controller.
 
-Milestone status is recorded separately from this design: see `TEAM_M0_RESULTS.md`, `TEAM_M1_RESULTS.md` and `TEAM_M2_RESULTS.md`. Later milestones remain pending until their exit checks pass.
+Milestone status is recorded separately from this design: see `TEAM_M0_RESULTS.md`, `TEAM_M1_RESULTS.md`, `TEAM_M2_RESULTS.md` and `TEAM_M3_RESULTS.md`. Later milestones remain pending until their exit checks pass.

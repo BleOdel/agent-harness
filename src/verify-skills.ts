@@ -4,6 +4,8 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promi
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { parseTeamPlan, resolveSkills } from "./team/schema.ts";
+import { snapshotSkills } from "./team/inputs.ts";
 import { buildAgentCommand } from "./agent/pi.ts";
 import { applyConfigFile, setting } from "./config.ts";
 import { CONTAINER_SKILLS } from "./containment/sandbox.ts";
@@ -39,8 +41,8 @@ async function main(): Promise<void> {
       await mkdir(path.join(base, "extensions"), { recursive: true });
       await writeFile(path.join(base, "extensions", "fixture.js"), 'export default function () { throw new Error("unexpected extension execution"); }\n');
     }
-    const resolve = async (command: readonly string[], discoveryControl = false): Promise<string[]> => {
-      const options = parseArgs(command.slice(2).map((arg) => arg === CONTAINER_SKILLS ? selected : arg));
+    const resolve = async (command: readonly string[], discoveryControl = false, selectedDirectory = selected): Promise<string[]> => {
+      const options = parseArgs(command.slice(2).map((arg) => arg === CONTAINER_SKILLS ? selectedDirectory : arg));
       assert.equal(options.noExtensions, true, "every launcher must turn extension discovery off");
       if (!discoveryControl) assert.equal(options.noSkills, true, "every launcher must turn skill discovery off");
       const loader = new DefaultResourceLoader({
@@ -70,7 +72,18 @@ async function main(): Promise<void> {
       }
     }
     assert.deepEqual(await resolve(buildReviewCommand({ title: "fixture", criteria: ["fixture"], diff: "", provider: undefined, model: undefined, timeoutMs: 1 })), []);
-    process.stdout.write(`skills verified with Pi ${manifest.version}: explicit directory only, no implicit skills or extensions; discovery control passed\n`);
+    const profileRoot = path.resolve(import.meta.dirname, "../profiles");
+    const profile = JSON.parse(await readFile(path.join(profileRoot, "team.json"), "utf8"));
+    profile.roles.push({ id: "repair", instructions: "Repair assigned failures", skills: ["diagnosing-bugs"] });
+    const plan = parseTeamPlan(profile, []);
+    for (const role of plan.roles) {
+      const destination = path.join(root, `role-${role.id}`);
+      const versions = await snapshotSkills(profileRoot, destination, resolveSkills(plan, role));
+      const command = buildAgentCommand({ goal: "fixture", skills: true, provider: undefined, model: undefined, timeoutMs: 1, sessionDirectory: "/pi-agent/sessions" });
+      assert.equal(parseArgs(command.slice(2)).sessionDir, "/pi-agent/sessions");
+      assert.deepEqual(await resolve(command, false, destination), versions.map(v => v.id).sort(), `adapted ${role.id} profile did not load exactly its bundle`);
+    }
+    process.stdout.write(`skills verified with Pi ${manifest.version}: explicit directory only, no implicit skills or extensions; discovery control and adapted builder/repair bundles passed\n`);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

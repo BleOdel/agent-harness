@@ -58,6 +58,11 @@ interface Message {
  */
 export class EventStream {
   private buffer = "";
+  private pendingReads = new Map<string, string>();
+  private observedReads = new Set<string>();
+  private modelFailure: string | undefined;
+  skillReads(): string[] { return [...this.observedReads].sort(); }
+  failure(): string | undefined { return this.modelFailure; }
   private usage: AgentUsage = emptyUsage();
   /** Lines that were not JSON at all, kept so a failure can be explained. */
   readonly unparsed: string[] = [];
@@ -103,6 +108,19 @@ export class EventStream {
       // and swallowing them is how a diagnosable failure becomes silence.
       this.unparsed.push(line);
       return `${line}\n`;
+    }
+    if (event.type === "message_end" || event.type === "turn_end") {
+      const message = event.message as Record<string, unknown> | undefined;
+      if (message?.stopReason === "error" || message?.stopReason === "aborted") this.modelFailure = typeof message.errorMessage === "string" ? message.errorMessage : "Provider did not complete the turn.";
+    }
+    if (event.type === "tool_execution_start" && event.toolName === "read" && typeof event.toolCallId === "string") {
+      const file = (event.args as Record<string, unknown> | undefined)?.path;
+      if (typeof file === "string" && file.startsWith("/opt/skills/") && !file.split("/").includes("..")) this.pendingReads.set(event.toolCallId, file.slice("/opt/skills/".length));
+    }
+    if (event.type === "tool_execution_end" && typeof event.toolCallId === "string") {
+      const file = this.pendingReads.get(event.toolCallId);
+      if (file && event.isError === false) this.observedReads.add(file);
+      this.pendingReads.delete(event.toolCallId);
     }
     switch (event.type) {
       case "message_update":

@@ -35,6 +35,7 @@ export interface SandboxLayout {
   readonly skillsDirectory?: string;
   /** Non-root uid:gid. */
   readonly user: string;
+  readonly labels?: Readonly<Record<string, string>>;
   readonly purpose?: "agent" | "verification" | "review";
 }
 
@@ -189,6 +190,7 @@ export function buildRunArguments(
     "--log-driver=none",
     "--stop-timeout=5",
     `--name=${layout.containerName}`,
+    ...Object.entries(layout.labels ?? {}).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `--label=${key}=${value}`),
     `--network=${network}`,
     `--user=${layout.user}`,
     `--workdir=${CONTAINER_WORK}`,

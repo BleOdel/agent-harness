@@ -14,6 +14,8 @@
  * with ours is how a tool eats a project.
  */
 
+import { withWriter } from "../workspace/writer-lock.ts";
+
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -116,7 +118,7 @@ behaviour is worse than an honest failure.
 - Do not build anything no acceptance criterion asked for.
 `;
 
-export async function init(project: string): Promise<void> {
+async function initUnlocked(project: string): Promise<void> {
   const name = path.basename(project);
   if (existsSync(path.join(project, "package.json"))) {
     throw new OperatorError(
@@ -151,4 +153,8 @@ export async function init(project: string): Promise<void> {
   say("  harness work");
   say("");
   say("Fill in the Conventions section of AGENTS.md once you know them.");
+}
+
+export async function init(project: string): Promise<void> {
+  return withWriter(project, "init", () => initUnlocked(project));
 }

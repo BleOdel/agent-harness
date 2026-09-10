@@ -15,16 +15,17 @@
  * the cause.
  */
 
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { withWriter } from "../workspace/writer-lock.ts";
+
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { type AgentUsage, describeUsage, emptyUsage } from "../agent/events.ts";
-import { readSubmission } from "../agent/submission.ts";
-import { runAgent } from "../agent/pi.ts";
+import { executeAndSubmit, briefing } from "../agent/execute.ts";
 import { diagnose } from "../attribution.ts";
 import { ConfigError, loadConfig, setting } from "../config.ts";
 import { OperatorError, say } from "./io.ts";
 import { type SandboxLayout } from "../containment/sandbox.ts";
-import { CLAIM_FILE, readClaim } from "../gates/claim.ts";
+import { readClaim } from "../gates/claim.ts";
 import { counterPath } from "../gates/tests.ts";
 import { DEFAULT_LIMITS, type Limits } from "../gates/limits.ts";
 import { chooseNext, type Feature, markDone, markStatus, invalidateSharedInputs, readFeatures, unmetDependencies } from "../features.ts";
@@ -129,35 +130,6 @@ async function resolveWork(project: string, argument: string): Promise<{
   return { title: `${feature.id}: ${feature.title}`, criteria: feature.criteria, feature };
 }
 
-/** Appended to the goal so the model knows what the gates will require. */
-function briefing(goal: string, criteria: readonly string[], sharedInputs = false): string {
-  return [
-    goal,
-    ...(criteria.length === 0
-      ? []
-      : ["", "Acceptance criteria, all of which must be satisfied:",
-        ...criteria.map((criterion, index) => `  ${String(index + 1)}. ${criterion}`)]),
-    "",
-    "Before you finish, write " + CLAIM_FILE + " in the project root:",
-    "",
-    "{",
-    '  "files": ["every file you created or modified, relative paths"],',
-    '  "deletions": ["every file you deleted"],',
-    '  "criteria": [{"criterion": "an acceptance criterion", "verifiedBy": "the file that verifies it"}]',
-    "}",
-    "",
-    "It is checked against what actually changed, so it must be exact. It is",
-    "not applied to the repository.",
-    "",
-    sharedInputs ? "This is a dedicated shared-inputs assignment: dependency and contract changes within the criteria are authorized."
-      : "Dependency manifests, lockfiles and shared contracts require a dedicated shared-inputs assignment. Submit a blocked change request instead of changing them.",
-    "If missing input or an unresolved decision prevents completion, stop and",
-    "write this instead. Do not guess or claim completion:",
-    '{"outcome":"blocked","reason":"what prevents completion","requestedInput":"the specific input needed"}',
-    "A blocked result stops without review or apply; partial edits are discarded.",
-  ].join("\n");
-}
-
 function limitsFrom(environment: NodeJS.ProcessEnv): Limits {
   const read = (name: string, fallback: number): number => {
     const value = Number(environment[name]);
@@ -169,7 +141,7 @@ function limitsFrom(environment: NodeJS.ProcessEnv): Limits {
   };
 }
 
-export async function work(argv: readonly string[]): Promise<void> {
+async function workUnlocked(argv: readonly string[]): Promise<void> {
   const goal = argv.join(" ").trim();
 
   let config;
@@ -329,7 +301,7 @@ export async function work(argv: readonly string[]): Promise<void> {
       attempts = attempt;
       if (attempt > 1) say(`\nattempt ${String(attempt)}, with a diagnosis`);
       await mark("building");
-      const agent = await runAgent(
+      const execution = await executeAndSubmit(
         layout,
         {
           goal: instruction,
@@ -344,6 +316,7 @@ export async function work(argv: readonly string[]): Promise<void> {
           void mark("building");
         },
       );
+      const agent = execution.agent;
       inFlight = emptyUsage();
       spent = {
         ...agent.usage,
@@ -362,9 +335,10 @@ export async function work(argv: readonly string[]): Promise<void> {
       if (agent.timedOut) {
         throw await stop("error", `agent: timed out after ${String(Math.round(config.agentTimeoutMs / 1000))}s`, "");
       }
+      if (agent.providerError) throw await stop("error", `agent: ${agent.providerError}`, "Restore provider authentication or resolve the provider error before retrying.");
       if (agent.code !== 0) throw await stop("error", `agent: exited ${String(agent.code)}`, agent.stderr);
 
-      const submission = await readSubmission(sandbox.workDirectory);
+      const submission = execution.submission;
       if (submission.ok && submission.outcome === "blocked") {
         if (work.feature !== undefined) await markStatus(project, work.feature.id, "blocked");
         throw await stop("blocked", `blocked: ${submission.reason}`,
@@ -591,4 +565,8 @@ export async function work(argv: readonly string[]): Promise<void> {
     // going. A kill -9 skips this, which is what the heartbeat is for.
     await clearStatus(project).catch(() => undefined);
   }
+}
+
+export async function work(argv: readonly string[]): Promise<void> {
+  return withWriter(path.resolve(process.env.HARNESS_PROJECT ?? process.cwd()), "work", () => workUnlocked(argv));
 }

@@ -10,6 +10,8 @@
  * to make them say what "done" means.
  */
 
+import { withWriter } from "../workspace/writer-lock.ts";
+
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -30,6 +32,9 @@ interface Parsed {
   readonly criteria: readonly string[];
   readonly dependsOn: readonly string[];
   readonly kind?: "shared-inputs";
+  readonly assignedRole?: string;
+  readonly changeScope?: string[];
+  readonly contracts?: string[];
 }
 
 export function parseAddArguments(argv: readonly string[]): Parsed {
@@ -39,6 +44,9 @@ export function parseAddArguments(argv: readonly string[]): Parsed {
   const criteria: string[] = [];
   const dependsOn: string[] = [];
   let sharedInputs = false;
+  let assignedRole: string | undefined;
+  const changeScope: string[] = [];
+  const contracts: string[] = [];
 
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index]!;
@@ -55,10 +63,16 @@ export function parseAddArguments(argv: readonly string[]): Parsed {
     } else if (value === "--depends-on") {
       if (next !== undefined) dependsOn.push(next);
       index += 1;
+    } else if (["--role", "--scope", "--contract"].includes(value)) {
+      if (!next || next.startsWith("--")) throw new OperatorError(`Missing value for ${value}.`);
+      if (value === "--role") assignedRole = next;
+      else if (value === "--scope") changeScope.push(next);
+      else contracts.push(next);
+      index += 1;
     } else if (value === "--shared-inputs") {
       sharedInputs = true;
     } else if (value.startsWith("--")) {
-      throw new OperatorError(`Unknown option ${value}.`, "Options: --title --criterion --priority --depends-on --shared-inputs");
+      throw new OperatorError(`Unknown option ${value}.`, "Options: --title --criterion --priority --depends-on --shared-inputs --role --scope --contract");
     } else {
       positional.push(value);
     }
@@ -88,7 +102,7 @@ export function parseAddArguments(argv: readonly string[]): Parsed {
       `Use one of: ${PRIORITIES.join(", ")}.`,
     );
   }
-  return { id, title, priority: priority as Priority, criteria, dependsOn, ...(sharedInputs ? { kind: "shared-inputs" as const } : {}) };
+  return { ...(assignedRole === undefined ? {} : { assignedRole }), ...(changeScope.length ? { changeScope } : {}), ...(contracts.length ? { contracts } : {}), id, title, priority: priority as Priority, criteria, dependsOn, ...(sharedInputs ? { kind: "shared-inputs" as const } : {}) };
 }
 
 /**
@@ -136,7 +150,7 @@ async function itemsFromFile(source: string): Promise<Feature[]> {
   return [...proposed.features];
 }
 
-export async function add(project: string, argv: readonly string[]): Promise<void> {
+async function addUnlocked(project: string, argv: readonly string[]): Promise<void> {
   const fromIndex = argv.indexOf("--from");
   const incoming = fromIndex >= 0
     ? await itemsFromFile(await resolveProposal(project, argv[fromIndex + 1] ?? "latest"))
@@ -175,4 +189,8 @@ export async function add(project: string, argv: readonly string[]): Promise<voi
   say(incoming.length === 1
     ? `work on it with: harness work ${incoming[0]?.id ?? ""}`
     : `${String(incoming.length)} items added. Start the first Must with: harness work`);
+}
+
+export async function add(project: string, argv: readonly string[]): Promise<void> {
+  return withWriter(project, "add", () => addUnlocked(project, argv));
 }

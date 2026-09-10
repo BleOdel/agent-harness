@@ -134,3 +134,25 @@ that a container escape would make catastrophic.
 
 If that is not an acceptable trade, this harness should not be built, and
 the previous one is the correct design.
+
+## M3 controller state and cooperating writers
+
+Team execution runs one assignment at a time and keeps its results in host-owned
+staging. Workers receive no live project or controller-state mount. Each builder
+and reviewer receives a separate writable credential copy; skill bundles contain
+only role-selected definitions and declared resources and mount read-only.
+Credential refreshes are not propagated to the operator's store. A crash can leave
+private copies until explicit cleanup succeeds.
+
+A canonical project writer lock excludes concurrent harness mutations, including
+ordinary work and undo. It does not lock editors or other external tools. Explicit
+recovery requires the recorded token and a dead local owner, followed by team
+reconciliation. Run and attempt labels restrict container cleanup; a process exit
+or worker-written ID cannot advance another assignment. Append-only events are
+published atomically, and a disposable state projection rebuilds from them.
+Recovery validates retained staging and does not infer success from unfinished
+attempts. It does not yet resume or apply a team batch.
+
+These controls trust the host controller and its filesystem. They do not replace
+M5's application journal, prevent host-state tampering, enforce arbitrary skill
+prose, impose an exact billing cap, or add protection against a Docker escape.

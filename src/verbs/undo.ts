@@ -16,6 +16,8 @@
  * can be undone in turn.
  */
 
+import { withWriter } from "../workspace/writer-lock.ts";
+
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -34,7 +36,7 @@ import type { Change } from "../workspace/changes.ts";
 import { localTime } from "../view/render.ts";
 import { OperatorError, say } from "./io.ts";
 
-export async function undo(project: string, argv: readonly string[]): Promise<void> {
+async function undoUnlocked(project: string, argv: readonly string[]): Promise<void> {
   const { runs, malformed } = await readRecord(project);
   if (malformed.length > 0) {
     // Reported, never skipped. A record that quietly drops what it cannot
@@ -155,4 +157,8 @@ export async function undo(project: string, argv: readonly string[]): Promise<vo
   // whether the project still holds together afterwards is a different
   // question, and this one was not asked.
   say("The suite was not re-run. Check it before working on top of this.");
+}
+
+export async function undo(project: string, argv: readonly string[]): Promise<void> {
+  return withWriter(project, "undo", () => undoUnlocked(project, argv));
 }

@@ -21,6 +21,8 @@
  * it changes nothing they could check.
  */
 
+import { withWriter } from "../workspace/writer-lock.ts";
+
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -102,7 +104,7 @@ export function buildPlanCommand(request: {
   ];
 }
 
-export async function plan(argv: readonly string[]): Promise<void> {
+async function planUnlocked(argv: readonly string[]): Promise<void> {
   let config;
   try {
     config = loadConfig();
@@ -191,4 +193,8 @@ export async function plan(argv: readonly string[]): Promise<void> {
   } finally {
     await destroySandbox(sandbox);
   }
+}
+
+export async function plan(argv: readonly string[]): Promise<void> {
+  return withWriter(path.resolve(process.env.HARNESS_PROJECT ?? process.cwd()), "plan", () => planUnlocked(argv));
 }

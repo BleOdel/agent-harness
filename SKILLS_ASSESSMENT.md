@@ -108,3 +108,28 @@ Completed for this assessment:
 No live model run was used to test how faithfully any skill is followed.
 
 Implement explicit-only discovery and consistent extension policy first. Then introduce adapted role profiles, missing-capability validation and skill-version records before M3's unattended team assignments. Add regression cases for extra global/project skills, duplicate names, an interactive skill in a builder profile, missing referenced resources, read-only mounts and skill-file changes between attempts. Keep a real Pi loader integration test pinned to the configured version.
+
+## M3 unattended adaptations
+
+M3 adds host-managed role manifests and separate instruction variants under
+`profiles/skills/`. The supplied folder remains unchanged and was treated as
+source material, not instructions authorizing harness actions.
+
+- TDD consumes accepted interfaces and project conventions, blocks on missing
+  decisions, reads resources with Pi's `read` tool, and uses the host reviewer
+  instead of the absent `code-review` skill.
+- Core design retains small interfaces and local reasoning, permits accepted
+  project vocabulary, and compares alternatives sequentially without subagents.
+- Diagnosis keeps reproduction, competing hypotheses and regression evidence.
+  Missing environments or human input become structured blocked submissions.
+- Interview skills and the `grill-me` wrapper are excluded from unattended roles.
+  Interactive planning remains the existing operator conversation.
+
+`profiles/team.json` includes the builder profile and an available diagnosis skill
+for a separately accepted repair role. M3 does not implement automatic repair.
+The host validates names, interaction mode, tool requirements, dependency cycles,
+and declared supporting files, then snapshots selected inputs into each attempt.
+Pi loader verification covers adapted builder and repair bundles. Available file
+hashes, successful read-tool observations and worker-reported workflow evidence
+are separate event fields. Tool observations can be partial reads, and neither
+those observations nor the worker's report proves faithful execution of a skill.

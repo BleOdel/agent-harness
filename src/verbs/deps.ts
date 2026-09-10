@@ -12,6 +12,8 @@
  * declares, which is a file you can read first.
  */
 
+import { withWriter } from "../workspace/writer-lock.ts";
+
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { missingInProject } from "../deps.ts";
@@ -25,7 +27,7 @@ function npmInstall(project: string): Promise<number | null> {
   });
 }
 
-export async function deps(project: string, argv: readonly string[]): Promise<void> {
+async function depsUnlocked(project: string, argv: readonly string[]): Promise<void> {
   const missing = await missingInProject(project);
   if (missing.length === 0) {
     say("Everything package.json declares is installed.");
@@ -62,4 +64,8 @@ export async function deps(project: string, argv: readonly string[]): Promise<vo
   }
   say("");
   say("Installed. Check the project with: npm test");
+}
+
+export async function deps(project: string, argv: readonly string[]): Promise<void> {
+  return withWriter(project, "deps", () => depsUnlocked(project, argv));
 }

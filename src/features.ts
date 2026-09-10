@@ -32,6 +32,9 @@ export interface Feature {
   readonly dependsOn: readonly string[];
   /** Operator-authorized changes to dependencies or shared contracts. */
   readonly kind?: "implementation" | "shared-inputs";
+  readonly assignedRole?: string;
+  readonly changeScope?: readonly string[];
+  readonly contracts?: readonly string[];
 }
 
 export type FeatureListResult =
@@ -89,6 +92,10 @@ export function parseFeatures(text: string): FeatureListResult {
       return { ok: false, reason: fault(index, `(${item.id}) has a malformed dependsOn.`) };
     }
     if (item.kind !== undefined && item.kind !== "implementation" && item.kind !== "shared-inputs") return { ok: false, reason: fault(index, "has an unsupported assignment kind.") };
+    if (item.assignedRole !== undefined && (typeof item.assignedRole !== "string" || !item.assignedRole.trim())) return { ok: false, reason: fault(index, "has an invalid assignedRole.") };
+    for (const field of ["changeScope", "contracts"]) {
+      if (item[field] !== undefined && (!Array.isArray(item[field]) || (item[field] as unknown[]).some(v => typeof v !== "string" || !v.trim()))) return { ok: false, reason: fault(index, `has an invalid ${field}.`) };
+    }
     features.push({
       id: item.id,
       title: item.title,
@@ -96,6 +103,9 @@ export function parseFeatures(text: string): FeatureListResult {
       status: item.status as Status,
       criteria: item.criteria as string[],
       dependsOn: dependsOn as string[],
+      ...(item.assignedRole === undefined ? {} : { assignedRole: item.assignedRole as string }),
+      ...(item.changeScope === undefined ? {} : { changeScope: item.changeScope as string[] }),
+      ...(item.contracts === undefined ? {} : { contracts: item.contracts as string[] }),
       ...(item.kind === undefined ? {} : { kind: item.kind as "implementation" | "shared-inputs" }),
     });
   }

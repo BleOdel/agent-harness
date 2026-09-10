@@ -15,6 +15,8 @@
  * the wrong one.
  */
 
+import { withWriter } from "../workspace/writer-lock.ts";
+
 import { existsSync } from "node:fs";
 import { readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
@@ -61,7 +63,7 @@ export function assertLooksLikeProject(target: string, entries: readonly string[
   }
 }
 
-export async function remove(project: string, argv: readonly string[]): Promise<void> {
+async function removeUnlocked(project: string, argv: readonly string[]): Promise<void> {
   const named = argv.find((argument) => !argument.startsWith("-"));
   const target = path.resolve(named ?? project);
   if (!existsSync(target)) throw new OperatorError(`Nothing at ${target}.`, "");
@@ -97,4 +99,8 @@ export async function remove(project: string, argv: readonly string[]): Promise<
     await rm(directory, { recursive: true, force: true });
     say(`removed  ${directory}`);
   }
+}
+
+export async function remove(project: string, argv: readonly string[]): Promise<void> {
+  return withWriter(path.resolve(argv.find(argument => !argument.startsWith("-")) ?? project), "remove", () => removeUnlocked(project, argv));
 }
