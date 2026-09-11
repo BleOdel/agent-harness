@@ -19,7 +19,7 @@ try {
 
 const child = spawn(
   process.execPath,
-  ["--test", "--experimental-strip-types", "test/team-containment.test.ts"],
+  ["--test", "--experimental-strip-types", "test/team-containment.test.ts", "test/team-verification.test.ts"],
   { stdio: ["ignore", "pipe", "inherit"] },
 );
 
@@ -38,5 +38,5 @@ child.once("close", (code) => {
     fail("the team tests skipped even though the environment is configured");
   }
   if (code !== 0) fail(`the team tests failed (exit ${String(code)})`);
-  process.stdout.write("team verified: private attempts and controller-crash recovery passed\n");
+  process.stdout.write("team verified: private attempts, controller-crash recovery and combined contract checks passed\n");
 });

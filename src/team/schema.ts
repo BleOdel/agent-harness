@@ -5,8 +5,9 @@ import type { Snapshot } from "../workspace/candidate.ts";
 export interface Role { id: string; instructions: string; skills: string[]; provider?: string; model?: string; timeoutMs?: number; limits?: { maxFiles: number; maxLines: number }; }
 export interface SkillDefinition { id: string; path: string; interaction: "unattended" | "interactive"; requires: string[]; dependencies: string[]; resources: string[]; }
 export interface TeamTask extends Feature { assignedRole: string; changeScope: string[]; contracts: string[]; }
-export interface TeamPlan { version: 1; roles: Role[]; skills: SkillDefinition[]; contracts: Record<string, string>; tasks: TeamTask[]; }
-export interface Policy { maxAttempts: number; maxDispatches: number; maxMs: number; maxCostUsd: number; }
+export interface ContractCheck { id: string; path: string; files: string[]; command: string[]; after: string[]; }
+export interface TeamPlan { checks?: ContractCheck[]; version: 1; roles: Role[]; skills: SkillDefinition[]; contracts: Record<string, string>; tasks: TeamTask[]; }
+export interface Policy { maxWorkers?: number; maxAttempts: number; maxDispatches: number; maxMs: number; maxCostUsd: number; }
 export interface SkillVersion { id: string; digest: string; files: Record<string, string>; }
 export interface Attempt {
   id: string; taskId: string; roleId: string; containerName: string; directory: string;
@@ -14,19 +15,20 @@ export interface Attempt {
 }
 export interface Usage { tokens: number; costUsd: number; complete: boolean; }
 export type EventPayload =
-  | { type: "created"; runId: string; plan: TeamPlan; planDigest: string; baseline: Snapshot; policy: Policy }
+  | { type: "created"; runId: string; plan: TeamPlan; planDigest: string; baseline: Snapshot; policy: Policy; verificationDigest?: string }
   | { type: "dispatched"; attempt: Attempt }
   | { type: "submitted"; attemptId: string; candidate: Snapshot; usage: Usage; observedReads: string[]; workflowEvidence: string[] }
   | { type: "verified"; attemptId: string; gates: string[]; review: "pass"; environmentKey?: string }
+  | { type: "integration-verified"; attemptId: string; fromDigest: string; candidateDigest: string; proposal: Snapshot; gates: string[] }
   | { type: "integrated"; attemptId: string; baseline: Snapshot }
   | { type: "failed" | "blocked" | "interrupted"; attemptId: string; reason: string; usage?: Usage }
   | { type: "stopped"; reason: string }
   | { type: "staged" };
-export type TeamEvent = EventPayload & { version: 1; seq: number; at: string; runId: string };
-export interface AttemptState extends Attempt { status: "running" | "submitted" | "verified" | "integrated" | "failed" | "blocked" | "interrupted"; candidate?: Snapshot; reason?: string; }
+export type TeamEvent = EventPayload & { version: 1 | 2; seq: number; at: string; runId: string };
+export interface AttemptState extends Attempt { status: "running" | "submitted" | "verified" | "integrated" | "failed" | "blocked" | "interrupted"; candidate?: Snapshot; integration?: { fromDigest: string; proposal: Snapshot }; reason?: string; }
 export interface TeamState {
-  version: 1; runId: string; seq: number; startedAt: string; plan: TeamPlan; planDigest: string; policy: Policy;
-  original: Snapshot; baseline: Snapshot; attempts: AttemptState[]; integrated: string[]; invalidated: string[];
+  version: 1 | 2; runId: string; seq: number; startedAt: string; plan: TeamPlan; planDigest: string; policy: Policy;
+  verificationDigest?: string; original: Snapshot; baseline: Snapshot; attempts: AttemptState[]; integrated: string[]; invalidated: string[];
   status: "running" | "stopped" | "staged"; reason?: string; usage: Usage;
 }
 function canonical(value: unknown): unknown {
@@ -104,7 +106,18 @@ export function parseTeamPlan(raw: unknown, features: readonly Feature[]): TeamP
     if (refs.some(id => !Object.hasOwn(contracts, id))) throw new Error(`Unknown contract for ${feature.id}.`);
     return { ...feature, assignedRole: assignedRole!, changeScope, contracts: refs };
   });
-  const result: TeamPlan = { version: 1, roles, skills, contracts, tasks };
+  let checks: ContractCheck[] | undefined;
+  if (input.checks !== undefined) {
+    if (!Array.isArray(input.checks)) throw new Error("checks must be an array.");
+    checks = input.checks.map(value => {
+      const c = object(value);
+      const files = strings(c.files), command = strings(c.command), after = strings(c.after ?? []);
+      if (!identifier(c.id) || typeof c.path !== "string" || !safeRelative(c.path) || !files.length || files.some(f => !safeRelative(f)) || !command.length || after.some(id => !tasks.some(t => t.id === id))) throw new Error("Invalid contract check.");
+      return { id: c.id, path: c.path, files, command, after };
+    });
+    if (new Set(checks.map(c => c.id)).size !== checks.length) throw new Error("Duplicate contract check.");
+  }
+  const result: TeamPlan = { version: 1, roles, skills, contracts, tasks, ...(checks === undefined ? {} : { checks }) };
   for (const role of roles) resolveSkills(result, role);
   return result;
 }
@@ -124,5 +137,6 @@ export function resolveSkills(plan: TeamPlan, role: Role): SkillDefinition[] {
   return [...selected.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 export function checkPolicy(policy: Policy): void {
+  if (policy.maxWorkers !== undefined && ![1, 2].includes(policy.maxWorkers)) throw new Error("maxWorkers must be 1 or 2.");
   if (![policy.maxAttempts, policy.maxDispatches, policy.maxMs].every(n => Number.isSafeInteger(n) && n > 0) || !Number.isFinite(policy.maxCostUsd) || policy.maxCostUsd <= 0) throw new Error("Team limits must be positive finite numbers (counts and milliseconds must be integers).");
 }

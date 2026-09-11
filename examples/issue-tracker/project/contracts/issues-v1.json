@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "api": "src/api.mjs exports async function createIssueServer({file}), returning a node:http Server. Callers listen on 127.0.0.1 and an ephemeral port, and close the server themselves. Store issues in the supplied JSON file and load them on each server creation. No third-party packages.",
+  "create": "POST /issues accepts JSON {title:string}. Trim title; reject empty, whitespace-only, non-string, absent title or invalid JSON with HTTP 400 and {error:string}. Success HTTP 201 with a DIRECT issue object {id:string,title:string}. IDs are unique nonempty strings. Persist before responding.",
+  "list": "GET /issues returns HTTP 200 with {issues:[{id,title},...]}, initially empty.",
+  "get": "GET /issues/:id returns HTTP 200 with the DIRECT issue object; unknown id returns HTTP 404 and {error:string}.",
+  "client": "src/client.mjs exports createIssueClient(baseUrl, fetchImpl=globalThis.fetch). It returns async create(title), list(), get(id). create/get return the DIRECT issue object, list returns an array of issues. Reject non-2xx responses with an Error whose message includes the HTTP status. Use the supplied fetch function for every request.",
+  "integration": "The API and client must work together over actual HTTP. Prove create/list/get, validation errors, and retrieval after closing and recreating the server with the same storage file. Tests may use OS temporary directories. The final task adds test/integration.test.mjs and README.md usage instructions. Do not modify the contract or package manifest."
+}

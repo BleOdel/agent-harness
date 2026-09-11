@@ -31,12 +31,12 @@ function usage(state: TeamState, value: Usage | undefined): void {
   state.usage.complete = state.usage.complete && value.complete;
 }
 function reduce(previous: TeamState | undefined, event: TeamEvent): TeamState {
-  if (event.version !== 1 || event.seq !== (previous?.seq ?? 0) + 1 || !identifier(event.runId) || !Number.isFinite(Date.parse(event.at))) throw new Error("Unsupported or out-of-sequence team event.");
+  if (![1, 2].includes(event.version) || (previous !== undefined && event.version !== previous.version) || event.seq !== (previous?.seq ?? 0) + 1 || !identifier(event.runId) || !Number.isFinite(Date.parse(event.at))) throw new Error("Unsupported or out-of-sequence team event.");
   if (event.type === "created") {
     if (previous) throw new Error("Duplicate team creation.");
     const plan = parseTeamPlan(event.plan, event.plan.tasks); checkPolicy(event.policy); snapshot(event.baseline);
     if (digest(plan) !== event.planDigest) throw new Error("Accepted plan digest mismatch.");
-    return { version: 1, runId: event.runId, seq: event.seq, startedAt: event.at, plan, planDigest: event.planDigest, policy: event.policy, original: event.baseline, baseline: event.baseline, attempts: [], integrated: [], invalidated: [], status: "running", usage: { tokens: 0, costUsd: 0, complete: true } };
+    return { ...(event.verificationDigest === undefined ? {} : { verificationDigest: event.verificationDigest }), version: event.version, runId: event.runId, seq: event.seq, startedAt: event.at, plan, planDigest: event.planDigest, policy: event.policy, original: event.baseline, baseline: event.baseline, attempts: [], integrated: [], invalidated: [], status: "running", usage: { tokens: 0, costUsd: 0, complete: true } };
   }
   if (!previous || event.runId !== previous.runId) throw new Error("Event belongs to another or missing team run.");
   const state = structuredClone(previous); state.seq = event.seq;
@@ -51,7 +51,7 @@ function reduce(previous: TeamState | undefined, event: TeamEvent): TeamState {
   if (event.type === "dispatched") {
     const a = event.attempt;
     if (!identifier(a.id) || state.attempts.some(old => old.id === a.id || old.containerName === a.containerName || old.directory === a.directory)) throw new Error("Attempt identity must be unique.");
-    if (state.attempts.some(old => ["running", "submitted", "verified"].includes(old.status))) throw new Error("M3 permits one active attempt.");
+    if (state.version === 1 && state.attempts.some(old => ["running", "submitted", "verified"].includes(old.status))) throw new Error("Version 1 permits one active attempt.");
     const task = state.plan.tasks.find(t => t.id === a.taskId);
     if (!task || task.assignedRole !== a.roleId) throw new Error("Attempt role does not match accepted assignment.");
     if (schedule(state)?.task.id !== a.taskId) throw new Error("Task is not the next eligible accepted assignment.");
@@ -74,10 +74,14 @@ function reduce(previous: TeamState | undefined, event: TeamEvent): TeamState {
     case "verified":
       if (attempt.status !== "submitted" || event.review !== "pass" || !Array.isArray(event.gates) || event.gates.length === 0) throw new Error("Verification requires a submitted candidate, gate evidence and passing review.");
       attempt.status = "verified"; break;
+    case "integration-verified":
+      if (state.version !== 2 || attempt.status !== "verified" || attempt.integration || event.fromDigest !== state.baseline.digest || event.candidateDigest !== attempt.candidate?.digest || !Array.isArray(event.gates) || event.gates.length === 0) throw new Error("Integration requires the current staging, verified candidate and gate evidence.");
+      snapshot(event.proposal);
+      attempt.integration = { fromDigest: event.fromDigest, proposal: event.proposal }; break;
     case "integrated":
       if (attempt.status !== "verified") throw new Error("Only a verified candidate can advance staging.");
       snapshot(event.baseline);
-      if (event.baseline.digest !== attempt.candidate?.digest) throw new Error("Serial staging must contain the verified candidate bytes.");
+      if (state.version === 1 ? event.baseline.digest !== attempt.candidate?.digest : !attempt.integration || attempt.integration.fromDigest !== state.baseline.digest || event.baseline.digest !== attempt.integration.proposal.digest) throw new Error("Staging must contain the verified integration bytes from the current baseline.");
       const task = state.plan.tasks.find(t => t.id === attempt.taskId)!;
       if (task.kind === "shared-inputs" && event.baseline.digest !== state.baseline.digest) {
         state.invalidated = [...new Set([...state.invalidated, ...state.integrated, ...state.plan.tasks.filter(t => t.status === "done").map(t => t.id)])];
@@ -107,8 +111,8 @@ export async function readState(root: string, repairProjection = true): Promise<
   if (repairProjection) await atomicJson(path.join(root, "state.json"), state);
   return state;
 }
-export async function createState(root: string, plan: TeamPlan, baseline: Snapshot, policy: Policy, runId = `team-${randomUUID()}`): Promise<TeamState> {
-  const event: TeamEvent = { version: 1, seq: 1, at: new Date().toISOString(), type: "created", runId, plan, planDigest: digest(plan), baseline, policy };
+export async function createState(root: string, plan: TeamPlan, baseline: Snapshot, policy: Policy, runId = `team-${randomUUID()}`, verificationDigest?: string): Promise<TeamState> {
+  const event: TeamEvent = { version: 2, seq: 1, at: new Date().toISOString(), type: "created", ...(verificationDigest === undefined ? {} : { verificationDigest }), runId, plan, planDigest: digest(plan), baseline, policy };
   const state = reduce(undefined, event);
   await atomicJson(path.join(root, "events", "00000001.json"), event, true);
   await atomicJson(path.join(root, "state.json"), state);
@@ -124,7 +128,7 @@ export async function appendEvent(root: string, payload: EventPayload): Promise<
       return previous;
     }
   }
-  const event = { ...payload, version: 1 as const, seq: previous.seq + 1, at: new Date().toISOString(), runId: previous.runId } as TeamEvent;
+  const event = { ...payload, version: previous.version, seq: previous.seq + 1, at: new Date().toISOString(), runId: previous.runId } as TeamEvent;
   const state = reduce(previous, event);
   await atomicJson(path.join(root, "events", `${String(event.seq).padStart(8, "0")}.json`), event, true);
   await atomicJson(path.join(root, "state.json"), state);

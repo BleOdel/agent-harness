@@ -13,6 +13,8 @@ import { runPipeline } from "../pipeline.ts";
 import { review } from "../review/reviewer.ts";
 import { renderDiff } from "../review/diff.ts";
 import { run } from "../run.ts";
+import { collectChanges } from "../workspace/changes.ts";
+import { readChecks } from "./checks.ts";
 import { privateAgentDirectory } from "./inputs.ts";
 import type { Attempt, Usage } from "./schema.ts";
 import { atomicJson, readState } from "./state.ts";
@@ -44,7 +46,9 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
           ...attempt.skills.map(skill => `Read /opt/skills/${skill.id}/SKILL.md before using that workflow.`),
           'In your claim you may include "workflowEvidence": ["commands, observed results and evidence files"]. Evidence is a report; host verification still decides acceptance.',
         ].join("\n\n");
+        const startedAt = new Date().toISOString();
         const result = await executeAndSubmit(local, { goal, provider: role.provider ?? config.provider, model: role.model ?? config.model, timeoutMs: Math.min(role.timeoutMs ?? config.agentTimeoutMs, config.agentTimeoutMs), skills: attempt.skills.length > 0, sessionDirectory: "/pi-agent/sessions" }, output);
+        await atomicJson(path.join(attempt.directory, "builder.json"), { startedAt, finishedAt: new Date().toISOString(), containerName: attempt.containerName, sessionDirectory: path.join(local.agentDirectory, "sessions"), provider: role.provider ?? config.provider, model: role.model ?? config.model, code: result.agent.code, timedOut: result.agent.timedOut, usage: result.agent.usage });
         const usage: Usage = spent = { tokens: result.agent.usage.totalTokens, costUsd: result.agent.usage.costUsd, complete: false };
         // Reviewer usage is unavailable on its existing text protocol, so run
         // totals remain explicitly estimates even when all builder turns report.
@@ -67,9 +71,11 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
     },
     async verify(attempt, result, task) {
       const local = layout(attempt, result.candidate.directory);
+      const state = await readState(runDirectory, false);
+      const checks = await readChecks(runDirectory, state.verificationDigest);
       const proof = await runPipeline({ config, layout: local, project: attempt.baseline.directory,
         claim: JSON.parse(await readFile(path.join(attempt.directory, "claim.json"), "utf8")),
-        testCommand, counterSource: await readFile(counterPath(), "utf8"), limits: (await readState(runDirectory, false)).plan.roles.find(r => r.id === attempt.roleId)?.limits ?? DEFAULT_LIMITS });
+        testCommand: checks.testCommand, pinnedScripts: checks.scripts, counterSource: await readFile(counterPath(), "utf8"), limits: (await readState(runDirectory, false)).plan.roles.find(r => r.id === attempt.roleId)?.limits ?? DEFAULT_LIMITS });
       const gates = proof.run.verdicts.map(v => v.summary);
       for (const gate of gates) output(gate + "\n");
       await atomicJson(path.join(attempt.directory, "verification.json"), proof);
@@ -79,6 +85,23 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
       const verdict = await review(reviewer, { title: task.title, criteria: task.criteria, diff: await renderDiff(attempt.baseline.directory, result.candidate.directory, result.candidate.changes), provider: config.provider, model: config.model, timeoutMs: config.agentTimeoutMs });
       await atomicJson(path.join(attempt.directory, "review.json"), verdict);
       return { passed: verdict.verdict === "pass" && verdict.failure === undefined, gates, review: verdict.verdict, ...(proof.environmentKey === undefined ? {} : { environmentKey: proof.environmentKey }), reason: verdict.failure ?? [...verdict.unmet, ...verdict.unaccounted, ...verdict.notes].join("\n") };
+    },
+    async verifyIntegration(attempt, proposal, _task, accepted) {
+      const state = await readState(runDirectory, false);
+      const checks = await readChecks(runDirectory, state.verificationDigest);
+      const changes = await collectChanges(state.baseline.directory, proposal.directory);
+      const originalClaim = JSON.parse(await readFile(path.join(attempt.directory, "claim.json"), "utf8"));
+      // The host describes the merged delta; the reviewed candidate's criteria
+      // still have to point at evidence retained in that combined source.
+      const claim = { ok: true as const, claim: { files: changes.filter(c => c.kind !== "deleted").map(c => c.file), deletions: changes.filter(c => c.kind === "deleted").map(c => c.file), criteria: originalClaim.claim.criteria } };
+      const proof = await runPipeline({ config, layout: layout(attempt, proposal.directory), project: state.baseline.directory, claim,
+        testCommand: checks.testCommand, pinnedScripts: checks.scripts,
+        contractChecks: checks.checks.filter(c => c.after.every(id => accepted.has(id))),
+        counterSource: await readFile(counterPath(), "utf8"), limits: state.plan.roles.find(r => r.id === attempt.roleId)?.limits ?? DEFAULT_LIMITS });
+      await atomicJson(path.join(attempt.directory, "integration-verification.json"), proof);
+      const gates = proof.run.verdicts.map(v => v.summary);
+      for (const gate of gates) output(`integration: ${gate}\n`);
+      return { passed: proof.run.passed, gates, review: "pass", blocked: proof.run.firstFailure?.kind === "environment-blocked", reason: proof.run.firstFailure?.detail ?? "Combined gates failed." };
     },
     async cleanup(attempt) {
       const listed = await run(config.dockerExecutable, ["ps", "--all", "--quiet", ...Object.entries(labels(attempt)).flatMap(([key, value]) => ["--filter", `label=${key}=${value}`])], { timeoutMs: 15000 });

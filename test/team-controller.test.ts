@@ -31,6 +31,7 @@ const successful: Worker = {
     return { outcome: "submitted", candidate, usage, observedReads: [], workflowEvidence: [] };
   },
   async verify() { return { passed: true, gates: ["real adapter owns gates"], review: "pass" }; },
+  async verifyIntegration() { return { passed: true, gates: ["combined project passes"], review: "pass" }; },
   async cleanup() {},
 };
 

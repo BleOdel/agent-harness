@@ -27,6 +27,11 @@ test("durable decisions replay without a snapshot; duplicates cannot advance sta
     assert.equal(state.seq, seq); assert.equal(state.usage.tokens, 10);
     await assert.rejects(appendEvent(root, { type: "integrated", attemptId: "a-one", baseline }), /verified/u);
     await appendEvent(root, { type: "verified", attemptId: "a-one", gates: ["tests passed"], review: "pass" });
+    await assert.rejects(appendEvent(root, { type: "integrated", attemptId: "a-one", baseline }), /verified integration/u);
+    await assert.rejects(appendEvent(root, { type: "integration-verified", attemptId: "a-one", fromDigest: "c".repeat(64), candidateDigest: baseline.digest, proposal: baseline, gates: ["combined passes"] }), /current staging/u);
+    await assert.rejects(appendEvent(root, { type: "integration-verified", attemptId: "a-one", fromDigest: baseline.digest, candidateDigest: "c".repeat(64), proposal: baseline, gates: ["combined passes"] }), /verified candidate/u);
+    await appendEvent(root, { type: "integration-verified", attemptId: "a-one", fromDigest: baseline.digest, candidateDigest: baseline.digest, proposal: baseline, gates: ["combined passes"] });
+    await assert.rejects(appendEvent(root, { type: "integrated", attemptId: "a-one", baseline: { ...baseline, digest: "c".repeat(64) } }), /verified integration/u);
     state = await appendEvent(root, { type: "integrated", attemptId: "a-one", baseline });
     assert.equal(schedule(state)?.task.id, "client");
     await writeFile(path.join(root, "state.json"), "broken projection");
@@ -76,5 +81,17 @@ test("journal transitions cannot skip prerequisites or declare unstaged work com
     await createState(root, plan(), baseline, { maxAttempts: 2, maxDispatches: 10, maxMs: 100000, maxCostUsd: 10 });
     await assert.rejects(appendEvent(root, { type: "staged" }), /integrated/u);
     await assert.rejects(appendEvent(root, { type: "dispatched", attempt: { id: "a-client", taskId: "client", roleId: "ui", containerName: "harness-a-client", directory: path.join(root, "client"), baseline, skills: [], contracts: {}, instructionsDigest: "b".repeat(64) } }), /eligible/u);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("version 1 journals remain readable without silently adopting parallel integration semantics", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "team-v1-"));
+  try {
+    await createState(root, plan(), baseline, { maxAttempts: 1, maxDispatches: 2, maxMs: 60000, maxCostUsd: 1 });
+    const file = path.join(root, "events/00000001.json");
+    const event = JSON.parse(await readFile(file, "utf8")); event.version = 1; await writeFile(file, JSON.stringify(event));
+    const state = await readState(root); assert.equal(state.version, 1); assert.equal(schedule(state)?.task.id, "server");
+    const { driveTeam } = await import("../src/team/controller.ts");
+    await assert.rejects(driveTeam(root, { async execute() { throw Error("must not launch"); }, async verify() { throw Error("must not verify"); }, async verifyIntegration() { throw Error("must not integrate"); }, async cleanup() {} }), /Version 1 runs/u);
   } finally { await rm(root, { recursive: true, force: true }); }
 });

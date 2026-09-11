@@ -1,7 +1,7 @@
 /** Each executable gate receives a fresh copy of frozen source and clean dependencies. */
 import path from "node:path";
 import os from "node:os";
-import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import type { Config } from "./config.ts";
 import type { SandboxLayout } from "./containment/sandbox.ts";
 import { checkBuildReproducible, checkTypecheck, packageScript } from "./gates/commands.ts";
@@ -11,7 +11,7 @@ import { checkLimits, type Limits } from "./gates/limits.ts";
 import { checkTestCollection, resolveTestCommand } from "./gates/test-collection.ts";
 import { runTestGate } from "./gates/tests.ts";
 import { type Change, collectChanges } from "./workspace/changes.ts";
-import { captureBaseline, assertSnapshot } from "./workspace/candidate.ts";
+import { captureBaseline, assertSnapshot, type Snapshot } from "./workspace/candidate.ts";
 import { EnvironmentBlocked, installEnvironment, prepareEnvironment, type PreparedEnvironment } from "./workspace/dependencies.ts";
 
 export interface PipelineInputs {
@@ -24,6 +24,9 @@ export interface PipelineInputs {
   readonly counterSource: string;
   readonly limits: Limits;
   readonly claim?: ClaimResult;
+  /** Host-selected scripts replace worker-controlled scripts in verifier copies only. */
+  readonly pinnedScripts?: Readonly<Record<string, string>>;
+  readonly contractChecks?: readonly { id: string; source: Snapshot; command: readonly string[] }[];
   readonly environment?: PreparedEnvironment;
 }
 export interface PipelineResult {
@@ -47,9 +50,15 @@ export async function runPipeline(inputs: PipelineInputs): Promise<PipelineResul
       environment = await prepareEnvironment(source.directory, path.join(root, "environment"), layout, config.gateTimeoutMs, config.installPolicy);
     }
     const prepared = environment;
+    const script = (directory: string, name: string): Promise<string | undefined> => inputs.pinnedScripts === undefined ? packageScript(directory, name) : Promise.resolve(inputs.pinnedScripts[name]);
     const verify = async (name: string, check: (local: SandboxLayout) => Promise<GateVerdict>): Promise<GateVerdict> => {
       const work = path.join(root, name);
       await installEnvironment(source.directory, work, prepared, layout, config.gateTimeoutMs);
+      if (inputs.pinnedScripts !== undefined) {
+        const file = path.join(work, "package.json");
+        const pkg = JSON.parse(await readFile(file, "utf8"));
+        await writeFile(file, JSON.stringify({ ...pkg, scripts: inputs.pinnedScripts }));
+      }
       const verdict = await check({ ...layout, workDirectory: work });
       await assertSnapshot(source);
       return verdict;
@@ -63,18 +72,28 @@ export async function runPipeline(inputs: PipelineInputs): Promise<PipelineResul
       {
         name: "test-collection",
         applies: () => true,
-        check: async () => checkTestCollection(source.directory, await resolveTestCommand(source.directory, inputs.testCommand, packageScript)),
+        check: async () => checkTestCollection(source.directory, await resolveTestCommand(source.directory, inputs.testCommand, script)),
       },
       {
         name: "typecheck",
-        applies: async () => await packageScript(source.directory, "typecheck") !== undefined,
+        applies: async () => await script(source.directory, "typecheck") !== undefined,
         check: () => verify("typecheck", local => checkTypecheck(local, ["npm", "run", "typecheck"], config.gateTimeoutMs)),
       },
       {
         name: "build",
-        applies: async () => await packageScript(source.directory, "build") !== undefined,
+        applies: async () => await script(source.directory, "build") !== undefined,
         check: () => verify("build", local => checkBuildReproducible(local, ["npm", "run", "build"], config.gateTimeoutMs)),
       },
+      ...(inputs.contractChecks ?? []).map(check => ({
+        name: `contract:${check.id}`,
+        applies: () => true,
+        check: () => verify(`contract-${check.id}`, async local => {
+          await assertSnapshot(check.source);
+          const verdict = await runTestGate({ ...local, checksDirectory: check.source.directory }, inputs.counterSource, check.command, config.gateTimeoutMs);
+          await assertSnapshot(check.source);
+          return { ...verdict, summary: `contract ${check.id}: ${verdict.summary}` };
+        }),
+      })),
       {
         name: "size",
         applies: () => true,

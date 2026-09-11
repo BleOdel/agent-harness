@@ -4,7 +4,7 @@ import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { digest, safeRelative, type SkillDefinition, type SkillVersion } from "./schema.ts";
 
-async function regularResource(root: string, relative: string): Promise<Buffer> {
+export async function regularResource(root: string, relative: string): Promise<Buffer> {
   if (!safeRelative(relative)) throw new Error("Unsafe skill resource path.");
   let current = root;
   if (!(await lstat(root)).isDirectory()) throw new Error("Skill root must be a regular directory, not a symlink.");

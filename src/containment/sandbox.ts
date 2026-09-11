@@ -33,6 +33,8 @@ export interface SandboxLayout {
    * is the same rule that keeps `features.json` out of the copy.
    */
   readonly skillsDirectory?: string;
+  /** Trusted contract resources, mounted only in credential-free verification. */
+  readonly checksDirectory?: string;
   /** Non-root uid:gid. */
   readonly user: string;
   readonly labels?: Readonly<Record<string, string>>;
@@ -79,6 +81,7 @@ export function mounts(layout: SandboxLayout): readonly {
 }[] {
   if (layout.purpose === "verification") return [
     { source: layout.workDirectory, destination: CONTAINER_WORK, writable: true },
+    ...(layout.checksDirectory ? [{ source: layout.checksDirectory, destination: "/harness-checks", writable: false }] : []),
   ];
   return [
     { source: layout.workDirectory, destination: CONTAINER_WORK, writable: layout.purpose !== "review" },
@@ -131,6 +134,10 @@ export function assertMountsAreSafe(layout: SandboxLayout): void {
     }
   }
 
+  if (layout.checksDirectory) {
+    const relative = path.relative(layout.workDirectory, layout.checksDirectory);
+    if (!relative || (!relative.startsWith("..") && !path.isAbsolute(relative))) throw new ContainmentError("Contract checks must be outside writable source.", "CHECKS_INSIDE_PROJECT");
+  }
   const writable = mounts(layout).filter((mount) => mount.writable);
   const expected = layout.purpose === "verification" || layout.purpose === "review" ? 1 : 2;
   if (writable.length !== expected) {

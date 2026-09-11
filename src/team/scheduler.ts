@@ -2,9 +2,11 @@ import { PRIORITIES } from "../features.ts";
 import type { Role, TeamState, TeamTask } from "./schema.ts";
 export const acceptedTasks = (state: TeamState): Set<string> => new Set([...state.integrated, ...state.plan.tasks.filter(t => t.status === "done" && !state.invalidated.includes(t.id)).map(t => t.id)]);
 export function schedule(state: TeamState): { task: TeamTask; role: Role } | undefined {
-  if (state.status !== "running" || state.attempts.some(a => ["running", "submitted", "verified"].includes(a.status))) return undefined;
+  const active = state.attempts.filter(a => ["running", "submitted", "verified"].includes(a.status));
+  if (state.status !== "running" || active.length >= (state.version === 1 ? 1 : state.policy.maxWorkers ?? 1) || active.some(a => state.plan.tasks.find(t => t.id === a.taskId)?.kind === "shared-inputs")) return undefined;
   const accepted = acceptedTasks(state);
   const queue = state.plan.tasks.filter(t => !accepted.has(t.id) && t.status !== "blocked" && t.priority !== "wont")
+    .filter(t => !active.some(a => a.taskId === t.id))
     .filter(t => t.dependsOn.every(id => accepted.has(id)))
     .filter(t => !state.attempts.some(a => a.taskId === t.id && a.status === "blocked"))
     .filter(t => {
@@ -14,6 +16,7 @@ export function schedule(state: TeamState): { task: TeamTask; role: Role } | und
     })
     .sort((a, b) => Number(b.kind === "shared-inputs") - Number(a.kind === "shared-inputs") || PRIORITIES.indexOf(a.priority) - PRIORITIES.indexOf(b.priority));
   const task = queue[0];
+  if (task?.kind === "shared-inputs" && active.length > 0) return undefined;
   return task ? { task, role: state.plan.roles.find(r => r.id === task.assignedRole)! } : undefined;
 }
 export function budgetReason(state: TeamState, now = Date.now()): string | undefined {

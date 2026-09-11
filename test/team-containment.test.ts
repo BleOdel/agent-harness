@@ -67,14 +67,14 @@ test("M3 real containers isolate attempts and reconcile controller death", { ski
       assert.equal(await readFile(path.join(f.config.agentDirectory, "auth.json"), "utf8"), '{"fixture":"original"}');
     } finally { await f.close(); }
   });
-  await t.test("operator CLI stages and inspects a run, rejecting concurrency above one", async () => {
+  await t.test("operator CLI stages and inspects a run, rejecting concurrency above two", async () => {
     const f = await fixture();
     try {
       const execute = promisify(execFile);
       const configFile = path.join(f.root, "config"); await writeFile(configFile, "# fixture config\n");
       const env = { ...process.env, HARNESS_CONFIG: configFile, HARNESS_PROJECT: f.project, HARNESS_DOCKER: f.config.dockerExecutable, HARNESS_IMAGE_ID: f.config.imageId, HARNESS_AGENT_DIR: f.config.agentDirectory, HARNESS_PI_PACKAGE: f.config.piPackageDirectory, HARNESS_PROVIDER: "fixture", HARNESS_MODEL: "fixture", HARNESS_SKILLS: "" };
       const cli = path.resolve(import.meta.dirname, "../src/cli.ts");
-      await assert.rejects(execute(process.execPath, [cli, "team", "run", "--max-workers", "2"], { env }), (error: unknown) => /concurrency one/u.test((error as { stderr: string }).stderr));
+      await assert.rejects(execute(process.execPath, [cli, "team", "run", "--max-workers", "3"], { env }), (error: unknown) => /maxWorkers/u.test((error as { stderr: string }).stderr));
       const result = await execute(process.execPath, [cli, "team", "run", "--max-workers", "1", "--max-dispatches", "2"], { env });
       assert.match(result.stdout, /2 assignments staged. Nothing applied/u);
       const id = /team: (team-[a-z0-9-]+)/u.exec(result.stdout)?.[1]; assert.ok(id);

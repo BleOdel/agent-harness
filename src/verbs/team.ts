@@ -7,10 +7,11 @@ import { canonicalProject, withWriter } from "../workspace/writer-lock.ts";
 import { createTeam, driveTeam, recoverTeam } from "../team/controller.ts";
 import { parseTeamPlan, checkPolicy, identifier, type Policy } from "../team/schema.ts";
 import { readState } from "../team/state.ts";
+import { resolveTeamModel } from "../team/checks.ts";
 import { processWorker } from "../team/worker.ts";
 import { OperatorError, say } from "./io.ts";
 
-const USAGE = "harness team run [--profile path] [--max-workers 1] [--max-attempts 2] [--max-dispatches 20] [--max-ms 3600000] [--max-cost-usd 10]\nharness team inspect <run-id>\nharness team recover <run-id>";
+const USAGE = "harness team run [--profile path] [--max-workers 1|2] [--max-attempts 2] [--max-dispatches 20] [--max-ms 3600000] [--max-cost-usd 10]\nharness team inspect <run-id>\nharness team recover <run-id>";
 export async function team(project: string, argv: readonly string[]): Promise<void> {
   const canonical = await canonicalProject(project);
   if (argv[0] === "inspect") {
@@ -36,20 +37,21 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
       const flag = argv[i]!; const value = argv[i + 1];
       if (value === undefined) throw new OperatorError(`Missing value for ${flag}.`, USAGE);
       if (flag === "--profile") profile = path.resolve(value);
-      else if (flag === "--max-workers") { if (value !== "1") throw new OperatorError("M3 supports concurrency one. Two-worker integration belongs to M4."); }
+      else if (flag === "--max-workers") policy.maxWorkers = Number(value);
       else if (flag in limits) policy[limits[flag as keyof typeof limits]] = Number(value);
       else throw new OperatorError(`Unknown team option ${flag}.`, USAGE);
     }
     checkPolicy(policy);
     const features = await readFeatures(canonical);
     if (!features?.ok) throw new OperatorError(features ? features.reason : "Team execution requires accepted features.json tasks.");
+    config = { ...config, ...await resolveTeamModel(config) };
     const plan = parseTeamPlan(JSON.parse(await readFile(profile, "utf8")), features.features);
     for (const role of plan.roles) {
       if (role.provider === undefined && config.provider !== undefined) role.provider = config.provider;
       if (role.model === undefined && config.model !== undefined) role.model = config.model;
     }
-    const directory = await createTeam(canonical, plan, path.dirname(profile), policy);
-    say(`team: ${path.basename(directory)}\nstate: ${directory}\nconcurrency: 1; results stay in staging`);
+    const directory = await createTeam(canonical, plan, path.dirname(profile), policy, testCommand);
+    say(`team: ${path.basename(directory)}\nstate: ${directory}\nconcurrency: ${policy.maxWorkers ?? 1}; results stay in staging`);
     const state = await driveTeam(directory, processWorker(config, directory, testCommand)).catch((error: unknown) => {
       throw new OperatorError(`Team execution interrupted: ${(error as Error).message}`, `The durable state is retained. Reconcile owned resources with: harness team recover ${path.basename(directory)}`);
     });

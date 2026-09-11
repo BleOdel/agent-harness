@@ -4,10 +4,10 @@ A coding agent that works in a sandbox, proves what it built, then applies
 it — or escalates to you.
 
 Ordinary `work` applies one verified item. `team run` now coordinates accepted
-role assignments at concurrency one and retains their results in staging. `TEAM_PLAN.md` is the active
+role assignments with one or two builders and retains verified integrations in staging. `TEAM_PLAN.md` is the active
 roadmap toward assigned agents in isolated containers with verified
 integration. `TEAM_M0_RESULTS.md`, `TEAM_M1_RESULTS.md` and
-`TEAM_M2_RESULTS.md` and `TEAM_M3_RESULTS.md` record the team milestones; the original v2 milestone
+`TEAM_M2_RESULTS.md`, `TEAM_M3_RESULTS.md` and `TEAM_M4_RESULTS.md` record the team milestones; the original v2 milestone
 documents remain historical evidence.
 
 ```
@@ -661,11 +661,11 @@ Do not run this credentialed workflow on untrusted changes.
 These workflow files take effect after publication to GitHub; adding them
 locally does not provision a runner or establish a passing remote run.
 
-## Team controller (M3)
+## Team controller (M4)
 
 ```sh
 harness add api --title "Implement API" --criterion "Valid requests persist" --role backend --scope 'src/api/**' --scope 'test/**' --contract issues-v1
-harness team run --profile /path/to/accepted-team.json --max-workers 1
+harness team run --profile /path/to/accepted-team.json --max-workers 2
 harness team inspect <team-run-id>
 ```
 
@@ -688,14 +688,18 @@ and `write`. See [the adaptation notes](SKILLS_ASSESSMENT.md#m3-unattended-adapt
 
 Each team run lives under `<project>-harness/teams/<team-run-id>/`. Its `events/`
 directory is authoritative, `state.json` is a rebuildable projection, `baselines/`
-holds immutable accepted staging, and `attempts/` retains candidate and verification
-evidence. Only the controller advances staging after gates and independent review.
+holds original source, and `attempts/` retains frozen candidates, integration
+proposals and verification evidence. New journals use version 2; version 1 journals
+remain inspectable and recoverable but cannot restart under M4 semantics.
+Only the controller advances staging after candidate gates, independent review,
+three-way merge, and full checks of the proposed combined source.
 It leaves live source and `features.json` unchanged. Do not treat staging as a
 live application transaction; team apply/resume belongs to M5.
 
-Defaults are two attempts per task, 20 dispatches, one hour, and $10 of reported
+Default concurrency is one; `--max-workers 2` enables two independent builders.
+Shared-input assignments run exclusively. Other defaults are two attempts per task, 20 dispatches, one hour, and $10 of reported
 cost. Set `--max-attempts`, `--max-dispatches`, `--max-ms`, or `--max-cost-usd` to
-change them. Limits stop new dispatch; an in-flight request may exceed a cost
+change them. Limits stop new dispatch; already-dispatched requests drain before stopping and may exceed a cost
 budget, and totals exclude unreported usage, including the current reviewer
 protocol. Each retry starts from accepted staging with a fresh session and the
 previous diagnosis. Environment-blocked results wait for operator input.
@@ -719,12 +723,63 @@ removing that guard; ordinary commands never steal it. External editors are not
 controlled by this cooperating-writer lock.
 
 Team authentication is copied per builder and reviewer; global settings are not
-copied, and provider/model settings come from the role or harness configuration.
+copied. Provider/model precedence is role, harness configuration, then the host
+Pi settings' `defaultProvider`/`defaultModel`. Only those two defaults are read;
+resolved values are frozen into the accepted roles.
 Private token refreshes are not merged back to the operator's auth file. Restore
 provider authentication before retrying authentication failures. Skill availability,
 observed reads, and reported workflow evidence are recorded separately; they are
 not proof of compliance.
 
-Run `npm run verify:team` in a configured Docker environment for the M3 isolation
-and crash checks. It uses deterministic worker processes and no model credentials.
+Run `npm run verify:team` in a configured Docker environment for isolation,
+crash recovery, pinned gates and incompatible-component integration checks. It uses deterministic worker processes and no model credentials.
 `npm run verify:skills` also checks the adapted role bundles against pinned Pi.
+
+
+Profiles may also declare trusted contract checks:
+
+```json
+{
+  "checks": [{
+    "id": "system",
+    "path": "checks/system",
+    "files": ["system.mjs"],
+    "command": ["node", "/harness-checks/system.mjs"],
+    "after": ["api", "client"]
+  }]
+}
+```
+
+`path` is relative to the profile directory; only declared `files` are frozen.
+The check runs after every proposed integration once all `after` tasks are
+accepted, including the current proposal. Omit `after` to run it on every
+integration. The host stores a digest of the check configuration in the creation
+event and validates check sources before use. Each check gets a fresh dependency
+installation, an offline container, and a read-only `/harness-checks` mount.
+Project source is at `/work`; import it using absolute paths or `process.cwd()`.
+Builders and reviewers never receive the check mount. Root package scripts and
+the selected test command are pinned at run creation; verifier copies use those
+scripts even if a shared-input assignment changes the manifest.
+
+Concurrent candidates retain their own baseline. The controller merges each into
+current accepted staging, preserving independent edits. Content conflicts,
+delete/modify collisions, file/directory conflicts, unsupported binary conflicts,
+and stale dependency or contract inputs reject the proposal. Failed merges or
+combined checks leave staging and prerequisites unchanged; a bounded fresh attempt
+receives the diagnosis. Dedicated integration repair and resume are M5 work.
+
+To reproduce the real issue-tracker demonstration using your configured Pi model:
+
+```sh
+npm run demo:team -- /absolute/path/to/new-demo-directory
+```
+
+This creates a new project from the accepted issue API contract, runs API and
+client builders with adapted TDD/design skills at concurrency two, then assigns
+an integration task depending on both. It performs real model calls, with two
+attempts per task, six total dispatches, a 30-minute run ceiling and a $5 reported
+builder-cost ceiling. Reviewer usage is not included. The result and measured
+builder overlap are written to `result.json`; the final project stays in staging.
+The host checks actual HTTP create/list/get, invalid input and persistence after
+server restart. The deterministic Docker suite also proves that a wrong response
+envelope can pass component tests while failing the combined contract check.

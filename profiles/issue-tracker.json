@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "roles": [
+    {
+      "id": "api",
+      "instructions": "Read contracts/issues-v1.json. Implement only your assigned files. Follow TDD: run a failing behavioral test before implementation, then pass npm test. Submit a complete .harness-claim.json and workflowEvidence describing the red and green commands. Do not modify the contract or package manifest.",
+      "skills": [
+        "tdd",
+        "codebase-design"
+      ]
+    },
+    {
+      "id": "client",
+      "instructions": "Read contracts/issues-v1.json. Implement only your assigned files. Follow TDD: run a failing behavioral test before implementation, then pass npm test. Submit a complete .harness-claim.json and workflowEvidence describing the red and green commands. Do not modify the contract or package manifest.",
+      "skills": [
+        "tdd",
+        "codebase-design"
+      ]
+    },
+    {
+      "id": "integration",
+      "instructions": "Read contracts/issues-v1.json. Implement only your assigned files. Follow TDD: run a failing behavioral test before implementation, then pass npm test. Submit a complete .harness-claim.json and workflowEvidence describing the red and green commands. Do not modify the contract or package manifest.",
+      "skills": [
+        "tdd",
+        "codebase-design"
+      ]
+    }
+  ],
+  "skills": [
+    {
+      "id": "tdd",
+      "path": "skills/tdd",
+      "interaction": "unattended",
+      "requires": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "dependencies": [
+        "codebase-design"
+      ],
+      "resources": [
+        "EVIDENCE.md"
+      ]
+    },
+    {
+      "id": "codebase-design",
+      "path": "skills/codebase-design",
+      "interaction": "unattended",
+      "requires": [
+        "read"
+      ],
+      "dependencies": [],
+      "resources": []
+    },
+    {
+      "id": "diagnosing-bugs",
+      "path": "skills/diagnosing-bugs",
+      "interaction": "unattended",
+      "requires": [
+        "read",
+        "bash",
+        "edit",
+        "write"
+      ],
+      "dependencies": [
+        "tdd"
+      ],
+      "resources": []
+    }
+  ],
+  "contracts": {
+    "issues": "contracts/issues-v1.json"
+  },
+  "checks": [
+    {
+      "id": "issue-system",
+      "path": "checks/issue-tracker",
+      "files": [
+        "system.mjs"
+      ],
+      "command": [
+        "node",
+        "/harness-checks/system.mjs"
+      ],
+      "after": [
+        "api",
+        "client"
+      ]
+    }
+  ]
+}
