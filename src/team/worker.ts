@@ -4,7 +4,7 @@ import { readFile, rm } from "node:fs/promises";
 import type { Config } from "../config.ts";
 import type { SandboxLayout } from "../containment/sandbox.ts";
 import { executeAndSubmit, briefing } from "../agent/execute.ts";
-import { captureCandidate, InputChangeRequired } from "../workspace/candidate.ts";
+import { captureCandidate, assertSnapshot, InputChangeRequired } from "../workspace/candidate.ts";
 import { prepareEnvironment, installEnvironment, EnvironmentBlocked } from "../workspace/dependencies.ts";
 import { BoundaryViolation } from "../workspace/changes.ts";
 import { DEFAULT_LIMITS } from "../gates/limits.ts";
@@ -40,7 +40,14 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
       try {
         const environment = await prepareEnvironment(attempt.baseline.directory, path.join(attempt.directory, "environment"), local, config.gateTimeoutMs, config.installPolicy);
         await installEnvironment(attempt.baseline.directory, work, environment, local, config.gateTimeoutMs);
-        const goal = [role.instructions, ...(attempt.feedback ? [`Previous attempt diagnosis: ${attempt.feedback}`] : []), briefing(task.title, task.criteria, task.kind === "shared-inputs"),
+        let repairDiff = "";
+        if (attempt.repairOf && attempt.repairCandidate) {
+          const origin = (await readState(runDirectory, false)).attempts.find(a => a.id === attempt.repairOf);
+          if (!origin) throw new Error("Repair origin is missing.");
+          await assertSnapshot(attempt.repairCandidate);
+          repairDiff = "Rejected candidate diff, provided only as repair context:\n" + await renderDiff(origin.baseline.directory, attempt.repairCandidate.directory, await collectChanges(origin.baseline.directory, attempt.repairCandidate.directory));
+        }
+        const goal = [role.instructions, repairDiff, ...(attempt.feedback ? [`Previous attempt diagnosis: ${attempt.feedback}`] : []), briefing(task.title, task.criteria, task.kind === "shared-inputs"),
           `Allowed change scope: ${task.changeScope.join(", ")}.`,
           `Contract versions: ${JSON.stringify(attempt.contracts)}.`,
           ...attempt.skills.map(skill => `Read /opt/skills/${skill.id}/SKILL.md before using that workflow.`),

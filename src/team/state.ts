@@ -31,7 +31,7 @@ function usage(state: TeamState, value: Usage | undefined): void {
   state.usage.complete = state.usage.complete && value.complete;
 }
 function reduce(previous: TeamState | undefined, event: TeamEvent): TeamState {
-  if (![1, 2].includes(event.version) || (previous !== undefined && event.version !== previous.version) || event.seq !== (previous?.seq ?? 0) + 1 || !identifier(event.runId) || !Number.isFinite(Date.parse(event.at))) throw new Error("Unsupported or out-of-sequence team event.");
+  if (![1, 2, 3].includes(event.version) || (previous !== undefined && event.version !== previous.version) || event.seq !== (previous?.seq ?? 0) + 1 || !identifier(event.runId) || !Number.isFinite(Date.parse(event.at))) throw new Error("Unsupported or out-of-sequence team event.");
   if (event.type === "created") {
     if (previous) throw new Error("Duplicate team creation.");
     const plan = parseTeamPlan(event.plan, event.plan.tasks); checkPolicy(event.policy); snapshot(event.baseline);
@@ -40,7 +40,26 @@ function reduce(previous: TeamState | undefined, event: TeamEvent): TeamState {
   }
   if (!previous || event.runId !== previous.runId) throw new Error("Event belongs to another or missing team run.");
   const state = structuredClone(previous); state.seq = event.seq;
+  if (event.type === "resumed") {
+    if (state.version < 2 || !["running", "stopped"].includes(state.status) || state.attempts.some(a => ["running", "submitted", "verified"].includes(a.status))) throw new Error("Resume requires reconciled unfinished attempts and an unapplied run.");
+    state.status = "running"; state.resumeSeq = event.seq; delete state.reason; return state;
+  }
+  if (event.type === "application-started") {
+    if (state.version < 2 || !identifier(event.transactionId) || state.status !== (event.direction === "apply" ? "staged" : "applied")) throw new Error("Application requires staged work, or an applied batch for undo.");
+    state.application = { transactionId: event.transactionId, intentDigest: event.intentDigest, direction: event.direction }; state.status = "applying"; return state;
+  }
+  if (event.type === "application-completed" || event.type === "application-rolled-back") {
+    if (state.status !== "applying" || state.application?.transactionId !== event.transactionId || state.application.direction !== event.direction) throw new Error("Application completion does not match its pending transaction.");
+    if (event.type === "application-completed") {
+      state.application.recordId = event.recordId;
+      state.status = event.direction === "apply" ? "applied" : "undone";
+      if (event.direction === "apply") { state.appliedRecordId = event.recordId; state.appliedTransactionId = event.transactionId; state.appliedIntentDigest = state.application.intentDigest; }
+      else { state.invalidated = [...new Set([...state.invalidated, ...state.integrated])]; state.integrated = []; }
+    } else { state.status = event.direction === "apply" ? "staged" : "applied"; delete state.application; }
+    return state;
+  }
   if (event.type === "stopped" || event.type === "staged") {
+    if (!["running", "stopped", "staged"].includes(state.status)) throw new Error("Cannot change a terminal application state.");
     if (state.attempts.some(a => ["running", "submitted", "verified"].includes(a.status))) throw new Error("Cannot stop with an unfinished attempt.");
     if (event.type === "staged" && state.plan.tasks.some(t => t.priority !== "wont" && !acceptedTasks(state).has(t.id))) throw new Error("All requested tasks must be integrated before staging is complete.");
     state.status = event.type === "staged" ? "staged" : "stopped";
@@ -54,7 +73,9 @@ function reduce(previous: TeamState | undefined, event: TeamEvent): TeamState {
     if (state.version === 1 && state.attempts.some(old => ["running", "submitted", "verified"].includes(old.status))) throw new Error("Version 1 permits one active attempt.");
     const task = state.plan.tasks.find(t => t.id === a.taskId);
     if (!task || task.assignedRole !== a.roleId) throw new Error("Attempt role does not match accepted assignment.");
-    if (schedule(state)?.task.id !== a.taskId) throw new Error("Task is not the next eligible accepted assignment.");
+    const next = schedule(state);
+    if (a.repairOf !== next?.repair?.id || a.repairCandidate?.digest !== next?.repair?.candidate?.digest) throw new Error("Repair does not match the eligible failed integration.");
+    if (next?.task.id !== a.taskId) throw new Error("Task is not the next eligible accepted assignment.");
     const limit = budgetReason(state, Date.parse(event.at));
     if (limit) throw new Error(limit);
     snapshot(a.baseline);
@@ -75,7 +96,7 @@ function reduce(previous: TeamState | undefined, event: TeamEvent): TeamState {
       if (attempt.status !== "submitted" || event.review !== "pass" || !Array.isArray(event.gates) || event.gates.length === 0) throw new Error("Verification requires a submitted candidate, gate evidence and passing review.");
       attempt.status = "verified"; break;
     case "integration-verified":
-      if (state.version !== 2 || attempt.status !== "verified" || attempt.integration || event.fromDigest !== state.baseline.digest || event.candidateDigest !== attempt.candidate?.digest || !Array.isArray(event.gates) || event.gates.length === 0) throw new Error("Integration requires the current staging, verified candidate and gate evidence.");
+      if (state.version < 2 || attempt.status !== "verified" || attempt.integration || event.fromDigest !== state.baseline.digest || event.candidateDigest !== attempt.candidate?.digest || !Array.isArray(event.gates) || event.gates.length === 0) throw new Error("Integration requires the current staging, verified candidate and gate evidence.");
       snapshot(event.proposal);
       attempt.integration = { fromDigest: event.fromDigest, proposal: event.proposal }; break;
     case "integrated":
@@ -93,7 +114,9 @@ function reduce(previous: TeamState | undefined, event: TeamEvent): TeamState {
     case "failed": case "blocked": case "interrupted":
       if (!["running", "submitted", "verified"].includes(attempt.status) || typeof event.reason !== "string" || !event.reason) throw new Error("Invalid terminal attempt transition.");
       if (attempt.status === "running") usage(state, event.usage);
-      attempt.status = event.type; attempt.reason = event.reason; break;
+      attempt.status = event.type; attempt.reason = event.reason; attempt.terminalSeq = event.seq;
+      if (event.failureStage) attempt.failureStage = event.failureStage;
+      break;
     default: throw new Error("Unknown team event.");
   }
   return state;
@@ -112,7 +135,7 @@ export async function readState(root: string, repairProjection = true): Promise<
   return state;
 }
 export async function createState(root: string, plan: TeamPlan, baseline: Snapshot, policy: Policy, runId = `team-${randomUUID()}`, verificationDigest?: string): Promise<TeamState> {
-  const event: TeamEvent = { version: 2, seq: 1, at: new Date().toISOString(), type: "created", ...(verificationDigest === undefined ? {} : { verificationDigest }), runId, plan, planDigest: digest(plan), baseline, policy };
+  const event: TeamEvent = { version: 3, seq: 1, at: new Date().toISOString(), type: "created", ...(verificationDigest === undefined ? {} : { verificationDigest }), runId, plan, planDigest: digest(plan), baseline, policy };
   const state = reduce(undefined, event);
   await atomicJson(path.join(root, "events", "00000001.json"), event, true);
   await atomicJson(path.join(root, "state.json"), state);
@@ -120,8 +143,9 @@ export async function createState(root: string, plan: TeamPlan, baseline: Snapsh
 }
 export async function appendEvent(root: string, payload: EventPayload): Promise<TeamState> {
   const previous = await readState(root);
-  if ("attemptId" in payload) {
-    const same = (await eventsAt(root)).find(event => "attemptId" in event && event.attemptId === payload.attemptId && event.type === payload.type);
+  const identity = "attemptId" in payload ? "attemptId" : "transactionId" in payload ? "transactionId" : undefined;
+  if (identity) {
+    const same = (await eventsAt(root)).find(event => identity in event && (event as unknown as Record<string, unknown>)[identity] === (payload as unknown as Record<string, unknown>)[identity] && event.type === payload.type);
     if (same) {
       const { version: _version, seq: _seq, at: _at, runId: _runId, ...stored } = same;
       if (digest(stored) !== digest(payload)) throw new Error("Conflicting duplicate attempt result.");

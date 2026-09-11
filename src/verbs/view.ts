@@ -15,7 +15,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { chooseNext, readFeatures, unmetDependencies } from "../features.ts";
-import { harnessDirectory, readRecord, recoveryPath, undoableRuns } from "../record/record.ts";
+import { harnessDirectory, readRecord, runSnapshotPath, undoableRuns } from "../record/record.ts";
 import { diffLines, isBinary } from "../review/diff.ts";
 import { createViewServer, listen, LOOPBACK } from "../view/server.ts";
 import { assess, processAlive, statusPath, type Status } from "../view/status.ts";
@@ -74,7 +74,7 @@ async function build(project: string, live: boolean): Promise<string> {
   const standing = new Set(undoableRuns(runs).map((run) => run.id));
   const views: RunView[] = [];
   for (const run of [...runs].reverse()) {
-    const snapshot = recoveryPath(project, run.id);
+    const snapshot = runSnapshotPath(project, run);
     const feature = features.find((entry) => entry.id === run.goal);
     views.push({
       run,

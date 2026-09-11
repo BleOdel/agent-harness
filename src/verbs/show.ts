@@ -9,7 +9,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { readRecord, recoveryPath } from "../record/record.ts";
+import { readRecord, runSnapshotPath } from "../record/record.ts";
 import { localTime } from "../view/render.ts";
 import { diffLines } from "../review/diff.ts";
 import { OperatorError, say } from "./io.ts";
@@ -50,7 +50,7 @@ export async function show(project: string, argv: readonly string[]): Promise<vo
     return;
   }
 
-  const snapshot = recoveryPath(project, run.id);
+  const snapshot = runSnapshotPath(project, run);
   if (!existsSync(snapshot)) {
     // Says so rather than showing the project's current state and letting
     // the operator believe it is this run's diff.

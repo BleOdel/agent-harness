@@ -16,21 +16,23 @@ async function fixture() {
     { id: "b", title: "b", priority: "must", status: "todo", criteria: ["b works"], dependsOn: [] },
     { id: "final", title: "final", priority: "must", status: "todo", criteria: ["both work"], dependsOn: ["a", "b"] },
   ]);
-  const directory = await createTeam(project, plan, root, { maxWorkers: 2, maxAttempts: 1, maxDispatches: 10, maxMs: 100000, maxCostUsd: 10 });
+  const directory = await createTeam(project, plan, root, { maxWorkers: 2, maxRepairs: 0, maxAttempts: 1, maxDispatches: 10, maxMs: 100000, maxCostUsd: 10 });
   return { root, project, directory, close: () => rm(root, { recursive: true, force: true }) };
 }
 
-test("two builders overlap on one baseline; integrations serialize and the final task sees both", async () => {
+test("two builders overlap on one baseline; integrations serialize and the final task sees both", { timeout: 10000 }, async () => {
   const f = await fixture();
   let active = 0, peak = 0, checking = 0;
   const bases: string[] = [], calls: string[] = [];
+  let releaseB!: () => void;
+  const integratedB = new Promise<void>(resolve => { releaseB = resolve; });
   try {
     const worker: Worker = {
       async execute(a, t) {
         active++; peak = Math.max(peak, active); if (t.id !== "final") bases.push(a.baseline.digest);
         const work = path.join(a.directory, "worker"); await copySource(a.baseline.directory, work);
         if (t.id === "final") for (const id of ["a", "b"]) assert.equal(await readFile(path.join(work, `${id}.txt`), "utf8"), id);
-        await delay(t.id === "a" ? 100 : 20);
+        if (t.id === "a") await integratedB;
         await writeFile(path.join(work, `${t.id}.txt`), t.id);
         const candidate = await captureCandidate(a.baseline, work, path.join(a.directory, "candidate")); active--;
         return { outcome: "submitted", candidate, usage: { tokens: 1, costUsd: 0, complete: true }, observedReads: [], workflowEvidence: [] };
@@ -41,7 +43,7 @@ test("two builders overlap on one baseline; integrations serialize and the final
         if (a.taskId === "a") assert.equal(await readFile(path.join(proposal.directory, "b.txt"), "utf8"), "b");
         await delay(10); checking--; return { passed: true, gates: ["combined contract passes"], review: "pass" };
       },
-      async cleanup() {},
+      async cleanup(a) { if (a.taskId === "b") releaseB(); },
     };
     const result = await driveTeam(f.directory, worker);
     assert.equal(peak, 2); assert.equal(new Set(bases).size, 1); assert.deepEqual(calls, ["b", "a", "final"]);
@@ -82,16 +84,18 @@ test("dispatch ceiling drains both running builders and controller failure clean
       await writeFile(path.join(dir, "inputs/skills.json"), "[]");
       await createState(dir, initial.plan, initial.baseline, { ...initial.policy, maxDispatches: 2 });
       const cleaned = new Set<string>();
+      let releaseA!: () => void;
+      const finishedA = new Promise<void>(resolve => { releaseA = resolve; });
       const worker: Worker = {
         async execute(a) {
-          await delay(a.taskId === "a" ? 5 : 80);
+          if (a.taskId === "b") await finishedA;
           const work = path.join(a.directory, "worker"); await copySource(a.baseline.directory, work);
           await writeFile(path.join(work, `${a.taskId}.txt`), "works");
           return { outcome: "submitted", candidate: await captureCandidate(a.baseline, work, path.join(a.directory, "candidate")), usage: { tokens: 1, costUsd: 0, complete: true }, observedReads: [], workflowEvidence: [] };
         },
         async verify() { if (crash) throw Error("transport broke"); return { passed: true, gates: ["component passes"], review: "pass" }; },
         async verifyIntegration() { return { passed: true, gates: ["combined passes"], review: "pass" }; },
-        async cleanup(a) { cleaned.add(a.id); },
+        async cleanup(a) { cleaned.add(a.id); if (a.taskId === "a") releaseA(); },
       };
       if (crash) await assert.rejects(driveTeam(dir, worker), /transport broke/u);
       else { const state = await driveTeam(dir, worker); assert.equal(state.status, "stopped"); assert.deepEqual(state.integrated, ["a", "b"]); assert.match(state.reason ?? "", /Dispatch limit/u); }
@@ -110,7 +114,7 @@ test("shared-input assignments are exclusive and accepted before ordinary dispat
       { id: "ordinary", title: "ordinary", priority: "must", status: "todo", criteria: ["works"], dependsOn: [] },
       { id: "inputs", title: "inputs", priority: "should", status: "todo", kind: "shared-inputs", criteria: ["works"], dependsOn: [] },
     ]);
-    await createState(dir, plan, await captureBaseline(f.project, path.join(f.root, "exclusive-base")), { maxWorkers: 2, maxAttempts: 1, maxDispatches: 2, maxMs: 60000, maxCostUsd: 1 });
+    await createState(dir, plan, await captureBaseline(f.project, path.join(f.root, "exclusive-base")), { maxWorkers: 2, maxRepairs: 0, maxAttempts: 1, maxDispatches: 2, maxMs: 60000, maxCostUsd: 1 });
     let active = 0; const calls: string[] = [];
     const state = await driveTeam(dir, {
       async execute(a, t) {

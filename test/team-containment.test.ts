@@ -81,6 +81,11 @@ test("M3 real containers isolate attempts and reconcile controller death", { ski
       const inspected = await execute(process.execPath, [cli, "team", "inspect", id], { env });
       const state = JSON.parse(inspected.stdout); assert.equal(state.status, "staged"); assert.deepEqual(state.integrated, ["api", "ui"]);
       assert.equal((await execute(process.execPath, [cli, "team", "recover", id], { env })).stderr, "");
+      assert.match((await execute(process.execPath, [cli, "team", "apply", id], { env })).stdout, /applied.*r1/u);
+      assert.match((await execute(process.execPath, [cli, "show", "r1"], { env })).stdout, /accepted api/u);
+      assert.match((await execute(process.execPath, [cli, "team", "resume", id], { env })).stdout, /applied/u);
+      assert.match((await execute(process.execPath, [cli, "undo", "r1"], { env })).stdout, /undone/u);
+      await assert.rejects(readFile(path.join(f.project, "api.txt")), { code: "ENOENT" });
     } finally { await f.close(); }
   });
   await t.test("SIGKILL leaves an unfinished attempt; token recovery and label cleanup never accept it", async () => {

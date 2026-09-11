@@ -7,9 +7,10 @@ export interface SkillDefinition { id: string; path: string; interaction: "unatt
 export interface TeamTask extends Feature { assignedRole: string; changeScope: string[]; contracts: string[]; }
 export interface ContractCheck { id: string; path: string; files: string[]; command: string[]; after: string[]; }
 export interface TeamPlan { checks?: ContractCheck[]; version: 1; roles: Role[]; skills: SkillDefinition[]; contracts: Record<string, string>; tasks: TeamTask[]; }
-export interface Policy { maxWorkers?: number; maxAttempts: number; maxDispatches: number; maxMs: number; maxCostUsd: number; }
+export interface Policy { maxRepairs?: number; maxWorkers?: number; maxAttempts: number; maxDispatches: number; maxMs: number; maxCostUsd: number; }
 export interface SkillVersion { id: string; digest: string; files: Record<string, string>; }
 export interface Attempt {
+  repairOf?: string; repairCandidate?: Snapshot;
   id: string; taskId: string; roleId: string; containerName: string; directory: string;
   baseline: Snapshot; skills: SkillVersion[]; contracts: Record<string, string>; instructionsDigest: string; dependencyDigest?: string; feedback?: string;
 }
@@ -21,15 +22,21 @@ export type EventPayload =
   | { type: "verified"; attemptId: string; gates: string[]; review: "pass"; environmentKey?: string }
   | { type: "integration-verified"; attemptId: string; fromDigest: string; candidateDigest: string; proposal: Snapshot; gates: string[] }
   | { type: "integrated"; attemptId: string; baseline: Snapshot }
-  | { type: "failed" | "blocked" | "interrupted"; attemptId: string; reason: string; usage?: Usage }
+  | { type: "failed" | "blocked" | "interrupted"; attemptId: string; reason: string; usage?: Usage; failureStage?: "integration" }
   | { type: "stopped"; reason: string }
-  | { type: "staged" };
-export type TeamEvent = EventPayload & { version: 1 | 2; seq: number; at: string; runId: string };
-export interface AttemptState extends Attempt { status: "running" | "submitted" | "verified" | "integrated" | "failed" | "blocked" | "interrupted"; candidate?: Snapshot; integration?: { fromDigest: string; proposal: Snapshot }; reason?: string; }
+  | { type: "resumed"; resumeId: string }
+  | { type: "staged" }
+  | { type: "application-started"; transactionId: string; intentDigest: string; direction: "apply" | "undo" }
+  | { type: "application-completed"; transactionId: string; direction: "apply" | "undo"; recordId: string }
+  | { type: "application-rolled-back"; transactionId: string; direction: "apply" | "undo" };
+export type TeamEvent = EventPayload & { version: 1 | 2 | 3; seq: number; at: string; runId: string };
+export interface AttemptState extends Attempt { status: "running" | "submitted" | "verified" | "integrated" | "failed" | "blocked" | "interrupted"; candidate?: Snapshot; terminalSeq?: number; failureStage?: "integration"; integration?: { fromDigest: string; proposal: Snapshot }; reason?: string; }
 export interface TeamState {
-  version: 1 | 2; runId: string; seq: number; startedAt: string; plan: TeamPlan; planDigest: string; policy: Policy;
+  version: 1 | 2 | 3; runId: string; seq: number; startedAt: string; plan: TeamPlan; planDigest: string; policy: Policy;
   verificationDigest?: string; original: Snapshot; baseline: Snapshot; attempts: AttemptState[]; integrated: string[]; invalidated: string[];
-  status: "running" | "stopped" | "staged"; reason?: string; usage: Usage;
+  application?: { transactionId: string; intentDigest: string; direction: "apply" | "undo"; recordId?: string };
+  appliedRecordId?: string; appliedTransactionId?: string; appliedIntentDigest?: string; resumeSeq?: number;
+  status: "running" | "stopped" | "staged" | "applying" | "applied" | "undone"; reason?: string; usage: Usage;
 }
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
@@ -137,6 +144,7 @@ export function resolveSkills(plan: TeamPlan, role: Role): SkillDefinition[] {
   return [...selected.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 export function checkPolicy(policy: Policy): void {
+  if (policy.maxRepairs !== undefined && ![0, 1].includes(policy.maxRepairs)) throw new Error("maxRepairs must be 0 or 1.");
   if (policy.maxWorkers !== undefined && ![1, 2].includes(policy.maxWorkers)) throw new Error("maxWorkers must be 1 or 2.");
   if (![policy.maxAttempts, policy.maxDispatches, policy.maxMs].every(n => Number.isSafeInteger(n) && n > 0) || !Number.isFinite(policy.maxCostUsd) || policy.maxCostUsd <= 0) throw new Error("Team limits must be positive finite numbers (counts and milliseconds must be integers).");
 }

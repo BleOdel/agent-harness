@@ -2,7 +2,8 @@
  *   harness undo <run-id>
  *   harness undo            (lists what can be undone)
  *
- * Reverses one applied run, at any point, including after later runs
+ * Team batches delegate to the journaled, conservative batch undo path.
+ * Ordinary single-item undo reverses one applied run, including after later runs
  * changed the same files.
  *
  * Nothing here guesses. A file whose current content is exactly what the
@@ -16,6 +17,8 @@
  * can be undone in turn.
  */
 
+import { undoTeam } from "../team/apply.ts";
+import { harnessDirectory } from "../record/record.ts";
 import { withWriter } from "../workspace/writer-lock.ts";
 
 import { existsSync } from "node:fs";
@@ -44,7 +47,7 @@ async function undoUnlocked(project: string, argv: readonly string[]): Promise<v
     say(`warning: ${String(malformed.length)} unreadable lines in the record (at ${malformed.join(", ")})`);
   }
 
-  const undoable = undoableRuns(runs);
+  const undoable = undoableRuns(runs).filter(run => !(run.teamRunId && run.reverses));
   const wanted = argv[0];
   if (wanted === undefined) {
     if (undoable.length === 0) throw new OperatorError("nothing to undo.", "No applied run in this project is still standing.");
@@ -56,6 +59,7 @@ async function undoUnlocked(project: string, argv: readonly string[]): Promise<v
     return;
   }
 
+  if (runs.some(run => run.id === wanted && run.teamRunId && run.reverses)) throw new OperatorError("Team batch redo is not supported. Start and verify a new team run.");
   const run = undoable.find((entry) => entry.id === wanted);
   if (run === undefined) {
     const known = runs.find((entry) => entry.id === wanted);
@@ -64,11 +68,16 @@ async function undoUnlocked(project: string, argv: readonly string[]): Promise<v
     throw new OperatorError(
       `${wanted} cannot be undone.`,
       reverser !== undefined
-        ? `${reverser} already undid it. Undo ${reverser} to put it back.`
+        ? known.teamRunId ? `${reverser} already undid this team batch. Start and verify a new team run to apply it again.` : `${reverser} already undid it. Undo ${reverser} to put it back.`
         : `It was never applied (outcome: ${known.outcome}), so there is nothing to reverse.`,
     );
   }
 
+  if (run.teamRunId) {
+    const state = await undoTeam(project, path.join(harnessDirectory(project), "teams", run.teamRunId));
+    say(`${state.runId}: ${state.status}, recorded as ${state.application?.recordId}. Dependent acceptance invalidated.`);
+    say("The suite was not re-run. Check it before working on top of this."); return;
+  }
   let rootRun = run;
   let depth = 1;
   const seen = new Set([run.id]);

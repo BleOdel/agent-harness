@@ -29,7 +29,7 @@ test("M4 Docker: component-green incompatible response cannot advance combined s
       await rename(path.join(project, "test/smoke.test.mjs.template"), path.join(project, "test/smoke.test.mjs"));
       const profile = path.resolve(import.meta.dirname, "../profiles/issue-tracker.json");
       const plan = parseTeamPlan(JSON.parse(await readFile(profile, "utf8")), JSON.parse(await readFile(path.join(project, "features.json"), "utf8")));
-      const directory = await createTeam(project, plan, path.dirname(profile), { maxWorkers: 2, maxAttempts: 1, maxDispatches: 4, maxMs: 180000, maxCostUsd: 1 });
+      const directory = await createTeam(project, plan, path.dirname(profile), { maxWorkers: 2, maxRepairs: 0, maxAttempts: 1, maxDispatches: 4, maxMs: 180000, maxCostUsd: 1 });
       const production = processWorker(loadConfig(), directory, ["npm", "test"], () => {});
       let componentPasses = 0;
       const worker: Worker = { ...production,

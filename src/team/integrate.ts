@@ -1,5 +1,5 @@
 /** Merge a candidate's own ancestry into current staging without changing either input. */
-import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { threeWayMerge } from "../recovery/merge.ts";
 import { assertSnapshot, captureBaseline, copySource, type Snapshot } from "../workspace/candidate.ts";
@@ -48,6 +48,7 @@ export async function integrateCandidate(base: Snapshot, candidate: Snapshot, cu
       const target = path.join(work, file);
       if ((await lstat(target).catch(() => undefined))?.isDirectory()) await rm(target, { recursive: true });
       await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, bytes);
+      if (current.files[file] === undefined) await chmod(target, (await lstat(path.join(candidate.directory, file))).mode & 0o777);
     }
     return { ok: true, proposal: await captureBaseline(work, destination) };
   } finally { await rm(work, { recursive: true, force: true }); }

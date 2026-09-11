@@ -4,11 +4,12 @@ A coding agent that works in a sandbox, proves what it built, then applies
 it — or escalates to you.
 
 Ordinary `work` applies one verified item. `team run` now coordinates accepted
-role assignments with one or two builders and retains verified integrations in staging. `TEAM_PLAN.md` is the active
-roadmap toward assigned agents in isolated containers with verified
-integration. `TEAM_M0_RESULTS.md`, `TEAM_M1_RESULTS.md` and
-`TEAM_M2_RESULTS.md`, `TEAM_M3_RESULTS.md` and `TEAM_M4_RESULTS.md` record the team milestones; the original v2 milestone
-documents remain historical evidence.
+role assignments with one or two builders, repairs failed integrations, and
+retains verified results in staging. Explicit `team apply` writes the completed
+batch through a recoverable journal. `TEAM_PLAN.md` is the active roadmap toward
+assigned agents in isolated containers with verified integration.
+`TEAM_M0_RESULTS.md` through `TEAM_M5_RESULTS.md` record the team milestones;
+the original v2 milestone documents remain historical evidence.
 
 ```
 npm run add  -- feed --title "RSS feed" --criterion "feed.xml is generated from site data"
@@ -354,9 +355,11 @@ changes. An explicitly retried blocked item follows the same review rule.
 
 M2 also checks live source and requirements against the starting baseline
 before acceptance and again before application. The final check is not a
-writer lock: a concurrent edit after it is still a race. Source application,
-run recording and status updates retain the existing failure semantics;
-writer coordination and a recoverable application journal are planned for M5.
+writer lock: a concurrent edit after it is still a race. Ordinary single-item
+source application,
+run recording and status updates retain their existing failure semantics.
+Mutating commands now share a writer lock; M5 adds a recoverable application
+journal for explicit team batch application and batch undo.
 
 ## How a run works
 
@@ -661,12 +664,13 @@ Do not run this credentialed workflow on untrusted changes.
 These workflow files take effect after publication to GitHub; adding them
 locally does not provision a runner or establish a passing remote run.
 
-## Team controller (M4)
+## Team controller (M5)
 
 ```sh
 harness add api --title "Implement API" --criterion "Valid requests persist" --role backend --scope 'src/api/**' --scope 'test/**' --contract issues-v1
 harness team run --profile /path/to/accepted-team.json --max-workers 2
 harness team inspect <team-run-id>
+harness team apply <team-run-id>
 ```
 
 A profile has `version: 1`, `roles`, `skills`, and a `contracts` map from accepted
@@ -689,12 +693,14 @@ and `write`. See [the adaptation notes](SKILLS_ASSESSMENT.md#m3-unattended-adapt
 Each team run lives under `<project>-harness/teams/<team-run-id>/`. Its `events/`
 directory is authoritative, `state.json` is a rebuildable projection, `baselines/`
 holds original source, and `attempts/` retains frozen candidates, integration
-proposals and verification evidence. New journals use version 2; version 1 journals
-remain inspectable and recoverable but cannot restart under M4 semantics.
+proposals and verification evidence. New journals use version 3 for bounded repair.
+Version 2 runs can resume and apply their verified staging, retaining their
+original retry semantics. Version 1 runs remain inspect/recover only.
 Only the controller advances staging after candidate gates, independent review,
 three-way merge, and full checks of the proposed combined source.
-It leaves live source and `features.json` unchanged. Do not treat staging as a
-live application transaction; team apply/resume belongs to M5.
+`team run` leaves live source and `features.json` unchanged. Apply a completed
+staged run explicitly with `harness team apply <team-run-id>`. Resume never
+applies newly staged work automatically.
 
 Default concurrency is one; `--max-workers 2` enables two independent builders.
 Shared-input assignments run exclusively. Other defaults are two attempts per task, 20 dispatches, one hour, and $10 of reported
@@ -702,7 +708,11 @@ cost. Set `--max-attempts`, `--max-dispatches`, `--max-ms`, or `--max-cost-usd` 
 change them. Limits stop new dispatch; already-dispatched requests drain before stopping and may exceed a cost
 budget, and totals exclude unreported usage, including the current reviewer
 protocol. Each retry starts from accepted staging with a fresh session and the
-previous diagnosis. Environment-blocked results wait for operator input.
+previous diagnosis. Integration failures get one additional repair by default
+(`--max-repairs 0` disables it). The original role and scope, rejected diff,
+current staging and specific failure are supplied; candidate gates, review and
+combined checks must all pass again. A failed repair blocks dependent work.
+Environment-blocked results wait for operator input.
 
 Mutating commands share one canonical project writer lock, stored beside the
 project as `<project>-harness.writer-lock`. After a controller crash:
@@ -717,9 +727,15 @@ The first command refuses a live owner or a different token/host. The second
 stops containers matching both run and attempt labels, removes private auth and
 session copies, verifies retained staging, and marks unfinished attempts
 interrupted. It preserves committed integration events and never assumes an
-unfinished worker passed. Recovery does not restart or apply the run. If a crash
-leaves a `.recovery` guard, inspect the guard's PID and the lock before manually
-removing that guard; ordinary commands never steal it. External editors are not
+unfinished worker passed. With no pending application, recovery does not restart
+or apply the run.
+To continue reconciled or interrupted work, use `harness team resume <team-run-id>`.
+It cleans up owned attempts, checks live and retained source identities, and
+retains accepted staging. Unfinished work gets a fresh attempt identity;
+accepted and already-applied work is not relaunched. Original dispatch, cost,
+wall-clock and repair budgets are retained; downtime counts against the
+wall-clock ceiling. If a crash leaves a `.recovery` guard, inspect the guard's PID
+and the lock before manually removing that guard; ordinary commands never steal it. External editors are not
 controlled by this cooperating-writer lock.
 
 Team authentication is copied per builder and reviewer; global settings are not
@@ -732,7 +748,8 @@ observed reads, and reported workflow evidence are recorded separately; they are
 not proof of compliance.
 
 Run `npm run verify:team` in a configured Docker environment for isolation,
-crash recovery, pinned gates and incompatible-component integration checks. It uses deterministic worker processes and no model credentials.
+crash recovery, bounded repair, CLI application/undo, pinned gates and
+incompatible-component integration checks. It uses deterministic worker processes and no model credentials.
 `npm run verify:skills` also checks the adapted role bundles against pinned Pi.
 
 
@@ -765,8 +782,67 @@ Concurrent candidates retain their own baseline. The controller merges each into
 current accepted staging, preserving independent edits. Content conflicts,
 delete/modify collisions, file/directory conflicts, unsupported binary conflicts,
 and stale dependency or contract inputs reject the proposal. Failed merges or
-combined checks leave staging and prerequisites unchanged; a bounded fresh attempt
-receives the diagnosis. Dedicated integration repair and resume are M5 work.
+combined checks leave staging and prerequisites unchanged. A bounded repair
+receives the diagnosis and rejected diff, and starts from current staging.
+
+### Batch application, recovery and undo
+
+`team apply` rechecks the original live source and feature-manifest fingerprints
+under the project writer lock, and checks the verified staging and trusted-check
+identities. Live drift refuses application and preserves staging; start a new
+run from the changed project for revalidation.
+
+The host stores an immutable intent, before/after source snapshots, feature
+updates and the intended run record under
+`<project>-harness/applications/application-<uuid>/`. A durable
+`<project>-harness/application.json` pointer blocks other mutating commands until
+completion or recovery. Replacements and progress are flushed to disk. Feature
+statuses become `done` only after every source file matches the applied snapshot;
+record append and completion events are idempotent.
+
+After recovering a dead writer lock, choose one of:
+
+```sh
+harness team recover <team-run-id>             # finish the pending application
+harness team recover <team-run-id> --rollback  # restore its before state
+```
+
+`team resume` also finishes an already-pending application before considering
+new work. A rollback decision survives another interruption; recovery cannot
+silently switch it back to forward application. Once the application record is
+committed, finish recovery and use undo instead. Application, undo and pending
+application recovery need no Docker or model configuration. Worker reconciliation
+and new dispatch still require the configured runtime.
+
+```sh
+harness team undo <team-run-id>
+harness undo <batch-record-id>  # same batch operation, for example r7
+```
+
+Undo journals its own transaction, restores the batch's prior files, marks its
+tasks `todo`, and transitively marks completed/doing dependents
+`needs-revalidation`. It invalidates acceptance before removing applied code.
+Unrelated source edits are preserved; edits to batch files refuse undo and need
+manual reconciliation. Repeated apply, completed recovery and undo do not create
+duplicate records. Team batch redo is not supported; start and verify a new run.
+Ordinary single-item undo retains its existing reversal behavior. `show` and
+`view` read the retained batch snapshots for historical diffs.
+
+Supported application changes are regular text/binary file additions,
+modifications and deletions. Existing permissions are preserved; newly added
+files retain staging permissions, including executable bits. The existing
+exclusions keep secrets, dependencies and harness control files out of source
+application. Symlinks, special files, touched hardlinks, file/directory
+replacement and destinations on a different filesystem from the journal are
+refused. Metadata-only changes, ownership and extended attributes are not
+tracked as source changes; empty directories may remain after deletion.
+
+This is a recoverable sequence of individual file replacements, not an atomic
+multi-file filesystem transaction. Recovery accepts only known before/after
+bytes and refuses unexpected source or feature edits, retaining snapshots for
+manual recovery. Per-file checks narrow the external-editor race, but no
+cooperating-writer lock can prevent an editor changing a file between its final
+check and replacement. Avoid editing the project while applying or recovering.
 
 To reproduce the real issue-tracker demonstration using your configured Pi model:
 

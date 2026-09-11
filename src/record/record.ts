@@ -12,6 +12,7 @@
  * needs it rather than in anticipation.
  */
 
+import { atomicBytes } from "../workspace/atomic.ts";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { Change } from "../workspace/changes.ts";
@@ -62,6 +63,9 @@ export interface RunRecord {
   readonly environmentKey?: string;
   /** Set on an undo run, naming the run it reversed. */
   readonly reverses?: string;
+  readonly teamRunId?: string;
+  readonly taskIds?: readonly string[];
+  readonly transactionId?: string;
 }
 
 /**
@@ -173,4 +177,25 @@ export function undoableRuns(runs: readonly RunRecord[]): RunRecord[] {
 /** The run that currently reverses `id`, for an accurate refusal. */
 export function reverserOf(runs: readonly RunRecord[], id: string): string | undefined {
   return reversedBy(runs).get(id);
+}
+
+/** Idempotent journal completion: preserve the exact history prefix across retries. */
+export async function appendRunOnce(project: string, run: RunRecord): Promise<void> {
+  const file = recordPath(project);
+  const raw = await readFile(file, "utf8").catch((e: NodeJS.ErrnoException) => { if (e.code === "ENOENT") return ""; throw e; });
+  const lines = raw.split("\n").filter(line => line.trim());
+  const records = lines.map(line => JSON.parse(line) as RunRecord);
+  const existing = records.filter(r => r.id === run.id);
+  if (existing.length) {
+    if (existing.length !== 1 || JSON.stringify(existing[0]) !== JSON.stringify(run)) throw new Error("Conflicting application record; manual recovery required.");
+    return;
+  }
+  await atomicBytes(file, Buffer.from(raw + (raw && !raw.endsWith("\n") ? "\n" : "") + JSON.stringify(run) + "\n"), 0o600);
+}
+
+/** Team journals and ordinary recovery snapshots retain the same before/after layout. */
+export function runSnapshotPath(project: string, run: RunRecord): string {
+  if (!run.transactionId) return recoveryPath(project, run.id);
+  if (!/^application-[a-f0-9-]+$/u.test(run.transactionId)) throw new Error("Invalid application record identity.");
+  return path.join(harnessDirectory(project), "applications", run.transactionId);
 }

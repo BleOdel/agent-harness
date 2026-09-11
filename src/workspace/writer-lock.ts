@@ -50,11 +50,14 @@ export async function acquireWriter(project: string, command: string): Promise<W
     await unlink(file); released = true;
   } };
 }
-export async function withWriter<T>(project: string, command: string, action: () => Promise<T>): Promise<T> {
+export async function withWriter<T>(project: string, command: string, action: () => Promise<T>, allowPendingApplication = false): Promise<T> {
   const current = context.getStore();
   if (current?.project === await canonicalProject(project)) return action();
   const lease = await acquireWriter(project, command);
-  try { return await context.run(lease, action); } finally { await lease.release(); }
+  try {
+    if (!allowPendingApplication && await exists(`${lease.project}-harness/application.json`)) throw new OperatorError("An application requires recovery before another writer may start.", "Use harness team recover <run-id> (or --rollback). The pending application.json identifies the run.");
+    return await context.run(lease, action);
+  } finally { await lease.release(); }
 }
 export async function recoverWriter(project: string, token: string): Promise<void> {
   const file = await writerPath(project);

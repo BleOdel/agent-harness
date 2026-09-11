@@ -1,4 +1,4 @@
-/** Run M3 controller/containment integration checks; a skipped suite is not verification. */
+/** Run configured controller, containment, integration and repair checks; a skipped suite is not verification. */
 
 import { spawn } from "node:child_process";
 import { applyConfigFile, ConfigError, loadConfig } from "./config.ts";
@@ -19,7 +19,7 @@ try {
 
 const child = spawn(
   process.execPath,
-  ["--test", "--experimental-strip-types", "test/team-containment.test.ts", "test/team-verification.test.ts"],
+  ["--test", "--experimental-strip-types", "test/team-containment.test.ts", "test/team-verification.test.ts", "test/team-process-repair.test.ts"],
   { stdio: ["ignore", "pipe", "inherit"] },
 );
 
@@ -38,5 +38,5 @@ child.once("close", (code) => {
     fail("the team tests skipped even though the environment is configured");
   }
   if (code !== 0) fail(`the team tests failed (exit ${String(code)})`);
-  process.stdout.write("team verified: private attempts, controller-crash recovery and combined contract checks passed\n");
+  process.stdout.write("team verified: private attempts, controller-crash recovery, combined contract checks and bounded repair passed\n");
 });
