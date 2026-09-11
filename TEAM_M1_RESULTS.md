@@ -1,5 +1,10 @@
 # Team M1 — prerequisites and blocked work
 
+> Published on `main` in [e5a185a](https://github.com/BleOdel/agent-harness/commit/e5a185a).
+> This report preserves evidence from M1; preparation-time publication notes and
+> future-milestone limitations below are historical. For current operation, see
+> [README.md](README.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
+
 Implemented and validated locally on 8 September 2026 against `17c0177`.
 M1 is not committed or published. M0 is published on `main`; its follow-up
 [GitHub check passed](https://github.com/BleOdel/agent-harness/actions/runs/34283035346).

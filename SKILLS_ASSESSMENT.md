@@ -4,13 +4,33 @@
 
 Assessed `/Users/blessingodeleye/Developer/agent-skills/` and the harness's actual launch code. Skill instructions were inspected as project inputs, not invoked as instructions for this assessment. This records the pre-M0 assessment. M0 launcher fixes and verification are described in `TEAM_M0_RESULTS.md`; the original skill definitions remain unchanged.
 
-## Result
+## Current implementation after M6
+
+- M0 supplies explicit-only discovery and disables extensions in all launchers.
+- Ordinary `work` and interactive `plan` still use the configured skill directory.
+  Teams use accepted role profiles with immutable selected resources and declared
+  interaction/tool requirements; reviewers receive no skills.
+- M3 provides adapted TDD, design and diagnosis definitions under
+  [profiles/skills](profiles/skills), separate from the supplied source folder.
+  Available hashes, observed reads and reported workflow evidence are distinct.
+- M5 automatically retries eligible integration failures with a bounded repair
+  using the original role and scope. It does not automatically switch to the
+  diagnosis skill; include that skill in the accepted role when needed.
+- M6 uses Pi 0.80.6 RPC for team builders/reviewers. Steering does not add skills
+  or change their permissions. Arbitrary skill prose remains guidance.
+
+The remainder records the 8 September assessment and subsequent M3 adaptation
+notes. Historical line numbers and unresolved-at-the-time findings are not a
+claim that the current launcher still has those gaps. See
+[team configuration](README.md#team-controller-m6) for usage.
+
+## Original assessment result
 
 All six skill definitions load through the installed Pi parser with no diagnostics. Five appear in the model's skill catalog; `grill-me` is hidden by `disable-model-invocation: true`. Valid metadata does not establish that a workflow is compatible with the harness or was used in a run.
 
 The folder contains useful design, testing and diagnosis guidance. Several workflows assume a human conversation or tools the default Pi builder does not have. Adapt and select skills by role before using this folder for unattended teams.
 
-## What happens today
+## Behavior at the assessment date
 
 The harness configuration sets `HARNESS_SKILLS=/Users/blessingodeleye/Developer/agent-skills`. The host scanner walks the directory, reports folder names containing `SKILL.md`, and mounts the configured folder read-only at `/opt/skills`.
 

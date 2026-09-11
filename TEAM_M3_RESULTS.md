@@ -1,5 +1,10 @@
 # Team M3 — durable controller and isolated assignments
 
+> Published on `main` in [a74c639](https://github.com/BleOdel/agent-harness/commit/a74c639).
+> This report preserves evidence from M3; preparation-time publication notes and
+> future-milestone limitations below are historical. For current operation, see
+> [README.md](README.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
+
 Implemented locally on 9–10 September 2026 against `55efc53`.
 This report was prepared before committing or publishing M3.
 [M2's GitHub check passed](https://github.com/BleOdel/agent-harness/actions/runs/34370460131).

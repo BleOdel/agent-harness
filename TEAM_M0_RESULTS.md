@@ -1,5 +1,10 @@
 # Team M0 — roadmap and verification baseline
 
+> Published on `main` in [ef4d512](https://github.com/BleOdel/agent-harness/commit/ef4d512).
+> This report preserves evidence from M0; preparation-time publication notes and
+> future-milestone limitations below are historical. For current operation, see
+> [README.md](README.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
+
 Completed and validated locally on 8 September 2026 against `0cc7c34`.
 No commit, push or remote workflow run was performed.
 

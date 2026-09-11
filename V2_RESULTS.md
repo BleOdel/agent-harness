@@ -1,5 +1,10 @@
 # v2 — measured against the plan
 
+> Historical sequential-v2 results. Counts, capabilities and limitations below
+> describe that milestone, before the team M0–M6 implementation. See
+> [README.md](README.md) for current behavior and [TEAM_PLAN.md](TEAM_PLAN.md)
+> for the completed team milestones.
+
 M0 through M5 are built. This is the plan's own scorecard, filled in.
 
 ## How success was to be measured

@@ -1,15 +1,29 @@
 # Agent harness: assigned-team implementation plan
 
-Implementation roadmap · 8 September 2026
+Implementation roadmap · planned 8 September 2026 · status updated after M6
 
 Based on `BleOdel/agent-harness` at `0cc7c34b534fe60d46f66d19304db0c9b9c21b99`.
-M0–M5 are published. M6 is implemented locally: pinned Pi RPC, live steering/abort, durable control telemetry and read-only operational status. See `TEAM_M0_RESULTS.md` through `TEAM_M6_RESULTS.md` for checks and publication status.
+**M0–M6 are implemented and published**, through
+[765d1f1](https://github.com/BleOdel/agent-harness/commit/765d1f1124267744a3cce1ddc65bb9ca03b1bda8).
+The milestone checklists below preserve the delivery sequence. Use
+[README.md](README.md) for commands, [ARCHITECTURE.md](ARCHITECTURE.md) for the
+current lifecycle, and [NEXT.md](NEXT.md) for follow-up candidates.
+
+| Milestone | Published implementation | Evidence |
+|---|---|---|
+| M0: launcher policy and verification baseline | `ef4d512` | [M0 report](TEAM_M0_RESULTS.md) |
+| M1: prerequisites and blocked work | `e5a185a` | [M1 report](TEAM_M1_RESULTS.md) |
+| M2: frozen candidates and clean verification | `55efc53` | [M2 report](TEAM_M2_RESULTS.md) |
+| M3: durable controller and assignments | `a74c639` | [M3 report](TEAM_M3_RESULTS.md) |
+| M4: concurrent builders and combined checks | `b949856` | [M4 report](TEAM_M4_RESULTS.md) |
+| M5: repair, resume and journaled application | `19cad75` | [M5 report](TEAM_M5_RESULTS.md) |
+| M6: RPC, live control and operational status | `765d1f1` | [M6 report](TEAM_M6_RESULTS.md) |
 
 ## Outcome and scope
 
 Build a harness that takes an accepted project plan, assigns tasks to named agent roles, runs independent tasks in separate containers, checks the resulting components together, and applies a recoverable project result.
 
-The first release supports Node/npm projects, two concurrent builders, a separate reviewer, and one bounded integration-repair role. The host controller owns scheduling, task state, acceptance and application. Existing interactive planning supplies the initial task graph; it can propose assignments and interfaces for the operator to accept through the existing import workflow.
+The first release supports Node/npm projects, two concurrent builders, a separate reviewer, and bounded integration repair using the original task role. The host controller owns scheduling, task state, acceptance and application. Existing interactive planning supplies the initial task graph; it can propose assignments and interfaces for the operator to accept through the existing import workflow.
 
 Deliver the coordinated team capability regardless of whether steering reduces cost. Measurements determine useful concurrency and task size. Start with two workers; retain concurrency one as a supported operating mode.
 
@@ -17,31 +31,15 @@ Defer autonomous replanning, dynamically spawned teams, additional languages, re
 
 ## Architecture and acceptance boundary
 
-```mermaid
-flowchart TD
-    P[Accepted tasks, roles and interface contracts] --> C[Host controller]
-    C --> B[Immutable project baseline]
-    B --> A[Builder A: isolated container]
-    B --> D[Builder B: isolated container]
-    A --> CA[Freeze candidate A]
-    D --> CB[Freeze candidate B]
-    CA --> V[Fresh verification and separate review]
-    CB --> V
-    V --> I[Serial integration into staging]
-    I --> T[Whole-project and contract checks]
-    T -->|Failure| R[Bounded repair assignment]
-    R --> V
-    T -->|Pass| N[Next accepted staging baseline]
-    N --> C
-    N --> F[All requested tasks integrated: final verification]
-    F --> H[Journaled apply and recovery record]
-```
+The current [architecture diagrams](ARCHITECTURE.md) cover execution and
+acceptance, isolation and skills, live control, and application recovery.
+The roadmap records delivery scope without maintaining a second lifecycle diagram.
 
 Workers never mount the live project, controller state, other workers' directories, or the Docker socket. Each attempt gets its own writable Pi state and session directory. Shared package, skill and contract inputs are immutable. Avoid concurrently mounting the existing writable Pi authentication directory into every worker; prepare attempt-specific authentication state and explicitly handle provider refresh requirements.
 
 A model finishing its conversation is a submission event. Only host checks can advance it toward acceptance. Candidate verification proves the isolated change; integration verification proves compatibility with accepted work. Neither substitutes for the other.
 
-For the first team release, successful tasks accumulate in host-owned staging. Apply to the live project once the requested team batch passes final verification. A failed batch retains accepted staging and evidence for resume while leaving the live project untouched.
+For the first team release, successful tasks accumulate in host-owned staging. Every proposed integration passes combined verification. After all requested tasks integrate, explicit `team apply` rechecks retained identities and journals the live write. Failed or interrupted work retains accepted staging and evidence for eligible resume while leaving the live project untouched; aborted runs require a new run.
 
 ## Data model and compatibility
 
@@ -83,15 +81,15 @@ Inside one team run, prerequisites are satisfied by integration into the current
 
 The supplied folder has now been assessed against installed Pi 0.80.6. See [the skill assessment](SKILLS_ASSESSMENT.md) for evidence and the per-skill compatibility matrix. All six definitions parse, but several require human interaction or a `Skill`/subagent capability that the default builder does not provide. `tdd` also references a missing `code-review` skill.
 
-Before unattended role assignments, add a concrete skill-compatibility work item:
+The following work was delivered in M0 and M3; this list records the original assessment findings:
 
-1. Use `--no-skills` together with explicit selected skill paths. A controlled Pi loader probe confirmed that the current `--skill`-only invocation also permits other discovered skills.
-2. Add `--no-extensions` to the interactive planning path through a shared launcher policy. The builder/reviewer already set it; planning currently does not.
+1. Use `--no-skills` together with explicit selected skill paths. A controlled Pi loader probe confirmed that the pre-M0 `--skill`-only invocation also permits other discovered skills.
+2. Add `--no-extensions` to the interactive planning path through a shared launcher policy. At the assessment date the builder/reviewer set it and planning did not; all launchers now disable extensions.
 3. Adapt human-dependent workflows: planning accepts test interfaces and shared terminology; builders consume those decisions; unresolved input becomes structured blocked output. Keep `grilling` out of builder profiles and replace the `grill-me` wrapper's unsupported tool instruction.
 4. Resolve skill dependencies and supporting resources into immutable per-attempt bundles. Define interaction mode and capability requirements in a host manifest; do not assume Pi's hidden-from-prompt flag implements those policies.
 5. Record available skill versions separately from observed skill-file reads and workflow evidence. Neither a listing nor a read proves compliance.
 
-Ship launcher policy fixes in M0. Deliver the initial adapted profiles and manifest validation before M3; complete durable evidence alongside M3's attempt events. Reserve an additional 1–2 focused days for adaptations and compatibility fixtures. The revised overall estimate is approximately 18–29 focused engineering days plus contingency.
+Launcher fixes shipped in M0; adapted profiles, manifest validation and durable evidence shipped in M3. M5 repair retains the accepted task role; it does not automatically add diagnosis skills. The original adaptation estimate was 1–2 focused days, included in the historical overall estimate below.
 
 ## Delivery milestones
 
@@ -181,7 +179,7 @@ Journal the intended source writes and feature-status updates with before/after 
 
 Pin and compatibility-test the installed Pi version. Its documented RPC mode uses JSON lines over stdin/stdout, supports request correlation, and provides prompt, steer and abort commands. A prompt acknowledgment does not mean work completed. Use bounded LF framing, separate stderr, explicit request timeouts and verified lifecycle events. The documented abort behavior also requires considering queued messages. [Pi RPC documentation](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md)
 
-Use Docker interactive stdin without a TTY. Keep `src/run.ts` for finite commands. Provide `harness team steer <attempt-id> "message"` and `harness team abort <run-id>` through a host-only control socket with restrictive permissions. Workers cannot mount it. Abort first prevents new scheduling, clears queues, requests cancellation, then force-removes only owned containers if needed. It must not proceed into application.
+Use Docker interactive stdin without a TTY. Keep `src/run.ts` for finite commands. Provide `harness team steer <attempt-id> "message"` and `harness team abort <run-id>` through a host-only control socket with restrictive permissions. Workers cannot mount it. Abort first prevents new scheduling and acceptance, persists intent, requests cancellation, then always discards owned sessions and containers to eliminate queued work. It must not proceed into application.
 
 Show role, task, prerequisites, phase, review/integration results, repair attempts, elapsed time and spend across every model role. Persist steering messages and report acknowledged versus delivered state only when the protocol provides evidence. Keep the web view read-only.
 
@@ -203,22 +201,24 @@ Show role, task, prerequisites, phase, review/integration results, repair attemp
 
 Estimate: roughly 17–27 focused engineering days for the original milestones, plus 1–2 days for the assessed skill adaptations: approximately 18–29 days overall, with additional contingency for package preparation and provider/session behavior. This is a planning estimate, not a measured commitment. M4 is the first functional demonstration; M5 is required before relying on the team for project writes. M6 completes the initial operating experience.
 
-M1 implements prerequisite enforcement, cycle checks, structured blocked results and downstream revalidation. M2 supplies frozen baselines/candidates and clean verification inputs. M3 supplies durable controller events, isolated role assignments and writer exclusion at concurrency one. M4 adds concurrent builders and verified three-way integration, demonstrated by a real issue tracker. M5 adds bounded repair, resume and explicit journaled live batch application with recovery and undo. Team results remain in staging until `team apply`. M6 adds pinned RPC live steering/abort and durable operational visibility. The initial M0–M6 implementation sequence is complete locally; M6 publication is a separate operator action.
+M1 implements prerequisite enforcement, cycle checks, structured blocked results and downstream revalidation. M2 supplies frozen baselines/candidates and clean verification inputs. M3 supplies durable controller events, isolated role assignments and writer exclusion at concurrency one. M4 adds concurrent builders and verified three-way integration, demonstrated by a real issue tracker. M5 adds bounded repair, resume and explicit journaled live batch application with recovery and undo. Team results remain in staging until `team apply`. M6 adds pinned RPC live steering/abort and durable operational visibility. The initial M0–M6 implementation sequence is complete and published.
 
-## Release evidence
+## Release evidence and remaining measurement
 
 Use deterministic fake workers for scheduler and crash tests, real Docker tests for isolation and offline verification, and a small real-model project for end-to-end acceptance. A fake-worker success does not prove provider or container behavior.
 
-Compare concurrency one and two on the same fixture, starting snapshot, accepted tasks, model settings and package environment. Run several repetitions and report the distribution of completion time, total spend across builders/reviewers/repairs, blocked outcomes and integration failures. Use the result to tune scheduling, not to remove the assigned-team requirement.
+The reports include a real-model issue-tracker demonstration, observed builder overlap, deterministic incompatibility checks and crash/application/abort recovery tests. M6 full-flow tests use deterministic RPC workers plus a real installed-Pi protocol probe; they do not claim a new live-model run.
+
+**Deferred measurement:** compare concurrency one and two on the same fixture, starting snapshot, accepted tasks, model settings and package environment. Run several repetitions and report the distribution of completion time, total spend across builders/reviewers/repairs, blocked outcomes and integration failures. Use the result to tune scheduling, not to remove the assigned-team requirement.
 
 The release is complete when the issue-tracker demonstration passes, the incompatibility fixture is rejected, restart/abort/application recovery checks pass, old records still render, and the existing sequential workflow remains usable. No claim of complete automated correctness: criteria quality and integration-test coverage remain practical limits.
 
-## Source context
+## Original source context (8 September baseline)
 
-- [Current team proposal](https://github.com/BleOdel/agent-harness/blob/0cc7c34b534fe60d46f66d19304db0c9b9c21b99/TEAM_PLAN.md): staged intent and existing gaps.
+- [Original team proposal](https://github.com/BleOdel/agent-harness/blob/0cc7c34b534fe60d46f66d19304db0c9b9c21b99/TEAM_PLAN.md): staged intent and existing gaps.
 - [Task selection](https://github.com/BleOdel/agent-harness/blob/0cc7c34b534fe60d46f66d19304db0c9b9c21b99/src/features.ts): advisory dependency handling.
 - [Work pipeline](https://github.com/BleOdel/agent-harness/blob/0cc7c34b534fe60d46f66d19304db0c9b9c21b99/src/verbs/work.ts): launch, gate, review and apply coupling.
 - [Sandbox lifecycle](https://github.com/BleOdel/agent-harness/blob/0cc7c34b534fe60d46f66d19304db0c9b9c21b99/src/workspace/sandbox-lifecycle.ts): copy and recovery primitives to extend.
 - [Pi subagent extension example](https://github.com/earendil-works/pi/tree/main/packages/coding-agent/examples/extensions/subagent): implementation reference; this plan keeps worker isolation and acceptance in the host controller.
 
-Milestone status is recorded separately from this design: see `TEAM_M0_RESULTS.md`, `TEAM_M1_RESULTS.md`, `TEAM_M2_RESULTS.md`, `TEAM_M3_RESULTS.md`, `TEAM_M4_RESULTS.md`, `TEAM_M5_RESULTS.md` and `TEAM_M6_RESULTS.md`. Later milestones remain pending until their exit checks pass.
+Milestone status is recorded separately from this design: see `TEAM_M0_RESULTS.md`, `TEAM_M1_RESULTS.md`, `TEAM_M2_RESULTS.md`, `TEAM_M3_RESULTS.md`, `TEAM_M4_RESULTS.md`, `TEAM_M5_RESULTS.md` and `TEAM_M6_RESULTS.md`. All seven milestones are published; the reports distinguish actual model runs from deterministic fixtures and preserve each milestone's original limitations. Deferred performance distributions are tracked in [NEXT.md](NEXT.md).

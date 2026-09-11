@@ -1,5 +1,10 @@
 # Team M5 — repair, resume and journaled application
 
+> Published on `main` in [19cad75](https://github.com/BleOdel/agent-harness/commit/19cad75).
+> This report preserves evidence from M5; preparation-time publication notes and
+> future-milestone limitations below are historical. For current operation, see
+> [README.md](README.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
+
 Implemented locally on 11 September 2026 against published M4 commit
 `b949856d667259a3fc53e570fb19efbdd45cffc9`. This report precedes M5 commit
 and publication. [M4's GitHub check passed](https://github.com/BleOdel/agent-harness/actions/runs/34562846250).

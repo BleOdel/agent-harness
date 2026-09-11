@@ -1,5 +1,10 @@
 # Team M4 — concurrent builders and verified integration
 
+> Published on `main` in [b949856](https://github.com/BleOdel/agent-harness/commit/b949856).
+> This report preserves evidence from M4; preparation-time publication notes and
+> future-milestone limitations below are historical. For current operation, see
+> [README.md](README.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
+
 Implemented locally on 10 September 2026 against `a74c639` (published M3).
 This report precedes M4 commit and publication.
 [M3's GitHub check passed](https://github.com/BleOdel/agent-harness/actions/runs/34515445019).

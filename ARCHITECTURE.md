@@ -1,0 +1,221 @@
+# Harness architecture after team M6
+
+Current implementation: team M0–M6, published through
+[765d1f1](https://github.com/BleOdel/agent-harness/commit/765d1f1124267744a3cce1ddc65bb9ca03b1bda8).
+Use the [README](README.md) for commands and [threat model](THREAT_MODEL.md) for
+security assumptions. These diagrams describe implemented behavior; milestone
+reports preserve their original observations.
+
+## Execution and acceptance
+
+Ordinary `work` verifies and applies one item. `team run` stages a batch with one
+builder by default, or two with `--max-workers 2`. Only builders overlap; candidate
+intake, review and integration are serialized by the host controller. Shared-input
+assignments execute exclusively. Neither a model's final answer nor successful
+component tests alone advance team prerequisites.
+
+```mermaid
+flowchart TD
+  T["Accepted features, role profile and contracts"] --> H["Host controller and project writer lock"]
+  H --> S["Accepted immutable staging baseline"]
+  S --> A["Builder A: private container and session"]
+  S --> B["Builder B: private container and session"]
+  A --> C["Stop worker, capture and validate frozen candidate"]
+  B --> C
+  C --> G["Fresh offline candidate gates"]
+  G --> R["Separate reviewer; source read-only; no skills"]
+  R --> M["Three-way merge into current staging proposal"]
+  M --> V["Fresh whole-project gates and applicable host contract checks"]
+  V -->|Pass| I["Persist proof, integrate and advance prerequisites"]
+  I --> S
+  M -->|Conflict| F["Record integration failure"]
+  V -->|Fail| F
+  F --> Q{"Repair remains eligible?"}
+  Q -->|Yes| D["Fresh attempt; original role and scope; rejected diff and diagnosis"]
+  D --> C
+  Q -->|No| X["Stop or block; retain accepted staging"]
+  I --> E{"All requested tasks integrated?"}
+  E -->|Yes| Z["Staged; live project unchanged"]
+  Z -->|Operator runs team apply| J["Journaled batch application"]
+```
+
+Failure at candidate intake, gates or review also refuses acceptance and follows
+the task's bounded retry or blocked-outcome policy. Repair repeats building,
+candidate gates, review and combined checks; it has no bypass. The default is
+one extra integration repair per task under journal version 3. It retains the
+original role's skills rather than automatically switching to a diagnosis role.
+
+Each proposed integration passes its combined checks before it becomes staging.
+There is no separate model-driven final approval phase: `team apply` validates
+the retained source, requirements and trusted-check identities before writing.
+An ordinary run follows the same frozen-candidate boundary but applies its item
+without the team's serial merge, staging or batch journal.
+
+Implementation: [controller](src/team/controller.ts), [worker](src/team/worker.ts),
+[scheduler](src/team/scheduler.ts), [integration](src/team/integrate.ts).
+
+## Isolation and skills
+
+```mermaid
+flowchart LR
+  P["Live source and accepted requirements"] --> H["Trusted host snapshots and controller"]
+  H --> W["Disposable builder source"]
+  K["Accepted role skill manifest"] --> S["Validated, hashed, read-only skill bundle"]
+  S --> W
+  A["Operator authentication"] --> B["Private builder auth and session"]
+  A --> R["Private reviewer auth and session"]
+  B --> W
+  W -->|Stopped before capture| C["Frozen candidate retained by host"]
+  C --> G["Fresh offline verifier copies"]
+  C --> V["Read-only reviewer source"]
+  R --> V
+  N["Credential-free package download container"] --> D["Prepared cache; fresh offline installs"]
+  D --> W
+  D --> G
+  C --> E["Retained evidence and staging"]
+```
+
+The diagram's arrows mean host-prepared copies or read-only resources, not shared
+writable mounts. Preparation and executable gates have no Pi credentials or skill
+mounts; gates run with networking disabled. Builder/reviewer model calls and
+package downloads use bridge networking. Model egress is not provider-restricted.
+Workers never receive the live repository, another attempt's workspace, controller
+state, host control socket or Docker socket.
+
+Team skill manifests validate names, dependencies, interaction modes, tool
+requirements and declared resources. Ordinary work/planning use `HARNESS_SKILLS`;
+teams use their accepted profile. All launchers disable implicit skills and
+extensions. Reviewers receive no skills. Skill availability, observed read-tool
+use and worker-reported workflow evidence are separate facts; none proves the
+model followed every instruction.
+
+Implementation: [sandbox arguments](src/containment/sandbox.ts),
+[attempt inputs](src/team/inputs.ts), [role profile](profiles/team.json),
+[skill assessment](SKILLS_ASSESSMENT.md).
+
+## Live RPC control and cancellation
+
+Team builders and reviewers require Pi **0.80.6**. Docker receives interactive
+stdin without a TTY. Bounded UTF-8 JSONL frames and request IDs separate command
+responses from lifecycle events. Completion requires valid assistant turns,
+`agent_end`, `agent_settled` and a subsequent idle state with an empty queue.
+
+```mermaid
+sequenceDiagram
+  actor O as Operator terminal
+  participant H as Host controller
+  participant T as Durable telemetry
+  participant P as Builder Pi RPC
+  O->>H: team steer attempt-id message (private socket)
+  H->>T: Persist request and unique steering ID
+  H->>P: steer with request ID and tagged message
+  P-->>H: Command acknowledgement
+  H->>T: Record acknowledged
+  P-->>H: Matching user-message event when consumed
+  H->>T: Record delivered
+  O->>H: team abort run-id
+  H->>H: Prevent new dispatch and acceptance
+  H->>T: Persist abort intent
+  H->>P: Request cancellation
+  H->>H: Discard owned sessions and containers
+  H->>T: Reconcile attempts and record aborted
+```
+
+Acknowledgement and delivery can arrive in a different order; the diagram shows
+a common order. Neither proves compliance with the instruction. Only active
+builders accept steering, and uncertain requests are never automatically resent.
+The initial abort reply says `abort-requested`; only persisted `aborted` confirms
+successful cleanup. Cancellation also covers reviewer and finite-command work.
+Pi 0.80.6 lacks `clear_queue`, so the host always destroys the session/container
+to discard queued work instead of relying on Pi's abort acknowledgement.
+
+The endpoint is a mode-0600 Unix socket in a mode-0700 temporary directory with
+a random capability. The web viewer has no control route. Abrupt controller death
+requires explicit dead-writer recovery and resource reconciliation; aborted runs
+cannot resume or apply. Accepted staging and audit evidence are retained.
+
+Implementation: [RPC transport](src/agent/rpc.ts), [control](src/team/control.ts),
+[owned-container cleanup](src/containment/stop.ts).
+
+## Application, undo and recovery
+
+```mermaid
+flowchart TD
+  S["Verified staged batch"] --> A["Explicit team apply under writer lock"]
+  A --> C["Recheck original live source, requirements, staging and check identities"]
+  C --> J["Publish durable intent, snapshots and application pointer"]
+  J --> W["Replace source files with per-file progress"]
+  W --> F["Mark applied tasks done"]
+  F --> R["Append idempotent record and completion event"]
+  R --> D["Clear pending pointer; applied"]
+  J -. Interruption .-> P["Pending application blocks other mutators"]
+  W -. Interruption .-> P
+  F -. Interruption .-> P
+  R -. Interruption .-> P
+  P --> K["Recover exact dead writer if needed"]
+  K --> N{"Recovery choice"}
+  N -->|Finish| W
+  N -->|Rollback before record commit| B["Restore known before-state and retain rollback decision"]
+  D -->|Explicit team undo| U["Journal reversal; invalidate acceptance before reverting source"]
+  U --> V["Restore prior files; tasks todo; dependents need revalidation"]
+```
+
+Recovery compares actual files against retained before/after bytes and refuses
+unexpected edits. It can resume any partial stage idempotently; the finish arrow
+summarizes that reconciliation rather than unconditionally rewriting all files.
+Rollback is refused after the application record is committed; finish recovery
+and use undo instead. `team resume` finishes a pending application, but never
+implicitly applies newly staged work. With no pending application, `team recover`
+only reconciles workers and retained staging.
+
+This is a recoverable sequence of file replacements, not one atomic multi-file
+filesystem operation. Cooperating harness writers are excluded; external editors
+can still race a final check. Team undo preserves unrelated edits, refuses edits
+to batch files and has no redo. Ordinary undo retains its three-way semantics.
+
+Implementation: [application journal](src/team/apply.ts),
+[writer lock](src/workspace/writer-lock.ts), [state reducer](src/team/state.ts).
+
+## Durable state and read-only views
+
+| Location beside the project | Meaning |
+|---|---|
+| `<project>-harness.writer-lock` | Canonical cooperating-writer ownership |
+| `<project>-harness/teams/<run>/events/` | Authoritative acceptance and lifecycle events |
+| `<project>-harness/teams/<run>/state.json` | Rebuildable acceptance projection |
+| `<project>-harness/teams/<run>/telemetry/` | Immutable phases, reported model usage and steering history |
+| `<project>-harness/teams/<run>/controller.json` | Host/PID and private endpoint metadata |
+| `<project>-harness/teams/<run>/abort.json` | Durable refusal of further execution/application |
+| `<project>-harness/teams/<run>/attempts/` | Candidates, proposed integrations and verification evidence |
+| `<project>-harness/applications/<application>/` | Immutable intents, source snapshots and application progress |
+| `<project>-harness/application.json` | Pointer to a pending application or reversal |
+| `<project>-harness/record.jsonl` | Applied, reversed and other ordinary run history |
+
+`team inspect` reads acceptance state. `look` and `view` combine it with telemetry
+and retained artifacts, including task roles, prerequisites, phases, gates,
+review, repair, integration, elapsed time and reported builder/reviewer spend.
+Interrupted reported usage survives resume; missing usage is not inferred and
+in-flight calls may exceed dispatch budgets. Version 3 journals include bounded
+repair; version 2 retains its original retry policy; version 1 is inspect/recover
+only. Viewer reads never rebuild state files or start recovery.
+
+## Console implementation and verification
+
+The original S1–S3 console stages (usage capture, browsable history and live
+observation) are implemented. Their operating instructions are maintained in
+[the README](README.md#reading-what-happened). Static `view` embeds file contents
+and historical diffs; `view --serve` adds only the loopback read-only server.
+A team-only project is visible before its first applied record. Binary and
+oversized files remain listed with an explanation.
+
+Ordinary progress uses a four-second heartbeat; status older than fifteen seconds
+or a dead process is shown as stopped. Team liveness uses controller host/PID
+metadata. Neither view executes project code, launches a model/container, steals
+locks or performs recovery. The server serves only GET `/` and `/status`, polls
+once a second from the page, rejects a busy port, and has no control routes.
+Display content is escaped; polling updates use text-safe rendering.
+
+Verification references: [usage events](test/events.test.ts),
+[static viewer](test/view.test.ts), [live status and server](test/server.test.ts),
+[team projections](test/team-status.test.ts), [RPC](test/rpc.test.ts), and
+[controller crash recovery](test/team-controller-crash.test.ts).

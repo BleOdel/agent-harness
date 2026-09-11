@@ -1,10 +1,12 @@
 # Harness v2 — historical build plan
 
 The original sequential v2 plan below is preserved as historical context.
-`TEAM_PLAN.md` now owns future scope and milestone ordering. Its assigned
-team work supersedes the orchestration exclusions below.
+[TEAM_PLAN.md](TEAM_PLAN.md) records the completed team M0–M6 milestones.
+Their assigned-team implementation supersedes the orchestration exclusions below.
+Use [README.md](README.md) and [ARCHITECTURE.md](ARCHITECTURE.md) for current
+behavior and [NEXT.md](NEXT.md) for remaining follow-up candidates.
 
-Reads with `V2_SCOPE.md`. That says what v2 is; this says how it gets
+Reads with [SCOPE.md](SCOPE.md). That says what v2 is; this says how it gets
 built, in what order, and what proves each step. Consolidated after three
 rounds of revision, including what Pi already provides and what
 established harness-engineering practice adds.

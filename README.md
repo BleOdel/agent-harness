@@ -6,10 +6,13 @@ it — or escalates to you.
 Ordinary `work` applies one verified item. `team run` now coordinates accepted
 role assignments with one or two builders, repairs failed integrations, and
 retains verified results in staging. Explicit `team apply` writes the completed
-batch through a recoverable journal. `TEAM_PLAN.md` is the active roadmap toward
-assigned agents in isolated containers with verified integration.
-`TEAM_M0_RESULTS.md` through `TEAM_M6_RESULTS.md` record the team milestones;
-the original v2 milestone documents remain historical evidence.
+batch through a recoverable journal. Live steering, abort and read-only team
+status are available. **Team M0–M6 are published**, through
+[765d1f1](https://github.com/BleOdel/agent-harness/commit/765d1f1124267744a3cce1ddc65bb9ca03b1bda8).
+See [architecture and lifecycle diagrams](ARCHITECTURE.md), the
+[completed team roadmap](TEAM_PLAN.md), and [future work](NEXT.md).
+Milestone reports retain the evidence and limitations measured at each milestone;
+see the [documentation index](#documentation-index) for current guidance.
 
 ```
 npm run add  -- feed --title "RSS feed" --criterion "feed.xml is generated from site data"
@@ -56,33 +59,31 @@ The container is the whole guarantee. Everything else exists to decide
 what may cross back out of it.
 
 ```mermaid
-flowchart LR
-  P[(Live project)] --> B[(Frozen baseline)]
-  B --> W[Disposable builder copy]
-  W -->|stop container and capture| C[(Frozen candidate)]
-  D[Credential-free package preparation] -->|cache copied; fresh offline install| G[Separate verifier workspaces]
-  C --> G
-  C --> R[Reviewer: source read-only]
-  G --> A{Accept}
-  R --> A
-  P -. recheck baseline .-> A
-  A -->|apply frozen candidate files| P
+flowchart TD
+  P["Live project and accepted requirements"] --> B["Frozen source baseline"]
+  B --> W["Disposable builder copies"]
+  W -->|Stop and capture| C["Frozen candidates"]
+  C --> G["Fresh offline gates and separate read-only review"]
+  G --> O{"Execution mode"}
+  O -->|Ordinary work| A["Recheck and apply one item"]
+  O -->|Team run| I["Serial merge and combined project / contract checks"]
+  I --> S["Accepted staging; live project unchanged"]
+  S -->|Explicit team apply| J["Recheck and journal batch application"]
+  A --> P
+  J --> P
 ```
 
+- **The live project is never mounted.** Containers receive disposable copies.
+- **Executable gates are offline and credential-free.** Package downloads and
+  model calls use separate containers with bridge networking.
+- **Review uses a separate process and read-only source.** It has no builder
+  context or skills; model errors can still be correlated.
+- **Team acceptance and application are separate.** Every integration is checked;
+  the operator explicitly applies the completed staged batch.
 
-`undo r1` reverses any of it later, three ways, keeping whatever ran after.
-
-
-Three things that diagram is making precise:
-
-- **Your project never enters the container.** A copy does. That is what
-  lets the model have real tools without the blast radius.
-- **The gates have no network.** A verification that can reach the network
-  can pass because a service was up and fail because one was down, and
-  neither outcome is about your change.
-- **The reviewer is a separate process, not a sub-agent.** One running
-  inside the builder's session would already believe every justification
-  that produced the diff.
+[Detailed diagrams](ARCHITECTURE.md) cover scheduling, bounded repair, live
+control, cancellation and application recovery. Ordinary undo uses a three-way
+reversal; team undo journals a batch reversal and refuses edits to batch files.
 
 ## Requirements
 
@@ -90,7 +91,9 @@ Three things that diagram is making precise:
   there is no build step and no runtime dependency.
 - **Docker**, with a Linux daemon.
 - **[Pi](https://github.com/earendil-works/pi)**, installed
-  and authenticated with a provider. Pi supplies the agent loop; this
+  and authenticated with a provider. **Team execution requires Pi 0.80.6**;
+  install with `npm install -g @earendil-works/pi-coding-agent@0.80.6`.
+  Pi supplies the agent loop; this
   project supplies the boundary, the gates, the reviewer and the record.
 
 ## Setup
@@ -165,15 +168,16 @@ blocked change requests. Contracts default to `contracts/`; set
 Accepting a shared-input update creates a new environment/candidate version
 and conservatively marks other completed work for revalidation. Candidates
 record their baseline and environment identities and cannot accept against
-a changed live baseline. Fine-grained ownership arrives with the controller.
+a changed live baseline. Team profiles and each task's `changeScope` supply
+role assignment and file ownership; see [team execution](#team-controller-m6).
 
 Dependencies are still not installed into the operator's project implicitly.
 After application, `work` reports missing local dependencies and points to
 `harness deps --install`.
 
 `harness deps` on its own only reports. `--install` runs `npm install` in
-your project — **the one command in this tool that reaches outside a
-container**, which is why it takes a deliberate second word. Installing a
+your project — **the command that executes package installation on the host**,
+which is why it takes a deliberate second word. Installing a
 package runs whatever install scripts it ships, with your permissions,
 outside every boundary the rest of this maintains.
 
@@ -226,11 +230,12 @@ then given.
 Choose skills that fit the run: interview skills belong in `plan`, where
 a human can answer. `disable-model-invocation` only hides a skill from the
 model catalog; it does not classify every human-dependent workflow. The
-current builder still receives the whole configured directory. Role-specific
-selection and adapted unattended skills are planned before team execution.
-`SKILLS_ASSESSMENT.md` records the current compatibility gaps.
+ordinary builder receives the whole configured directory. Team builders instead
+receive role-selected, immutable bundles from the accepted profile, including
+adapted unattended skills. [The skill assessment](SKILLS_ASSESSMENT.md) separates
+the original findings from the implemented M0/M3/M5/M6 behavior.
 
-## The seven verbs
+## Commands
 
 Run them inside your project.
 
@@ -240,7 +245,16 @@ Run them inside your project.
 | `harness plan [<topic>]` | an interview, in the sandbox, to settle criteria |
 | `harness add <id> …` | put an item on the feature list |
 | `harness add --from latest` | import the items a plan proposed |
-| `harness work [<id>]` | build the next Must, or a named item |
+| `harness work [<id>]` | build the highest-priority eligible item, or a named item |
+| `harness team run [options]` | run assigned builders and retain verified staging |
+| `harness team inspect <id>` | read durable acceptance state |
+| `harness team steer <attempt-id> "message"` | guide an active builder |
+| `harness team abort <id>` | cancel a running team and reconcile owned resources |
+| `harness team resume <id>` | resume eligible work or finish a pending application |
+| `harness team apply <id>` | explicitly journal and apply a staged batch |
+| `harness team undo <id>` | journal a batch reversal |
+| `harness team recover <id> [--rollback]` | reconcile workers or recover a pending application |
+| `harness recover-lock <token>` | recover an exact dead writer lock |
 | `harness look` | what happened, what is pending, what escalated and why |
 | `harness show <run-id>` | the exact diff a run applied |
 | `harness view [--open]` | the whole record as a page you can read |
@@ -251,7 +265,8 @@ Run them inside your project.
 | `harness deps [--install]` | packages a run declared but did not install |
 | `harness remove <path> --yes` | a project and its harness state, together |
 
-`work` with no argument takes the next Must from `features.json`. The
+`work` with no argument takes the highest-priority eligible item from
+`features.json`, starting with Must items and respecting prerequisites. The
 project is the directory you are in, or `HARNESS_PROJECT` if you set it.
 
 ## Start to finish
@@ -292,10 +307,9 @@ item importable as already done would let a model mark its homework before
 doing it. An import that clashes with an existing id writes nothing at
 all, rather than landing half a backlog.
 
-### Why there is a sixth
+### Interactive planning
 
-The plan said five, and the sixth earns the exception by closing a gap the
-five could not. `work` demands acceptance criteria and offers no help
+Planning supplies the accepted requirements before execution begins. `work` demands acceptance criteria and offers no help
 writing them, while everything downstream — the reviewer's judgement,
 whether an escalation means anything — rests on how good they are. `add`
 takes whatever string you type.
@@ -306,7 +320,7 @@ your answers. `work` cannot do this: it runs with `--print`, one prompt in
 and one answer out, with nobody to wait for.
 
 Nothing a `plan` run does is ever applied. The model works in a disposable
-copy and writes one file, collected to `<project>-harness/plans/` rather
+copy and proposes `PLAN.md` and `items.json`, collected to `<project>-harness/plans/` rather
 than into the project. A plan is a document to argue with, not a change,
 and it faces none of the gates because it changes nothing they could
 check.
@@ -358,7 +372,7 @@ before acceptance and again before application. The final check is not a
 writer lock: a concurrent edit after it is still a race. Ordinary single-item
 source application,
 run recording and status updates retain their existing failure semantics.
-Mutating commands now share a writer lock; M5 adds a recoverable application
+Mutating commands share a writer lock; team batches use a recoverable application
 journal for explicit team batch application and batch undo.
 
 ## How a run works
@@ -402,7 +416,9 @@ journal for explicit team batch application and batch undo.
    only frozen candidate files. Test-generated files never become source.
    Recovery snapshots and append-only records carry the resulting change.
    Host-owned attempt manifests live under `<project>-harness/candidates/`.
-6. **Destroy.** The sandbox goes, on every path, including a crash.
+6. **Clean up.** Normal and handled-error paths remove owned containers and
+   disposable workspaces. Abrupt process death can leave resources requiring
+   explicit recovery; retained evidence is separate from disposable inputs.
 
 ## Running unattended
 
@@ -473,8 +489,9 @@ everything is one you learn to ignore.
 
 ## What a run cost
 
-Every run records the model, its token counts split by kind, and the cost
-in dollars. `work` prints one line as it finishes and `look` keeps a
+Ordinary builder runs record the model and reported token counts by kind and
+cost in dollars when Pi supplies them. Team telemetry records both builder and
+reviewer usage; legacy records may be incomplete. `work` prints one line as it finishes and `look` keeps a
 running total:
 
 ```
@@ -483,8 +500,9 @@ model: gpt-5.6-sol · 10 turns · 41,175 tokens · 61% cached · $0.1243
 HISTORY  2 runs, 2 still standing  ·  107,078 tokens, $0.31
 ```
 
-This comes from Pi's `--mode json` event stream rather than being
-estimated, and the harness renders the readable commentary back out —
+Ordinary builder usage comes from Pi's `--mode json` events; team usage comes
+from RPC `turn_end` events. Dollar amounts are provider-reported estimates, not
+a billing reconciliation. For ordinary output, the harness renders commentary —
 prose as it streams, tool calls named rather than dumped, and anything
 that is not JSON passed through untouched so a warning is never
 swallowed.
@@ -562,10 +580,12 @@ doing, and the page disbelieves a status older than fifteen. So a harness
 killed mid-run shows as stopped within seconds, and a slow model turn does
 not.
 
-**It runs nothing.** No server, no container, no model, no credentials —
-it turns files already on disk into HTML. Everything it shows comes from
-`record.jsonl` and the `before`/`after` copies in `recovery/`. That is why
-it needs no permission and why there is nothing in it to trust.
+Static `view` writes HTML without starting a server; `view --serve` adds only
+the loopback read-only server. Neither launches models, containers or project
+code. Ordinary history comes from `record.jsonl` and recovery snapshots; team
+views also read acceptance events, telemetry, verification artifacts and batch
+application snapshots. Team liveness uses controller metadata and process checks,
+while the ordinary live view uses the heartbeat described above.
 
 Everything it renders — file contents, criteria, the Reviewer's words —
 comes from a project a model has been writing in, so all of it is escaped.
@@ -575,14 +595,15 @@ runs nothing.
 
 ## Undo
 
-`undo` reverses one run at any point, **including after later runs changed
+Ordinary `undo` reverses one run at any point, **including after later runs changed
 the same files**. Every run snapshots both what was there before and what
 it left behind, so undoing is a three-way merge rather than a restore:
 later work is kept, and where the undo and later work rewrote the same
 lines, nothing is written and the conflict is named.
 
-An undo is itself a run, with its own snapshot, so it can be undone in
-turn.
+An ordinary undo is itself a run, with its own snapshot, so it can be undone
+in turn. Team batch undo has stricter conflict checks and no redo; see
+[batch application, recovery and undo](#batch-application-recovery-and-undo).
 
 ## Verifying it yourself
 
@@ -592,11 +613,14 @@ npm run verify:skills     # real Pi loader, no Docker or model calls
 npm run verify:boundary   # the container, against a real daemon
 npm run verify:gates      # each gate broken in turn, confirmed to stop the apply
 npm run verify:candidates # worker-dependency tampering, fresh verifiers and offline installs
-npm run verify:reviewer   # the four real defects, plus the control
+npm run verify:team       # configured Docker: isolation, repair, RPC, steering and abort
+npm run verify:reviewer   # the four real defects, plus the control; live model calls
 ```
 
 Boundary, gate and candidate verification need Docker and a configured
 image. Candidate verification downloads one pinned public fixture package.
+Team verification needs the pinned Pi package and exercises deterministic
+workers plus a real Pi protocol probe, with no model generation.
 Reviewer verification also calls the configured model; skill verification
 only needs the installed Pi package. These commands read the same config
 files as the CLI, and each **fails loudly rather than skipping** when it cannot
@@ -604,17 +628,19 @@ run — because a check that skips quietly reads as a pass, and this project
 has now shipped that defect twice and caught it twice.
 
 `npm run check` is the exception, deliberately: the unit suite has to run
-on a machine with no Docker at all, so the two Docker suites skip there by
-name. `verify:gates` and `verify:candidates` refuse to report skipped suites
-as verification.
+on a machine with no Docker at all, so configured Docker cases skip there by
+name. The dedicated verification commands refuse to report skipped suites
+as verification. [M6 results](TEAM_M6_RESULTS.md) record 265 passing ordinary
+suite tests, nine explicit Docker skips, ten configured team tests and eight
+configured gate checks; these are milestone measurements, not a fixed test count.
 
 ## What it deliberately does not have
 
-The shipped sequential harness has no team scheduler or integration
-controller yet. These are required outcomes in `TEAM_PLAN.md`, which
-supersedes their original exclusion from v2. Unrestricted worker-spawned
-subagents, arbitrary extensions, ceremonies and signed evidence export
-remain outside the first team release.
+Autonomous replanning, unrestricted worker-spawned subagents, remote workers,
+additional language adapters, arbitrary extensions, a writable web console,
+ceremonies and signed evidence export remain outside the completed M0–M6
+release. Assigned workers, prerequisite scheduling and verified serial
+integration are implemented. [NEXT.md](NEXT.md) tracks follow-up candidates.
 
 The record is append-only JSONL with **no cryptography**. The predecessor
 spent 3,470 lines — 13% of its tree — on HMAC chaining, signing and
@@ -646,7 +672,9 @@ thing, and by breaking each check to confirm it could fail.
 
 [`secure-agent-harness`](https://github.com/BleOdel/secure-agent-harness)
 is v1: 25,330 lines of source, human approval in front of every change. This is a
-clean-room rebuild sharing no code with it, at 3,725 lines. `SCOPE.md`
+clean-room rebuild sharing no code with it. The original sequential release
+measured 3,725 lines; that historical count predates the team implementation.
+[SCOPE.md](SCOPE.md)
 explains what was given up and what was gained.
 
 ## Continuous verification
@@ -661,8 +689,10 @@ the checkout. The reviewer step uses the configured provider and incurs model
 usage; its current verification command does not report dollar spend.
 Do not run this credentialed workflow on untrusted changes.
 
-These workflow files take effect after publication to GitHub; adding them
-locally does not provision a runner or establish a passing remote run.
+Both workflow definitions are published. A manual workflow still requires an
+operator-provisioned runner and configuration; publication alone does not prove
+a successful credentialed verification run. See the repository
+[Actions page](https://github.com/BleOdel/agent-harness/actions) for run results.
 
 ## Team controller (M6)
 
@@ -671,8 +701,7 @@ harness add api --title "Implement API" --criterion "Valid requests persist" --r
 harness team run --profile /path/to/accepted-team.json --max-workers 2
 harness team inspect <team-run-id>
 harness team steer <attempt-id> "Check the empty-input case"
-harness team abort <team-run-id>
-harness team apply <team-run-id>
+harness team apply <team-run-id>  # only after the run has staged successfully
 ```
 
 A profile has `version: 1`, `roles`, `skills`, and a `contracts` map from accepted
@@ -915,8 +944,24 @@ This creates a new project from the accepted issue API contract, runs API and
 client builders with adapted TDD/design skills at concurrency two, then assigns
 an integration task depending on both. It performs real model calls, with two
 attempts per task, six total dispatches, a 30-minute run ceiling and a $5 reported
-reported model-cost ceiling, including builder and reviewer usage. The result and measured
+model-cost ceiling, including builder and reviewer usage. The result and measured
 builder overlap are written to `result.json`; the final project stays in staging.
 The host checks actual HTTP create/list/get, invalid input and persistence after
 server restart. The deterministic Docker suite also proves that a wrong response
 envelope can pass component tests while failing the combined contract check.
+
+## Documentation index
+
+| Document | Purpose |
+|---|---|
+| [Architecture](ARCHITECTURE.md) | Current execution, control, recovery and skill diagrams |
+| [Threat model](THREAT_MODEL.md) | Current boundaries, credential exposure and residual risks |
+| [Team roadmap](TEAM_PLAN.md) | Completed M0–M6 scope, publication and evidence |
+| [M6 results](TEAM_M6_RESULTS.md) | Latest implementation validation and limitations |
+| [Skills assessment](SKILLS_ASSESSMENT.md) | Original findings plus implemented adaptations |
+| [Follow-up work](NEXT.md) | Remaining candidates and deferred measurements |
+| [Original scope](SCOPE.md), [plan](PLAN.md), [scorecard](V2_RESULTS.md) | Historical sequential-v2 design and results |
+
+The `M*_RESULTS.md` series records the original sequential harness. The
+`TEAM_M*_RESULTS.md` series records the later team milestones. Their measurements
+remain as recorded; a historical limitation is not necessarily a current one.

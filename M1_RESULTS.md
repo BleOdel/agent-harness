@@ -1,5 +1,10 @@
 # M1 — what the walking skeleton actually did
 
+> Historical sequential-v2 results. Counts, capabilities and limitations below
+> describe that milestone, before the team M0–M6 implementation. See
+> [README.md](README.md) for current behavior and [TEAM_PLAN.md](TEAM_PLAN.md)
+> for the completed team milestones.
+
 The plan called this "the milestone that decides the project", and set the
 test: build `buildlog` ticket 3 with it, then rebuild tickets 1 and 2 from
 an empty project, measuring against v1's baseline of **76 lines of

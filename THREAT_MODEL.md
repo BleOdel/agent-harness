@@ -1,7 +1,8 @@
 # Threat model
 
-Written before any code that lets the model write, because in this design
-containment is not defence in depth — it is the entire guarantee.
+Current through team M6, published in `765d1f1`. Originally written before
+model execution was enabled; updated for concurrent workers, journaled
+application and live control. See [architecture diagrams](ARCHITECTURE.md).
 
 This is written fresh rather than adapted from the previous harness. That
 one guaranteed *the model cannot act*, and everything else was a second
@@ -19,7 +20,8 @@ carries the whole weight and has to be argued on its own.
 
 ## Who acts
 
-One actor: an AI model, running as `pi` inside a container, with its own
+Untrusted actors include builder models, reviewer models and executable project
+code. Each model runs as `pi` inside a container, with its permitted
 file and shell tools enabled. It is treated as **untrusted and capable**:
 assume it can read anything reachable, write anything writable, and run
 any command available to it. Not because it is expected to be hostile,
@@ -48,17 +50,19 @@ gates pass.
 | no live project | workers, preparation and verifiers receive disposable directories; reviewer source is read-only |
 | no credentials in preparation or verification | these containers mount only disposable inputs, with no Pi, agent data or skills |
 | offline verification | gates and installation-script proof use `--network=none`; model and package-download containers use bridge networking |
-| no persistence | the container and copy are destroyed after every run |
+| disposable execution | normal/handled-error paths remove owned containers and private workspaces; abrupt death requires explicit recovery; evidence is retained |
 | no privilege | non-root, read-only root filesystem, no added capabilities, no Docker socket |
 
 The host freezes baseline and candidate source outside worker-writable
 directories. Every executable verifier gets fresh source and dependencies;
 its writes cannot enter application or the next verifier. Workers are
 stopped before capture, including after a Docker-client timeout. Baseline
-and candidate digests are rechecked before application. This does not yet
-provide a writer lock or crash-consistent multi-file transaction; an edit
-after the final check remains a race until team M5. Every applied write is
-snapshotted first.
+and candidate digests are rechecked before application. A canonical writer lock
+excludes cooperating harness writers. Team batch application and undo use durable
+intents, snapshots and per-file progress for crash recovery. This is not an atomic
+multi-file filesystem transaction: an external editor can still race a final
+check and replacement. Ordinary single-item application retains its earlier
+failure semantics; it does not use the team application journal.
 
 ## What this design gives up, relative to the previous one
 
@@ -67,8 +71,8 @@ Stated plainly, because these are real and were previously prevented.
 1. **A change can land before the operator sees it.** Review is selective
    now. A wrong change reaches the repository if it satisfies every gate.
 2. **The model reads the whole project.** There is no approved manifest.
-   Anything in the repository is visible to it, including anything
-   committed there by mistake.
+   Copy exclusions withhold known secret/control paths, not arbitrary secrets.
+   A secret committed in another source file can still be visible to the model.
 3. **The model runs commands.** Arbitrary shell inside the container.
 
 These are the price of the inversion. They are bounded by reversibility
@@ -83,9 +87,10 @@ mitigated elsewhere — it is accepted, on the basis that the container is
 non-root, capability-free, read-only-rooted, socket-free, and running a
 pinned image. That is a real reduction, not an elimination.
 
-**2. Correlated review.** The Reviewer is the same model, from the same
-provider, as the Builder. A systematic blind shared by both is invisible
-to both. This is genuinely weaker than independent human review, and
+**2. Correlated review.** By default the Reviewer and Builder use the same
+configured model/provider; team role overrides can select a different builder
+model. A separate reviewer process does not remove systematic errors shared by
+the models. This is genuinely weaker than independent human review, and
 should not be described as independence. What it does buy is a fresh
 context: in observed use the model missed a defect while writing and
 found it when asked a different question about the same code. That is
@@ -135,10 +140,13 @@ that a container escape would make catastrophic.
 If that is not an acceptable trade, this harness should not be built, and
 the previous one is the correct design.
 
-## M3 controller state and cooperating writers
+## Team controller state and cooperating writers
 
-Team execution runs one assignment at a time and keeps its results in host-owned
-staging. Workers receive no live project or controller-state mount. Each builder
+Team execution allows one or two concurrent builders and keeps accepted results
+in host-owned staging. Intake, review and integration are serialized; every
+proposed integration passes fresh project and applicable host contract checks.
+Shared-input assignments are exclusive. Bounded integration repair repeats all
+checks under the original role and scope. Workers receive no live project or controller-state mount. Each builder
 and reviewer receives a separate writable credential copy; skill bundles contain
 only role-selected definitions and declared resources and mount read-only.
 Credential refreshes are not propagated to the operator's store. A crash can leave
@@ -151,8 +159,41 @@ reconciliation. Run and attempt labels restrict container cleanup; a process exi
 or worker-written ID cannot advance another assignment. Append-only events are
 published atomically, and a disposable state projection rebuilds from them.
 Recovery validates retained staging and does not infer success from unfinished
-attempts. It does not yet resume or apply a team batch.
+attempts. `team resume` restarts eligible unfinished work with fresh attempt
+identities and retained budgets. `team apply` explicitly publishes verified staging
+through the application journal; it is never implicit in `team run`. Pending
+application recovery can finish that already-requested transaction or roll back
+before its record is committed. Unexpected source bytes refuse recovery.
 
-These controls trust the host controller and its filesystem. They do not replace
-M5's application journal, prevent host-state tampering, enforce arbitrary skill
-prose, impose an exact billing cap, or add protection against a Docker escape.
+These controls trust the host controller and its filesystem. They do not prevent
+host-state tampering, enforce arbitrary skill prose, impose an exact billing cap,
+or add protection against a Docker escape. Recorded usage includes reported
+builder and reviewer turns, including interrupted attempts across resume; missing
+usage and already-dispatched calls can exceed the dispatch estimate.
+
+## Live control and read-only observation
+
+Pi 0.80.6 RPC is pinned and checked before team execution. The host validates
+bounded LF-delimited UTF-8 JSON records, correlates responses and requires a
+settled, idle, empty session before candidate capture. A model acknowledgement
+never substitutes for gates or acceptance proof.
+
+A private mode-0600 Unix socket inside a mode-0700 host directory carries steering
+and abort commands, authenticated by a random capability. Neither the endpoint
+nor controller state is mounted into workers. Only active builders accept steering;
+it cannot expand task scope or bypass checks. The host records requests,
+acknowledgements and observed delivery separately. Acknowledgement or delivery
+is not proof that the instruction was obeyed; uncertain requests are not resent.
+
+Abort synchronously prevents further dispatch and acceptance, persists intent,
+requests cancellation and discards owned sessions and containers. Pi 0.80.6 has
+no `clear_queue` command, so process/session destruction is required to discard
+queued messages. `abort-requested` is not proof of cleanup; only durable `aborted`
+follows successful reconciliation. Aborted runs cannot resume or apply. Abrupt
+controller death can still leave owned resources until explicit recovery.
+
+The browser viewer accepts only GET on fixed loopback routes. It has no control
+endpoint, starts no project execution and escapes untrusted content. It reads
+records, snapshots, team events and telemetry without rewriting acceptance state.
+The private control socket and viewer trust the local operator account; these
+are not authentication mechanisms for a hostile host or remote multi-user service.

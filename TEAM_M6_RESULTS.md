@@ -1,5 +1,10 @@
 # Team M6 — live control and operational visibility
 
+> Published on `main` in [765d1f1](https://github.com/BleOdel/agent-harness/commit/765d1f1).
+> This report preserves evidence from M6; preparation-time publication notes and
+> future-milestone limitations below are historical. For current operation, see
+> [README.md](README.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
+
 Implemented locally on 11 September 2026 against published M5 commit
 `19cad755565e2ca340bda68ed13fe7b60406fbeb`. This report precedes M6 commit
 and publication.

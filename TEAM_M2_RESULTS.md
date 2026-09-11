@@ -1,5 +1,10 @@
 # Team M2 — frozen candidates and clean verification
 
+> Published on `main` in [55efc53](https://github.com/BleOdel/agent-harness/commit/55efc53).
+> This report preserves evidence from M2; preparation-time publication notes and
+> future-milestone limitations below are historical. For current operation, see
+> [README.md](README.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
+
 Implemented locally on 9 September 2026 against `e5a185a`.
 This report was prepared before committing or publishing M2.
 [M1's GitHub check passed](https://github.com/BleOdel/agent-harness/actions/runs/34336562374).

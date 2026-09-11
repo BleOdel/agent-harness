@@ -1,5 +1,10 @@
 # M4 — reversibility and the record
 
+> Historical sequential-v2 results. Counts, capabilities and limitations below
+> describe that milestone, before the team M0–M6 implementation. See
+> [README.md](README.md) for current behavior and [TEAM_PLAN.md](TEAM_PLAN.md)
+> for the completed team milestones.
+
 ```
 npm run undo              # what can be undone
 npm run undo -- r1        # reverse one run

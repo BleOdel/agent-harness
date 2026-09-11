@@ -1,5 +1,11 @@
 # Harness v2 — scope
 
+> Historical sequential-v2 design, preserved as proposed. Some requirements below
+> were changed during implementation: model containers use bridge networking,
+> team execution supports assigned roles, and undo has explicit limits.
+> [README.md](README.md), [ARCHITECTURE.md](ARCHITECTURE.md) and
+> [THREAT_MODEL.md](THREAT_MODEL.md) describe the current guarantees and limits.
+
 A productivity harness: a coding agent that builds real applications.
 
 Rescoped after measuring v1.20 over a full working session. v1 produced

@@ -1,10 +1,11 @@
 # Follow-up work beyond the team roadmap
 
-`TEAM_PLAN.md` is the authoritative implementation order: M0 through M6,
-including assigned agents and verified integration. This file retains the
-other v2 follow-ups for later prioritization.
+[Team M0–M6](TEAM_PLAN.md) are implemented and published, including assigned
+agents, verified integration, journaled application and live control. This file
+tracks follow-up candidates; none is authorized or scheduled by this list.
 
-v2 is built. M0–M5 shipped, the scorecard is in `V2_RESULTS.md`, and
+The original sequential v2 M0–M5 shipped; its historical scorecard is in
+[V2_RESULTS.md](V2_RESULTS.md), and
 nothing from the original plan is outstanding. Everything below came from
 *using* it — which is also where every defect in this project has come
 from, and worth remembering when reading the sizes.
@@ -104,7 +105,7 @@ stop.
 
 ## N3 — The small debts
 
-**~150 lines. Do these first; they are cheap and two are embarrassing.**
+**Original estimate: ~150 lines; reassess before implementation.**
 
 - **`t.assert.ok` is invisible to the counter.** Node implements it
   natively so it never reaches the patched module. A suite whose every
@@ -122,19 +123,25 @@ stop.
 
 ## N4 — CI
 
-Implemented locally in team M0: a push/PR check workflow and an explicit
-manual Docker/model verification workflow. See `TEAM_M0_RESULTS.md` for
-validation and runner setup status.
+Published in team M0: a push/PR check workflow and an explicit manual
+Docker/model verification workflow, extended through M6. The manual workflow
+requires an operator-provisioned Linux runner and credentials. See
+[continuous verification](README.md#continuous-verification) for current setup.
 
 ## Recommended order
 
-Complete `TEAM_PLAN.md` M0–M6. Revisit N1–N3 after the coordinated team
-release, unless one blocks a milestone's acceptance checks.
+M0–M6 are complete. Triage N3 first, decide whether a second language is in
+scope before N2, and treat N1 as an optional experiment. The original estimates
+above are planning notes, not measured commitments.
+
+The repeated concurrency-one versus concurrency-two timing/spend distribution
+proposed in TEAM_PLAN remains a follow-up measurement: the existing reports
+establish correctness and observed overlap, not a general performance claim.
 
 ## Not planned, and why
 
 **Unrestricted worker-spawned subagents.** Pi has a subagent extension
-example, but assigned workers in this harness will be launched and tracked
+example, but assigned workers in this harness are launched and tracked
 by the host controller. Shared interfaces, dependency ordering and serial
 integration belong to `TEAM_PLAN.md`.
 
