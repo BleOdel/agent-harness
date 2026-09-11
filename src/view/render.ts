@@ -1,3 +1,4 @@
+import { formatTeams, type TeamView } from "./status.ts";
 /**
  * The record, as a page you would actually read.
  *
@@ -156,6 +157,7 @@ summary{cursor:pointer;padding:.55rem 0;display:flex;gap:.75rem;align-items:base
 .l.ctx{color:var(--dim)}
 .note{color:var(--dim);font-size:.9rem;margin:.5rem 0}
 .built{color:var(--dim);font-size:.72rem;margin:2.5rem 0 0;text-align:right}
+#team-status{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim)}
 .live{display:flex;gap:1rem;align-items:center;background:var(--card);border:1px solid var(--line);
   border-left:4px solid var(--accent);border-radius:10px;padding:.6rem 1.25rem;margin:0 0 1.25rem}
 .live.reviewing{border-left-color:var(--rev)}
@@ -401,6 +403,8 @@ const LIVE_SCRIPT = `<script>
       + " \u00b7 " + (mins ? mins + "m " + (secs % 60) + "s" : secs + "s");
   }
   function paint(s) {
+    var teams = document.getElementById("team-status");
+    if (teams && s && typeof s.teamsText === "string") teams.textContent = s.teamsText;
     if (!s || !s.live) {
       box.hidden = !s || !s.reason;
       if (s && s.reason) {
@@ -444,6 +448,7 @@ export function renderPage(
    * rounds of "I don't see it" before anyone thought to check the clock.
    */
   builtAt: string | undefined = undefined,
+  teams: readonly TeamView[] = [],
 ): string {
   const applied = views.filter((v) => v.run.outcome === "applied" && v.standing).length;
   const browser = fileBrowser(tree);
@@ -471,6 +476,7 @@ export function renderPage(
     builtAt === undefined
       ? ""
       : `<p class="built">harness of ${escape(builtAt)}${live ? " &middot; serving live; restart to pick up a newer harness" : ""}</p>`,
+    `<section><h2>Teams</h2><pre id="team-status">${escape(formatTeams(teams))}</pre></section>`,
     "</main>",
     browser === "" ? "" : SCRIPT,
     live ? FIGURE_MARKUP : "",

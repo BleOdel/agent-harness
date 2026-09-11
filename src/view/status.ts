@@ -113,3 +113,67 @@ export function processAlive(pid: number): boolean {
     return (error as NodeJS.ErrnoException).code === "EPERM";
   }
 }
+
+/** Team projections read immutable acceptance events and host telemetry only. */
+export interface TeamView {
+  runId: string; status: string; live: boolean; reason?: string; elapsedMs: number; costUsd: number; tokens: number;
+  tasks: { id: string; role: string; waitingFor: string[] }[];
+  attempts: { id: string; task: string; role: string; phase: string; repairOf?: string; elapsedMs: number; gates: string[]; review: string; integration: string; models: { role: string; tokens: number; costUsd: number; provider?: string; model?: string }[] }[];
+  steering: { id: string; attemptId: string; message: string; state: string }[];
+}
+export async function readTeams(project: string, now = Date.now()): Promise<TeamView[]> {
+  const { readdir, readFile } = await import("node:fs/promises");
+  const { hostname } = await import("node:os");
+  const { readState } = await import("../team/state.ts");
+  const { readTelemetry, abortRequested } = await import("../team/control.ts");
+  const { acceptedTasks } = await import("../team/scheduler.ts");
+  const root = path.join(harnessDirectory(project), "teams");
+  const entries = await readdir(root, { withFileTypes: true }).catch((e: NodeJS.ErrnoException) => { if (e.code === "ENOENT") return []; throw e; });
+  const optional = async (file: string) => { try { return JSON.parse(await readFile(file, "utf8")); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error; } };
+  const result: TeamView[] = [];
+  for (const entry of entries.filter(e => e.isDirectory() && /^team-[a-zA-Z0-9_-]+$/u.test(e.name)).sort((a,b) => a.name.localeCompare(b.name))) {
+    const directory = path.join(root, entry.name), state = await readState(directory, false), telemetry = await readTelemetry(directory);
+    const owner = await optional(path.join(directory, "controller.json"));
+    const live = Boolean(owner?.active && owner.host === hostname() && Number.isSafeInteger(owner.pid) && owner.pid > 0 && processAlive(owner.pid));
+    const accepted = acceptedTasks(state);
+    const steering = new Map<string, TeamView["steering"][number]>();
+    for (const event of telemetry) if (event.steeringId && event.attemptId) {
+      if (event.type === "steer-requested") steering.set(event.steeringId, { id: event.steeringId, attemptId: event.attemptId, message: event.message ?? "", state: "requested" });
+      const item = steering.get(event.steeringId);
+      if (item && item.state !== "delivered" && ["steer-delivered", "steer-acknowledged", "steer-failed"].includes(event.type)) item.state = event.type.slice(6);
+    }
+    const attempts: TeamView["attempts"] = [];
+    for (const attempt of state.attempts) {
+      const history = telemetry.filter(e => e.attemptId === attempt.id), models = new Map<string, TeamView["attempts"][number]["models"][number]>();
+      for (const event of history) if (event.type === "usage" && event.usage && event.modelRole) models.set(event.modelRole, { role: event.modelRole, tokens: event.usage.totalTokens, costUsd: event.usage.costUsd, ...(event.usage.provider ? { provider: event.usage.provider } : {}), ...(event.usage.model ? { model: event.usage.model } : {}) });
+      // Old runs have finite-process artifacts rather than live telemetry.
+      for (const [role, filename] of [["builder", "builder.json"], ["reviewer", "reviewer.json"]]) if (!models.has(role!)) {
+        const artifact = await optional(path.join(attempt.directory, filename!));
+        if (artifact?.usage) models.set(role!, { role: role!, tokens: artifact.usage.totalTokens ?? 0, costUsd: artifact.usage.costUsd ?? 0, ...(artifact.usage.provider ? { provider: artifact.usage.provider } : {}), ...(artifact.usage.model ? { model: artifact.usage.model } : {}) });
+      }
+      const review = await optional(path.join(attempt.directory,"review.json"));
+      const verification = await optional(path.join(attempt.directory,"verification.json"));
+      const integration = await optional(path.join(attempt.directory,"integration-verification.json"));
+      const terminal = ["integrated", "failed", "blocked", "interrupted"].includes(attempt.status);
+      attempts.push({ id: attempt.id, task: attempt.taskId, role: attempt.roleId, phase: terminal ? attempt.status : history.findLast(e => e.type === "phase")?.phase ?? attempt.status,
+        ...(attempt.repairOf ? { repairOf: attempt.repairOf } : {}), elapsedMs: Math.max(0, (attempt.finishedAt ? Date.parse(attempt.finishedAt) : now) - Date.parse(attempt.startedAt ?? state.startedAt)),
+        gates: verification?.run?.verdicts?.map((v: { summary: string }) => v.summary) ?? [], review: review?.verdict ?? "pending", integration: integration ? integration.run?.passed ? "passed" : "failed" : attempt.integration ? "passed" : "pending", models: [...models.values()] });
+    }
+    const measured = attempts.flatMap(a => a.models);
+    result.push({ runId: state.runId, status: await abortRequested(directory) && state.status !== "aborted" ? live ? "aborting" : "abort needs recovery" : state.status === "running" && !live ? "interrupted" : state.status, live,
+      ...(state.reason ? { reason: state.reason } : {}), elapsedMs: Math.max(0, (state.finishedAt ? Date.parse(state.finishedAt) : now) - Date.parse(state.startedAt)), costUsd: Math.max(state.usage.costUsd, measured.reduce((sum,m) => sum+m.costUsd,0)), tokens: Math.max(state.usage.tokens, measured.reduce((sum,m) => sum+m.tokens,0)),
+      tasks: state.plan.tasks.map(t => ({ id:t.id, role:t.assignedRole, waitingFor:t.dependsOn.filter(id => !accepted.has(id)) })), attempts, steering: [...steering.values()] });
+  }
+  return result;
+}
+export function formatTeams(teams: readonly TeamView[]): string {
+  return teams.map(team => [
+    `${team.runId} · ${team.status} · ${Math.round(team.elapsedMs/1000)}s · ${team.tokens} reported tokens · $${team.costUsd.toFixed(4)} estimate`,
+    ...(team.reason ? [team.reason] : []),
+    ...team.tasks.map(t => `  ${t.id} (${t.role})${t.waitingFor.length ? ` · waiting for ${t.waitingFor.join(", ")}` : ""}`),
+    ...team.attempts.flatMap(a => [`  ${a.id} · ${a.task} / ${a.role} · ${a.phase} · ${Math.round(a.elapsedMs/1000)}s${a.repairOf ? ` · repair of ${a.repairOf}` : ""}`,
+      `    review: ${a.review}; integration: ${a.integration}${a.gates.length ? `; ${a.gates.join("; ")}` : ""}`,
+      ...a.models.map(m => `    ${m.role}: ${m.provider ?? "unknown"}/${m.model ?? "unknown"} · ${m.tokens} tokens · $${m.costUsd.toFixed(4)} reported`)]),
+    ...team.steering.map(s => `  steering ${s.id} · ${s.attemptId} · ${s.state}: ${s.message}`),
+  ].join("\n")).join("\n\n");
+}

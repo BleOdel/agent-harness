@@ -1,3 +1,5 @@
+import { abortRequested, recoverControl, type TeamControl } from "./control.ts";
+import { withContainmentSignal } from "../containment/process.ts";
 import { readFeatures } from "../features.ts";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
@@ -17,7 +19,7 @@ import { snapshotSkills } from "./inputs.ts";
 export type WorkerResult =
   | { outcome: "submitted"; candidate: Candidate; usage: Usage; observedReads: string[]; workflowEvidence: string[] }
   | { outcome: "failed" | "blocked"; reason: string; usage: Usage };
-export interface Verification { passed: boolean; gates: string[]; review: string; reason?: string; blocked?: boolean; environmentKey?: string; }
+export interface Verification { usage?: Usage; passed: boolean; gates: string[]; review: string; reason?: string; blocked?: boolean; environmentKey?: string; }
 /** Implementations execute and verify in disposable workspaces; never apply. */
 export interface Worker {
   execute(attempt: Attempt, task: TeamTask, role: Role): Promise<WorkerResult>;
@@ -40,15 +42,24 @@ export async function createTeam(project: string, plan: TeamPlan, inputsRoot: st
   await createState(directory, plan, baseline, policy, path.basename(directory), checks.digest);
   return directory;
 }
-export async function driveTeam(directory: string, worker: Worker): Promise<TeamState> {
+export async function driveTeam(directory: string, worker: Worker, control?: TeamControl): Promise<TeamState> {
+  const result = control ? await withContainmentSignal(control.signal, () => drive(directory, worker, control)) : await drive(directory, worker);
+  if (control?.aborting && result.status !== "aborted") { await control.settleAbort(); return recoverTeam(directory, worker, true); }
+  return result;
+}
+async function drive(directory: string, worker: Worker, control?: TeamControl): Promise<TeamState> {
+  if (await abortRequested(directory)) throw new Error("Team was aborted; start a new run.");
+  const checkAbort = () => { if (control?.aborting) throw new Error("Team aborted."); };
   let state = await readState(directory);
+  const limitReason = () => budgetReason(control ? { ...state, usage: { ...state.usage, costUsd: Math.max(state.usage.costUsd, control.reportedCost(state)) } } : state);
   if (state.attempts.some(a => ["running", "submitted", "verified"].includes(a.status))) throw new Error("Unfinished attempt requires explicit team recovery; it is not evidence of success.");
   if (state.version < 2) throw new Error("Version 1 runs are inspect/recover only; start a new team for M4.");
   type Completion = { attempt: Attempt; task: TeamTask; role: Role; result: WorkerResult } | { error: unknown };
   const active = new Map<string, { attempt: Attempt; promise: Promise<Completion> }>();
   try {
     while (state.status === "running") {
-      while (!budgetReason(state)) {
+      checkAbort();
+      while (!limitReason()) {
         const next = schedule(state); if (!next) break;
         const { task, role, repair } = next;
         await assertSnapshot(state.baseline);
@@ -63,17 +74,21 @@ export async function driveTeam(directory: string, worker: Worker): Promise<Team
         const feedback = repair ? `Integration repair of ${repair.id}. Work from current accepted staging and stay inside the original scope. Failure: ${repair.reason}` : state.attempts.findLast(a => a.taskId === task.id)?.reason;
         const attempt: Attempt = { ...(repair ? { repairOf: repair.id, ...(repair.candidate ? { repairCandidate: repair.candidate } : {}) } : {}), id, taskId: task.id, roleId: role.id, containerName: `harness-${id}`, directory: attemptDirectory, baseline: state.baseline, skills, contracts, instructionsDigest: digest(role), dependencyDigest: digest({ manifest: state.baseline.files["package.json"], lock: state.baseline.files["package-lock.json"] }), ...(feedback === undefined ? {} : { feedback }) };
         await mkdir(attemptDirectory, { recursive: true, mode: 0o700 });
+        checkAbort();
         state = await appendEvent(directory, { type: "dispatched", attempt });
+        checkAbort();
         const promise: Promise<Completion> = worker.execute(attempt, task, role).then(result => ({ attempt, task, role, result }), error => ({ error }));
         active.set(id, { attempt, promise });
       }
+      checkAbort();
       if (active.size === 0) {
         const accepted = acceptedTasks(state);
-        return appendEvent(directory, state.plan.tasks.filter(t => t.priority !== "wont").every(t => accepted.has(t.id)) ? { type: "staged" } : { type: "stopped", reason: budgetReason(state) ?? "Assignments are blocked, waiting on prerequisites, or exhausted their retries." });
+        return appendEvent(directory, state.plan.tasks.filter(t => t.priority !== "wont").every(t => accepted.has(t.id)) ? { type: "staged" } : { type: "stopped", reason: limitReason() ?? "Assignments are blocked, waiting on prerequisites, or exhausted their retries." });
       }
       // Only builders overlap. Intake, review, merge and gates share this serial
       // controller path, so each integration sees the last accepted staging.
       const completion = await Promise.race([...active.values()].map(a => a.promise));
+      checkAbort();
       if ("error" in completion) throw completion.error;
       const { attempt, task, role, result } = completion;
       const id = attempt.id, attemptDirectory = attempt.directory;
@@ -94,7 +109,10 @@ export async function driveTeam(directory: string, worker: Worker): Promise<Team
         await cleanup(); continue;
       }
       state = await appendEvent(directory, { type: "submitted", attemptId: id, candidate: result.candidate, usage: result.usage, observedReads: result.observedReads, workflowEvidence: result.workflowEvidence });
+      checkAbort();
       const verification = await worker.verify(attempt, result, task);
+      checkAbort();
+      if (verification.usage) state = await appendEvent(directory, { type: "review-usage", attemptId: id, usage: verification.usage });
       if (!verification.passed || verification.review !== "pass") {
         state = await appendEvent(directory, { type: verification.blocked || attempt.repairOf ? "blocked" : "failed", attemptId: id, reason: verification.reason || "Candidate gates or review failed." });
         await cleanup(); continue;
@@ -106,13 +124,17 @@ export async function driveTeam(directory: string, worker: Worker): Promise<Team
         await cleanup(); continue;
       }
       const fromDigest = state.baseline.digest;
+      checkAbort();
       const integration = await worker.verifyIntegration(attempt, merged.proposal, task, new Set([...acceptedTasks(state), task.id]));
+      checkAbort();
       await assertSnapshot(merged.proposal);
       if (!integration.passed) {
         state = await appendEvent(directory, { type: integration.blocked || attempt.repairOf ? "blocked" : "failed", attemptId: id, failureStage: "integration", reason: integration.reason || "Combined project verification failed." });
         await cleanup(); continue;
       }
+      checkAbort();
       state = await appendEvent(directory, { type: "integration-verified", attemptId: id, fromDigest, candidateDigest: result.candidate.digest, proposal: merged.proposal, gates: integration.gates });
+      checkAbort();
       state = await appendEvent(directory, { type: "integrated", attemptId: id, baseline: merged.proposal });
       await cleanup();
     }
@@ -122,11 +144,17 @@ export async function driveTeam(directory: string, worker: Worker): Promise<Team
     await Promise.allSettled([...active.values()].map(a => worker.cleanup(a.attempt)));
     await Promise.allSettled([...active.values()].map(a => a.promise));
     await Promise.allSettled([...active.values()].map(a => worker.cleanup(a.attempt)));
+    if (control?.aborting) {
+      // A final successful reconciliation is required before reporting aborted.
+      await control.settleAbort();
+      return recoverTeam(directory, worker, true);
+    }
     throw error;
   }
   return state;
 }
-export async function recoverTeam(directory: string, worker: Pick<Worker, "cleanup">): Promise<TeamState> {
+export async function recoverTeam(directory: string, worker: Pick<Worker, "cleanup">, ownController = false): Promise<TeamState> {
+  if (!ownController) await recoverControl(directory);
   let state = await readState(directory);
   for (const attempt of state.attempts) {
     // Cleanup must succeed before recording the worker as interrupted.
@@ -135,17 +163,20 @@ export async function recoverTeam(directory: string, worker: Pick<Worker, "clean
     state = await appendEvent(directory, { type: "interrupted", attemptId: attempt.id, reason: "Controller terminated before durable integration; no success inferred." });
   }
   await assertSnapshot(state.baseline);
+  if (await abortRequested(directory) && ["running", "stopped", "staged"].includes(state.status)) return appendEvent(directory, { type: "aborted", reason: "Operator aborted; owned resources reconciled. Accepted staging retained." });
   if (state.status === "running") state = await appendEvent(directory, { type: "stopped", reason: "Recovered interrupted controller. Accepted staging retained; Recovery does not resume or apply." });
   return state;
 }
 
 /** Explicit continuation retains journal identity, accepted baselines and budgets. */
-export async function resumeTeam(project: string, directory: string, worker: Worker): Promise<TeamState> {
+export async function resumeTeam(project: string, directory: string, worker: Worker, control?: TeamControl): Promise<TeamState> {
   project = await canonicalProject(project); directory = await canonicalProject(directory);
   return withWriter(project, "team resume", async () => {
     await assertTeamDirectory(project, directory);
     const pending = await readFile(applicationPath(project)).catch((e: NodeJS.ErrnoException) => { if (e.code === "ENOENT") return undefined; throw e; });
     if (pending) return recoverApplication(project, directory);
+    if (await abortRequested(directory)) throw new Error("Team was aborted; recover owned resources, then start a new run.");
+    if (!control) await recoverControl(directory);
     let state = await readState(directory);
     if (["applied", "undone"].includes(state.status)) return state;
     if (state.version < 2) throw new Error("Version 1 runs are inspect/recover only.");
@@ -157,6 +188,6 @@ export async function resumeTeam(project: string, directory: string, worker: Wor
     await readChecks(directory, state.verificationDigest);
     if (state.status === "staged") return state;
     await appendEvent(directory, { type: "resumed", resumeId: randomUUID() });
-    return driveTeam(directory, worker);
+    return driveTeam(directory, worker, control);
   }, true);
 }

@@ -19,24 +19,26 @@ export type EventPayload =
   | { type: "created"; runId: string; plan: TeamPlan; planDigest: string; baseline: Snapshot; policy: Policy; verificationDigest?: string }
   | { type: "dispatched"; attempt: Attempt }
   | { type: "submitted"; attemptId: string; candidate: Snapshot; usage: Usage; observedReads: string[]; workflowEvidence: string[] }
+  | { type: "review-usage"; attemptId: string; usage: Usage }
   | { type: "verified"; attemptId: string; gates: string[]; review: "pass"; environmentKey?: string }
   | { type: "integration-verified"; attemptId: string; fromDigest: string; candidateDigest: string; proposal: Snapshot; gates: string[] }
   | { type: "integrated"; attemptId: string; baseline: Snapshot }
   | { type: "failed" | "blocked" | "interrupted"; attemptId: string; reason: string; usage?: Usage; failureStage?: "integration" }
   | { type: "stopped"; reason: string }
+  | { type: "aborted"; reason: string }
   | { type: "resumed"; resumeId: string }
   | { type: "staged" }
   | { type: "application-started"; transactionId: string; intentDigest: string; direction: "apply" | "undo" }
   | { type: "application-completed"; transactionId: string; direction: "apply" | "undo"; recordId: string }
   | { type: "application-rolled-back"; transactionId: string; direction: "apply" | "undo" };
 export type TeamEvent = EventPayload & { version: 1 | 2 | 3; seq: number; at: string; runId: string };
-export interface AttemptState extends Attempt { status: "running" | "submitted" | "verified" | "integrated" | "failed" | "blocked" | "interrupted"; candidate?: Snapshot; terminalSeq?: number; failureStage?: "integration"; integration?: { fromDigest: string; proposal: Snapshot }; reason?: string; }
+export interface AttemptState extends Attempt { usage?: Usage; reviewerUsage?: Usage; startedAt?: string; finishedAt?: string; status: "running" | "submitted" | "verified" | "integrated" | "failed" | "blocked" | "interrupted"; candidate?: Snapshot; terminalSeq?: number; failureStage?: "integration"; integration?: { fromDigest: string; proposal: Snapshot }; reason?: string; }
 export interface TeamState {
   version: 1 | 2 | 3; runId: string; seq: number; startedAt: string; plan: TeamPlan; planDigest: string; policy: Policy;
-  verificationDigest?: string; original: Snapshot; baseline: Snapshot; attempts: AttemptState[]; integrated: string[]; invalidated: string[];
+  finishedAt?: string; verificationDigest?: string; original: Snapshot; baseline: Snapshot; attempts: AttemptState[]; integrated: string[]; invalidated: string[];
   application?: { transactionId: string; intentDigest: string; direction: "apply" | "undo"; recordId?: string };
   appliedRecordId?: string; appliedTransactionId?: string; appliedIntentDigest?: string; resumeSeq?: number;
-  status: "running" | "stopped" | "staged" | "applying" | "applied" | "undone"; reason?: string; usage: Usage;
+  status: "running" | "stopped" | "aborted" | "staged" | "applying" | "applied" | "undone"; reason?: string; usage: Usage;
 }
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);

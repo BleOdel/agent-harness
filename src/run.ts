@@ -17,6 +17,7 @@ export function run(
   args: readonly string[],
   options: {
     timeoutMs: number;
+    signal?: AbortSignal;
     onOutput?: (chunk: string) => void;
     /** Replaces the environment entirely. Omitted means inherit. */
     env?: NodeJS.ProcessEnv;
@@ -28,11 +29,14 @@ export function run(
     interactive?: boolean;
   } = { timeoutMs: 300_000 },
 ): Promise<RunResult> {
+  options.signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
     const child = spawn(executable, [...args], {
       stdio: options.interactive === true ? "inherit" : ["ignore", "pipe", "pipe"],
       ...(options.env === undefined ? {} : { env: options.env }),
     });
+    const abort = () => child.kill("SIGKILL");
+    options.signal?.addEventListener("abort", abort, { once: true });
     let stdout = "";
     let stderr = "";
     let timedOut = false;
@@ -51,10 +55,12 @@ export function run(
     });
     child.once("error", (error) => {
       clearTimeout(timer);
+      options.signal?.removeEventListener("abort", abort);
       reject(error);
     });
     child.once("close", (code) => {
       clearTimeout(timer);
+      options.signal?.removeEventListener("abort", abort);
       resolve({ code, stdout, stderr, timedOut });
     });
   });

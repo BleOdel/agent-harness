@@ -1,16 +1,21 @@
 /** The production process adapter. It has no reference to the live project. */
 import path from "node:path";
 import { readFile, rm } from "node:fs/promises";
+import { stopContainer } from "../containment/stop.ts";
 import type { Config } from "../config.ts";
 import type { SandboxLayout } from "../containment/sandbox.ts";
-import { executeAndSubmit, briefing } from "../agent/execute.ts";
+import { briefing } from "../agent/execute.ts";
 import { captureCandidate, assertSnapshot, InputChangeRequired } from "../workspace/candidate.ts";
 import { prepareEnvironment, installEnvironment, EnvironmentBlocked } from "../workspace/dependencies.ts";
 import { BoundaryViolation } from "../workspace/changes.ts";
 import { DEFAULT_LIMITS } from "../gates/limits.ts";
 import { counterPath } from "../gates/tests.ts";
 import { runPipeline } from "../pipeline.ts";
-import { review } from "../review/reviewer.ts";
+import { reviewPrompt, parseReview } from "../review/reviewer.ts";
+import { runRpcAgent } from "../agent/rpc.ts";
+import { readSubmission } from "../agent/submission.ts";
+import { readClaim } from "../gates/claim.ts";
+import type { TeamControl } from "./control.ts";
 import { renderDiff } from "../review/diff.ts";
 import { run } from "../run.ts";
 import { collectChanges } from "../workspace/changes.ts";
@@ -20,7 +25,7 @@ import type { Attempt, Usage } from "./schema.ts";
 import { atomicJson, readState } from "./state.ts";
 import type { Worker } from "./controller.ts";
 
-export function processWorker(config: Config, runDirectory: string, testCommand: readonly string[], output: (text: string) => void = text => process.stdout.write(text)): Worker {
+export function processWorker(config: Config, runDirectory: string, testCommand: readonly string[], output: (text: string) => void = text => process.stdout.write(text), control?: TeamControl): Worker {
   const labels = (a: Attempt): Record<string, string> => ({ "io.harness.run": path.basename(runDirectory), "io.harness.attempt": a.id });
   const layout = (a: Attempt, directory: string, reviewer = false): SandboxLayout => ({
     dockerExecutable: config.dockerExecutable, imageId: config.imageId, containerName: a.containerName,
@@ -33,6 +38,7 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
     async execute(attempt, task, role) {
       const work = path.join(attempt.directory, "worker");
       const local = layout(attempt, work);
+      await control?.record({ type: "phase", attemptId: attempt.id, phase: "preparing", modelRole: "builder" });
       let spent: Usage = { tokens: 0, costUsd: 0, complete: false };
       await privateAgentDirectory(config.agentDirectory, local.agentDirectory);
       output(`attempt: ${attempt.id} · task: ${task.id} · role: ${role.id}\n`);
@@ -54,11 +60,17 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
           'In your claim you may include "workflowEvidence": ["commands, observed results and evidence files"]. Evidence is a report; host verification still decides acceptance.',
         ].join("\n\n");
         const startedAt = new Date().toISOString();
-        const result = await executeAndSubmit(local, { goal, provider: role.provider ?? config.provider, model: role.model ?? config.model, timeoutMs: Math.min(role.timeoutMs ?? config.agentTimeoutMs, config.agentTimeoutMs), skills: attempt.skills.length > 0, sessionDirectory: "/pi-agent/sessions" }, output);
+        await control?.record({ type: "phase", attemptId: attempt.id, phase: "building", modelRole: "builder" });
+        const agent = await runRpcAgent(local, { goal, provider: role.provider ?? config.provider, model: role.model ?? config.model, timeoutMs: Math.min(role.timeoutMs ?? config.agentTimeoutMs, config.agentTimeoutMs), skills: attempt.skills.length > 0, sessionDirectory: "/pi-agent/sessions" }, output, {
+          ...(control ? { signal: control.signal } : {}), ready: handle => control?.register(attempt.id, handle), event: event => control?.observe(attempt.id, event),
+          turn: usage => { spent = { tokens: usage.totalTokens, costUsd: usage.costUsd, complete: true }; void control?.record({ type: "usage", attemptId: attempt.id, modelRole: "builder", usage }).catch(() => {}); },
+        });
+        await control?.flush();
+        const result = { agent, submission: await readSubmission(work), claim: await readClaim(work) };
         await atomicJson(path.join(attempt.directory, "builder.json"), { startedAt, finishedAt: new Date().toISOString(), containerName: attempt.containerName, sessionDirectory: path.join(local.agentDirectory, "sessions"), provider: role.provider ?? config.provider, model: role.model ?? config.model, code: result.agent.code, timedOut: result.agent.timedOut, usage: result.agent.usage });
-        const usage: Usage = spent = { tokens: result.agent.usage.totalTokens, costUsd: result.agent.usage.costUsd, complete: false };
-        // Reviewer usage is unavailable on its existing text protocol, so run
-        // totals remain explicitly estimates even when all builder turns report.
+        const usage: Usage = spent = { tokens: result.agent.usage.totalTokens, costUsd: result.agent.usage.costUsd, complete: result.agent.usageComplete };
+        // Builder totals enter the acceptance journal; reviewer usage is added
+        // separately by the controller, avoiding double-counting live telemetry.
         if (result.agent.timedOut || result.agent.code !== 0 || result.agent.providerError) return { outcome: "failed", reason: result.agent.providerError ?? (result.agent.timedOut ? "Worker timed out." : `Worker exited ${result.agent.code}: ${result.agent.stderr}`), usage };
         if (result.submission.ok && result.submission.outcome === "blocked") return { outcome: "blocked", reason: `${result.submission.reason}\nNeeded: ${result.submission.requestedInput}`, usage };
         if (!result.claim.ok) return { outcome: "failed", reason: result.claim.reason, usage };
@@ -77,6 +89,7 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
       }
     },
     async verify(attempt, result, task) {
+      await control?.record({ type: "phase", attemptId: attempt.id, phase: "gating", modelRole: "builder" });
       const local = layout(attempt, result.candidate.directory);
       const state = await readState(runDirectory, false);
       const checks = await readChecks(runDirectory, state.verificationDigest);
@@ -89,11 +102,19 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
       if (!proof.run.passed) return { passed: false, gates, review: "not-run", blocked: proof.run.firstFailure?.kind === "environment-blocked", reason: proof.run.firstFailure?.detail ?? "Gates failed." };
       const reviewer = layout(attempt, result.candidate.directory, true);
       await privateAgentDirectory(config.agentDirectory, reviewer.agentDirectory);
-      const verdict = await review(reviewer, { title: task.title, criteria: task.criteria, diff: await renderDiff(attempt.baseline.directory, result.candidate.directory, result.candidate.changes), provider: config.provider, model: config.model, timeoutMs: config.agentTimeoutMs });
+      await control?.record({ type: "phase", attemptId: attempt.id, phase: "reviewing", modelRole: "reviewer" });
+      const request = { title: task.title, criteria: task.criteria, diff: await renderDiff(attempt.baseline.directory, result.candidate.directory, result.candidate.changes), provider: config.provider, model: config.model, timeoutMs: config.agentTimeoutMs };
+      const reviewed = await runRpcAgent({ ...reviewer, purpose: "review" }, { goal: reviewPrompt(request), provider: request.provider, model: request.model, timeoutMs: request.timeoutMs, skills: false }, () => {}, {
+        ...(control ? { signal: control.signal } : {}), turn: usage => { void control?.record({ type: "usage", attemptId: attempt.id, modelRole: "reviewer", usage }).catch(() => {}); },
+      });
+      await control?.flush();
+      const verdict = reviewed.providerError ? { verdict: "escalate" as const, unmet: [], unaccounted: [], notes: [], failure: reviewed.providerError } : parseReview(reviewed.stdout);
+      await atomicJson(path.join(attempt.directory, "reviewer.json"), { usage: reviewed.usage });
       await atomicJson(path.join(attempt.directory, "review.json"), verdict);
-      return { passed: verdict.verdict === "pass" && verdict.failure === undefined, gates, review: verdict.verdict, ...(proof.environmentKey === undefined ? {} : { environmentKey: proof.environmentKey }), reason: verdict.failure ?? [...verdict.unmet, ...verdict.unaccounted, ...verdict.notes].join("\n") };
+      return { usage: { tokens: reviewed.usage.totalTokens, costUsd: reviewed.usage.costUsd, complete: reviewed.usageComplete }, passed: verdict.verdict === "pass" && verdict.failure === undefined, gates, review: verdict.verdict, ...(proof.environmentKey === undefined ? {} : { environmentKey: proof.environmentKey }), reason: verdict.failure ?? [...verdict.unmet, ...verdict.unaccounted, ...verdict.notes].join("\n") };
     },
     async verifyIntegration(attempt, proposal, _task, accepted) {
+      await control?.record({ type: "phase", attemptId: attempt.id, phase: "integrating", modelRole: "builder" });
       const state = await readState(runDirectory, false);
       const checks = await readChecks(runDirectory, state.verificationDigest);
       const changes = await collectChanges(state.baseline.directory, proposal.directory);
@@ -115,8 +136,7 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
       if (listed.code !== 0 || listed.timedOut) throw new Error(`Cannot reconcile owned containers: ${listed.stderr}`);
       for (const id of listed.stdout.trim().split(/\s+/u).filter(Boolean)) {
         if (!/^[a-f0-9]{12,64}$/u.test(id)) throw new Error("Docker returned an invalid container identity.");
-        const removed = await run(config.dockerExecutable, ["rm", "--force", id], { timeoutMs: 15000 });
-        if (removed.code !== 0 || removed.timedOut) throw new Error(`Owned container cleanup failed: ${removed.stderr}`);
+        await stopContainer(config.dockerExecutable, id);
       }
       // Retain candidate, claim and verification evidence, never auth/session copies.
       for (const name of ["agent", "reviewer-agent", "worker", "environment"]) await rm(path.join(attempt.directory, name), { recursive: true, force: true });

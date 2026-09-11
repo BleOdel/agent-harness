@@ -1,3 +1,4 @@
+import { writeRpcFixture } from "./rpc-fixture.ts";
 import assert from "node:assert/strict";
 import { spawn, execFile } from "node:child_process";
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
@@ -30,7 +31,7 @@ async function fixture() {
   const pi = path.join(root, "pi"); await mkdir(path.join(pi, "dist"), { recursive: true });
   // Deterministic process fixture, not a model. Real Docker executes production
   // launch, private inputs, offline gates, review and cleanup with no credentials.
-  await writeFile(path.join(pi, "dist/cli.js"), `const fs=require('node:fs');const args=process.argv.slice(2);const goal=args.at(-1);const reviewer=args.includes('read,grep');
+  await writeRpcFixture(pi, `const fs=require('node:fs');const args=process.argv.slice(2);const goal=args.at(-1);const reviewer=args.includes('read,grep');
 if(fs.readFileSync('/pi-agent/auth.json','utf8')!=='{"fixture":"original"}')throw Error('shared auth');
 if(fs.existsSync('/pi-agent/settings.json'))throw Error('global settings leaked');
 if(reviewer){if(fs.existsSync('/opt/skills'))throw Error('review skills leaked');let blocked=false;try{fs.writeFileSync('/work/reviewer-leak','bad')}catch{blocked=true}if(!blocked)throw Error('review source writable');console.log(JSON.stringify({verdict:'pass',unmet:[],unaccounted:[],notes:[]}));}
@@ -50,7 +51,7 @@ test("M3 real containers isolate attempts and reconcile controller death", { ski
       const directory = await createTeam(f.project, parseTeamPlan(f.raw, f.features), f.inputRoot, policy);
       const state = await withWriter(f.project, "team-test", () => driveTeam(directory, processWorker(f.config, directory, ["npm", "test"], () => {})));
       assert.equal(state.status, "staged", JSON.stringify(state)); assert.deepEqual(state.integrated, ["api", "ui"]);
-      assert.equal(state.usage.tokens, 14); assert.equal(state.usage.complete, false);
+      assert.equal(state.usage.tokens, 16); assert.equal(state.usage.complete, true);
       assert.equal(await readFile(path.join(state.baseline.directory, "ui.txt"), "utf8"), "accepted ui");
       assert.equal(await readFile(path.join(f.project, "features.json"), "utf8"), JSON.stringify(features));
       await assert.rejects(readFile(path.join(f.project, "api.txt")), { code: "ENOENT" });

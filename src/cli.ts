@@ -41,6 +41,8 @@ const USAGE = [
   "  harness add --from latest     import the items a plan proposed",
   "  harness work [<item-id or goal>]",
   "  harness team run             stage accepted assignments, up to two builders",
+  "  harness team steer <attempt> \"message\"  send live builder guidance",
+  "  harness team abort <id>       cancel team work without applying",
   "  harness team inspect <id>     read durable team state",
   "  harness team resume <id>      continue from accepted staging or finish pending apply",
   "  harness team apply <id>       journal and apply verified staging",

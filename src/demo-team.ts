@@ -5,13 +5,15 @@ import path from "node:path";
 import { applyConfigFile, loadConfig } from "./config.ts";
 import { createTeam, driveTeam } from "./team/controller.ts";
 import { resolveTeamModel } from "./team/checks.ts";
+import { TeamControl } from "./team/control.ts";
+import { assertRpcVersion } from "./agent/rpc.ts";
 import { processWorker } from "./team/worker.ts";
 import { parseTeamPlan } from "./team/schema.ts";
 import { atomicJson } from "./team/state.ts";
 import { withWriter } from "./workspace/writer-lock.ts";
 
 const destination = process.argv[2];
-if (!destination || process.argv.length !== 3) throw new Error("Usage: npm run demo:team -- /absolute/new-directory (runs real Pi models; up to $5 reported builder cost).");
+if (!destination || process.argv.length !== 3) throw new Error("Usage: npm run demo:team -- /absolute/new-directory (runs real Pi models; up to $5 reported model cost).");
 if (!path.isAbsolute(destination)) throw new Error("Use an absolute destination path.");
 await mkdir(destination); // Refuse an existing directory before writing anything.
 const project = path.join(destination, "project");
@@ -27,9 +29,13 @@ for (const role of plan.roles) {
   if (config.model) role.model = config.model;
 }
 await withWriter(project, "issue-tracker demo", async () => {
+  await assertRpcVersion(config.piPackageDirectory);
   const run = await createTeam(project, plan, path.dirname(profile), { maxWorkers: 2, maxAttempts: 2, maxDispatches: 6, maxMs: 1800000, maxCostUsd: 5 });
   process.stdout.write(`team: ${run}\n`);
-  const state = await driveTeam(run, processWorker(config, run, ["npm", "test"]));
+  const control = await TeamControl.start(run);
+  let state;
+  try { state = await driveTeam(run, processWorker(config, run, ["npm", "test"], undefined, control), control); }
+  finally { await control.close(); }
   const builders = await Promise.all(state.attempts.map(async a => ({ task: a.taskId, baseline: a.baseline.digest, ...JSON.parse(await readFile(path.join(a.directory, "builder.json"), "utf8").catch(() => "{}")) })));
   const overlap = builders.some(a => a.task === "api" && builders.some(b => b.task === "client" && a.baseline === b.baseline && a.containerName !== b.containerName && a.sessionDirectory !== b.sessionDirectory && a.usage?.totalTokens > 0 && b.usage?.totalTokens > 0 && Math.max(Date.parse(a.startedAt), Date.parse(b.startedAt)) < Math.min(Date.parse(a.finishedAt), Date.parse(b.finishedAt))));
   await atomicJson(path.join(destination, "result.json"), { run, status: state.status, baseline: state.baseline, integrated: state.integrated, usage: state.usage, builders, overlap });

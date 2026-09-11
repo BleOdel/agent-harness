@@ -8,7 +8,7 @@ role assignments with one or two builders, repairs failed integrations, and
 retains verified results in staging. Explicit `team apply` writes the completed
 batch through a recoverable journal. `TEAM_PLAN.md` is the active roadmap toward
 assigned agents in isolated containers with verified integration.
-`TEAM_M0_RESULTS.md` through `TEAM_M5_RESULTS.md` record the team milestones;
+`TEAM_M0_RESULTS.md` through `TEAM_M6_RESULTS.md` record the team milestones;
 the original v2 milestone documents remain historical evidence.
 
 ```
@@ -664,12 +664,14 @@ Do not run this credentialed workflow on untrusted changes.
 These workflow files take effect after publication to GitHub; adding them
 locally does not provision a runner or establish a passing remote run.
 
-## Team controller (M5)
+## Team controller (M6)
 
 ```sh
 harness add api --title "Implement API" --criterion "Valid requests persist" --role backend --scope 'src/api/**' --scope 'test/**' --contract issues-v1
 harness team run --profile /path/to/accepted-team.json --max-workers 2
 harness team inspect <team-run-id>
+harness team steer <attempt-id> "Check the empty-input case"
+harness team abort <team-run-id>
 harness team apply <team-run-id>
 ```
 
@@ -706,8 +708,8 @@ Default concurrency is one; `--max-workers 2` enables two independent builders.
 Shared-input assignments run exclusively. Other defaults are two attempts per task, 20 dispatches, one hour, and $10 of reported
 cost. Set `--max-attempts`, `--max-dispatches`, `--max-ms`, or `--max-cost-usd` to
 change them. Limits stop new dispatch; already-dispatched requests drain before stopping and may exceed a cost
-budget, and totals exclude unreported usage, including the current reviewer
-protocol. Each retry starts from accepted staging with a fresh session and the
+budget. M6 includes reported builder and reviewer usage; unreported provider
+usage remains unknown. Older runs may include only builder usage. Each retry starts from accepted staging with a fresh session and the
 previous diagnosis. Integration failures get one additional repair by default
 (`--max-repairs 0` disables it). The original role and scope, rejected diff,
 current staging and specific failure are supplied; candidate gates, review and
@@ -742,14 +744,15 @@ Team authentication is copied per builder and reviewer; global settings are not
 copied. Provider/model precedence is role, harness configuration, then the host
 Pi settings' `defaultProvider`/`defaultModel`. Only those two defaults are read;
 resolved values are frozen into the accepted roles.
+Team builders and reviewers use the pinned Pi RPC transport described below.
 Private token refreshes are not merged back to the operator's auth file. Restore
 provider authentication before retrying authentication failures. Skill availability,
 observed reads, and reported workflow evidence are recorded separately; they are
 not proof of compliance.
 
 Run `npm run verify:team` in a configured Docker environment for isolation,
-crash recovery, bounded repair, CLI application/undo, pinned gates and
-incompatible-component integration checks. It uses deterministic worker processes and no model credentials.
+crash recovery, bounded repair, CLI application/undo, pinned gates, live steering,
+abort, installed Pi RPC compatibility and incompatible-component integration checks. It uses deterministic worker processes and no model credentials.
 `npm run verify:skills` also checks the adapted role bundles against pinned Pi.
 
 
@@ -784,6 +787,64 @@ delete/modify collisions, file/directory conflicts, unsupported binary conflicts
 and stale dependency or contract inputs reject the proposal. Failed merges or
 combined checks leave staging and prerequisites unchanged. A bounded repair
 receives the diagnosis and rejected diff, and starts from current staging.
+
+### Live control and status
+
+Team execution requires **Pi 0.80.6**. The host checks the configured package
+version before launching. `npm run verify:team` probes that installed version's
+RPC commands without model credentials and checks the full production flow with
+deterministic Docker fixtures. An untested version is refused. Ordinary finite
+commands continue to use `src/run.ts`; team builders and reviewers use bounded
+JSONL over Docker interactive stdin, without a TTY. Reviewer tools and source
+remain read-only, with separate credentials and no builder session or skills.
+
+`team steer` targets an active builder's attempt ID, printed at launch and shown
+by `look`, `view` and `team inspect`. It uses a private host control socket while
+the controller retains its project writer lock. It cannot edit the accepted role,
+scope or contract, and all verification/review checks remain required.
+
+```sh
+harness team steer <attempt-id> "Handle empty input before finishing"
+harness team abort <team-run-id>
+harness look
+harness view --serve
+```
+
+Steering text is persisted before dispatch. The response says **acknowledged**
+when Pi accepts it; **delivered** appears only after a matching user-message
+event is observed. A timeout or lost connection is uncertain: inspect the
+persisted steering history before retrying. There is no automatic resend.
+Only active builders accept steering; reviewing and verification phases do not.
+
+Abort immediately prevents further scheduling and acceptance. It records an
+abort intent, requests cancellation, removes owned containers and discards their
+private sessions. Pi 0.80.6 does not expose the newer `clear_queue` RPC command,
+and its abort may continue queued messages. Consequently M6 always discards the
+session/container on cancellation instead of relying on that acknowledgement.
+The CLI initially reports `abort-requested`; durable `aborted` means cleanup was
+confirmed. An aborted run never applies and cannot resume. Its accepted staging
+and evidence remain available; start a new run for further work. If abort itself
+is interrupted, recover the exact dead writer token and run `team recover`.
+
+The host endpoint is a mode-0600 Unix socket under a private mode-0700 `/tmp`
+directory, with a random capability. Its location is recorded in the private
+`controller.json` beside the run; workers never receive this directory or socket.
+Explicit recovery removes only the dead controller's matching owned endpoint.
+
+`look` and the read-only web view show task/role assignments, unmet prerequisites,
+phase, review and integration results, repair ancestry, elapsed time, per-builder
+and per-reviewer reported tokens/cost, and steering history. The web server still
+accepts only GET requests and has no control route. Status reconstructs from
+acceptance events, immutable `telemetry/` records and retained verification files;
+a dead controller is shown as interrupted. Recorded spend from interrupted
+attempts remains part of the dispatch budget after resume. All spend remains an
+estimate; missing or not-yet-reported provider usage cannot be inferred.
+
+RPC records are LF-delimited, UTF-8 validated, bounded to 1 MiB and correlated by
+request ID. Malformed/unmatched responses, premature process exit and timeouts
+cannot accept work. Prompt acknowledgement and `agent_end` alone are insufficient:
+completion requires a valid assistant lifecycle, `agent_settled`, and an idle
+session with an empty queue. Ordinary gates and independent review still follow.
 
 ### Batch application, recovery and undo
 
@@ -854,7 +915,7 @@ This creates a new project from the accepted issue API contract, runs API and
 client builders with adapted TDD/design skills at concurrency two, then assigns
 an integration task depending on both. It performs real model calls, with two
 attempts per task, six total dispatches, a 30-minute run ceiling and a $5 reported
-builder-cost ceiling. Reviewer usage is not included. The result and measured
+reported model-cost ceiling, including builder and reviewer usage. The result and measured
 builder overlap are written to `result.json`; the final project stays in staging.
 The host checks actual HTTP create/list/get, invalid input and persistence after
 server restart. The deterministic Docker suite also proves that a wrong response

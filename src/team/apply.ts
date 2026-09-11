@@ -1,4 +1,5 @@
 /** Host-only batch application. Intent precedes writes; fingerprints decide recovery. */
+import { abortRequested } from "./control.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, open, readFile, rm, unlink } from "node:fs/promises";
 import path from "node:path";
@@ -179,6 +180,7 @@ export async function applyTeam(project: string, directory: string, options: App
   project = await canonicalProject(project); directory = await canonicalProject(directory);
   return withWriter(project, "team apply", async () => {
     await assertTeamDirectory(project, directory);
+    if (await abortRequested(directory)) throw new Error("Aborted team cannot apply; start a new verified run.");
     const state = await readState(directory);
     if (state.status === "applied") return state;
     if (state.version < 2 || state.status !== "staged" || !state.integrated.length) throw new Error("Only a verified staged team with integrated assignments can apply.");

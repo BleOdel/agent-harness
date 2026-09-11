@@ -3,7 +3,7 @@
 Implementation roadmap · 8 September 2026
 
 Based on `BleOdel/agent-harness` at `0cc7c34b534fe60d46f66d19304db0c9b9c21b99`.
-M0–M4 are published with passing GitHub CI. M5 is implemented locally: bounded integration repair, explicit resume, journaled batch application/recovery and undo. M6 remains proposed. See `TEAM_M0_RESULTS.md` through `TEAM_M5_RESULTS.md` for checks and publication status.
+M0–M5 are published. M6 is implemented locally: pinned Pi RPC, live steering/abort, durable control telemetry and read-only operational status. See `TEAM_M0_RESULTS.md` through `TEAM_M6_RESULTS.md` for checks and publication status.
 
 ## Outcome and scope
 
@@ -181,9 +181,11 @@ Journal the intended source writes and feature-status updates with before/after 
 
 Pin and compatibility-test the installed Pi version. Its documented RPC mode uses JSON lines over stdin/stdout, supports request correlation, and provides prompt, steer and abort commands. A prompt acknowledgment does not mean work completed. Use bounded LF framing, separate stderr, explicit request timeouts and verified lifecycle events. The documented abort behavior also requires considering queued messages. [Pi RPC documentation](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md)
 
-Use Docker interactive stdin without a TTY. Keep `src/run.ts` for finite commands. Provide proposed `harness team steer <attempt-id> "message"` and `harness team abort <run-id>` through a host-only control socket with restrictive permissions. Workers cannot mount it. Abort first prevents new scheduling, clears queues, requests cancellation, then force-removes only owned containers if needed. It must not proceed into application.
+Use Docker interactive stdin without a TTY. Keep `src/run.ts` for finite commands. Provide `harness team steer <attempt-id> "message"` and `harness team abort <run-id>` through a host-only control socket with restrictive permissions. Workers cannot mount it. Abort first prevents new scheduling, clears queues, requests cancellation, then force-removes only owned containers if needed. It must not proceed into application.
 
 Show role, task, prerequisites, phase, review/integration results, repair attempts, elapsed time and spend across every model role. Persist steering messages and report acknowledged versus delivered state only when the protocol provides evidence. Keep the web view read-only.
+
+**Implemented compatibility decision:** the installed and tested Pi 0.80.6 lacks `clear_queue`; M6 requests abort then always destroys the owned session/container to discard queued work. Command acknowledgement is separate from confirmed cleanup and delivery.
 
 **Exit checks:** framing handles partial/multiple records and Unicode; unmatched or malformed responses cannot accept work; abort leaves no owned containers and no application; status reconstructs from persisted state after restart.
 
@@ -201,7 +203,7 @@ Show role, task, prerequisites, phase, review/integration results, repair attemp
 
 Estimate: roughly 17–27 focused engineering days for the original milestones, plus 1–2 days for the assessed skill adaptations: approximately 18–29 days overall, with additional contingency for package preparation and provider/session behavior. This is a planning estimate, not a measured commitment. M4 is the first functional demonstration; M5 is required before relying on the team for project writes. M6 completes the initial operating experience.
 
-M1 implements prerequisite enforcement, cycle checks, structured blocked results and downstream revalidation. M2 supplies frozen baselines/candidates and clean verification inputs. M3 supplies durable controller events, isolated role assignments and writer exclusion at concurrency one. M4 adds concurrent builders and verified three-way integration, demonstrated by a real issue tracker. M5 adds bounded repair, resume and explicit journaled live batch application with recovery and undo. Team results remain in staging until `team apply`. The next milestone is M6: live control and operational visibility.
+M1 implements prerequisite enforcement, cycle checks, structured blocked results and downstream revalidation. M2 supplies frozen baselines/candidates and clean verification inputs. M3 supplies durable controller events, isolated role assignments and writer exclusion at concurrency one. M4 adds concurrent builders and verified three-way integration, demonstrated by a real issue tracker. M5 adds bounded repair, resume and explicit journaled live batch application with recovery and undo. Team results remain in staging until `team apply`. M6 adds pinned RPC live steering/abort and durable operational visibility. The initial M0–M6 implementation sequence is complete locally; M6 publication is a separate operator action.
 
 ## Release evidence
 
@@ -219,4 +221,4 @@ The release is complete when the issue-tracker demonstration passes, the incompa
 - [Sandbox lifecycle](https://github.com/BleOdel/agent-harness/blob/0cc7c34b534fe60d46f66d19304db0c9b9c21b99/src/workspace/sandbox-lifecycle.ts): copy and recovery primitives to extend.
 - [Pi subagent extension example](https://github.com/earendil-works/pi/tree/main/packages/coding-agent/examples/extensions/subagent): implementation reference; this plan keeps worker isolation and acceptance in the host controller.
 
-Milestone status is recorded separately from this design: see `TEAM_M0_RESULTS.md`, `TEAM_M1_RESULTS.md`, `TEAM_M2_RESULTS.md`, `TEAM_M3_RESULTS.md`, `TEAM_M4_RESULTS.md` and `TEAM_M5_RESULTS.md`. Later milestones remain pending until their exit checks pass.
+Milestone status is recorded separately from this design: see `TEAM_M0_RESULTS.md`, `TEAM_M1_RESULTS.md`, `TEAM_M2_RESULTS.md`, `TEAM_M3_RESULTS.md`, `TEAM_M4_RESULTS.md`, `TEAM_M5_RESULTS.md` and `TEAM_M6_RESULTS.md`. Later milestones remain pending until their exit checks pass.

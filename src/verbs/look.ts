@@ -13,6 +13,7 @@
  * accumulates unread.
  */
 
+import { readTeams, formatTeams } from "../view/status.ts";
 import { readFeatures, chooseNext, unmetDependencies, type Feature } from "../features.ts";
 import { readRecord, type RunRecord, undoableRuns } from "../record/record.ts";
 import { localTime } from "../view/render.ts";
@@ -34,6 +35,8 @@ export function stateOfItem(feature: Feature, runs: readonly RunRecord[]): strin
 }
 
 export async function look(project: string): Promise<void> {
+  const teams = await readTeams(project);
+  if (teams.length) { say("TEAMS"); say(formatTeams(teams)); say(); }
   const { runs, malformed } = await readRecord(project);
   const list = await readFeatures(project);
 

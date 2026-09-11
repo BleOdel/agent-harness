@@ -10,6 +10,7 @@
  * there is nothing here to trust.
  */
 
+import { readTeams, formatTeams } from "../view/status.ts";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -100,7 +101,7 @@ async function build(project: string, live: boolean): Promise<string> {
     next: feature.id === next?.id,
   }));
   return renderPage(
-    path.basename(project), views, await collectTree(project, runs), live, items, await builtAt(),
+    path.basename(project), views, await collectTree(project, runs), live, items, await builtAt(), await readTeams(project),
   );
 }
 
@@ -117,7 +118,8 @@ async function serve(project: string, port: number): Promise<void> {
       } catch {
         status = undefined;
       }
-      return assess(status, Date.now(), processAlive);
+      const teams = await readTeams(project);
+      return { ...assess(status, Date.now(), processAlive), teams, teamsText: formatTeams(teams) };
     },
   });
   const bound = await listen(server, port);
@@ -145,7 +147,7 @@ export async function view(project: string, argv: readonly string[]): Promise<vo
   }
 
   const { runs, malformed } = await readRecord(project);
-  if (runs.length === 0) {
+  if (runs.length === 0 && (await readTeams(project)).length === 0) {
     throw new OperatorError(
       "Nothing has run in this project yet.",
       "There is no record to look at. Start with:  harness work",

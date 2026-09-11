@@ -42,7 +42,7 @@ function reduce(previous: TeamState | undefined, event: TeamEvent): TeamState {
   const state = structuredClone(previous); state.seq = event.seq;
   if (event.type === "resumed") {
     if (state.version < 2 || !["running", "stopped"].includes(state.status) || state.attempts.some(a => ["running", "submitted", "verified"].includes(a.status))) throw new Error("Resume requires reconciled unfinished attempts and an unapplied run.");
-    state.status = "running"; state.resumeSeq = event.seq; delete state.reason; return state;
+    state.status = "running"; state.resumeSeq = event.seq; delete state.reason; delete state.finishedAt; return state;
   }
   if (event.type === "application-started") {
     if (state.version < 2 || !identifier(event.transactionId) || state.status !== (event.direction === "apply" ? "staged" : "applied")) throw new Error("Application requires staged work, or an applied batch for undo.");
@@ -58,12 +58,12 @@ function reduce(previous: TeamState | undefined, event: TeamEvent): TeamState {
     } else { state.status = event.direction === "apply" ? "staged" : "applied"; delete state.application; }
     return state;
   }
-  if (event.type === "stopped" || event.type === "staged") {
+  if (event.type === "stopped" || event.type === "staged" || event.type === "aborted") {
     if (!["running", "stopped", "staged"].includes(state.status)) throw new Error("Cannot change a terminal application state.");
     if (state.attempts.some(a => ["running", "submitted", "verified"].includes(a.status))) throw new Error("Cannot stop with an unfinished attempt.");
     if (event.type === "staged" && state.plan.tasks.some(t => t.priority !== "wont" && !acceptedTasks(state).has(t.id))) throw new Error("All requested tasks must be integrated before staging is complete.");
-    state.status = event.type === "staged" ? "staged" : "stopped";
-    if (event.type === "stopped") state.reason = event.reason;
+    state.status = event.type; state.finishedAt = event.at;
+    if (event.type !== "staged") state.reason = event.reason;
     return state;
   }
   if (state.status !== "running") throw new Error("Team run is terminal.");
@@ -81,17 +81,20 @@ function reduce(previous: TeamState | undefined, event: TeamEvent): TeamState {
     snapshot(a.baseline);
     if (a.baseline.digest !== state.baseline.digest) throw new Error("Attempt uses a stale baseline.");
     if (!path.isAbsolute(a.directory) || !/^harness-[a-zA-Z0-9_-]+$/u.test(a.containerName)) throw new Error("Invalid attempt resource identity.");
-    state.attempts.push({ ...a, status: "running" });
+    state.attempts.push({ ...a, startedAt: event.at, status: "running" });
     return state;
   }
   const attempt = state.attempts.find(a => a.id === event.attemptId);
   if (!attempt) throw new Error("Result does not name a host-issued attempt.");
   switch (event.type) {
+    case "review-usage":
+      if (attempt.status !== "submitted") throw new Error("Review usage requires a submitted candidate.");
+      usage(state, event.usage); attempt.reviewerUsage = event.usage; break;
     case "submitted":
       if (attempt.status !== "running") throw new Error("Only a running attempt can submit.");
       snapshot(event.candidate); attempt.candidate = event.candidate; attempt.status = "submitted";
       if (!Array.isArray(event.observedReads) || !Array.isArray(event.workflowEvidence)) throw new Error("Invalid skill evidence.");
-      usage(state, event.usage); break;
+      usage(state, event.usage); attempt.usage = event.usage; break;
     case "verified":
       if (attempt.status !== "submitted" || event.review !== "pass" || !Array.isArray(event.gates) || event.gates.length === 0) throw new Error("Verification requires a submitted candidate, gate evidence and passing review.");
       attempt.status = "verified"; break;
@@ -109,12 +112,12 @@ function reduce(previous: TeamState | undefined, event: TeamEvent): TeamState {
         state.integrated = [];
       }
       state.invalidated = state.invalidated.filter(id => id !== attempt.taskId);
-      attempt.status = "integrated"; state.baseline = event.baseline;
+      attempt.status = "integrated"; attempt.finishedAt = event.at; state.baseline = event.baseline;
       state.integrated = [...new Set([...state.integrated, attempt.taskId])]; break;
     case "failed": case "blocked": case "interrupted":
       if (!["running", "submitted", "verified"].includes(attempt.status) || typeof event.reason !== "string" || !event.reason) throw new Error("Invalid terminal attempt transition.");
-      if (attempt.status === "running") usage(state, event.usage);
-      attempt.status = event.type; attempt.reason = event.reason; attempt.terminalSeq = event.seq;
+      if (attempt.status === "running") { usage(state, event.usage); if (event.usage) attempt.usage = event.usage; }
+      attempt.status = event.type; attempt.finishedAt = event.at; attempt.reason = event.reason; attempt.terminalSeq = event.seq;
       if (event.failureStage) attempt.failureStage = event.failureStage;
       break;
     default: throw new Error("Unknown team event.");
