@@ -68,7 +68,8 @@ export async function exportArtifact(project:string,id:string,destination:string
  const handle=await open(absolute,'wx',0o600);try{await handle.writeFile(bytes);await handle.sync();}finally{await handle.close();}
 }
 export async function releaseArtifacts(project:string,producer:string,protectedProducers:ReadonlySet<string>):Promise<void>{
- if(protectedProducers.has(producer))throw new OperatorError('Cannot release artifacts referenced by an active or recoverable job/workflow. Retire it through harness guide (job release or ml release) first.');
+ if(/^release-[a-f0-9-]{36}$/u.test(producer)&&await (await import('../releases/store.ts')).releaseProtected(project,producer))throw new OperatorError('Release snapshot is retained. Retire its release before removing these artifact references.');
+ if(protectedProducers.has(producer))throw new OperatorError('Cannot release artifacts referenced by an active or recoverable job/workflow. Retire it through harness guide (job release, ml release or desktop release) first.');
  const root=await store(project);for(const a of await listArtifacts(project))if(a.producer===producer)await unlink(await safePath(root,`manifests/${a.id}.json`));
 }
 export async function collectArtifacts(project:string):Promise<number>{

@@ -362,3 +362,62 @@ storage mechanics, not data governance. Model formats with executable payloads,
 arbitrary frameworks, GPU, serving and external model publication are unavailable.
 The Docker boundary and pinned installed controller/image remain trusted. Numeric
 tolerances and supported dataset limits are explicit in [ML.md](ML.md).
+
+## Linux desktop diagnostics (E6)
+
+The Electron lane preserves the existing offline Linux Docker boundary: non-root,
+read-only root, dropped capabilities, no-new-privileges, CPU/RAM/process limits,
+no host sockets or provider mounts. Xvfb runs inside the container. Chromium is
+launched with `--no-sandbox`; no claim is made of isolation between renderer, main
+process and verification driver. There is no new host command-execution backend.
+
+Packaging executes only fixed ASAR tooling over safe regular source files. It runs
+twice, requires matching bytes, and never extracts an app archive on the host.
+The UI phase sees a read-only ASAR and action request; approval/expected values and
+artifact state are not mounted. Host comparison rejects missing/malformed steps,
+wrong expected values and reported renderer errors. Outputs are checked for safe
+paths, sizes, PNG structure and content hashes before retention/export.
+
+A hostile main process can tamper with the co-located driver, fake observations,
+or supply misleading screenshots. Those diagnostics therefore cannot authorize
+source application. E0's approved source checks remain required. Passed GUI output
+uses `diagnostics-passed`, never model `evaluation-passed` or independent acceptance.
+The driver cannot inspect the host's expected values, but expectations can be
+inferred from public UI behaviour or source; they are not a secret attestation key.
+
+The disposable bind-mounted work directory retains the existing lack of a disk
+quota; artifact quotas limit retained output, not peak workspace usage. A killed
+controller may leave an owned container until its internal deadline/recovery.
+Ownership token, labels and immutable image are checked before explicit recovery;
+unconfirmed cleanup remains active state and blocks another desktop run. GUI user
+data is disposable, with no checkpoint-resume claim. Native macOS/Windows, OS-level
+accessibility, signed installers, browser isolation within Electron and malicious
+GUI-proof verification are outside this release. See [DESKTOP.md](DESKTOP.md).
+
+
+## Local release preparation (E9a)
+
+Release operations run in the trusted controller and transfer one bounded artifact
+as inert bytes. They never execute it, extract archives, invoke project release
+scripts, fetch credentials, sign or upload. Only local-directory@1 exists. Product
+verification is inherited unchanged; staging does not upgrade diagnostics into
+independent acceptance or an assertion of production readiness.
+
+Draft/approval digests bind provenance, snapshot, name/version and destination.
+A release retains its own artifact reference; original-producer retirement cannot
+remove it. Generic reference removal refuses active release snapshots. Retirement
+preserves audit and destination contents and prevents future staging from that draft.
+
+The approved parent directory's canonical path/device/inode is checked before
+writes. Output requires a matching private ownership marker; aliases, foreign
+contents and conflicting hashes refuse. Files are flushed and installed exclusively;
+the completion receipt is last. A retry checks bytes and receipt instead of replacing
+them. Actual SIGKILL tests cover four journal boundaries and dead-writer recovery.
+
+A crash before a complete ownership marker can leave an ambiguous directory, which
+requires inspection rather than automatic deletion. Consumers must check receipt
+and hashes; directory visibility is not transactional completion. Local fsync/hard-
+link semantics and an operator-controlled filesystem are assumed. There is no
+protection claim against malicious same-host races, network-filesystem semantics,
+an aggregate staging-disk quota, native/remote distribution or release-credential
+handling. Public descriptors and uncertain remote outcomes belong to future E9 work.

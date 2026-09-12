@@ -178,3 +178,7 @@ create/run/inspect/export journey. All fixtures are deterministic and make zero
 model-provider calls. Automated PTY success does not establish human usability;
 the human U0 trial remains unmeasured follow-up. GPU/native runners, a background
 scheduler, arbitrary checkpoint formats and external publication are not supported.
+
+E6 adds a separate [Linux desktop diagnostic workflow](DESKTOP.md), with ASAR packages, runtime descriptors and GUI screenshots in the same artifact store. Retire those references with `harness desktop release` or the desktop guide before generic cleanup. Desktop UI sessions rerun fresh; they are not E3 checkpoint jobs.
+
+[E9a release preparation](RELEASES.md) retains its own immutable artifact reference. Retiring the original job does not invalidate an approved release. Retire the release separately before its snapshot can be collected; local staged outputs and audit remain.

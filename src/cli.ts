@@ -14,6 +14,8 @@
  * boundary probe and again from `planUndo`.
  */
 
+import { releaseCommand } from './verbs/release.ts';
+import { desktopCommand } from './verbs/desktop.ts';
 import path from "node:path";
 import { mlCommand } from "./verbs/ml.ts";
 import { jobCommand } from "./verbs/job.ts";
@@ -47,13 +49,15 @@ const USAGE = [
   "  harness guide [path]        select a project and continue through guided steps",
   "  harness project setup      select the project adapter and skill bundles",
   "  harness project show       show saved environment requirements",
+  "  harness release setup      prepare, approve and stage a retained artifact locally",
+  "  harness desktop setup      approve and verify a packaged Linux GUI journey",
   "  harness ml setup           approve CSV data, train and evaluate a CPU regressor",
   "  harness job setup          save a bounded offline job through short prompts",
   "  harness job list           inspect, run, resume, cancel or recover saved jobs",
   "  harness artifacts list     inspect, export or clean retained outputs",
   "  harness verify [--retain]   fresh offline tests; optionally retain build outputs",
   "  harness doctor [--json]     readiness and the next remedy",
-  "  harness init [--python]        create a Node or Python project",
+  "  harness init [--python | --desktop] create a Node, Python or Linux desktop project",
   "  harness plan [<topic>]        a saved interview and draft plan",
   "  harness plan resume [<id>]    continue the saved interview or item generation",
   "  harness plan review [<id>]    read the draft and approve it in one step",
@@ -94,6 +98,8 @@ async function main(): Promise<void> {
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
 
   switch (verb) {
+    case "release": return releaseCommand(project, rest);
+    case "desktop": return desktopCommand(project, rest);
     case "ml": return mlCommand(project, rest);
     case "job": return jobCommand(project, rest);
     case "artifacts": return artifactsCommand(project, rest);

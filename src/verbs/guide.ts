@@ -1,3 +1,5 @@
+import { guideReleases } from '../guide/releases.ts';
+import { guideDesktop } from '../guide/desktop.ts';
 import { guideMl } from "../guide/ml.ts";
 import { guideJobs } from "../guide/jobs.ts";
 import { spawn } from "node:child_process";
@@ -59,6 +61,7 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
         if (!initialized && !detected.length) {
           actions.push({ label: "Create a Node project here", run: () => run("init") });
           actions.push({ label: "Create a Python project here", run: () => run("init", "--python") });
+          actions.push({ label: "Create a Linux desktop notes app here", run: () => run("init", "--desktop") });
         }
         else if (initialized) {
           let supported = true;
@@ -118,6 +121,8 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
     actions.push({ label: "Review project status and history", run: () => run("look") });
     actions.push({ label: "Manage jobs and retained outputs", run: () => guideJobs(project, io, command) });
     actions.push({ label: "Build and evaluate a CPU ML model", run: () => guideMl(project, io, command) });
+    actions.push({ label: "Linux desktop apps", run: () => guideDesktop(project, io, command) });
+    actions.push({ label: "Prepare and stage a release", run: () => guideReleases(project, io, command) });
     const choice = await choose(io, "Next action", actions.map(a => a.label));
     if (choice < 0) { io.write(`Saved work stays with ${project}. Return with harness guide ${JSON.stringify(project)}.`); return; }
     try { await actions[choice]!.run(); }

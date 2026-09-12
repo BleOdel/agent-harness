@@ -1,0 +1,23 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,mkdir,rm,readFile} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import {putArtifact} from '../src/artifacts/store.ts';
+import {prepareRelease,approveRelease,stageRelease} from '../src/releases/controller.ts';
+import {readRelease} from '../src/releases/store.ts';
+import {inspectWriter} from '../src/guide/readiness.ts';
+import {recoverWriter} from '../src/workspace/writer-lock.ts';
+for(const checkpoint of ['reserved','payload','manifest','receipt'])test(`release controller SIGKILL after ${checkpoint}: recover and stage exactly once`,{timeout:15000},async t=>{
+ const root=await mkdtemp('/private/tmp/release-crash-'),project=root+'/project',out=root+'/out';await mkdir(project);await mkdir(out);
+ const a=await putArtifact(project,'model.json',Buffer.from('{"model":"fixture"}'),{producer:'fixture',input:'a'.repeat(64),environment:'b'.repeat(64),verification:'diagnostics-passed'});
+ const d=await prepareRelease(project,{artifact:a.id,name:'model',version:'1.0.0',destination:out});await approveRelease(project,d.id,d.digest);
+ const script=`import {stageRelease} from ${JSON.stringify(new URL('../src/releases/controller.ts',import.meta.url).href)}; await stageRelease(process.argv[1],process.argv[2],async step=>{if(step===process.argv[3]){console.log('checkpoint');await new Promise(()=>setInterval(()=>{},1000));}});`;
+ const {NODE_TEST_CONTEXT:_,NODE_OPTIONS:__,...env}=process.env;
+ const child=spawn(process.execPath,['--input-type=module','-e',script,project,d.id,checkpoint],{env,stdio:['ignore','pipe','pipe']});let output='';child.stderr.on('data',s=>{output+=s;});const closed=new Promise<void>(resolve=>child.once('close',()=>resolve()));
+ t.after(async()=>{child.kill('SIGKILL');await closed;await rm(root,{recursive:true,force:true});});
+ await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('No checkpoint: '+output)),8000);child.stdout.on('data',s=>{if(String(s).includes('checkpoint')){clearTimeout(timer);resolve();}});child.once('error',reject);});
+ await assert.rejects(stageRelease(project,d.id),/locked/);child.kill('SIGKILL');await closed;
+ const owner=await inspectWriter(project);assert.ok(owner?.recoverable);await recoverWriter(project,owner.token);
+ const staged=await stageRelease(project,d.id);assert.equal(staged.status,'staged');const receipt=await readFile(staged.manifest.target+'/receipt.json','utf8');
+ await stageRelease(project,d.id);assert.equal(await readFile(staged.manifest.target+'/receipt.json','utf8'),receipt);assert.equal((await readRelease(project,d.id)).digest,d.digest);
+});

@@ -1,6 +1,6 @@
 # Harness architecture
 
-Current implementation includes E0 hardening, E1 adapter/runner contracts, E2 Python support, E3 artifacts/jobs, E4 CPU regression and the initial U0 guide on top of team M0–M6 and durable planning.
+Current implementation includes E0 hardening, E1 adapter/runner contracts, E2 Python support, E3 artifacts/jobs, E4 CPU regression, Linux-only E6 desktop diagnostics, E9a release preparation and the extended U0 guide on top of team M0–M6 and durable planning.
 Use the [README](README.md) for commands and [threat model](THREAT_MODEL.md) for
 security assumptions. These diagrams describe implemented behavior; milestone
 reports preserve their original observations.
@@ -443,3 +443,68 @@ The guide reads these same saved approvals and jobs; it adds no parallel lifecyc
 store. Retirement releases artifact references while retaining host-only data and
 audit records. See [ML.md](ML.md) for numerical tolerances, leakage limitations,
 retention, the supported CSV/JSON schemas and the exact runnable example.
+
+## Packaged Linux desktop verification (E6)
+
+The desktop lane keeps the existing Node adapter for source work and adds an
+explicitly prepared Electron/Playwright/ASAR/Xvfb image. `desktop setup` stores the
+reviewed journey and immutable image/toolchain/protocol identity outside source.
+`desktop verify` freezes the current source, packages it twice using fixed tools
+without executing application code, and compares the ASAR bytes. A fresh offline
+container assembles the pinned runtime with that package and drives one window.
+
+```mermaid
+flowchart LR
+  G["Guide: approve journey + image"] --> A["Host approval state"]
+  S["Frozen safe source"] --> P["Two offline ASAR packaging passes"]
+  P --> B["Identical package bytes"]
+  B --> V["Fresh Docker: Electron + Xvfb + driver"]
+  A -->|"actions only"| V
+  V --> O["Bounded observations, logs, PNGs"]
+  A -->|"expected values"| C["Host comparison"]
+  O --> C
+  C --> R["Separate diagnostic record + artifact hashes"]
+  R --> E["Checked local export: ASAR + runtime descriptor"]
+```
+
+Only the disposable workspace is writable; fixed instrumentation and action/package
+inputs are read-only. No provider credentials, host display socket or Docker socket
+enter the container. The driver and app main process share that container, so host
+comparison does not make GUI observations independent acceptance evidence. A passing
+package is `diagnostics-passed`. Ordinary source acceptance/application stays separate.
+
+Saved runs bind source, approval, image and tool versions, package/report hashes,
+container ownership and status. Ctrl-C and bounded deadlines stop execution; recovery
+checks ownership before removing resources after a controller crash. A rerun starts
+from a fresh app, not a partial GUI checkpoint. Artifact release protects unreleased
+desktop references; guide and `look` read these saved records directly. Native OS
+runners remain deferred. See [DESKTOP.md](DESKTOP.md) for limits and image preparation.
+
+
+## Reviewed local release preparation (E9a)
+
+Release drafts select an existing diagnostic/evaluated artifact, verify its bytes,
+and retain a separate manifest reference. The draft binds original provenance,
+snapshot identity, name/version and local destination, including parent-directory
+identity. Approval covers that exact manifest digest. Expected product quality is
+inherited from the original workflow and is not re-evaluated by staging.
+
+```mermaid
+flowchart LR
+  A["Retained artifact + provenance"] --> D["Frozen release draft + snapshot reference"]
+  D --> R["Operator reviews exact bytes/version/destination"]
+  R --> P["Saved approval digest"]
+  P --> V["Dry run: identity, hashes, destination/ownership"]
+  V --> S["Owned local directory: exclusive durable writes"]
+  S --> C["Completion receipt written last"]
+  C --> J["Staged record; retries verify/reconcile"]
+  D --> T["Retire: keep audit/output, release blob reference"]
+```
+
+`src/releases` owns these records; guide and `look` read them directly. Stage uses
+the existing project writer lock and never mounts or executes artifacts. A killed
+controller can resume completed writes; foreign contents, changed destinations
+and missing ownership cause a refusal. The receipt is the completion boundary,
+not directory creation. A copied release artifact remains retained independently
+of its producing job/workflow until retirement. No external release backend or
+credential path exists. See [RELEASES.md](RELEASES.md) for local filesystem limits.

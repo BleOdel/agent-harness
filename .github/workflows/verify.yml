@@ -19,6 +19,7 @@ jobs:
     env:
       HARNESS_CONFIG: ${{ vars.HARNESS_VERIFY_CONFIG }}
       HARNESS_PYTHON_IMAGE_ID: ${{ vars.HARNESS_PYTHON_IMAGE_ID }}
+      HARNESS_DESKTOP_IMAGE_ID: ${{ vars.HARNESS_DESKTOP_IMAGE_ID }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,6 +35,8 @@ jobs:
       - run: npm run verify:python
       - run: npm run verify:jobs
       - run: npm run verify:ml
+      - run: npm run verify:desktop
+      - run: npm run verify:releases
       - run: npm run verify:hardening
       - run: npm run verify:gates
       - run: npm run verify:candidates

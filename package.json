@@ -29,7 +29,9 @@
     "verify:adapters": "node src/verify-adapters.ts",
     "verify:python": "node src/verify-python.ts",
     "verify:jobs": "node src/verify-jobs.ts",
-    "verify:ml": "node src/verify-ml.ts"
+    "verify:ml": "node src/verify-ml.ts",
+    "verify:desktop": "node src/verify-desktop.ts",
+    "verify:releases": "node src/verify-releases.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -43,6 +45,7 @@
     "src",
     "README.md",
     ".env.example",
-    "profiles"
+    "profiles",
+    "containers/desktop"
   ]
 }

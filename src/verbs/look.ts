@@ -1,3 +1,4 @@
+import { listReleases } from '../releases/store.ts';
 /**
  *   look
  *
@@ -13,6 +14,7 @@
  * accumulates unread.
  */
 
+import { listDesktopRuns, listApprovals } from '../desktop/store.ts';
 import { listMl, readMlState } from "../ml/store.ts";
 import { listJobs } from "../jobs/state.ts";
 import { listArtifacts } from "../artifacts/store.ts";
@@ -38,6 +40,9 @@ export function stateOfItem(feature: Feature, runs: readonly RunRecord[]): strin
 }
 
 export async function look(project: string): Promise<void> {
+  for (const r of await listReleases(project)) say(`RELEASE ${r.manifest.name} ${r.manifest.version} · ${r.status} · local staging · ${r.id}`);
+  const journeys = await listApprovals(project);
+  for (const run of await listDesktopRuns(project)) say(`DESKTOP ${journeys.find(a => a.id === run.approval)?.journey.title ?? run.approval} · ${run.status} · ${run.id}`);
   for (const ml of await listMl(project)) say(`ML ${ml.spec.title} · ${(await readMlState(project, ml.id)).status} · ${ml.id}`);
   const jobs = await listJobs(project);
   for (const job of jobs) say(`JOB ${job.spec.title} · ${job.status} · checkpoint ${job.completed ?? "none"} · cost unknown · ${job.id}`);

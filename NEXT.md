@@ -1,6 +1,6 @@
 # Harness expansion development plan
 
-Status: E0–E4 and the initial U0 guided journey implemented. Next: E5 infrastructure checkpoint.
+Status: E0–E4, Linux-only E6 and E9a local release preparation implemented; U0 guide extended. E5 native runners explicitly deferred by the operator on 2026-09-12. Mobile, GPU and external release/distribution remain unimplemented.
 Updated 2026-09-12. See README.md for shipped commands and limitations.
 
 Delivered in E0/U0: strict reviewer schema, byte-preserving ordinary undo,
@@ -136,10 +136,10 @@ journey is not complete. Document any remaining advanced-only operation clearly.
 | E3 | Artifact storage and long-running jobs | E1 |
 | E4 | CPU-based ML workflows | E2, E3 |
 | E5 | Isolated platform runners | E1, E3 |
-| E6 | Desktop application verification | E5, Node adapter |
+| E6 | Linux Electron verification shipped; native desktop deferred | Existing Docker, Node adapter; E5 for native |
 | E7 | Mobile application verification | E5, Node adapter |
 | E8 | GPU training workflows | E4, E5 |
-| E9 | Controlled release and distribution | Relevant platform milestone, E3, E5 |
+| E9 | Local preparation/staging shipped; external distribution pending | Relevant platform milestone, E3, E5 |
 
 Recommended execution order: U0 alongside E0, then E1 → E2 → E3 → E4 → E5 → E6 → E7 → E8 → E9. U0 continues as a required operator journey in each later milestone.
 E6, E7 and E8 can be reprioritized after E5 based on the next real project and available hardware. Each milestone is a separate reviewable delivery, not one large implementation branch.
@@ -152,13 +152,14 @@ flowchart TD
   E1 --> E3["E3: Artifacts and jobs"]
   E2 --> E4["E4: CPU ML"]
   E3 --> E4
-  E1 --> E5["E5: Platform runners"]
+  E1 --> E5["E5: Native runners deferred"]
   E3 --> E5
-  E5 --> E6["E6: Desktop"]
+  E1 --> E6["E6: Linux Electron shipped"]
+  E5 -.->|native support deferred| E6
   E5 --> E7["E7: Mobile"]
   E4 --> E8["E8: GPU ML"]
   E5 --> E8
-  E3 --> E9["E9: Authorized release"]
+  E3 --> E9["E9a: Local release staging; external release pending"]
   E6 --> E9
   E7 --> E9
   E8 --> E9
@@ -302,6 +303,8 @@ splits, arbitrary frameworks, tuning, GPU and publication are not supported.
 
 ## E5 — Isolated platform runners
 
+Deferred by the operator on 2026-09-12 after infrastructure assessment. No native VM, paid runner, OS image or emulator was provisioned. Linux E6 uses the existing Docker boundary and does not establish native support.
+
 ### Deliver
 
 Add explicitly provisioned runner profiles for macOS, Windows and Android-emulator-capable environments, preserving workspace separation, credential boundaries, lifecycle records, cleanup and capability checks. Prefer disposable VMs or dedicated resettable execution environments. Do not silently replace a Linux container with unrestricted commands on the operator’s desktop.
@@ -318,9 +321,11 @@ Confirm available hardware, OS images and operating costs before implementation 
 
 ## E6 — Desktop applications
 
+Linux-only scope implemented 2026-09-12. See [DESKTOP.md](DESKTOP.md) for the exact support boundary. The shipped notes starter packages reproducibly as ASAR, launches with a pinned Electron runtime inside offline Docker/Xvfb, and checks keyboard input, persistence after restart, invalid input, logs and screenshots. A guided terminal journey covers approval, verification, inspection and local export without JSON edits or copied IDs. Export includes ASAR plus a runtime descriptor, not a self-contained installer. GUI observations remain diagnostics because the application main process shares the driver container; approved source acceptance remains required. Native Windows/macOS, external dependencies and human usability validation remain deferred/unverified.
+
 ### Deliver
 
-Support one explicit stack first: Electron using the Node adapter plus native runner capabilities. Begin with a tested Linux application; add Windows and macOS packaging only as their runners pass E5. Add application launch, GUI interaction, persistence, restart, error handling and packaged-application checks. Capture screenshots and logs as artifacts for operator review.
+Support one explicit stack first: Electron using the Node adapter and a separate Linux Docker GUI lane; native runner capabilities are needed for other operating systems. Begin with a tested Linux application; add Windows and macOS packaging only as their runners pass E5. Add application launch, GUI interaction, persistence, restart, error handling and packaged-application checks. Capture screenshots and logs as artifacts for operator review.
 
 ### Acceptance
 
@@ -351,6 +356,8 @@ Start with one small training workload on one approved GPU environment. Multi-no
 A bounded GPU training fixture completes, checkpoints, is interrupted, resumes correctly, and exports a model that passes independent evaluation. Driver/runtime incompatibility, incompatible checkpoints and exhausted resource limits produce explicit outcomes. No claim of exact reproducibility or cost accounting where the backend cannot provide it.
 
 ## E9 — Controlled release and distribution
+
+E9a local preparation implemented on 2026-09-12 after the operator selected it while native/mobile/GPU infrastructure remained deferred. See [RELEASES.md](RELEASES.md). It freezes one retained artifact, inherited verification, version and destination into an approved manifest; dry runs, exclusive local staging, receipt reconciliation, retirement and guided recovery are implemented. Real process-crash and terminal tests cover the workflow. External targets, credentials, signing, upload, remote-outcome reconciliation and production distribution remain future E9 work; this does not complete the original external-release milestone.
 
 ### Deliver
 

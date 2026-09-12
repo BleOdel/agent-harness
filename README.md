@@ -156,7 +156,8 @@ Local artifact retention and bounded resumable jobs are documented in [Jobs and 
 E4 adds [CPU numeric regression](ML.md) with approved datasets, protected host
 evaluation, checkpoint resume and inert JSON model export. Use `harness guide` →
 **Build and evaluate a CPU ML model**. Source tests and model quality are separate.
-Mobile/native desktop toolchains, GUI automation, emulators and GPUs remain later milestones in [the expansion plan](NEXT.md).
+E9a adds [reviewed release preparation and local staging](RELEASES.md): freeze an artifact, approve its version/destination, dry run, stage and recover through **Prepare and stage a release** in `guide`. Remote publication remains unimplemented.
+E6 adds [packaged Linux Electron journeys](DESKTOP.md): keyboard/UI interaction, restart persistence, screenshots and checked local package export through **Linux desktop apps** in `guide`. Native macOS/Windows support is explicitly deferred; mobile, emulators and GPUs remain future milestones in [the expansion plan](NEXT.md).
 
 ```bash
 harness project setup       # choose the environment and skills using short prompts
@@ -181,8 +182,8 @@ Project-source configuration files never grant harness permissions.
 Docker supplies at most 2 CPUs and 2048 MiB per container. Doctor inspects the
 pinned image and available daemon capacity, then probes the selected adapter's toolchain versions in
 an isolated credential-free container. Verification remains offline; dependency
-preparation and model calls use bridge networking. GUI, native emulator and GPU
-capabilities are false. The host OS is distinct from the Linux target OS.
+preparation and model calls use bridge networking. Generic adapter GUI, native emulator and GPU
+capabilities remain false. The separate desktop lane adds an internal Xvfb display with a pinned Electron image. The host OS is distinct from the Linux target OS.
 
 A run retains its effective configuration, image, toolchain/runner report and
 frozen skills. New team journals use version 4. Resuming or applying an E1 team,
@@ -313,6 +314,9 @@ Run them inside your project.
 
 | | |
 |---|---|
+| `harness release setup` | prepare a reviewed artifact release for local staging; no upload |
+| `harness desktop setup` | approve a packaged Linux GUI journey; continue through guide |
+| `harness init --desktop` | create the dependency-free Electron notes starter |
 | `harness guide [path]` | select a project and follow saved planning, checks, work and recovery |
 | `harness doctor [--json]` | readiness and runner capability report; exit 1 when blocked |
 | `harness project setup` | choose the supported environment and planning/build skills |
@@ -814,6 +818,8 @@ npm run verify:adapters   # contracts, capabilities, resume and Node guided jour
 npm run verify:python     # E2 Python image, wheels, pytest, CLI, guide and apply/undo
 npm run verify:jobs       # E3 outputs, jobs, quotas, crash recovery and guided export
 npm run verify:ml         # E4 numeric regression, protected evaluation, resume and guide
+npm run verify:desktop    # E6 Linux packaged Electron, GUI/persistence, cleanup and guide
+npm run verify:releases   # E9a approval, local staging, crash recovery and terminal workflow
 npm run verify:boundary   # the container, against a real daemon
 npm run verify:hardening  # approved checks, binary undo, guide PTY and planning cleanup
 npm run verify:gates      # each gate broken in turn, confirmed to stop the apply
@@ -1164,6 +1170,8 @@ envelope can pass component tests while failing the combined contract check.
 
 | Document | Purpose |
 |---|---|
+| [Release preparation](RELEASES.md) | Reviewed manifests, dry runs, local staging, receipts and recovery; no remote publishing |
+| [Linux desktop apps](DESKTOP.md) | Electron image preparation, packaged UI journeys, screenshots, checked export and limits |
 | [CPU ML workflows](ML.md) | Numeric CSV setup, training, protected evaluation, resume, model export and limits |
 | [Python projects](PYTHON.md) | Current Python setup, dependency policy, packaging and guided workflow |
 | [Architecture](ARCHITECTURE.md) | Current execution, control, recovery and skill diagrams |

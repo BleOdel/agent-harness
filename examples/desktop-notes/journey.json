@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "title": "Save notes with the keyboard and reopen the app",
+  "timeoutSeconds": 60,
+  "steps": [
+    {
+      "action": "fill",
+      "selector": "#note",
+      "value": "My first desktop note"
+    },
+    {
+      "action": "press",
+      "selector": "#note",
+      "key": "Enter"
+    },
+    {
+      "action": "text",
+      "selector": "#status",
+      "expected": "Note saved."
+    },
+    {
+      "action": "count",
+      "selector": "#notes li",
+      "expected": 1
+    },
+    {
+      "action": "restart"
+    },
+    {
+      "action": "text",
+      "selector": "#notes li",
+      "expected": "My first desktop note"
+    },
+    {
+      "action": "press",
+      "selector": "#note",
+      "key": "Enter"
+    },
+    {
+      "action": "text",
+      "selector": "#status",
+      "expected": "Write a note before saving."
+    },
+    {
+      "action": "count",
+      "selector": "#notes li",
+      "expected": 1
+    },
+    {
+      "action": "screenshot"
+    }
+  ]
+}

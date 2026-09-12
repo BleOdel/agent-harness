@@ -1,3 +1,4 @@
+import { desktopScaffold } from '../desktop/scaffold.ts';
 /**
  *   harness init
  *
@@ -121,7 +122,7 @@ behaviour is worse than an honest failure.
 - Do not build anything no acceptance criterion asked for.
 `;
 
-async function initUnlocked(project: string, python = false): Promise<void> {
+async function initUnlocked(project: string, python = false, desktop = false): Promise<void> {
   const name = path.basename(project);
   if ((await detectProjects(project)).length) {
     throw new OperatorError(
@@ -131,14 +132,15 @@ async function initUnlocked(project: string, python = false): Promise<void> {
     );
   }
 
-  if (python) {
-    const files = await pythonScaffold(name);
+  if (python || desktop) {
+    const files = desktop ? await desktopScaffold() : await pythonScaffold(name);
     for (const [file] of files) if (existsSync(path.join(project, file))) throw new OperatorError(`init would overwrite ${file}; choose an empty project.`);
     for (const [file, contents] of files) {
       await mkdir(path.dirname(path.join(project, file)), { recursive: true });
       await writeFile(path.join(project, file), contents, { encoding: "utf8", flag: "wx" });
       say(`  created  ${file}`);
     }
+    if (desktop) { say("Desktop notes created. Run npm test, then harness guide → Linux desktop apps to prepare the image and approve a journey."); return; }
     say("Python project created. Next: harness doctor checks your configured Python runner image.");
     say("Use harness guide to plan and continue; harness verify tests and packages in fresh offline containers.");
     return;
@@ -174,6 +176,6 @@ async function initUnlocked(project: string, python = false): Promise<void> {
 }
 
 export async function init(project: string, args: readonly string[] = []): Promise<void> {
-  if (args.length && (args.length !== 1 || args[0] !== "--python")) throw new OperatorError("Use: harness init [--python]");
-  return withWriter(project, "init", () => initUnlocked(project, args[0] === "--python"));
+  if (args.length && (args.length !== 1 || !["--python", "--desktop"].includes(args[0]!))) throw new OperatorError("Use: harness init [--python | --desktop]");
+  return withWriter(project, "init", () => initUnlocked(project, args[0] === "--python", args[0] === "--desktop"));
 }

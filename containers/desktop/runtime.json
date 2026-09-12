@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "electron": "44.3.0",
+  "sha256": {
+    "arm64": "c11fde221c08e9bffdb3336579f09bd934a009862f509af5033616876741be24",
+    "x64": "8b49b9efdd73c0f467edc3c1cd5678392c384ccf224f34ff54179f736e2f384b"
+  }
+}
