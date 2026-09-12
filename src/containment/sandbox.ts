@@ -41,6 +41,7 @@ export interface SandboxLayout {
   /** Non-root uid:gid. */
   readonly user: string;
   readonly labels?: Readonly<Record<string, string>>;
+  readonly environment?: Readonly<Record<string, string>>;
   readonly purpose?: "agent" | "verification" | "review";
 }
 
@@ -216,6 +217,7 @@ export function buildRunArguments(
     ...(layout.purpose === "verification" ? [] : [`--env=PI_CODING_AGENT_DIR=${CONTAINER_AGENT}`]),
     "--env=NODE_DISABLE_COMPILE_CACHE=1",
     "--env=NO_COLOR=1",
+    ...Object.entries(layout.environment ?? {}).map(([key, value]) => `--env=${key}=${value}`),
     layout.imageId,
     ...command,
   ];

@@ -37,8 +37,9 @@ export interface PipelineResult {
   readonly identity?: { adapter: Reference; runner: Reference; image: string; runtime: unknown };
 }
 export async function runPipeline(inputs: PipelineInputs): Promise<PipelineResult> {
-  const { layout, config } = inputs;
+  const { config } = inputs;
   const adapter = inputs.adapter ?? nodeNpm;
+  const layout = { ...inputs.layout, ...(adapter.executionEnvironment ? { environment: adapter.executionEnvironment } : {}) };
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-verification-")));
   let changes: Change[] = [];
   try {
@@ -52,7 +53,7 @@ export async function runPipeline(inputs: PipelineInputs): Promise<PipelineResul
     }
     const prepared = environment;
     const recipe = inputs.recipe ?? await adapter.recipe(source.directory, inputs.testCommand);
-    if (inputs.pinnedScripts !== undefined) recipe.scripts = { ...inputs.pinnedScripts };
+    if (!inputs.recipe && inputs.pinnedScripts !== undefined) recipe.scripts = { ...inputs.pinnedScripts };
     if (recipe.adapter.id !== adapter.reference.id || recipe.adapter.version !== adapter.reference.version) throw new Error("Verification recipe does not match the selected adapter.");
     const verify = async (name: string, check: (local: SandboxLayout) => Promise<GateVerdict>): Promise<GateVerdict> => {
       const work = path.join(root, name);

@@ -18,6 +18,7 @@ jobs:
     timeout-minutes: 30
     env:
       HARNESS_CONFIG: ${{ vars.HARNESS_VERIFY_CONFIG }}
+      HARNESS_PYTHON_IMAGE_ID: ${{ vars.HARNESS_PYTHON_IMAGE_ID }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,6 +31,7 @@ jobs:
       - run: npm run verify:skills
       - run: npm run verify:boundary
       - run: npm run verify:adapters
+      - run: npm run verify:python
       - run: npm run verify:hardening
       - run: npm run verify:gates
       - run: npm run verify:candidates

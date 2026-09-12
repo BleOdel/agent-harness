@@ -128,6 +128,7 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
   }, null, 2) + "\n");
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-acceptance-")));
   const base: SandboxLayout = {
+    ...(adapter.executionEnvironment ? { environment: adapter.executionEnvironment } : {}),
     dockerExecutable: config.dockerExecutable, imageId: config.imageId,
     containerName: `harness-acceptance-${path.basename(root)}`, workDirectory: candidate.directory,
     agentDirectory: config.agentDirectory, piPackageDirectory: config.piPackageDirectory,

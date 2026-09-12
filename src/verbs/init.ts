@@ -14,6 +14,8 @@
  * with ours is how a tool eats a project.
  */
 
+import { pythonScaffold } from "../adapters/python/scaffold.ts";
+import { detectProjects } from "../adapters/registry.ts";
 import { withWriter } from "../workspace/writer-lock.ts";
 
 import { existsSync } from "node:fs";
@@ -119,16 +121,28 @@ behaviour is worse than an honest failure.
 - Do not build anything no acceptance criterion asked for.
 `;
 
-async function initUnlocked(project: string): Promise<void> {
+async function initUnlocked(project: string, python = false): Promise<void> {
   const name = path.basename(project);
-  if (existsSync(path.join(project, "package.json"))) {
+  if ((await detectProjects(project)).length) {
     throw new OperatorError(
-      `${name} already has a package.json.`,
+      `${name} already has a project manifest.`,
       "init only ever creates a project from nothing. Add the pieces by hand, or\n"
       + "run it in an empty directory.",
     );
   }
 
+  if (python) {
+    const files = await pythonScaffold(name);
+    for (const [file] of files) if (existsSync(path.join(project, file))) throw new OperatorError(`init would overwrite ${file}; choose an empty project.`);
+    for (const [file, contents] of files) {
+      await mkdir(path.dirname(path.join(project, file)), { recursive: true });
+      await writeFile(path.join(project, file), contents, { encoding: "utf8", flag: "wx" });
+      say(`  created  ${file}`);
+    }
+    say("Python project created. Next: harness doctor checks your configured Python runner image.");
+    say("Use harness guide to plan and continue; harness verify tests and packages in fresh offline containers.");
+    return;
+  }
   await mkdir(path.join(project, "src"), { recursive: true });
   await mkdir(path.join(project, "test"), { recursive: true });
 
@@ -159,6 +173,7 @@ async function initUnlocked(project: string): Promise<void> {
   say("Fill in the Conventions section of AGENTS.md once you know them.");
 }
 
-export async function init(project: string): Promise<void> {
-  return withWriter(project, "init", () => initUnlocked(project));
+export async function init(project: string, args: readonly string[] = []): Promise<void> {
+  if (args.length && (args.length !== 1 || args[0] !== "--python")) throw new OperatorError("Use: harness init [--python]");
+  return withWriter(project, "init", () => initUnlocked(project, args[0] === "--python"));
 }

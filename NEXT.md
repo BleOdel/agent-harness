@@ -1,6 +1,6 @@
 # Harness expansion development plan
 
-Status: E0, E1 and the initial U0 guided journey implemented. Next: E2 Python support.
+Status: E0–E2 and the initial U0 guided journey implemented. Next: E3 artifacts and jobs.
 Updated 2026-09-12. See README.md for shipped commands and limitations.
 
 Delivered in E0/U0: strict reviewer schema, byte-preserving ordinary undo,
@@ -9,8 +9,8 @@ instrumentation, required operator-approved behaviour checked on the host,
 retained acceptance evidence, `guide`, `doctor`, and short check-setup prompts.
 Deterministic terminal/Docker tests cover the complete initial journey and
 interrupted planning; a human usability trial and advanced guided team/backlog
-operations remain U0 follow-up. No new project language or platform is supported
-yet. E1 makes node-npm@1 / docker@1 explicit, with capability checks, frozen
+operations remain U0 follow-up. E2 adds pure-Python library/CLI packages with
+wheel-only dependencies and offline pytest/packaging. E1 makes node-npm@1 / docker@1 explicit, with capability checks, frozen
 ordinary/planning skills, versioned execution records, guarded resume and guided
 project setup. The controller remains Node/TypeScript.
 Baseline: agent-harness main at d5662c1, including team M0–M6 and durable planning.
@@ -198,8 +198,7 @@ accepted execution identity. Ordinary and acceptance records retain the same
 identity; planning and team resume reject changed settings. Existing published
 application intents remain recoverable; unpinned legacy teams need new runs for
 further execution/application. Output artifact declarations are part of the adapter
-contract; retention/export remains E3. No production adapter beyond Node/npm or
-runner beyond Linux Docker is exposed.
+contract; retention/export remains E3. At E1, no production adapter beyond Node/npm or runner beyond Linux Docker was exposed; E2 adds Python.
 
 Verification: `npm run verify:adapters` covers a test-only text adapter, ambiguous
 selection, unavailable capabilities, frozen resources, journal identity refusals,
@@ -221,7 +220,23 @@ Node ordinary work and team execution produce equivalent outcomes through the ad
 
 ## E2 — Python support
 
-### Deliver
+Implemented 2026-09-12 as python-pip@1. See [Python projects](PYTHON.md) for setup,
+the exact dependency/packaging policy and limitations. `harness init --python`,
+project selection, adapter-aware planning, `harness verify`, and the existing guide
+carry Python through the same saved workflow. The Linux/arm64 reference image pins
+Python 3.13.12, pip 25.3 and Node 26.5.0 for the model launcher.
+
+`verify:python` exercises real Docker environments and deterministic model fixtures,
+including a keyboard-only interview using a frozen grill-me resource, automatic
+plan handoff, packaged CLI acceptance, ordinary/team application and undo, counterfeit
+reports, empty/skipped/failing suites, timeout cleanup, stale/corrupt dependency caches
+and runtime/backend refusals. It makes no model-provider calls. These tests do not
+establish human usability or actual skill compliance; the U0 human trial remains
+follow-up. Python team contract suites, arbitrary pytest plugins/backends, source
+dependency builds and artifact retention remain unsupported; approved acceptance
+cases are required. No host Python installation counts as project verification.
+
+### Delivered scope
 
 Support one Python package root, a pinned Python runtime, one documented dependency-input format, hash-pinned dependencies, isolated dependency downloads and fresh offline installation. Keep arbitrary install/build scripts controlled. Start with supported wheel-based dependencies; explicitly block unsupported source builds and local/Git dependencies until their policy exists.
 

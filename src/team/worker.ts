@@ -47,7 +47,7 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
     async execute(attempt, task, role) {
       const { state, adapter } = await selected();
       const work = path.join(attempt.directory, "worker");
-      const local = layout(attempt, work);
+      const local = { ...layout(attempt, work), ...(adapter.executionEnvironment ? { environment: adapter.executionEnvironment } : {}) };
       await control?.record({ type: "phase", attemptId: attempt.id, phase: "preparing", modelRole: "builder" });
       let spent: Usage = { tokens: 0, costUsd: 0, complete: false };
       await privateAgentDirectory(config.agentDirectory, local.agentDirectory);

@@ -57,7 +57,11 @@ export async function readiness(project: string, environment: NodeJS.ProcessEnv 
     if (profile) {
       try {
         capabilities = await inspectCapabilities(profile, config, probe);
-        add({ id: "capabilities", status: "ready", message: `${capabilities.os}/${capabilities.arch}; Node ${capabilities.toolchains.node}; npm ${capabilities.toolchains.npm}; ${capabilities.cpu} CPUs, ${capabilities.memoryMiB} MiB; offline verification; no GUI, emulator or GPU.` });
+        if (profile.adapter.id === "python-pip") {
+          const expected = (await readFile(path.join(project, ".python-version"), "utf8")).trim();
+          if (capabilities.toolchains.python !== expected) throw new Error(`Python runtime mismatch: project pins ${expected}, image provides ${capabilities.toolchains.python}. Select a matching immutable Python runner image.`);
+        }
+        add({ id: "capabilities", status: "ready", message: `${capabilities.os}/${capabilities.arch}; ${Object.entries(capabilities.toolchains).map(([name, version]) => `${name} ${version}`).join("; ")}; ${capabilities.cpu} CPUs, ${capabilities.memoryMiB} MiB; offline verification; no GUI, emulator or GPU.` });
       } catch (error) { add({ id: "capabilities", status: "blocked", message: (error as Error).message, remedy: "Resolve the reported runner prerequisite, then run harness doctor again. Project setup cannot grant unavailable capabilities." }); }
     }
     await access(path.join(config.piPackageDirectory, "dist/cli.js"));

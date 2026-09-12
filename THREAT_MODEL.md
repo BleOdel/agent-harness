@@ -244,9 +244,9 @@ and container runtime remain trusted. Existing application intent recovery keeps
 its previously captured transaction semantics; it does not certify historic runs
 under this new policy.
 
-## Versioned adapters and capabilities (E1)
+## Versioned adapters and capabilities (E1/E2)
 
-Only the installed `node-npm@1` and `docker@1` implementations are selectable.
+Only installed `node-npm@1` / `python-pip@1` adapters and the `docker@1` runner are selectable.
 Project files cannot load host plugins, alter mounts, enable networked verification,
 or grant GUI/emulator/GPU access. Host-owned `<project>-harness/project.json`
 contains requirements; the runner checks them against its fixed limits and the
@@ -267,3 +267,28 @@ use the saved bytes. Linked/special resources and oversized bundles are refused.
 Team role manifests retain their explicit unattended/resource validation. A selected
 custom ordinary skill is operator-trusted guidance, not an automatically proven safe
 workflow. Availability and read-tool observations remain distinct from compliance.
+
+
+## Python execution policy (E2)
+
+The Python preparer mounts only validated package metadata, the hash lock and an
+exact runtime pin, plus read-only harness resources. Pip downloads only hash-checked
+wheels from PyPI, without installing them or importing project code. Source builds,
+local/Git requirements, alternate indexes and arbitrary build backends are refused.
+The pinned flit backend accepts restricted static metadata and builds only the local
+pure-Python package, offline. Fresh environments install locked dependencies and the
+built project wheel; installation that changes candidate source is refused.
+
+Wheels may execute Python (including startup .pth code) once installed. Hashes prove
+artifact identity, not that dependency code is harmless. That execution stays in
+credential-free offline verification containers, or the normal disposable builder
+container. The wheel policy does not promise to detect arbitrary malicious packages.
+
+A read-only pytest plugin and fixed collection configuration improve diagnostics;
+they cannot prevent candidate Python from fabricating its own process output. Host
+comparison of separately approved application behaviour remains mandatory. Missing,
+duplicate, empty, skipped-only and inconsistent reports fail; plausible counterfeit
+reports still cannot authorize application without independent acceptance. Neither
+host virtualenvs nor builder-installed dependencies are verification proof. Cache
+hashes, source identities and image/runtime pins are checked before reuse. Only the
+Linux/arm64 reference image has been qualified by the shipped E2 container tests.

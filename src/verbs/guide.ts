@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { access, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { detectProjects } from "../adapters/registry.ts";
@@ -51,10 +51,13 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
         actions.push({ label: "Finish the saved application", run: () => run("team", "recover", value.teamRunId) });
         actions.push({ label: "Roll back the interrupted application", run: () => run("team", "recover", value.teamRunId, "--rollback") });
       } else {
-        const initialized = await access(path.join(project, "package.json")).then(() => true, () => false);
         const detected = await detectProjects(project);
-        if (!initialized && detected.length) io.write(`Detected ${detected.join(", ")}; this release needs a Node/npm package root. Use project setup for guidance.`);
-        if (!initialized && !detected.length) actions.push({ label: "Create a Node project here", run: () => run("init") });
+        const initialized = detected.some(id => ["node-npm", "python-pip"].includes(id));
+        if (!initialized && detected.length) io.write(`Detected ${detected.join(", ")}; choose a supported Node/npm or Python package root. Use project setup for guidance.`);
+        if (!initialized && !detected.length) {
+          actions.push({ label: "Create a Node project here", run: () => run("init") });
+          actions.push({ label: "Create a Python project here", run: () => run("init", "--python") });
+        }
         else if (initialized) {
           let supported = true;
           try { const profile = await readProfile(project); io.write(`Environment: ${profile.adapter.id}@${profile.adapter.version} on ${profile.runner.id}@${profile.runner.version}.`); }
@@ -105,6 +108,7 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
           }
           }
         }
+        if (initialized) actions.push({ label: "Test and package in fresh offline containers", run: () => run("verify") });
         actions.push({ label: "Configure project environment and skills", run: () => run("project", "setup") });
       }
     } catch (error) { io.write(`Needs attention: ${(error as Error).message}`); }

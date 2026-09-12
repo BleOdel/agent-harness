@@ -1,3 +1,4 @@
+import { readProfile } from "../project/profile.ts";
 /**
  *   harness deps            what is declared but not installed
  *   harness deps --install  install it
@@ -28,6 +29,10 @@ function npmInstall(project: string): Promise<number | null> {
 }
 
 async function depsUnlocked(project: string, argv: readonly string[]): Promise<void> {
+  if ((await readProfile(project)).adapter.id === "python-pip") {
+    say("Python dependencies come from requirements.lock. harness verify prepares hash-checked wheels, installs a fresh offline environment and tests the built package. No host pip environment is used as evidence.");
+    return;
+  }
   const missing = await missingInProject(project);
   if (missing.length === 0) {
     say("Everything package.json declares is installed.");

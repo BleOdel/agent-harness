@@ -18,6 +18,8 @@ import path from "node:path";
 import { applyConfigFile } from "./config.ts";
 import { projectCommand } from "./verbs/project.ts";
 import { guide } from "./verbs/guide.ts";
+import { EnvironmentBlocked } from "./workspace/dependencies.ts";
+import { verify } from "./verbs/verify.ts";
 import { doctor } from "./verbs/doctor.ts";
 import { checks } from "./verbs/checks.ts";
 import { add } from "./verbs/add.ts";
@@ -42,8 +44,9 @@ const USAGE = [
   "  harness guide [path]        select a project and continue through guided steps",
   "  harness project setup      select the project adapter and skill bundles",
   "  harness project show       show saved environment requirements",
+  "  harness verify              fresh offline project tests and packaging; no model calls",
   "  harness doctor [--json]     readiness and the next remedy",
-  "  harness init                  create a project the gates can work with",
+  "  harness init [--python]        create a Node or Python project",
   "  harness plan [<topic>]        a saved interview and draft plan",
   "  harness plan resume [<id>]    continue the saved interview or item generation",
   "  harness plan review [<id>]    read the draft and approve it in one step",
@@ -89,6 +92,8 @@ async function main(): Promise<void> {
       return guide(rest[0] ?? project);
     case "project":
       return projectCommand(project, rest);
+    case "verify":
+      return verify(project, rest);
     case "doctor":
       return doctor(project, rest);
     case "checks":
@@ -103,7 +108,7 @@ async function main(): Promise<void> {
     case "add":
       return add(project, rest);
     case "init":
-      return init(project);
+      return init(project, rest);
     case "commit":
       return commit(project, rest);
     case "deps":
@@ -136,6 +141,7 @@ async function main(): Promise<void> {
 }
 
 await main().catch((error: unknown) => {
+  if (error instanceof EnvironmentBlocked) { process.stderr.write(`\n${error.message}\n\nUse harness doctor to check the selected runtime, then retry.\n`); process.exit(1); }
   if (error instanceof OperatorError) {
     process.stderr.write(`\n${error.message}\n`);
     if (error.remedy.trim() !== "") process.stderr.write(`\n${error.remedy.trimEnd()}\n`);

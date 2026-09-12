@@ -1,5 +1,5 @@
 import { getAdapter } from "../adapters/registry.ts";
-import { readProfile } from "../project/profile.ts";
+import { projectTestCommand, readProfile } from "../project/profile.ts";
 import { pinExecution, assertExecutionCompatible, type ExecutionPin } from "../project/execution.ts";
 import { assertSkillBundles } from "../project/skills.ts";
 import { dockerRunner } from "../runners/docker.ts";
@@ -158,9 +158,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
   }
 
   const project = path.resolve(setting(process.env, "HARNESS_PROJECT") ?? process.cwd());
-  const testCommand = (setting(process.env, "HARNESS_TEST_COMMAND") ?? "npm test")
-    .split(" ")
-    .filter(Boolean);
+  const testCommand = await projectTestCommand(project, setting(process.env, "HARNESS_TEST_COMMAND"));
   const counterSource = await readFile(counterPath(), "utf8");
 
   const work = await resolveWork(project, goal);
@@ -169,7 +167,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
   const acceptanceTasks = [work.feature?.id ?? goal];
   const approvedChecks = await requireChecks(project, acceptanceTasks);
   const adapter = getAdapter((await readProfile(project)).adapter);
-  const workspace = await createRunWorkspace(project);
+  const workspace = await createRunWorkspace(project, adapter.source.generatedDirectories);
   const { sandbox } = workspace;
   let baseline = workspace.baseline;
   let execution: ExecutionPin | undefined;
@@ -184,6 +182,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
   }
 
   const layout: SandboxLayout = {
+    ...(adapter.executionEnvironment ? { environment: adapter.executionEnvironment } : {}),
     dockerExecutable: config.dockerExecutable,
     imageId: config.imageId,
     containerName: `harness-${String(process.pid)}`,
@@ -574,7 +573,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       // brings back the declaration without the package. Every gate
       // passed inside the sandbox, where it was installed; on this
       // machine the project will not run until it is installed here too.
-      const missing = await missingInProject(project);
+      const missing = adapter.reference.id === "node-npm" ? await missingInProject(project) : [];
 
       if (candidate.sharedInputsChanged && work.feature !== undefined) await invalidateSharedInputs(project, work.feature.id);
       if (work.feature !== undefined) await markDone(project, work.feature.id, changes.length > 0);

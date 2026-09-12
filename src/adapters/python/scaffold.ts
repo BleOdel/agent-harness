@@ -1,0 +1,17 @@
+import { readFile } from 'node:fs/promises';
+import { EnvironmentBlocked } from "../../workspace/dependencies.ts";
+import { PYTHON_VERSION } from './environment.ts';
+export async function pythonScaffold(name: string): Promise<[string, string][]> {
+ const packageName = name.toLowerCase().replace(/[^a-z0-9_]/gu, '_').replace(/^[^a-z]+/u, '') || 'my_project';
+ if (["pytest", "flit_core", "packaging", "pluggy", "iniconfig", "pip"].includes(packageName)) throw new EnvironmentBlocked("Choose a project directory name that does not shadow Python verification tooling.");
+ return [
+  ['.python-version', PYTHON_VERSION + '\n'],
+  ['requirements.lock', await readFile(new URL('./requirements.lock', import.meta.url), 'utf8')],
+  ['pyproject.toml', `[build-system]\nrequires = ["flit_core==3.12.0"]\nbuild-backend = "flit_core.buildapi"\n\n[project]\nname = "${packageName}"\nversion = "0.1.0"\ndescription = "${packageName} Python project"\nrequires-python = "==${PYTHON_VERSION}"\ndependencies = []\n\n[project.scripts]\n${packageName} = "${packageName}.cli:main"\n`],
+  [`src/${packageName}/__init__.py`, '"""Project package; describe the approved scope here."""\n__version__ = "0.1.0"\n'],
+  [`src/${packageName}/cli.py`, '"""Scaffolding only; implement the approved CLI here."""\ndef main():\n    print("Ready to build")\n\nif __name__ == "__main__":\n    main()\n'],
+  ['tests/test_scaffold.py', `# Scaffolding only: this checks package installation, not application features.\n# Leave it in place until the operator requests removal.\nfrom ${packageName} import __version__\n\ndef test_package_is_installed():\n    assert __version__ == "0.1.0"\n`],
+  ['.gitignore', '.venv/\n__pycache__/\n.pytest_cache/\n.harness-python/\ndist/\nbuild/\n'],
+  ['AGENTS.md', `# ${packageName}\n\nWork in this disposable copy. Changes reach the real project only after verification, review and operator-approved acceptance checks.\n\n## Conventions\n\n- Python ${PYTHON_VERSION}; one package in src/${packageName}/. Tests belong in tests/ and are named test_*.py or *_test.py.\n- The package wheel is installed into .venv before work. Use .venv/bin/python -m pytest to test your edits after rebuilding and reinstalling the wheel, or PYTHONPATH=src .venv/bin/python -m pytest during development. Final verification tests a freshly installed wheel.\n- Use static pyproject.toml metadata and the pinned flit_core backend. Keep dependency versions in project.dependencies identical to requirements.lock, including every transitive dependency's exact version and SHA-256 wheel hash. Preserve the harness tooling pins. No source builds, local/Git dependencies or custom build hooks.\n- The harness uses fixed pytest collection, with third-party plugin autoload disabled. Do not hide tests with custom collection or fabricate diagnostic reports.\n- Behavioural changes need meaningful tests first; deliberately break the behaviour and verify failure, then restore it.\n- Write .harness-claim.json with files, deletions and criteria entries (criterion and verifiedBy) naming every actual source change and acceptance criterion. Python criteria must point at real files such as tests/test_cli.py.\n- Do not commit or publish. Generated environments, caches and wheels are never applied.\n\n## Guided workflow\n\nUse harness guide for planning and saved progress. Use harness verify for fresh offline tests and packaging without model calls. Diagnostic tests are not independent acceptance evidence; approve observable CLI outputs using harness checks setup before building.\n`],
+ ];
+}

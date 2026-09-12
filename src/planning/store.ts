@@ -1,3 +1,5 @@
+import { readProfile } from "../project/profile.ts";
+import { getAdapter } from "../adapters/registry.ts";
 /** Durable planning drafts are untrusted; approval and import identities stay outside the mount. */
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
@@ -48,11 +50,12 @@ export async function savePlan(plan: SavedPlan, state: PlanState): Promise<Saved
 
 export async function createPlan(project: string, topic: string): Promise<SavedPlan> {
   const canonical = await realpath(project);
+  const adapter = getAdapter((await readProfile(canonical, true)).adapter);
   const id = `${new Date().toISOString().replaceAll(/[:.]/gu, "-")}-${randomUUID().slice(0, 8)}`;
   const directory = path.join(harnessDirectory(canonical), "plans", id);
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const work = path.join(directory, "work");
-  const sandbox = await createSandbox(canonical);
+  const sandbox = await createSandbox(canonical, adapter.source.generatedDirectories);
   try {
     await cp(sandbox.workDirectory, work, { recursive: true, dereference: false, verbatimSymlinks: true });
     // A project cannot seed an unrelated or forged Pi conversation or proposal.

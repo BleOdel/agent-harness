@@ -23,7 +23,7 @@ export interface Sandbox {
   readonly withheld: readonly string[];
 }
 
-export async function createSandbox(project: string): Promise<Sandbox> {
+export async function createSandbox(project: string, exclusions: readonly string[] = []): Promise<Sandbox> {
   // realpath because the Docker mount and every later path comparison
   // must agree on one spelling; on macOS os.tmpdir() is a symlink.
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-work-")));
@@ -40,7 +40,7 @@ export async function createSandbox(project: string): Promise<Sandbox> {
       const relative = path.relative(project, source);
       if (relative === "") return true;
       const head = relative.split(path.sep)[0] ?? "";
-      if (!EXCLUDED_FROM_COPY.has(head)) return true;
+      if (!EXCLUDED_FROM_COPY.has(head) && !relative.split(path.sep).some(part => exclusions.includes(part))) return true;
       if (!withheld.includes(head)) withheld.push(head);
       return false;
     },
@@ -120,12 +120,12 @@ export async function applyChanges(
 }
 
 export interface RunWorkspace { readonly root: string; readonly baseline: Snapshot; readonly sandbox: Sandbox; }
-export async function createRunWorkspace(project: string): Promise<RunWorkspace> {
+export async function createRunWorkspace(project: string, exclusions: readonly string[] = []): Promise<RunWorkspace> {
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-controller-")));
   try {
-    const baseline = await captureBaseline(project, path.join(root, "baseline"));
+    const baseline = await captureBaseline(project, path.join(root, "baseline"), exclusions);
     const sandbox = await createSandbox(baseline.directory);
-    const withheld = (await readdir(project)).filter(name => EXCLUDED_FROM_COPY.has(name) || NEVER_APPLIED.has(name));
+    const withheld = (await readdir(project)).filter(name => EXCLUDED_FROM_COPY.has(name) || NEVER_APPLIED.has(name) || exclusions.includes(name));
     return { root, baseline, sandbox: { ...sandbox, withheld } };
   } catch (error) { await rm(root, { recursive: true, force: true }); throw error; }
 }

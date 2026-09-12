@@ -1,3 +1,4 @@
+import { projectTestCommand } from "../project/profile.ts";
 import { assertExecutionCompatible } from "../project/execution.ts";
 import { requireChecks, verifyAcceptance, type AcceptanceResult } from "../acceptance/checks.ts";
 import path from "node:path";
@@ -52,7 +53,7 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
             const approved = await requireChecks(canonical, staged.integrated);
             let config = loadConfig(); config = { ...config, ...await resolveTeamModel(config) };
             if (!staged.execution) throw new OperatorError("This older team has no pinned execution environment.", "Inspect/recover/undo remain available. Start a new team to verify under the adapter contract.");
-            await assertExecutionCompatible(staged.execution, canonical, config, (setting(process.env, "HARNESS_TEST_COMMAND") ?? "npm test").split(" ").filter(Boolean), true);
+            await assertExecutionCompatible(staged.execution, canonical, config, await projectTestCommand(canonical, setting(process.env, "HARNESS_TEST_COMMAND")), true);
             acceptance = await verifyAcceptance(canonical, staged.baseline, staged.integrated, config, approved, staged.execution);
             for (const summary of acceptance.summaries) say(summary);
           }
@@ -69,11 +70,10 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
     }
     let config;
     try { config = loadConfig(); } catch (error) { if (error instanceof ConfigError) throw new OperatorError(error.message, error.remedy); throw error; }
-    const testCommand = (setting(process.env, "HARNESS_TEST_COMMAND") ?? "npm test").split(" ").filter(Boolean);
     if (argv[0] === "recover") {
       if (argv.length !== 2 || !identifier(argv[1])) throw new OperatorError(USAGE);
       const directory = path.join(harnessDirectory(canonical), "teams", argv[1]);
-      const state = await recoverTeam(directory, processWorker(config, directory, testCommand));
+      const state = await recoverTeam(directory, processWorker(config, directory, []));
       say(`${state.runId}: ${state.status}. Owned resources reconciled. Retained staging: ${state.baseline.directory}.`); return;
     }
     if (argv[0] === "resume") {
@@ -82,6 +82,7 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
       const existing = await readState(directory, false);
       if (["applied", "undone"].includes(existing.status)) { say(`${existing.runId}: ${existing.status}. No new dispatch.`); return; }
       if (!existing.execution) throw new OperatorError("This older team has no pinned execution environment.", "Inspect/recover/undo remain available; start a new team for further builds.");
+      const testCommand = await projectTestCommand(canonical, setting(process.env, "HARNESS_TEST_COMMAND"));
       await assertExecutionCompatible(existing.execution, canonical, config, testCommand, true);
       const pendingTasks = existing.plan.tasks.filter(t => !existing.integrated.includes(t.id) && t.status !== "done" && t.priority !== "wont").map(t => t.id);
       if (pendingTasks.length) await requireChecks(canonical, pendingTasks);
@@ -95,6 +96,7 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
       return;
     }
     if (argv[0] !== "run") throw new OperatorError(USAGE);
+    const testCommand = await projectTestCommand(canonical, setting(process.env, "HARNESS_TEST_COMMAND"));
     let profile = path.resolve(import.meta.dirname, "../../profiles/team.json");
     const policy: Policy = { maxAttempts: 2, maxDispatches: 20, maxMs: 3600000, maxCostUsd: 10 };
     const limits = { "--max-repairs": "maxRepairs", "--max-attempts": "maxAttempts", "--max-dispatches": "maxDispatches", "--max-ms": "maxMs", "--max-cost-usd": "maxCostUsd" } as const;

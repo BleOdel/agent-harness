@@ -1,6 +1,6 @@
 # Harness architecture
 
-Current implementation includes E0 hardening, E1 adapter/runner contracts and the initial U0 guide on top of team M0–M6 and durable planning.
+Current implementation includes E0 hardening, E1 adapter/runner contracts, E2 Python support and the initial U0 guide on top of team M0–M6 and durable planning.
 Use the [README](README.md) for commands and [threat model](THREAT_MODEL.md) for
 security assumptions. These diagrams describe implemented behavior; milestone
 reports preserve their original observations.
@@ -51,8 +51,8 @@ writer/pending-application recovery. Advanced team work remains explicit.
 
 ```mermaid
 flowchart TD
-  S["Operator project setup / unambiguous Node detection"] --> P["Host-owned project.json v1"]
-  P --> A["Installed node-npm@1 adapter"]
+  S["Operator project setup / unambiguous Node/Python detection"] --> P["Host-owned project.json v1"]
+  P --> A["Installed node-npm@1 or python-pip@1 adapter"]
   P --> R["Installed docker@1 runner"]
   A --> T["Toolchain probe, dependency preparation, source policy, verification recipe"]
   R --> C["Inspect OS, architecture, CPU/RAM and immutable image"]
@@ -68,7 +68,8 @@ flowchart TD
 The adapter contract owns detection markers, runtime identity, clean dependency
 preparation/installation, source exclusions, shared inputs, verification recipes,
 test evidence and build-output declarations. The Node adapter retains existing
-npm policies and assertion instrumentation. A test-only text adapter exercises
+npm policies and assertion instrumentation. Python uses a separate wheel/pytest
+implementation without the Node counter. A test-only text adapter exercises
 the same pipeline without a Node manifest; it is never registered for operators.
 Build-output declarations describe potential artifacts; E3 will add their export
 and retention lifecycle.
@@ -89,6 +90,33 @@ identify candidate manifests/lockfiles and actual runtime versions.
 Implementation: [adapter contract](src/adapters/contract.ts),
 [Node adapter](src/adapters/node-npm.ts), [runner contract](src/runners/contract.ts),
 [Docker runner](src/runners/docker.ts), [execution identity](src/project/execution.ts).
+
+## Python preparation and verification
+
+```mermaid
+flowchart TD
+  P["pyproject.toml + requirements.lock + exact Python version"] --> V["Validate static metadata and pinned flit backend"]
+  V --> D["Input-only preparer: hash-checked PyPI wheels; no source builds"]
+  D --> K["Cache inventory + input/image/runtime identity"]
+  K --> I["Fresh offline venv; hashed wheel install"]
+  I --> B["Build pure-Python project wheel; install it; pip check"]
+  B --> W["Disposable builder or fresh verifier"]
+  W --> T["Fixed pytest collection; read-only diagnostic reporter"]
+  W --> R["Repeat wheel builds; compare bytes"]
+  T --> C["Exact source claim and independent review"]
+  R --> C
+  C --> A["Fresh offline acceptance commands; host compares approved expectations"]
+  A --> S["Ordinary apply or team staging/application journal"]
+```
+
+Dependency installation is recreated per executable gate and acceptance case.
+Candidate test reports are diagnostic: a Python process can fabricate its output,
+so only a matching host-side acceptance result permits application. Build outputs
+are discarded; E3 owns artifact retention. The adapter contributes fixed container
+environment variables so Python commands and console entry points resolve to the
+fresh venv in builders and acceptance checks. Project files cannot supply these
+harness settings. Python contract-suite declarations are refused until supported.
+See [Python policy and migration](PYTHON.md) and [adapter](src/adapters/python-pip.ts).
 
 ## Execution and acceptance
 

@@ -133,12 +133,17 @@ npm run verify:boundary
 
 ## Project environments
 
-E1 makes the supported environment explicit: **node-npm@1 on docker@1**.
-The controller and target runtime need Node 26 or newer; the adapter needs npm 10
-or newer. The target is one Node package on Linux, including CLIs, services,
-libraries and web projects that can be checked in that environment. Python,
-mobile/native desktop toolchains, GUI automation, emulators and GPUs remain
-future milestones in [the expansion plan](NEXT.md).
+Two installed adapters use **docker@1 on Linux**:
+
+| Adapter | Supported target | Verification |
+|---|---|---|
+| `node-npm@1` | One Node package: CLI, library, service or web project | Locked npm install, project tests and declared build checks |
+| `python-pip@1` | One pure-Python library or CLI package | Hashed wheels, fresh offline installs, pytest and reproducible wheel build |
+
+The controller needs Node 26 or newer. Python target setup, the pinned image,
+dependency format and guided journey are documented in [Python projects](PYTHON.md).
+Mobile/native desktop toolchains, GUI automation, emulators, artifact retention,
+ML evaluation and GPUs remain later milestones in [the expansion plan](NEXT.md).
 
 ```bash
 harness project setup       # choose the environment and skills using short prompts
@@ -146,11 +151,10 @@ harness project show        # display the saved choice and its location
 harness doctor --json        # readiness v2, including capability report v1
 ```
 
-A single `package.json` suggests Node/npm automatically. The first successful
-execution preflight saves that setup. If Python, Rust or Go markers also occur
-at the root, choose the intended Node package with `project setup` before
-building. Detection never installs a new adapter or executes project-provided
-plugins. A non-Node root is refused with guidance rather than treated as npm.
+A single `package.json` suggests Node/npm; Python metadata suggests Python.
+The first successful execution preflight saves that setup. Mixed roots require
+an explicit choice using `project setup`; unsupported Rust/Go roots are refused.
+Detection never installs an adapter or executes project-provided host plugins.
 
 The host saves configuration at `<project>-harness/project.json`, outside the
 worker copy. It contains versioned adapter/runner references, required OS and
@@ -162,7 +166,7 @@ they cannot grant mounts, network access or resources the runner does not have.
 Project-source configuration files never grant harness permissions.
 
 Docker supplies at most 2 CPUs and 2048 MiB per container. Doctor inspects the
-pinned image and available daemon capacity, then probes its Node/npm versions in
+pinned image and available daemon capacity, then probes the selected adapter's toolchain versions in
 an isolated credential-free container. Verification remains offline; dependency
 preparation and model calls use bridge networking. GUI, native emulator and GPU
 capabilities are false. The host OS is distinct from the Linux target OS.
@@ -184,6 +188,8 @@ original folder. Newly imported plans acquire an identity before their first
 model call.
 
 ## Dependencies
+
+This section describes Node/npm. See [Python dependency policy](PYTHON.md#project-format) for `requirements.lock`.
 
 The builder and verifiers receive dependencies installed from a fixed
 `package.json` and `package-lock.json`. The host's and worker's
@@ -301,7 +307,8 @@ Run them inside your project.
 | `harness checks setup` | define and approve observable behaviour through short prompts |
 | `harness checks review` | review and approve a saved check draft |
 | `harness checks approve <file>` | explicitly approve a JSON acceptance specification |
-| `harness init` | create a project the gates can work with |
+| `harness init [--python]` | create a Node or Python project |
+| `harness verify` | fresh offline project tests and packaging without model calls or application |
 | `harness plan [<topic>]` | start a saved interview and draft plan |
 | `harness plan resume [<id>]` | resume the saved interview or item generation |
 | `harness plan review [id]` | read a stopped draft and approve it interactively |
@@ -337,7 +344,7 @@ project is the directory you are in, or `HARNESS_PROJECT` if you set it.
 ## Start to finish
 
 For guided use, run `harness guide ~/Developer/my-project`. Confirm the project
-path, create or select a Node project, continue its interview, review the draft
+path, create or select a Node or Python project, continue its interview, review the draft
 and generated tasks, set up acceptance checks, then build the next item. The
 guide reads the saved documents; you do not copy the specification between steps.
 It shows the selected project before mutation, including when `HARNESS_PROJECT`
@@ -786,7 +793,8 @@ in turn. Team batch undo has stricter conflict checks and no redo; see
 ```bash
 npm run check             # typecheck and unit suite; local HTTP tests need loopback access
 npm run verify:skills     # real Pi loader, no Docker or model calls
-npm run verify:adapters   # E1 contracts, capabilities, resume and guided Docker journeys
+npm run verify:adapters   # contracts, capabilities, resume and Node guided journeys
+npm run verify:python     # E2 Python image, wheels, pytest, CLI, guide and apply/undo
 npm run verify:boundary   # the container, against a real daemon
 npm run verify:hardening  # approved checks, binary undo, guide PTY and planning cleanup
 npm run verify:gates      # each gate broken in turn, confirmed to stop the apply
@@ -818,7 +826,7 @@ configured gate checks; these are milestone measurements, not a fixed test count
 ## What it deliberately does not have
 
 Autonomous replanning, unrestricted worker-spawned subagents, remote workers,
-additional language adapters, arbitrary extensions, a writable web console,
+language adapters beyond Node/Python, arbitrary extensions, a writable web console,
 ceremonies and signed evidence export remain outside the completed M0–M6
 release. Assigned workers, prerequisite scheduling and verified serial
 integration are implemented. [NEXT.md](NEXT.md) tracks follow-up candidates.
@@ -1137,10 +1145,11 @@ envelope can pass component tests while failing the combined contract check.
 
 | Document | Purpose |
 |---|---|
+| [Python projects](PYTHON.md) | Current Python setup, dependency policy, packaging and guided workflow |
 | [Architecture](ARCHITECTURE.md) | Current execution, control, recovery and skill diagrams |
 | [Threat model](THREAT_MODEL.md) | Current boundaries, credential exposure and residual risks |
 | [Team roadmap](TEAM_PLAN.md) | Completed M0–M6 scope, publication and evidence |
-| [M6 results](TEAM_M6_RESULTS.md) | Latest implementation validation and limitations |
+| [M6 results](TEAM_M6_RESULTS.md) | Historical team implementation validation and limitations |
 | [Skills assessment](SKILLS_ASSESSMENT.md) | Original findings plus implemented adaptations |
 | [Follow-up work](NEXT.md) | Remaining candidates and deferred measurements |
 | [Original scope](SCOPE.md), [plan](PLAN.md), [scorecard](V2_RESULTS.md) | Historical sequential-v2 design and results |

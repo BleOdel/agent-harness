@@ -50,6 +50,7 @@ export async function inspectCapabilities(profile: ProjectProfile, config: Confi
 export async function pinExecution(project: string, config: Config, testCommand: readonly string[], directory: string, role: "build" | "plan" | "team" = "build"): Promise<ExecutionPin> {
  const saved = await savedProfile(project);
  const profile = saved ?? await readProfile(project, role === "plan");
+ await getAdapter(profile.adapter).recipe(project, testCommand);
  if (config.skillsDirectory && role !== "team") {
   const skillsRoot = await realpath(config.skillsDirectory), live = await realpath(project);
   const overlaps = (parent: string, child: string) => { const relative = path.relative(parent, child); return !relative || (!relative.startsWith("..") && !path.isAbsolute(relative)); };

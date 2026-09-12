@@ -1,3 +1,4 @@
+import { projectTestCommand } from "../project/profile.ts";
 import { dockerRunner } from "../runners/docker.ts";
 /** Interview drafts and Pi sessions survive every exit; approval advances document handoff. */
 import path from "node:path";
@@ -47,22 +48,23 @@ export function planPrompt(topic: string, skills: readonly string[]): string {
 export function buildPlanCommand(request: {
   topic: string; skills: readonly string[]; skillsConfigured: boolean;
   provider: string | undefined; model: string | undefined;
-  phase?: "draft" | "items"; diagnosis?: string;
+  phase?: "draft" | "items"; diagnosis?: string; adapter?: string;
 }): string[] {
   const items = request.phase === "items";
+  const environment = request.adapter === "python-pip" ? "Selected environment: Python, one src-layout package with static pyproject.toml, exact .python-version and hash-pinned requirements.lock. Tests: tests/test_*.py or *_test.py, fixed pytest collection, packaged wheel imports. Only pinned flit_core builds and wheel dependencies; no custom backends, source dependency builds, local/Git dependencies or plugin autoload. Changes to pyproject.toml, requirements.lock or .python-version need dedicated shared-inputs assignments. Read AGENTS.md for the package name and current constraints." : "";
   return ["node", `${CONTAINER_PI_PACKAGE}/dist/cli.js`, "--approve",
     ...resourceArguments(items ? false : request.skillsConfigured),
     "--session", `/work/${SESSION_FILE}`,
     ...(items ? ["--print"] : []),
     ...(request.provider === undefined ? [] : ["--provider", request.provider]),
     ...(request.model === undefined ? [] : ["--model", request.model]),
-    items ? [
+    [environment, items ? [
       "The operator approved the PLAN.md now on disk. Read it and generate items.json from it.",
       "Do not restart the interview or ask questions. Do not change PLAN.md or implement the project.",
       "Use DECISIONS.md and the saved conversation only as supporting context; PLAN.md is authoritative.",
       itemsFormat,
       ...(request.diagnosis ? [`Previous attempt failed: ${request.diagnosis}. Correct the proposal.`] : []),
-    ].join("\n") : planPrompt(request.topic, request.skills),
+    ].join("\n") : planPrompt(request.topic, request.skills)].filter(Boolean).join("\n\n"),
   ];
 }
 
@@ -83,11 +85,11 @@ export async function runPlanAttempt(original: SavedPlan, config: Config): Promi
   let execution: ExecutionPin;
   if (previous) {
     execution = JSON.parse(previous) as ExecutionPin;
-    await assertExecutionCompatible(execution, original.state.project, config, ["npm", "test"], true);
+    await assertExecutionCompatible(execution, original.state.project, config, await projectTestCommand(original.state.project, setting(process.env, "HARNESS_TEST_COMMAND")), true);
     await assertSkillBundles(path.join(original.directory, "skills"), execution.skills);
   } else {
     if ((await readArtifact(original.work, SESSION_FILE))?.trim()) throw new OperatorError("This older planning session has no pinned environment.", `Preserve it and continue from its plan with: harness plan --from ${JSON.stringify(path.join(original.work, PLAN_FILE))}`);
-    execution = await pinExecution(original.state.project, config, ["npm", "test"], original.directory, "plan");
+    execution = await pinExecution(original.state.project, config, await projectTestCommand(original.state.project, setting(process.env, "HARNESS_TEST_COMMAND")), original.directory, "plan");
   }
   let plan = await reconcile(original, config);
   const agent = await realpath(config.agentDirectory);
@@ -114,7 +116,7 @@ export async function runPlanAttempt(original: SavedPlan, config: Config): Promi
     user: `${process.getuid?.() ?? 501}:${process.getgid?.() ?? 20}`,
   };
   const args = dockerRunner.prepare(layout, "bridge", buildPlanCommand({ topic: plan.state.topic, skills,
-    skillsConfigured: skills.length > 0, provider: config.provider, model: config.model,
+    adapter: execution.settings.profile.adapter.id, skillsConfigured: skills.length > 0, provider: config.provider, model: config.model,
     phase: items ? "items" : "draft", ...(plan.state.error ? { diagnosis: plan.state.error } : {}),
   }), !items).args;
   say(`plan: ${plan.state.id}`);
