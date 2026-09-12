@@ -31,7 +31,7 @@ async function store(project:string):Promise<string> {
 }
 export async function saveJson(root:string,file:string,value:unknown):Promise<void> {await atomicBytes(await safePath(root,file),Buffer.from(JSON.stringify(value,null,2)+'\n'),0o600);}
 export async function readJson(root:string,file:string):Promise<unknown> {const target=await safePath(root,file);if((await lstat(target)).size>2*1024*1024)throw new OperatorError('State file exceeds 2 MiB.');return JSON.parse(await readFile(target,'utf8'));}
-function parseArtifact(value:unknown):Artifact {
+export function parseArtifact(value:unknown):Artifact {
  const a=value as Artifact;
  if(!a||a.version!==1||!/^artifact-[a-f0-9-]{36}$/u.test(a.id)||!artifactName(a.name)||!/^[-a-zA-Z0-9]+$/u.test(a.producer)||![a.input,a.environment,a.sha256].every(v=>typeof v==='string'&&/^[a-f0-9]{64}$/u.test(v))||!Number.isSafeInteger(a.size)||a.size<0||a.size>ARTIFACT_LIMITS.file||!['unverified','diagnostics-passed','evaluation-passed'].includes(a.verification)||!Number.isFinite(Date.parse(a.at)))throw new OperatorError('Invalid artifact manifest.');
  if(a.verification==='evaluation-passed'&&(!a.evaluation||![a.evaluation.approval,a.evaluation.reportHash].every(v=>typeof v==='string'&&/^[a-f0-9]{64}$/u.test(v))))throw new OperatorError('Evaluated artifacts require an approval and report identity.');return a;

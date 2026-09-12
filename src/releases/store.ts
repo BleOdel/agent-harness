@@ -14,8 +14,11 @@ export async function releasesRoot(project:string):Promise<string>{const root=pa
 export async function releaseRoot(project:string,id:string):Promise<string>{if(!/^release-[a-f0-9-]{36}$/u.test(id))throw new OperatorError('Invalid release ID. Use harness release list.');return path.join(await releasesRoot(project),`${id}.json`);}
 export async function saveRelease(project:string,r:Release):Promise<void>{const file=await releaseRoot(project,r.id);await saveJson(path.dirname(file),path.basename(file),r);}
 export async function readRelease(project:string,id:string):Promise<Release>{
- const file=await releaseRoot(project,id),r=await readJson(path.dirname(file),path.basename(file)) as Release,m=r.manifest;
- if(r.schema!==1||r.id!==id||!/^[-a-f0-9]{36}$/u.test(r.token)||!['draft','approved','staging','staged','retired'].includes(r.status)||!m||m.schema!==1||m.targetType!=='local-directory@1'||sha256(JSON.stringify(m))!==r.digest)throw new OperatorError('Release manifest identity changed or state is invalid.');
+ const file=await releaseRoot(project,id);return parseRelease(await readJson(path.dirname(file),path.basename(file)),id);
+}
+export function parseRelease(value:unknown,id:string):Release{
+ const r=value as Release,m=r?.manifest;
+ if(!r||r.schema!==1||r.id!==id||!/^[-a-f0-9]{36}$/u.test(r.token)||!['draft','approved','staging','staged','retired'].includes(r.status)||!m||m.schema!==1||m.targetType!=='local-directory@1'||sha256(JSON.stringify(m))!==r.digest)throw new OperatorError('Release manifest identity changed or state is invalid.');
  validateNames(m.name,m.version);
  if(!path.isAbsolute(m.parent.path)||m.target!==path.join(m.parent.path,`${m.name}-${m.version}`)||!/^[0-9]+$/u.test(m.parent.device)||!/^[0-9]+$/u.test(m.parent.inode)||m.filename!==`artifact-${path.basename(m.original.name)}`||m.snapshot.producer!==id||m.snapshot.sha256!==m.original.sha256||m.snapshot.size!==m.original.size||m.snapshot.verification!==m.original.verification||m.original.verification==='unverified')throw new OperatorError('Release input or destination identity changed.');
  if(r.approval&&(r.approval.digest!==r.digest||!Number.isFinite(Date.parse(r.approval.at))))throw new OperatorError('Release approval no longer matches this manifest.');

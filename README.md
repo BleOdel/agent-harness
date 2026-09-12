@@ -742,6 +742,107 @@ the ceiling is explicit: a file too large or binary is still *listed*,
 with the reason it is not shown. A tree that hid what it could not carry
 would misdescribe your project rather than the page.
 
+### Project dashboard
+
+The browser view now opens even before the first run. It shows the project name
+and path, planned-task progress, the next eligible task and any unreadable task or
+history data. Excluded tasks do not count towards planned completion.
+
+Use the section navigation to reach **Next step**, **Needs attention**, the office,
+**Project journey**, **Review changes**, **Outputs**, tasks, runs, teams and files. Search tasks by title, ID, criteria or prerequisites;
+filter them by open, waiting/attention, done or excluded status. Expand a task to
+read its acceptance criteria. Search run history by task, run ID or changed file,
+and filter applied, reversed, attention or no-change outcomes. File search uses
+full paths; following a file’s run link reveals that run even if a filter hid it.
+
+Team cards distinguish staged results from applied changes and expose assignments,
+checks, model usage and steering. Unknown usage is labelled rather than presented
+as a free run. Team cards and ordinary status update while serving. Workspace
+details refresh every ten seconds; **Refresh overview** updates them immediately.
+Searches, open documents and diffs, selected files and agents, office zoom and
+scroll position are retained. Text selection and active form controls are left alone. A visible connection message
+reports disconnection and recovery. Saved HTML is explicitly labelled a snapshot
+and makes no status requests. The layout supports narrow screens, keyboard use,
+system dark mode and reduced motion.
+
+This is one selected project's dashboard, not a project switcher or writable
+console. Start it from the desired project with `harness view --serve`. Continue
+planning, approvals, execution and recovery with `harness guide` in that project.
+The next-step and attention panels explain live work, interrupted plans, missing
+approvals, blocked prerequisites and staged reviews. Commands can be copied into
+the project terminal; the browser never executes them.
+
+**Project journey** links planning, approval, build, verification, review and
+application. Expand saved plans, decisions, generated items and acceptance checks
+to read them in place. Drafts are labelled separately from approved snapshots;
+changed approval digests produce a warning.
+
+**Review changes** groups criteria, project gates, recorded independent acceptance
+proof, reviewer findings and diffs. Staged teams compare retained original source
+with combined staging, independently of current project files. Missing, changed,
+binary or oversized snapshot files require terminal inspection. Up to 40 changed
+files and 600 changed lines per file are embedded; comparisons are limited to
+64 KiB and 1,500 source lines per file.
+
+**Outputs & releases** shows retained artifact identities, verification labels,
+producer, size and hash, with small PNG previews. The live viewer can download
+outputs up to 32 MiB by artifact ID; their bytes are checked against the manifest
+before download. Larger outputs can be exported through the CLI. Release cards
+show local preparation/staging; they do not imply remote publication.
+
+### Pixel-art agent office
+
+The **Agent office** is the dashboard's main working surface. Its four workstations,
+review room and lounge use an original embedded office illustration and animated
+pixel characters. Each assignment has a unique full name and appearance within the
+roster. These display identities remain stable through review, retries and roster
+reordering for the same set of assignments; adding or removing assignments can
+reassign them. They are cosmetic, not extra workers or claims about an agent's
+real identity. Hairstyles, skin tones and clothing vary across male and female
+presentations. Headsets identify developers, pencils and notebooks identify
+writers, and design tools, QA vests and reviewer glasses distinguish other roles.
+
+Live builders face their computers with alternating typing hands. Documentation
+work uses a document display; development uses a code display. The saved role
+selects the outfit, with task wording used when the role is generic. Active reviewers occupy the boardroom, labelled
+**Independent reviews**: several reviewers there still run separate checks, not a
+shared conversation. Preparation, gates, integration and source application are
+labelled automated work and do not animate an AI worker. Inactive, completed and
+interrupted assignments move to standby; saved HTML stays still. The scene follows
+ordinary build/review status and team assignments; it does not invent activity for
+planning sessions, command jobs or other workflows without these status records.
+
+Select an avatar or use the keyboard-accessible roster to inspect the task, role,
+reported model/usage, gates, review and integration. Team inspectors also show
+frozen skills, observed file reads and agent-reported workflow evidence separately:
+a read does not prove compliance. Recent assignment activity appears alongside
+these records; absent evidence is labelled. Links lead to existing evidence.
+The newest attempt represents each team task. Four agents fit in each room; any
+additional assignments remain accessible in the roster. Searchable tasks, run
+history, team cards and file browsing remain below the office.
+
+A document animation marks a newly observed, recent recorded transition from
+building to review. It means a candidate was submitted for review, not arbitrary
+peer messaging or a confirmed conversational exchange. Historical handoffs stay in
+the activity details and are not replayed on page load. **Pause animation** stops
+motion without stopping work; system reduced-motion preferences are also honoured.
+Connection loss freezes the scene and marks activity as unconfirmed. Reconnection
+restores the latest state while retaining agent selection.
+
+**Zoom** enlarges the floor within a scrollable viewport. **Expand office** fills
+the browser area; Escape returns to the dashboard. The inspector can be hidden,
+and avatar labels appear on hover, focus or selection to avoid overlap.
+
+**Pip**, the cat, relaxes by the window with a gentle tail flick. **Orbit**, the
+hovering AI companion, floats in the aisle. Click Orbit for guidance derived from
+saved project state, with a relevant detail link and copyable command. This does
+not call a model or start work. Both companions have accessible labels and are excluded from agent counts, task assignments and usage. Pause,
+reduced-motion preferences, connection loss and saved snapshots stop their motion.
+
+The 1536×1024 room image is embedded once in the HTML; status polling does not resend
+it. The server permits embedded data images but adds no remote image or control
+route. Artwork provenance is recorded in `src/view/OFFICE_ART.md`.
+
 ### Watching a run
 
 ```bash
@@ -749,7 +850,7 @@ harness view --serve          # then harness work in another terminal
 watching site at  http://127.0.0.1:7373
 ```
 
-The page polls once a second and shows the phase, the item, turns, tokens
+The page polls every two seconds and shows the phase, the item, turns, tokens
 and cost as they accumulate — with a figure at the desk saying which agent
 is working. The builder and the reviewer look different because they are
 different: separate processes, separate containers, no shared context.
@@ -763,7 +864,7 @@ Four rules hold it to that, each one line and each tested:
 
 - binds `127.0.0.1` explicitly, never every interface;
 - answers `GET` and refuses everything else with a 405;
-- serves two fixed routes, so there is no path to traverse;
+- serves fixed `/`, `/status`, `/workspace` routes and `/output/<artifact-id>` downloads, never arbitrary file paths;
 - has **no route that writes, applies, starts or approves anything**.
 
 That last one is not a limitation to lift later. A console that can act is

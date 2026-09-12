@@ -6,7 +6,7 @@
  *
  *   - binds 127.0.0.1 explicitly, never 0.0.0.0;
  *   - answers GET and nothing else;
- *   - serves two fixed routes, so there is no path to traverse;
+ *   - serves fixed workspace routes and ID-scoped retained output downloads;
  *   - has no route that writes, applies, starts or approves anything.
  *
  * The last one is not a limitation to be lifted later. A console that can
@@ -22,14 +22,17 @@ export interface ServerRoutes {
   readonly page: () => Promise<string>;
   /** Everything that changes while a run is in flight. */
   readonly status: () => Promise<unknown>;
+  readonly workspace?: () => Promise<string>;
+  readonly output?: (id:string) => Promise<{name:string;bytes:Buffer}>;
 }
 
 export const LOOPBACK = "127.0.0.1";
 
 export function createViewServer(routes: ServerRoutes): Server {
   return createServer((request, response) => {
-    const send = (code: number, type: string, body: string): void => {
+    const send = (code: number, type: string, body: string|Buffer, headers:Record<string,string>={}): void => {
       response.writeHead(code, {
+        ...headers,
         "content-type": type,
         "cache-control": "no-store",
         // Nothing here is meant to be embedded anywhere, and the page
@@ -41,7 +44,7 @@ export function createViewServer(routes: ServerRoutes): Server {
         // header. The banner then hid itself, which looked exactly like a
         // run that was not happening.
         "content-security-policy":
-          "default-src 'none'; connect-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'",
+          "default-src 'none'; img-src data:; connect-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'",
       });
       response.end(body);
     };
@@ -52,6 +55,9 @@ export function createViewServer(routes: ServerRoutes): Server {
     }
     // Compared without the query string, and never used as a path.
     const route = (request.url ?? "/").split("?")[0];
+    if(route==='/workspace'&&routes.workspace){routes.workspace().then(html=>send(200,'text/html; charset=utf-8',html)).catch(()=>send(500,'text/plain','Workspace unavailable. Existing details are retained.'));return;}
+    const output=route?.match(/^\/output\/(artifact-[a-f0-9-]{36})$/u);
+    if(output&&routes.output){routes.output(output[1]!).then(file=>send(200,'application/octet-stream',file.bytes,{'content-disposition':`attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`})).catch(()=>send(409,'text/plain','Output unavailable or its retained bytes changed. Inspect it before exporting.'));return;}
     if (route === "/status") {
       routes.status()
         .then((value) => { send(200, "application/json; charset=utf-8", JSON.stringify(value)); })
@@ -68,7 +74,7 @@ export function createViewServer(routes: ServerRoutes): Server {
         });
       return;
     }
-    send(404, "text/plain; charset=utf-8", "Not found. This server serves / and /status.\n");
+    send(404, "text/plain; charset=utf-8", "Not found. No matching read-only view route.\n");
   });
 }
 

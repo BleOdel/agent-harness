@@ -362,17 +362,87 @@ The original S1–S3 console stages (usage capture, browsable history and live
 observation) are implemented. Their operating instructions are maintained in
 [the README](README.md#reading-what-happened). Static `view` embeds file contents
 and historical diffs; `view --serve` adds only the loopback read-only server.
-A team-only project is visible before its first applied record. Binary and
+Empty and team-only projects are visible before their first applied record. Binary and
 oversized files remain listed with an explanation.
 
 Ordinary progress uses a four-second heartbeat; status older than fifteen seconds
 or a dead process is shown as stopped. Team liveness uses controller host/PID
 metadata. Neither view executes project code, launches a model/container, steals
-locks or performs recovery. The server serves only GET `/` and `/status`, polls
-once a second from the page, rejects a busy port, and has no control routes.
-Display content is escaped; polling updates use text-safe rendering.
+locks or performs recovery. The server serves GET `/`, `/status`, `/workspace`
+and ID-scoped `/output/<artifact-id>` downloads. Status polls every two seconds,
+workspace details every ten; busy ports are rejected and there are no control routes.
+Display content is escaped. Ordinary status uses text updates; team cards use
+host-rendered escaped HTML from the same fixed status route. Poll requests have an
+eight-second timeout and do not overlap. Expanded team details are preserved;
+replacement waits while keyboard focus is inside a card.
 
-Verification references: [usage events](test/events.test.ts),
+```mermaid
+flowchart LR
+  F["Accepted tasks and recorded runs"] --> P["Escaped project dashboard snapshot"]
+  S["Source and recovery snapshots"] --> P
+  T["Team state and telemetry"] --> P
+  D["Saved plan, approval, artifact and release records"] --> W["Bounded read-only workspace projection"]
+  W --> P
+  W --> G["Next step, attention, journey, review, outputs and Orbit"]
+  G --> B
+  P --> Q["Local search, status filters and file links"]
+  T --> O["Latest task attempt → role avatar and inspector"]
+  H --> O
+  O --> B
+  T --> X["Recorded build → review transition"]
+  X --> B
+  T --> L["GET /status: live team cards"]
+  H["Ordinary heartbeat"] --> L
+  L --> B["Connection-aware browser view"]
+  P --> B
+  W --> U["GET /workspace: refresh sections, preserve UI state"]
+  U --> B
+  A["GET /output/:id: manifest and byte hash check"] --> B
+```
+
+Task, file and history sections refresh without a full-page reload. The client
+retains search/filter controls, open details, selected files, focus and scroll.
+Office controls preserve zoom, inspection and selection through scene updates. The completion
+summary excludes `wont` scope, preserves blocked/waiting distinctions and reports
+unreadable data. No dashboard filter writes state or dispatches work. Project
+selection and mutation remain in the CLI. `view/workspace.ts` reads bounded state
+without creating stores. Approved plans, import items and acceptance manifests
+are digest checked. Team diffs compare retained original and combined snapshots,
+canonicalizing host paths and validating per-file hashes before display. They
+are bounded to 40 files, 64 KiB/1,500 input lines and 600 changed lines per file.
+
+Artifact downloads accept only manifest IDs, refuse symlinks/hardlinks and verify
+size/hash, with a 32 MiB ceiling. Small PNG previews share a 1 MiB embedding budget.
+Saved HTML has no active download endpoint. Release cards display local state,
+not a remote publishing claim. Orbit and the next-step card use the same pure
+state-derived guidance; neither dispatches an agent or executes a command.
+
+The office is another projection of the same read-only records. Builder/reviewer
+activity requires a live controller and a matching model phase. Gates, preparation,
+integration and application never create working people. Multiple active reviewers
+share a visual room only; no multi-agent discussion is implied. Avatar IDs include
+the team and attempt. A separate persona allocation reserves builder and reviewer
+identities for every task before rendering, ordered by team/task/role. Full names
+and SVG variants are unique within the roster and stable across phases, retries
+and reordered input for that assignment set. Adding/removing tasks can reassign
+personas. The original integer-grid artwork lives in `view/office-sprites.ts`;
+role classification chooses tools and desk-screen treatment. Decorative companions
+never enter the worker model and freeze with pause, disconnection, reduced motion
+or snapshot mode. The latest attempt for each
+assignment replaces prior attempts, and overflow remains selectable in the roster.
+Ordinary runs use the existing heartbeat assessment. Saved snapshots cannot animate.
+
+`reviewHandoffEvents` derives candidate-review transitions from ordered host telemetry
+without writing new events. The browser remembers observed event IDs; only a new,
+recent handoff can animate once. Reconnection and paused/reduced-motion settings
+preserve the distinction between current activity and presentation. Selection survives
+scene updates. The original PNG is embedded in the initial page and reused across
+small escaped HTML updates; CSP allows `img-src data:` and no external image hosts.
+
+Verification references: [workspace guidance, documents and outputs](test/guidance.test.ts),
+[office projections and interactions](test/office.test.ts),
+[character identities and motion](test/office-personalities.test.ts),
+[usage events](test/events.test.ts),
 [static viewer](test/view.test.ts), [live status and server](test/server.test.ts),
 [team projections](test/team-status.test.ts), [RPC](test/rpc.test.ts), and
 [controller crash recovery](test/team-controller-crash.test.ts).

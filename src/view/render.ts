@@ -1,4 +1,9 @@
-import { formatTeams, type TeamView } from "./status.ts";
+import {nextAction,workspacePanels,GUIDANCE_STYLE} from './guidance.ts';
+import {emptyWorkspace,type WorkspaceInfo} from './workspace.ts';
+import {WORKSPACE_SCRIPT} from './workspace-client.ts';
+import { officeModel, officeSection, OFFICE_STYLE, OFFICE_SCRIPT, type OfficeModel } from "./office.ts";
+import { type TeamView } from "./status.ts";
+import { overview, taskList, teamCards, DASHBOARD_STYLE, DASHBOARD_SCRIPT } from "./dashboard.ts";
 /**
  * The record, as a page you would actually read.
  *
@@ -74,7 +79,7 @@ const OUTCOME_LABEL: Record<string, string> = {
   "environment-blocked": "blocked — verification environment unavailable",
 };
 
-function diffBlock(file: FileDiff): string {
+export function diffBlock(file: FileDiff): string {
   if (file.lines.length === 0) {
     return `<p class="note">${escape(file.note ?? "No textual change.")}</p>`;
   }
@@ -87,7 +92,7 @@ function diffBlock(file: FileDiff): string {
   const removed = file.lines.filter((l) => l.startsWith("-")).length;
   const note = file.note === undefined ? "" : `<p class="note">${escape(file.note)}</p>`;
   return [
-    `<details><summary><span class="path">${escape(file.file)}</span>`,
+    `<details data-state-key="diff-${escape(file.file)}"><summary><span class="path">${escape(file.file)}</span>`,
     `<span class="kind">${escape(file.kind)}</span>`,
     `<span class="counts"><span class="add">+${String(added)}</span> <span class="del">-${String(removed)}</span></span>`,
     `</summary><div class="diff">${rows.join("")}</div>${note}</details>`,
@@ -99,7 +104,7 @@ function runSection(view: RunView): string {
   const findings = run.review?.findings ?? [];
   const reversed = run.outcome === "applied" && !view.standing;
   return [
-    `<section class="run ${escape(run.outcome)}${reversed ? " reversed" : ""}" id="${escape(run.id)}">`,
+    `<section class="run ${escape(run.outcome)}${reversed ? " reversed" : ""}" id="${escape(run.id)}" data-run data-group="${reversed ? "reversed" : run.outcome === "applied" ? "applied" : run.outcome === "no-changes" ? "no-changes" : "attention"}" data-search="${escape([run.id, view.title ?? run.goal, run.goal, run.outcome, run.reason ?? "", ...view.files.map(f => f.file)].join(" ").toLowerCase())}">`,
     `<header><h2>${escape(run.id)}<span class="goal">${escape(view.title ?? run.goal)}</span></h2>`,
     `<p class="meta">${escape(localTime(run.at))}`,
     ` &middot; <span class="outcome">${escape(OUTCOME_LABEL[run.outcome] ?? run.outcome)}</span>`,
@@ -157,7 +162,7 @@ summary{cursor:pointer;padding:.55rem 0;display:flex;gap:.75rem;align-items:base
 .l.ctx{color:var(--dim)}
 .note{color:var(--dim);font-size:.9rem;margin:.5rem 0}
 .built{color:var(--dim);font-size:.72rem;margin:2.5rem 0 0;text-align:right}
-#team-status{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim)}
+
 .live{display:flex;gap:1rem;align-items:center;background:var(--card);border:1px solid var(--line);
   border-left:4px solid var(--accent);border-radius:10px;padding:.6rem 1.25rem;margin:0 0 1.25rem}
 .live.reviewing{border-left-color:var(--rev)}
@@ -229,24 +234,6 @@ export interface QueueItem {
  * reader cannot work out for themselves -- MoSCoW order, minus what is
  * done, minus anything whose last run changed nothing.
  */
-function queue(items: readonly QueueItem[]): string {
-  if (items.length === 0) return "";
-  const rows = items.map((item) => {
-    const done = item.feature.status === "done";
-    const mark = done ? "done" : item.next ? "next" : item.feature.status;
-    return `<li class="${item.next ? "is-next" : ""}">`
-      + `<span class="dot ${escape(mark)}"></span>`
-      + `<span class="qid">${escape(item.feature.id)}</span>`
-      + `<span class="qpri">${escape(item.feature.priority)}</span>`
-      + `<span class="qstate">${escape(item.state)}${item.waitingFor?.length ? ` · waiting for: ${escape(item.waitingFor.join(", "))}` : ""}</span></li>`;
-  });
-  const left = items.filter((item) => item.feature.status !== "done").length;
-  return [
-    `<p class="side-h">Queue <span class="qleft">${String(left)} left</span></p>`,
-    `<ul class="queue">${rows.join("")}</ul>`,
-  ].join("");
-}
-
 /**
  * The tree, and every file's contents, carried in the page.
  *
@@ -271,7 +258,7 @@ function fileBrowser(tree: ProjectTree): string {
       ? '<span class="untouched" title="never changed by a run">&mdash;</span>'
       : `<span title="changed by ${escape(file.touchedBy.join(", "))}">${String(file.touchedBy.length)}</span>`;
     rows.push(
-      `<li><button type="button" data-file="f${String(index)}">`
+      `<li data-file-entry data-search="${escape(file.path.toLowerCase())}"><button type="button" aria-controls="f${String(index)}" data-file="f${String(index)}">`
       + `<span class="fname">${escape(file.name)}</span>`
       + `<span class="fruns">${runs}</span></button></li>`,
     );
@@ -284,7 +271,7 @@ function fileBrowser(tree: ProjectTree): string {
     const body = file.text === undefined
       ? `<p class="note">${escape(file.note ?? "Not available.")}</p>`
       : `<pre class="src">${escape(file.text)}</pre>`;
-    return `<article class="panel" id="f${String(index)}" hidden>`
+    return `<article class="panel" id="f${String(index)}" data-file-path="${escape(file.path)}" hidden>`
       + `<header><span class="fpath">${escape(file.path)}</span>`
       + `<span class="who">${links}</span></header>${body}</article>`;
   });
@@ -304,6 +291,7 @@ function fileBrowser(tree: ProjectTree): string {
  */
 const SCRIPT = `<script>
 (function () {
+  var bound=new WeakSet();
   var open = null;
   function show(id) {
     if (open) { open.el.hidden = true; open.btn.setAttribute("aria-expanded", "false"); }
@@ -316,10 +304,14 @@ const SCRIPT = `<script>
     open = { id: id, el: el, btn: btn };
     el.scrollIntoView({ block: "nearest" });
   }
+  window.bindHarnessFiles=function(){
+  open=null;
   document.querySelectorAll("[data-file]").forEach(function (btn) {
+    if(bound.has(btn))return;bound.add(btn);
     btn.setAttribute("aria-expanded", "false");
     btn.addEventListener("click", function () { show(btn.getAttribute("data-file")); });
   });
+  };window.bindHarnessFiles();
 })();
 </script>`;
 
@@ -353,7 +345,7 @@ function summaryStrip(views: readonly RunView[]): string {
     cell("Turns", sum((u) => u.turns).toLocaleString("en-GB")),
     cell("Tokens", tokens.toLocaleString("en-GB"), cached > 0 ? ` ${String(cached)}% cached` : ""),
     cell("Output", sum((u) => u.output).toLocaleString("en-GB")),
-    cell("Cost", `$${sum((u) => u.costUsd).toFixed(2)}`),
+    cell("Reported cost", `$${sum((u) => u.costUsd).toFixed(2)}`),
     measured.length === views.length
       ? ""
       : `<p class="partial">${String(views.length - measured.length)} earlier runs were recorded before usage was captured, and are not counted here.</p>`,
@@ -379,6 +371,7 @@ const FIGURE_LABELS = JSON.stringify(
 
 const LIVE_SCRIPT = `<script>
 (function () {
+  var connection = document.getElementById("connection-status");
   var box = document.getElementById("live");
   if (!box) return;
   var labels = ${FIGURE_LABELS};
@@ -403,8 +396,17 @@ const LIVE_SCRIPT = `<script>
       + " \u00b7 " + (mins ? mins + "m " + (secs % 60) + "s" : secs + "s");
   }
   function paint(s) {
+    if (window.updateHarnessOffice) window.updateHarnessOffice(s.officeHtml, true);
+    connection.textContent = "Connected · status updated " + new Date().toLocaleTimeString();
+    connection.dataset.state = "connected";
     var teams = document.getElementById("team-status");
-    if (teams && s && typeof s.teamsText === "string") teams.textContent = s.teamsText;
+    if (teams && typeof s.teamsHtml === "string" && teams.dataset.last !== s.teamsHtml && !teams.contains(document.activeElement)) {
+      var expanded = Array.from(teams.querySelectorAll('details[open]')).map(function(d){return d.getAttribute('data-team-detail');});
+      // HTML is produced only by the host renderer, which escapes every project value.
+      teams.innerHTML = s.teamsHtml;
+      teams.dataset.last = s.teamsHtml;
+      teams.querySelectorAll('details').forEach(function(d){d.open=expanded.indexOf(d.getAttribute('data-team-detail'))!==-1;});
+    }
     if (!s || !s.live) {
       box.hidden = !s || !s.reason;
       if (s && s.reason) {
@@ -422,14 +424,18 @@ const LIVE_SCRIPT = `<script>
     whoBox.textContent = labels[d.phase] || d.phase;
     detailBox.textContent = detail(d);
   }
+  var pending = false;
   function tick() {
-    fetch("/status", { cache: "no-store" })
-      .then(function (r) { return r.json(); })
+    if (pending) return;
+    pending = true;
+    fetch("/status", { cache: "no-store", signal: AbortSignal.timeout(8000) })
+      .then(function (r) { if (!r.ok) throw new Error("Status unavailable"); return r.json(); })
       .then(paint)
-      .catch(function () { box.hidden = true; });
+      .catch(function () { if (window.updateHarnessOffice) window.updateHarnessOffice(null, false); box.hidden = true; connection.textContent = "Connection lost · displayed details may be out of date. Retrying…"; connection.dataset.state = "lost"; })
+      .finally(function () { pending = false; });
   }
   tick();
-  setInterval(tick, 1000);
+  setInterval(tick, 2000);
 })();
 </script>`;
 
@@ -449,39 +455,56 @@ export function renderPage(
    */
   builtAt: string | undefined = undefined,
   teams: readonly TeamView[] = [],
+  warnings: readonly string[] = [],
+  projectPath: string = project,
+  office: OfficeModel = officeModel(teams, undefined, live),
+  workspace?:WorkspaceInfo,
+  includeRoom=true,
 ): string {
+  const extra=workspacePanels(items,teams,views,workspace??emptyWorkspace(),live,projectPath);
   const applied = views.filter((v) => v.run.outcome === "applied" && v.standing).length;
   const browser = fileBrowser(tree);
-  // The sidebar exists if either half has something to show. Tying the
-  // queue's presence to the file tree meant a project with a backlog and
-  // no readable files silently lost its backlog.
-  const sidebar = `${queue(items)}${browser.split("<!--panels-->")[0] ?? ""}`;
-  const panels = browser === "" ? "" : (browser.split("<!--panels-->")[1] ?? "");
-  const hasSidebar = sidebar !== "";
+  const sidebar = browser.split("<!--panels-->")[0] ?? "";
+  const panels = browser.split("<!--panels-->")[1] ?? "";
+  const toolbar = (kind: string, label: string, options = ""): string =>
+    `<div class="toolbar"><label>Search ${label}<input type="search" id="${kind}-search" placeholder="Search by name or ID"></label>${options ? `<label>Status<select id="${kind}-filter"><option value="all">All statuses</option>${options}</select></label>` : ""}</div><p id="${kind}-result" class="filter-result" role="status"></p>`;
+  const empty = (kind: string): string => `<p id="${kind}-empty" class="empty" hidden>No matches. Try a different search or status.</p>`;
   return [
     "<!doctype html>",
     '<html lang="en"><head><meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    `<title>${escape(project)} - harness record</title>`,
-    `<style>${STYLE}</style></head><body><main>`,
-    `<h1>${escape(project)}</h1>`,
-    `<p class="sub">${String(views.length)} runs recorded &middot; ${String(applied)} still standing &middot; read-only</p>`,
-    live ? '<div class="live" id="live" hidden><span id="live-fig"></span>'
-      + '<span class="live-text"><b id="live-who"></b><span id="live-detail"></span></span></div>' : "",
-    summaryStrip(views),
-    hasSidebar ? `<div class="shell"><aside>${sidebar}</aside><div class="col">` : "",
-    panels,
-    ...views.map(runSection),
-    hasSidebar ? "</div></div>" : "",
-    builtAt === undefined
-      ? ""
-      : `<p class="built">harness of ${escape(builtAt)}${live ? " &middot; serving live; restart to pick up a newer harness" : ""}</p>`,
-    `<section><h2>Teams</h2><pre id="team-status">${escape(formatTeams(teams))}</pre></section>`,
-    "</main>",
-    browser === "" ? "" : SCRIPT,
-    live ? FIGURE_MARKUP : "",
-    live ? LIVE_SCRIPT : "",
-    "</body></html>",
-    "",
+    `<title>${escape(project)} · Harness</title>`,
+    `<style>${STYLE}${DASHBOARD_STYLE}${OFFICE_STYLE}${GUIDANCE_STYLE}</style></head><body><a class="skip-link" href="#overview">Skip to project overview</a><main>`,
+    '<div class="rail"><div class="brand"><span>▥</span> Harness</div><p>Project workspace</p><nav aria-label="Project sections"><a href="#overview">Next step</a><a href="#attention">Needs attention</a><a href="#office">Agent office</a><a href="#journey">Project journey</a><a href="#review">Review changes</a><a href="#outputs">Outputs</a><a href="#tasks">Tasks</a><a href="#history">Run history</a><a href="#teams">Teams</a><a href="#project-files">Files</a></nav><div class="rail-bottom"><p>Local · read-only</p><p>Plan and run work with<br><code>harness guide</code></p></div></div>',
+    '<div class="workspace">',
+    `<header class="page-head"><div><p class="eyebrow">Project overview</p><h1>${escape(project)}</h1><p class="team-id">${escape(projectPath)}</p></div><div class="page-actions"><span class="badge">${live ? "Live status" : "Saved snapshot"}</span>${live ? '<button class="action" id="refresh-overview" type="button">Refresh overview</button>' : ""}</div></header>`,
+    `<p class="sub" id="record-summary">${String(views.length)} runs recorded &middot; ${String(applied)} still standing &middot; read-only</p>`,
+    live ? '<p id="workspace-update" class="update-note" role="status"></p><p id="connection-status" class="connection" role="status">Connecting to local status…</p><div class="live" id="live" hidden><span id="live-fig"></span><span class="live-text"><b id="live-who"></b><span id="live-detail"></span></span></div>' : "",
+    overview(items, warnings,workspace?nextAction(items,teams,views,workspace):undefined,projectPath),
+    extra.attention,
+    officeSection(office,includeRoom),
+    extra.journey,
+    extra.orbit,
+    '<section id="tasks" class="section"><div class="section-heading"><h2>Tasks</h2><p>Accepted scope and what comes next</p></div>',
+    toolbar('task','tasks','<option value="open">Open</option><option value="attention">Needs attention / waiting</option><option value="done">Done</option><option value="excluded">Excluded</option>'),
+    `<div id="task-content">${taskList(items)}</div>`, empty('task'), '</section>',
+    '<section id="history" class="section"><div class="section-heading"><h2>Run history</h2><p>Changes, checks and review findings</p></div>',
+    `<div id="usage-content">${summaryStrip(views)}</div>`,
+    toolbar('run','runs','<option value="applied">Applied</option><option value="attention">Needs attention</option><option value="reversed">Reversed</option><option value="no-changes">No changes</option>'),
+    `<div id="history-content">${views.length ? views.map(runSection).join('') : '<p class="empty">No runs yet. Once work starts, its checks and changes will appear here.</p>'}</div>`,
+    empty('run'), '</section>', extra.review, extra.outputs,
+    `<section id="teams" class="section"><div class="section-heading"><h2>Teams</h2><p>${live ? "Status updates automatically" : "Recorded team activity"}</p></div><div id="team-status">${teamCards(teams)}</div></section>`,
+    '<section id="project-files" class="section"><div class="section-heading"><h2>Files</h2><p>Current source and the runs that changed it</p></div>',
+    toolbar('file','file paths'),
+    '<div id="files-content">',
+    browser ? `<div class="file-layout"><aside aria-label="Project files">${sidebar}${empty('file')}</aside><div>${panels}<p class="note">Select a file to read its contents. Run links open its change history.</p></div></div>` : `<p class="empty">No project files to display.</p>${empty('file')}`,
+    '</div></section>',
+    builtAt === undefined ? "" : `<p class="built">harness of ${escape(builtAt)}${live ? " &middot; serving live; restart to pick up a newer harness" : ""}</p>`,
+    `<p class="snapshot">Overview captured ${escape(localTime(new Date().toISOString()))}. ${live ? 'Tasks, files and history refresh automatically while keeping your place.' : 'This saved page does not update. Regenerate with harness view, or use harness view --serve for live status.'}</p>`,
+    '</div></main>',
+    SCRIPT,
+    DASHBOARD_SCRIPT, OFFICE_SCRIPT, WORKSPACE_SCRIPT,
+    live ? FIGURE_MARKUP + LIVE_SCRIPT : "",
+    "</body></html>", "",
   ].join("\n");
 }

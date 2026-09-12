@@ -1,3 +1,4 @@
+import type { Telemetry } from "../team/control.ts";
 /**
  * What a run is doing, while it is doing it.
  *
@@ -117,10 +118,22 @@ export function processAlive(pid: number): boolean {
 /** Team projections read immutable acceptance events and host telemetry only. */
 export interface TeamView {
   runId: string; status: string; live: boolean; reason?: string; elapsedMs: number; costUsd: number; tokens: number;
-  tasks: { id: string; role: string; waitingFor: string[] }[];
-  attempts: { id: string; task: string; role: string; phase: string; repairOf?: string; elapsedMs: number; gates: string[]; review: string; integration: string; models: { role: string; tokens: number; costUsd: number; provider?: string; model?: string }[] }[];
+  tasks: { id: string; role: string; waitingFor: string[]; criteria?: readonly string[] }[];
+  attempts: { id: string; task: string; role: string; phase: string; repairOf?: string; skills?: string[]; observedReads?: string[]; workflowEvidence?: string[]; activity?: string[]; findings?: string[]; integrationGates?:string[]; elapsedMs: number; gates: string[]; review: string; integration: string; models: { role: string; tokens: number; costUsd: number; provider?: string; model?: string }[] }[];
+  reviewHandoffs?: { id: string; at: string; attemptId: string }[];
   steering: { id: string; attemptId: string; message: string; state: string }[];
 }
+/** A review phase follows builder output; it is not a peer-chat receipt. */
+export function reviewHandoffEvents(events: readonly Telemetry[]): NonNullable<TeamView['reviewHandoffs']> {
+  const built = new Set<string>(), result: NonNullable<TeamView['reviewHandoffs']> = [];
+  for (const e of events) {
+    if (!e.attemptId || e.type !== 'phase') continue;
+    if (e.phase === 'building') built.add(e.attemptId);
+    if (e.phase === 'reviewing' && built.has(e.attemptId)) result.push({id:String(e.seq), at:e.at, attemptId:e.attemptId});
+  }
+  return result;
+}
+
 export async function readTeams(project: string, now = Date.now()): Promise<TeamView[]> {
   const { readdir, readFile } = await import("node:fs/promises");
   const { hostname } = await import("node:os");
@@ -143,6 +156,9 @@ export async function readTeams(project: string, now = Date.now()): Promise<Team
       if (item && item.state !== "delivered" && ["steer-delivered", "steer-acknowledged", "steer-failed"].includes(event.type)) item.state = event.type.slice(6);
     }
     const attempts: TeamView["attempts"] = [];
+    const eventNames=(await readdir(path.join(directory,'events'))).filter(n=>/^\d{8}\.json$/.test(n)).sort().slice(-500);
+    const submissions=await Promise.all(eventNames.map(n=>optional(path.join(directory,'events',n))));
+    const strings=(v:unknown):string[]=>Array.isArray(v)?v.filter((s):s is string=>typeof s==='string'):[];
     for (const attempt of state.attempts) {
       const history = telemetry.filter(e => e.attemptId === attempt.id), models = new Map<string, TeamView["attempts"][number]["models"][number]>();
       for (const event of history) if (event.type === "usage" && event.usage && event.modelRole) models.set(event.modelRole, { role: event.modelRole, tokens: event.usage.totalTokens, costUsd: event.usage.costUsd, ...(event.usage.provider ? { provider: event.usage.provider } : {}), ...(event.usage.model ? { model: event.usage.model } : {}) });
@@ -154,15 +170,19 @@ export async function readTeams(project: string, now = Date.now()): Promise<Team
       const review = await optional(path.join(attempt.directory,"review.json"));
       const verification = await optional(path.join(attempt.directory,"verification.json"));
       const integration = await optional(path.join(attempt.directory,"integration-verification.json"));
+      const submission=submissions.findLast(e=>e?.type==='submitted'&&e.attemptId===attempt.id);
       const terminal = ["integrated", "failed", "blocked", "interrupted"].includes(attempt.status);
       attempts.push({ id: attempt.id, task: attempt.taskId, role: attempt.roleId, phase: terminal ? attempt.status : history.findLast(e => e.type === "phase")?.phase ?? attempt.status,
         ...(attempt.repairOf ? { repairOf: attempt.repairOf } : {}), elapsedMs: Math.max(0, (attempt.finishedAt ? Date.parse(attempt.finishedAt) : now) - Date.parse(attempt.startedAt ?? state.startedAt)),
+        skills:attempt.skills.map(s=>s.id),observedReads:strings(submission?.observedReads),workflowEvidence:strings(submission?.workflowEvidence),
+        activity:history.filter(e=>e.type==='phase'||e.reason).slice(-6).map(e=>`${e.at} · ${e.phase??e.type}${e.reason?`: ${e.reason}`:''}`),findings:[...strings(review?.notes),...strings(review?.unmet),...strings(review?.unaccounted)],integrationGates:strings(integration?.run?.verdicts?.map((v:{summary:string})=>v.summary)),
         gates: verification?.run?.verdicts?.map((v: { summary: string }) => v.summary) ?? [], review: review?.verdict ?? "pending", integration: integration ? integration.run?.passed ? "passed" : "failed" : attempt.integration ? "passed" : "pending", models: [...models.values()] });
     }
     const measured = attempts.flatMap(a => a.models);
     result.push({ runId: state.runId, status: await abortRequested(directory) && state.status !== "aborted" ? live ? "aborting" : "abort needs recovery" : state.status === "running" && !live ? "interrupted" : state.status, live,
       ...(state.reason ? { reason: state.reason } : {}), elapsedMs: Math.max(0, (state.finishedAt ? Date.parse(state.finishedAt) : now) - Date.parse(state.startedAt)), costUsd: Math.max(state.usage.costUsd, measured.reduce((sum,m) => sum+m.costUsd,0)), tokens: Math.max(state.usage.tokens, measured.reduce((sum,m) => sum+m.tokens,0)),
-      tasks: state.plan.tasks.map(t => ({ id:t.id, role:t.assignedRole, waitingFor:t.dependsOn.filter(id => !accepted.has(id)) })), attempts, steering: [...steering.values()] });
+      reviewHandoffs: reviewHandoffEvents(telemetry),
+      tasks: state.plan.tasks.map(t => ({ id:t.id, role:t.assignedRole, criteria:t.criteria, waitingFor:t.dependsOn.filter(id => !accepted.has(id)) })), attempts, steering: [...steering.values()] });
   }
   return result;
 }

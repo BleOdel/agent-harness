@@ -1,3 +1,5 @@
+import {readWorkspace,readOutput} from '../view/workspace.ts';
+import { officeModel, renderOffice } from "../view/office.ts";
 /**
  *   harness view [--open]
  *
@@ -10,6 +12,7 @@
  * there is nothing here to trust.
  */
 
+import { teamCards } from "../view/dashboard.ts";
 import { readTeams, formatTeams } from "../view/status.ts";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -68,8 +71,15 @@ async function builtAt(): Promise<string | undefined> {
 }
 
 /** Builds the page from what is on disk. Called per request when serving. */
-async function build(project: string, live: boolean): Promise<string> {
-  const { runs } = await readRecord(project);
+async function ordinaryStatus(project: string) {
+  const raw = await readFile(statusPath(project), "utf8").catch(() => undefined);
+  let status: Status | undefined;
+  try { status = raw === undefined ? undefined : JSON.parse(raw) as Status; } catch { status = undefined; }
+  return assess(status, Date.now(), processAlive);
+}
+
+async function build(project: string, live: boolean, includeRoom=true): Promise<string> {
+  const { runs, malformed } = await readRecord(project);
   const list = await readFeatures(project);
   const features = list !== undefined && list.ok ? list.features : [];
   const standing = new Set(undoableRuns(runs).map((run) => run.id));
@@ -100,8 +110,13 @@ async function build(project: string, live: boolean): Promise<string> {
     waitingFor: unmetDependencies(feature, features),
     next: feature.id === next?.id,
   }));
+  const teams = await readTeams(project);
+  const workspace=await readWorkspace(project);
+  workspace.ordinary=await ordinaryStatus(project);
+  workspace.warnings.push(...(list!==undefined&&!list.ok?[list.reason]:[]),...(malformed.length?[`${malformed.length} unreadable history records; history may be incomplete.`]:[]));
   return renderPage(
-    path.basename(project), views, await collectTree(project, runs), live, items, await builtAt(), await readTeams(project),
+    path.basename(project), views, await collectTree(project, runs), live, items, await builtAt(), teams,
+    [...(list !== undefined && !list.ok ? [list.reason] : []), ...(malformed.length ? [`${malformed.length} unreadable history records; history may be incomplete.`] : [])], project, officeModel(teams, workspace.ordinary, live),workspace,includeRoom,
   );
 }
 
@@ -110,16 +125,12 @@ async function serve(project: string, port: number): Promise<void> {
     // Rebuilt per request rather than cached: a page that went stale while
     // claiming to be live would be worse than no server at all.
     page: async () => build(project, true),
+    workspace: async()=>build(project,true,false),
+    output: id=>readOutput(project,id),
     status: async () => {
-      const raw = await readFile(statusPath(project), "utf8").catch(() => undefined);
-      let status: Status | undefined;
-      try {
-        status = raw === undefined ? undefined : (JSON.parse(raw) as Status);
-      } catch {
-        status = undefined;
-      }
+      const ordinary = await ordinaryStatus(project);
       const teams = await readTeams(project);
-      return { ...assess(status, Date.now(), processAlive), teams, teamsText: formatTeams(teams) };
+      return { ...ordinary, officeHtml: renderOffice(officeModel(teams, ordinary), false), teams, teamsText: formatTeams(teams), teamsHtml: teamCards(teams) };
     },
   });
   const bound = await listen(server, port);
@@ -147,12 +158,6 @@ export async function view(project: string, argv: readonly string[]): Promise<vo
   }
 
   const { runs, malformed } = await readRecord(project);
-  if (runs.length === 0 && (await readTeams(project)).length === 0) {
-    throw new OperatorError(
-      "Nothing has run in this project yet.",
-      "There is no record to look at. Start with:  harness work",
-    );
-  }
   if (malformed.length > 0) say(`warning: ${String(malformed.length)} unreadable lines in the record`);
 
   // One renderer for both paths. The server had its own copy, and the
