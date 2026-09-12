@@ -4,10 +4,10 @@
 
 Assessed `/Users/blessingodeleye/Developer/agent-skills/` and the harness's actual launch code. Skill instructions were inspected as project inputs, not invoked as instructions for this assessment. This records the pre-M0 assessment. M0 launcher fixes and verification are described in `TEAM_M0_RESULTS.md`; the original skill definitions remain unchanged.
 
-## Current implementation after M6
+## Current implementation after E1
 
 - M0 supplies explicit-only discovery and disables extensions in all launchers.
-- Ordinary `work` and interactive `plan` still use the configured skill directory.
+- Ordinary `work` and interactive `plan` use selected, frozen bundles from the configured skill collection.
 - Planning sessions and drafts persist for resume. After explicit plan approval, finite item generation reads the approved document and saved session without mounting skills or starting another interview. Previously loaded skill text may remain in that saved conversation.
   Teams use accepted role profiles with immutable selected resources and declared
   interaction/tool requirements; reviewers receive no skills.
@@ -24,6 +24,16 @@ The remainder records the 8 September assessment and subsequent M3 adaptation
 notes. Historical line numbers and unresolved-at-the-time findings are not a
 claim that the current launcher still has those gaps. See
 [team configuration](README.md#team-controller-m6) for usage.
+
+E1 additionally freezes selected ordinary build and planning bundles outside writable model
+mounts, preserving resource hashes and executable bits. `project setup` provides
+role-specific suggestions and explicit selection. Known interview skills cannot
+enter unattended build selections. New runs report missing selected resources;
+resumed plans use their retained versions. Ordinary records now retain observed
+read-tool paths separately from the selected bundle list. Team manifest validation
+remains stronger than ordinary custom-skill selection; arbitrary skill suitability
+still needs operator judgment.
+
 
 ## Original assessment result
 

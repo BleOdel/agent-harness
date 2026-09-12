@@ -1,3 +1,4 @@
+import { dockerRunner } from "../runners/docker.ts";
 /**
  * Running the model.
  *
@@ -11,7 +12,6 @@
  */
 
 import {
-  buildRunArguments,
   CONTAINER_PI_PACKAGE,
   type SandboxLayout,
 } from "../containment/sandbox.ts";
@@ -66,7 +66,7 @@ export async function runAgent(
   events.onTurn = onTurn;
   const result = await runContained(
     layout,
-    buildRunArguments(layout, "bridge", buildAgentCommand(request)),
+    dockerRunner.prepare(layout, "bridge", buildAgentCommand(request)).args,
     { timeoutMs: request.timeoutMs, onOutput: (chunk) => { onOutput(events.push(chunk)); } },
   );
   onOutput(events.finish());

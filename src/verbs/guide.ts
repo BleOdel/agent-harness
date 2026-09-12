@@ -2,6 +2,8 @@ import { spawn } from "node:child_process";
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
+import { detectProjects } from "../adapters/registry.ts";
+import { readProfile } from "../project/profile.ts";
 import { loadConfig } from "../config.ts";
 import { chooseNext, readFeatures } from "../features.ts";
 import { choose, confirmed, terminalDialogue, type Dialogue } from "../guide/dialogue.ts";
@@ -50,8 +52,15 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
         actions.push({ label: "Roll back the interrupted application", run: () => run("team", "recover", value.teamRunId, "--rollback") });
       } else {
         const initialized = await access(path.join(project, "package.json")).then(() => true, () => false);
-        if (!initialized) actions.push({ label: "Create a Node project here", run: () => run("init") });
-        else {
+        const detected = await detectProjects(project);
+        if (!initialized && detected.length) io.write(`Detected ${detected.join(", ")}; this release needs a Node/npm package root. Use project setup for guidance.`);
+        if (!initialized && !detected.length) actions.push({ label: "Create a Node project here", run: () => run("init") });
+        else if (initialized) {
+          let supported = true;
+          try { const profile = await readProfile(project); io.write(`Environment: ${profile.adapter.id}@${profile.adapter.version} on ${profile.runner.id}@${profile.runner.version}.`); }
+          catch (error) { supported = false; io.write((error as Error).message); }
+          if (!supported) actions.push({ label: "Choose the project environment", run: () => run("project", "setup") });
+          if (supported) {
           let saved;
           try { saved = await resolvePlan(project); } catch (error) {
             if (!(error instanceof OperatorError && error.message.startsWith("No plan has been saved"))) throw error;
@@ -94,7 +103,9 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
             actions.push({ label: "Set up acceptance checks (short prompts)", run: () => run("checks", "setup") });
             actions.push({ label: "Review a saved check draft", run: () => run("checks", "review") });
           }
+          }
         }
+        actions.push({ label: "Configure project environment and skills", run: () => run("project", "setup") });
       }
     } catch (error) { io.write(`Needs attention: ${(error as Error).message}`); }
     actions.push({ label: "Check readiness", run: () => run("doctor") });

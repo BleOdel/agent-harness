@@ -11,6 +11,7 @@
  */
 
 import path from "node:path";
+import { RUNNER_LIMITS } from "../runners/contract.ts";
 
 export const CONTAINER_WORK = "/work";
 export const CONTAINER_AGENT = "/pi-agent";
@@ -192,9 +193,9 @@ export function buildRunArguments(
     "--cap-drop=ALL",
     "--security-opt=no-new-privileges=true",
     "--pids-limit=256",
-    "--memory=2147483648",
-    "--memory-swap=2147483648",
-    "--cpus=2.0",
+    `--memory=${RUNNER_LIMITS.memoryMiB * 1048576}`,
+    `--memory-swap=${RUNNER_LIMITS.memoryMiB * 1048576}`,
+    `--cpus=${RUNNER_LIMITS.cpu.toFixed(1)}`,
     "--ulimit=nofile=4096:4096",
     "--ipc=none",
     "--log-driver=none",

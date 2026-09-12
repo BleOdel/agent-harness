@@ -1,7 +1,10 @@
+import { getAdapter } from "../adapters/registry.ts";
+import { nodeNpm } from "../adapters/node-npm.ts";
+import { assertExecutionPin, assertSettingsMatch, executionSettings } from "../project/execution.ts";
+import { dockerRunner } from "../runners/docker.ts";
 /** The production process adapter. It has no reference to the live project. */
 import path from "node:path";
 import { readFile, rm } from "node:fs/promises";
-import { stopContainer } from "../containment/stop.ts";
 import type { Config } from "../config.ts";
 import type { SandboxLayout } from "../containment/sandbox.ts";
 import { briefing } from "../agent/execute.ts";
@@ -34,8 +37,15 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
     ...(reviewer || a.skills.length === 0 ? {} : { skillsDirectory: path.join(a.directory, "skills") }),
     user: `${process.getuid?.() ?? 501}:${process.getgid?.() ?? 20}`, labels: labels(a),
   });
+  const selected = async () => {
+    const state = await readState(runDirectory, false);
+    if (state.execution) { assertExecutionPin(state.execution); assertSettingsMatch(state.execution.settings, executionSettings(state.execution.settings.profile, config, testCommand)); }
+    return { state, adapter: state.execution ? getAdapter(state.execution.settings.profile.adapter) : nodeNpm };
+  };
   return {
+    async preflight() { await selected(); },
     async execute(attempt, task, role) {
+      const { state, adapter } = await selected();
       const work = path.join(attempt.directory, "worker");
       const local = layout(attempt, work);
       await control?.record({ type: "phase", attemptId: attempt.id, phase: "preparing", modelRole: "builder" });
@@ -44,8 +54,8 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
       output(`attempt: ${attempt.id} · task: ${task.id} · role: ${role.id}\n`);
       for (const skill of attempt.skills) output(`skill: ${skill.id} ${skill.digest}\n`);
       try {
-        const environment = await prepareEnvironment(attempt.baseline.directory, path.join(attempt.directory, "environment"), local, config.gateTimeoutMs, config.installPolicy);
-        await installEnvironment(attempt.baseline.directory, work, environment, local, config.gateTimeoutMs);
+        const environment = await adapter.prepare(attempt.baseline.directory, path.join(attempt.directory, "environment"), local, config.gateTimeoutMs, config.installPolicy);
+        await adapter.install(attempt.baseline.directory, work, environment, local, config.gateTimeoutMs);
         let repairDiff = "";
         if (attempt.repairOf && attempt.repairCandidate) {
           const origin = (await readState(runDirectory, false)).attempts.find(a => a.id === attempt.repairOf);
@@ -67,14 +77,14 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
         });
         await control?.flush();
         const result = { agent, submission: await readSubmission(work), claim: await readClaim(work) };
-        await atomicJson(path.join(attempt.directory, "builder.json"), { startedAt, finishedAt: new Date().toISOString(), containerName: attempt.containerName, sessionDirectory: path.join(local.agentDirectory, "sessions"), provider: role.provider ?? config.provider, model: role.model ?? config.model, code: result.agent.code, timedOut: result.agent.timedOut, usage: result.agent.usage });
+        await atomicJson(path.join(attempt.directory, "builder.json"), { startedAt, finishedAt: new Date().toISOString(), containerName: attempt.containerName, sessionDirectory: path.join(local.agentDirectory, "sessions"), provider: role.provider ?? config.provider, model: role.model ?? config.model, code: result.agent.code, timedOut: result.agent.timedOut, usage: result.agent.usage, executionDigest: state.execution?.digest, environmentKey: environment.key, runner: dockerRunner.evidence(local, result.agent) });
         const usage: Usage = spent = { tokens: result.agent.usage.totalTokens, costUsd: result.agent.usage.costUsd, complete: result.agent.usageComplete };
         // Builder totals enter the acceptance journal; reviewer usage is added
         // separately by the controller, avoiding double-counting live telemetry.
         if (result.agent.timedOut || result.agent.code !== 0 || result.agent.providerError) return { outcome: "failed", reason: result.agent.providerError ?? (result.agent.timedOut ? "Worker timed out." : `Worker exited ${result.agent.code}: ${result.agent.stderr}`), usage };
         if (result.submission.ok && result.submission.outcome === "blocked") return { outcome: "blocked", reason: `${result.submission.reason}\nNeeded: ${result.submission.requestedInput}`, usage };
         if (!result.claim.ok) return { outcome: "failed", reason: result.claim.reason, usage };
-        const candidate = await captureCandidate(attempt.baseline, work, path.join(attempt.directory, "candidate"), { sharedInputs: task.kind === "shared-inputs", limits: role.limits ?? DEFAULT_LIMITS, ...(config.contractPaths === undefined ? {} : { contractPaths: config.contractPaths }) });
+        const candidate = await captureCandidate(attempt.baseline, work, path.join(attempt.directory, "candidate"), { sharedInputs: task.kind === "shared-inputs", sharedInputFiles: adapter.source.sharedInputs, limits: role.limits ?? DEFAULT_LIMITS, ...(config.contractPaths === undefined ? {} : { contractPaths: config.contractPaths }) });
         await atomicJson(path.join(attempt.directory, "claim.json"), result.claim);
         const raw = JSON.parse(await readFile(path.join(work, ".harness-claim.json"), "utf8")) as { workflowEvidence?: unknown };
         const workflowEvidence = Array.isArray(raw.workflowEvidence) ? raw.workflowEvidence.filter((v): v is string => typeof v === "string") : [];
@@ -91,14 +101,14 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
     async verify(attempt, result, task) {
       await control?.record({ type: "phase", attemptId: attempt.id, phase: "gating", modelRole: "builder" });
       const local = layout(attempt, result.candidate.directory);
-      const state = await readState(runDirectory, false);
+      const { state, adapter } = await selected();
       const checks = await readChecks(runDirectory, state.verificationDigest);
-      const proof = await runPipeline({ config, layout: local, project: attempt.baseline.directory,
+      const proof = await runPipeline({ adapter, ...(checks.recipe ? { recipe: checks.recipe } : {}), config, layout: local, project: attempt.baseline.directory,
         claim: JSON.parse(await readFile(path.join(attempt.directory, "claim.json"), "utf8")),
         testCommand: checks.testCommand, pinnedScripts: checks.scripts, counterSource: await readFile(counterPath(), "utf8"), limits: (await readState(runDirectory, false)).plan.roles.find(r => r.id === attempt.roleId)?.limits ?? DEFAULT_LIMITS });
       const gates = proof.run.verdicts.map(v => v.summary);
       for (const gate of gates) output(gate + "\n");
-      await atomicJson(path.join(attempt.directory, "verification.json"), proof);
+      await atomicJson(path.join(attempt.directory, "verification.json"), { ...proof, execution: state.execution });
       if (!proof.run.passed) return { passed: false, gates, review: "not-run", blocked: proof.run.firstFailure?.kind === "environment-blocked", reason: proof.run.firstFailure?.detail ?? "Gates failed." };
       const reviewer = layout(attempt, result.candidate.directory, true);
       await privateAgentDirectory(config.agentDirectory, reviewer.agentDirectory);
@@ -111,32 +121,32 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
       const verdict = reviewed.providerError ? { verdict: "escalate" as const, unmet: [], unaccounted: [], notes: [], failure: reviewed.providerError } : parseReview(reviewed.stdout);
       await atomicJson(path.join(attempt.directory, "reviewer.json"), { usage: reviewed.usage });
       await atomicJson(path.join(attempt.directory, "review.json"), verdict);
-      return { usage: { tokens: reviewed.usage.totalTokens, costUsd: reviewed.usage.costUsd, complete: reviewed.usageComplete }, passed: verdict.verdict === "pass" && verdict.failure === undefined, gates, review: verdict.verdict, ...(proof.environmentKey === undefined ? {} : { environmentKey: proof.environmentKey }), reason: verdict.failure ?? [...verdict.unmet, ...verdict.unaccounted, ...verdict.notes].join("\n") };
+      return { usage: { tokens: reviewed.usage.totalTokens, costUsd: reviewed.usage.costUsd, complete: reviewed.usageComplete }, passed: verdict.verdict === "pass" && verdict.failure === undefined, gates, review: verdict.verdict, ...(proof.environmentKey === undefined ? {} : { environmentKey: proof.environmentKey }), ...(state.execution ? { executionDigest: state.execution.digest } : {}), reason: verdict.failure ?? [...verdict.unmet, ...verdict.unaccounted, ...verdict.notes].join("\n") };
     },
     async verifyIntegration(attempt, proposal, _task, accepted) {
       await control?.record({ type: "phase", attemptId: attempt.id, phase: "integrating", modelRole: "builder" });
-      const state = await readState(runDirectory, false);
+      const { state, adapter } = await selected();
       const checks = await readChecks(runDirectory, state.verificationDigest);
       const changes = await collectChanges(state.baseline.directory, proposal.directory);
       const originalClaim = JSON.parse(await readFile(path.join(attempt.directory, "claim.json"), "utf8"));
       // The host describes the merged delta; the reviewed candidate's criteria
       // still have to point at evidence retained in that combined source.
       const claim = { ok: true as const, claim: { files: changes.filter(c => c.kind !== "deleted").map(c => c.file), deletions: changes.filter(c => c.kind === "deleted").map(c => c.file), criteria: originalClaim.claim.criteria } };
-      const proof = await runPipeline({ config, layout: layout(attempt, proposal.directory), project: state.baseline.directory, claim,
+      const proof = await runPipeline({ adapter, ...(checks.recipe ? { recipe: checks.recipe } : {}), config, layout: layout(attempt, proposal.directory), project: state.baseline.directory, claim,
         testCommand: checks.testCommand, pinnedScripts: checks.scripts,
         contractChecks: checks.checks.filter(c => c.after.every(id => accepted.has(id))),
         counterSource: await readFile(counterPath(), "utf8"), limits: state.plan.roles.find(r => r.id === attempt.roleId)?.limits ?? DEFAULT_LIMITS });
-      await atomicJson(path.join(attempt.directory, "integration-verification.json"), proof);
+      await atomicJson(path.join(attempt.directory, "integration-verification.json"), { ...proof, execution: state.execution });
       const gates = proof.run.verdicts.map(v => v.summary);
       for (const gate of gates) output(`integration: ${gate}\n`);
-      return { passed: proof.run.passed, gates, review: "pass", blocked: proof.run.firstFailure?.kind === "environment-blocked", reason: proof.run.firstFailure?.detail ?? "Combined gates failed." };
+      return { ...(proof.environmentKey ? { environmentKey: proof.environmentKey } : {}), ...(state.execution ? { executionDigest: state.execution.digest } : {}), passed: proof.run.passed, gates, review: "pass", blocked: proof.run.firstFailure?.kind === "environment-blocked", reason: proof.run.firstFailure?.detail ?? "Combined gates failed." };
     },
     async cleanup(attempt) {
       const listed = await run(config.dockerExecutable, ["ps", "--all", "--quiet", ...Object.entries(labels(attempt)).flatMap(([key, value]) => ["--filter", `label=${key}=${value}`])], { timeoutMs: 15000 });
       if (listed.code !== 0 || listed.timedOut) throw new Error(`Cannot reconcile owned containers: ${listed.stderr}`);
       for (const id of listed.stdout.trim().split(/\s+/u).filter(Boolean)) {
         if (!/^[a-f0-9]{12,64}$/u.test(id)) throw new Error("Docker returned an invalid container identity.");
-        await stopContainer(config.dockerExecutable, id);
+        await dockerRunner.cleanup({ ...layout(attempt, attempt.baseline.directory), containerName: id });
       }
       // Retain candidate, claim and verification evidence, never auth/session copies.
       for (const name of ["agent", "reviewer-agent", "worker", "environment"]) await rm(path.join(attempt.directory, name), { recursive: true, force: true });

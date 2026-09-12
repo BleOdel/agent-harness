@@ -10,6 +10,8 @@ export interface Snapshot {
   readonly digest: string;
   readonly files: Readonly<Record<string, string>>;
   readonly controls?: string;
+  readonly exclusions?: readonly string[];
+  readonly executionDigest?: string;
 }
 export interface Candidate extends Snapshot {
   readonly changes: readonly Change[];
@@ -19,17 +21,17 @@ export class InputChangeRequired extends Error { }
 const hash = (bytes: string | Buffer): string => createHash("sha256").update(bytes).digest("hex");
 
 /** Unlike the historical diff walker, unreadable paths and special files fail closed. */
-export async function sourceFiles(root: string, prefix = ""): Promise<Record<string, string>> {
+export async function sourceFiles(root: string, prefix = "", exclusions: readonly string[] = []): Promise<Record<string, string>> {
   const found: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const entry of await readdir(path.join(root, prefix), { withFileTypes: true })) {
-    if (NEVER_APPLIED.has(entry.name) || (prefix === "" && (EXCLUDED_FROM_COPY.has(entry.name) || entry.name === ".harness-claim.json"))) continue;
+    if (exclusions.includes(entry.name) || NEVER_APPLIED.has(entry.name) || (prefix === "" && (EXCLUDED_FROM_COPY.has(entry.name) || entry.name === ".harness-claim.json"))) continue;
     const relative = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
     const file = path.join(root, relative);
     const stat = await lstat(file);
     if (stat.isSymbolicLink() || (stat.isFile() && stat.nlink !== 1) || (!stat.isDirectory() && !stat.isFile())) {
       throw new BoundaryViolation(`${relative} is a symlink, hard link or special file; only regular source files are supported.`, relative);
     }
-    if (stat.isDirectory()) Object.assign(found, await sourceFiles(root, relative));
+    if (stat.isDirectory()) Object.assign(found, await sourceFiles(root, relative, exclusions));
     else found[relative] = hash(await readFile(file));
   }
   return found;
@@ -40,44 +42,44 @@ const controlsOf = async (project: string): Promise<string> => hash(await readFi
   throw error;
 }));
 
-export async function copySource(source: string, destination: string): Promise<void> {
+export async function copySource(source: string, destination: string, exclusions: readonly string[] = []): Promise<void> {
   await mkdir(destination, { recursive: true });
-  for (const file of Object.keys(await sourceFiles(source))) {
+  for (const file of Object.keys(await sourceFiles(source, "", exclusions))) {
     const target = path.join(destination, file);
     await mkdir(path.dirname(target), { recursive: true });
     await copyFile(path.join(source, file), target);
   }
 }
-async function freeze(source: string, directory: string): Promise<Snapshot> {
-  const before = await sourceFiles(source);
-  await copySource(source, directory);
-  const files = await sourceFiles(directory);
+async function freeze(source: string, directory: string, exclusions: readonly string[] = [], executionDigest?: string): Promise<Snapshot> {
+  const before = await sourceFiles(source, "", exclusions);
+  await copySource(source, directory, exclusions);
+  const files = await sourceFiles(directory, "", exclusions);
   const digest = digestOf(files);
-  if (digest !== digestOf(before) || digest !== digestOf(await sourceFiles(source))) throw new Error("Source changed while capturing a snapshot.");
-  const snapshot = { directory, digest, files };
+  if (digest !== digestOf(before) || digest !== digestOf(await sourceFiles(source, "", exclusions))) throw new Error("Source changed while capturing a snapshot.");
+  const snapshot: Snapshot = { directory, digest, files, ...(exclusions.length ? { exclusions } : {}), ...(executionDigest ? { executionDigest } : {}) };
   await writeFile(`${directory}.json`, JSON.stringify(snapshot, null, 2) + "\n");
   return snapshot;
 }
-export async function captureBaseline(project: string, directory: string): Promise<Snapshot> {
+export async function captureBaseline(project: string, directory: string, exclusions: readonly string[] = [], executionDigest?: string): Promise<Snapshot> {
   const controls = await controlsOf(project);
-  const snapshot = await freeze(project, directory);
+  const snapshot = await freeze(project, directory, exclusions, executionDigest);
   if (controls !== await controlsOf(project)) throw new Error("Requirements changed while capturing a baseline.");
   const baseline = { ...snapshot, controls };
   await writeFile(`${directory}.json`, JSON.stringify(baseline, null, 2) + "\n");
   return baseline;
 }
 export async function assertSnapshot(snapshot: Snapshot): Promise<void> {
-  if (snapshot.digest !== digestOf(await sourceFiles(snapshot.directory))) throw new Error("Frozen source changed after capture.");
+  if (snapshot.digest !== digestOf(await sourceFiles(snapshot.directory, "", snapshot.exclusions))) throw new Error("Frozen source changed after capture.");
 }
 export async function assertLiveBaseline(project: string, baseline: Snapshot): Promise<void> {
-  if (baseline.digest !== digestOf(await sourceFiles(project)) || (baseline.controls !== undefined && baseline.controls !== await controlsOf(project))) {
+  if (baseline.digest !== digestOf(await sourceFiles(project, "", baseline.exclusions)) || (baseline.controls !== undefined && baseline.controls !== await controlsOf(project))) {
     throw new Error("The live project or its requirements changed during this run. Re-run from the current baseline.");
   }
 }
 export async function captureCandidate(baseline: Snapshot, worker: string, directory: string,
-  policy: { sharedInputs?: boolean; contractPaths?: readonly string[]; limits?: Limits } = {}): Promise<Candidate> {
+  policy: { sharedInputs?: boolean; contractPaths?: readonly string[]; sharedInputFiles?: readonly string[]; limits?: Limits } = {}): Promise<Candidate> {
   await assertSnapshot(baseline);
-  const files = await sourceFiles(worker);
+  const files = await sourceFiles(worker, "", baseline.exclusions);
   const changes: Change[] = [];
   for (const file of new Set([...Object.keys(baseline.files), ...Object.keys(files)])) {
     if (files[file] === baseline.files[file]) continue;
@@ -86,7 +88,7 @@ export async function captureCandidate(baseline: Snapshot, worker: string, direc
   changes.sort((a, b) => a.file.localeCompare(b.file));
   assertChangesAreApplicable(changes, worker);
   const contracts = policy.contractPaths ?? ["contracts"];
-  const inputChanges = changes.filter(c => ["package.json", "package-lock.json", "npm-shrinkwrap.json"].includes(path.basename(c.file))
+  const inputChanges = changes.filter(c => (policy.sharedInputFiles ?? ["package.json", "package-lock.json", "npm-shrinkwrap.json"]).includes(path.basename(c.file))
     || contracts.some(p => c.file === p || c.file.startsWith(`${p}/`)));
   if (inputChanges.length > 0 && !policy.sharedInputs) {
     throw new InputChangeRequired(`A dedicated shared-inputs assignment is required to change: ${inputChanges.map(c => c.file).join(", ")}.`);
@@ -97,7 +99,7 @@ export async function captureCandidate(baseline: Snapshot, worker: string, direc
     const verdict = checkLimits(changes, lines, policy.limits);
     if (!verdict.passed) throw new BoundaryViolation(verdict.summary, changes[0]?.file ?? "");
   }
-  const snapshot = await freeze(worker, directory);
+  const snapshot = await freeze(worker, directory, baseline.exclusions, baseline.executionDigest);
   if (snapshot.digest !== digestOf(files)) throw new Error("Worker output changed while capturing the candidate.");
   const candidate = { ...snapshot, changes, sharedInputsChanged: inputChanges.length > 0 };
   await writeFile(`${directory}.json`, JSON.stringify(candidate, null, 2) + "\n");

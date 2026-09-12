@@ -131,6 +131,58 @@ npm run verify:boundary
 # no Docker socket, read-only container, writable copy only
 ```
 
+## Project environments
+
+E1 makes the supported environment explicit: **node-npm@1 on docker@1**.
+The controller and target runtime need Node 26 or newer; the adapter needs npm 10
+or newer. The target is one Node package on Linux, including CLIs, services,
+libraries and web projects that can be checked in that environment. Python,
+mobile/native desktop toolchains, GUI automation, emulators and GPUs remain
+future milestones in [the expansion plan](NEXT.md).
+
+```bash
+harness project setup       # choose the environment and skills using short prompts
+harness project show        # display the saved choice and its location
+harness doctor --json        # readiness v2, including capability report v1
+```
+
+A single `package.json` suggests Node/npm automatically. The first successful
+execution preflight saves that setup. If Python, Rust or Go markers also occur
+at the root, choose the intended Node package with `project setup` before
+building. Detection never installs a new adapter or executes project-provided
+plugins. A non-Node root is refused with guidance rather than treated as npm.
+
+The host saves configuration at `<project>-harness/project.json`, outside the
+worker copy. It contains versioned adapter/runner references, required OS and
+architecture, minimum toolchain majors, CPU/RAM requirements, and planning/build
+skill names. `project setup` selects the supported Linux defaults; experienced
+operators can edit that host-owned file to declare stricter requirements.
+Unknown fields or versions are refused. Requirements can request capabilities;
+they cannot grant mounts, network access or resources the runner does not have.
+Project-source configuration files never grant harness permissions.
+
+Docker supplies at most 2 CPUs and 2048 MiB per container. Doctor inspects the
+pinned image and available daemon capacity, then probes its Node/npm versions in
+an isolated credential-free container. Verification remains offline; dependency
+preparation and model calls use bridge networking. GUI, native emulator and GPU
+capabilities are false. The host OS is distinct from the Linux target OS.
+
+A run retains its effective configuration, image, toolchain/runner report and
+frozen skills. New team journals use version 4. Resuming or applying an E1 team,
+or resuming a pinned planning session, refuses changed execution settings.
+Restore the settings recorded in `team inspect` or the plan's `execution.json`,
+or start a new run. Timeout ceilings can change without replacing the execution
+identity. Dependency input changes still require a shared-inputs assignment and
+produce a new dependency environment key.
+
+Older teams without an execution identity remain inspect/recover/undo capable;
+new dispatch and new application require a new team under E1. An already
+published application intent can still finish or roll back through recovery.
+Older planning conversations without an identity can be preserved and continued
+with `harness plan --from <saved-PLAN.md>`; existing answers are retained in their
+original folder. Newly imported plans acquire an identity before their first
+model call.
+
 ## Dependencies
 
 The builder and verifiers receive dependencies installed from a fixed
@@ -207,43 +259,34 @@ read-only mount, off by default, named in the output.
 
 ## Skills
 
-Pi loads skills — directories containing a `SKILL.md` — and the harness
-can mount a directory of them into the builder, read-only:
+Pi loads directories containing `SKILL.md`. `HARNESS_SKILLS` identifies the
+operator's source collection; it must be separate from live project source and
+harness state. Use `harness project setup` to select planning and build bundles.
+The harness freezes selected files and their hashes before model dispatch and
+mounts that copy read-only. Retrying or resuming uses those same bytes, even if
+the original collection changes.
 
-```bash
-HARNESS_SKILLS=~/Developer/agent-skills npm run work
-```
+Default suggestions are `codebase-design`, `diagnosing-bugs`, `domain-modeling`
+and `tdd` for builds; `grill-me`, `grilling`, `domain-modeling` and
+`codebase-design` for interviews. Only available suggestions enter a new saved
+setup. A missing skill in an existing selection is reported before a new build.
+The two known interview skills are refused in unattended build selections;
+operators must assess other custom workflows for suitability. Teams retain their
+stronger role manifests with explicit interaction modes, requirements,
+dependencies and declared resources.
 
-```
-skills: codebase-design, diagnosing-bugs, domain-modeling, tdd
-```
+All launchers pass `--no-skills` and `--no-extensions`, adding explicit frozen
+paths when appropriate. Reviewers and verification containers receive no skills.
+Item generation mounts no interview bundle, though earlier skill text may remain
+in the saved planning conversation.
 
-The harness always passes `--no-skills` to disable implicit discovery.
-When a directory is configured, it additionally passes `--skill /opt/skills`;
-Pi still loads explicitly selected paths with discovery off. This matters:
-`--skill` alone adds to global and project skills rather than replacing them.
-The same rule applies to interactive planning.
-
-The printed names are folders found by the harness scanner. Pi validates
-the definitions and advertises their descriptions; full instructions are
-loaded on demand. A printed name does not prove that a skill was used.
-`npm run verify:skills` checks this behavior with the pinned Pi loader.
-
-**The reviewer never gets skills**, even when the builder does. Its job is
-fixed, and a skill could redefine what it finds acceptable — the one
-opinion here that must not depend on what is installed.
-
-**A skills directory inside the project is refused**, because it would be
-in the copy too, where the model could rewrite the instructions it is
-then given.
-
-Choose skills that fit the run: interview skills belong in `plan`, where
-a human can answer. `disable-model-invocation` only hides a skill from the
-model catalog; it does not classify every human-dependent workflow. The
-ordinary builder receives the whole configured directory. Team builders instead
-receive role-selected, immutable bundles from the accepted profile, including
-adapted unattended skills. [The skill assessment](SKILLS_ASSESSMENT.md) separates
-the original findings from the implemented M0/M3/M5/M6 behavior.
+Output says **skills available**, not skills used. Ordinary candidate/run records
+retain selected hashes and observed read-tool paths; team events retain those
+facts and separate worker-reported workflow evidence. An observed read does not
+prove compliance. Planning's interactive transcript is not a structured skill-use
+report. `npm run verify:skills` checks the pinned Pi loader; `verify:adapters`
+checks bundle freezing and environment identity. See the
+[skill assessment](SKILLS_ASSESSMENT.md) for historical findings and adaptations.
 
 ## Commands
 
@@ -252,7 +295,9 @@ Run them inside your project.
 | | |
 |---|---|
 | `harness guide [path]` | select a project and follow saved planning, checks, work and recovery |
-| `harness doctor [--json]` | read-only readiness with a relevant remedy; exit 1 when blocked |
+| `harness doctor [--json]` | readiness and runner capability report; exit 1 when blocked |
+| `harness project setup` | choose the supported environment and planning/build skills |
+| `harness project show` | display saved project configuration |
 | `harness checks setup` | define and approve observable behaviour through short prompts |
 | `harness checks review` | review and approve a saved check draft |
 | `harness checks approve <file>` | explicitly approve a JSON acceptance specification |
@@ -298,7 +343,7 @@ guide reads the saved documents; you do not copy the specification between steps
 It shows the selected project before mutation, including when `HARNESS_PROJECT`
 differs from the shell directory. It uses numbered, keyboard-only prompts.
 
-`harness doctor` checks runtime, configuration, Docker, the pinned image, project
+`harness doctor` checks adapter selection, runtime, configuration, Docker, the pinned image, project
 setup, locks and check coverage without starting a model. A stored authentication
 file is reported as **unknown validity**: expiry is discovered on provider use.
 Fix authentication through Pi on the host and resume the saved plan or retry the
@@ -741,6 +786,7 @@ in turn. Team batch undo has stricter conflict checks and no redo; see
 ```bash
 npm run check             # typecheck and unit suite; local HTTP tests need loopback access
 npm run verify:skills     # real Pi loader, no Docker or model calls
+npm run verify:adapters   # E1 contracts, capabilities, resume and guided Docker journeys
 npm run verify:boundary   # the container, against a real daemon
 npm run verify:hardening  # approved checks, binary undo, guide PTY and planning cleanup
 npm run verify:gates      # each gate broken in turn, confirmed to stop the apply
@@ -850,7 +896,7 @@ path segment and `**` for any number of segments; traversal and other glob
 operators are refused.
 
 By default, the bundled `builder` role uses adapted TDD and design skills.
-`HARNESS_SKILLS` still configures ordinary work/planning; team skills come only
+`HARNESS_SKILLS` supplies the source collection for selected ordinary/planning bundles; team skills come only
 from its accepted profile. Skill entries declare `id`, relative `path`,
 `interaction`, `requires`, `dependencies`, and `resources`. Only declared files
 are copied. Supported unattended tool requirements are `read`, `bash`, `edit`
@@ -859,9 +905,9 @@ and `write`. See [the adaptation notes](SKILLS_ASSESSMENT.md#m3-unattended-adapt
 Each team run lives under `<project>-harness/teams/<team-run-id>/`. Its `events/`
 directory is authoritative, `state.json` is a rebuildable projection, `baselines/`
 holds original source, and `attempts/` retains frozen candidates, integration
-proposals and verification evidence. New journals use version 3 for bounded repair.
-Version 2 runs can resume and apply their verified staging, retaining their
-original retry semantics. Version 1 runs remain inspect/recover only.
+proposals and verification evidence. New journals use version 4 with pinned execution
+identity and the existing bounded-repair policy. Older journals remain readable
+and recoverable; new dispatch/application requires an E1 run.
 Only the controller advances staging after candidate gates, independent review,
 three-way merge, and full checks of the proposed combined source.
 `team run` leaves live source and `features.json` unchanged. Apply a completed

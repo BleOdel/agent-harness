@@ -1,3 +1,4 @@
+import type { ExecutionPin } from "../project/execution.ts";
 import { createHash } from "node:crypto";
 import { parseFeatures, type Feature } from "../features.ts";
 import type { Snapshot } from "../workspace/candidate.ts";
@@ -10,18 +11,19 @@ export interface TeamPlan { checks?: ContractCheck[]; version: 1; roles: Role[];
 export interface Policy { maxRepairs?: number; maxWorkers?: number; maxAttempts: number; maxDispatches: number; maxMs: number; maxCostUsd: number; }
 export interface SkillVersion { id: string; digest: string; files: Record<string, string>; }
 export interface Attempt {
+  executionDigest?: string;
   repairOf?: string; repairCandidate?: Snapshot;
   id: string; taskId: string; roleId: string; containerName: string; directory: string;
   baseline: Snapshot; skills: SkillVersion[]; contracts: Record<string, string>; instructionsDigest: string; dependencyDigest?: string; feedback?: string;
 }
 export interface Usage { tokens: number; costUsd: number; complete: boolean; }
 export type EventPayload =
-  | { type: "created"; runId: string; plan: TeamPlan; planDigest: string; baseline: Snapshot; policy: Policy; verificationDigest?: string }
+  | { type: "created"; runId: string; plan: TeamPlan; planDigest: string; baseline: Snapshot; policy: Policy; verificationDigest?: string; execution?: ExecutionPin }
   | { type: "dispatched"; attempt: Attempt }
   | { type: "submitted"; attemptId: string; candidate: Snapshot; usage: Usage; observedReads: string[]; workflowEvidence: string[] }
   | { type: "review-usage"; attemptId: string; usage: Usage }
-  | { type: "verified"; attemptId: string; gates: string[]; review: "pass"; environmentKey?: string }
-  | { type: "integration-verified"; attemptId: string; fromDigest: string; candidateDigest: string; proposal: Snapshot; gates: string[] }
+  | { type: "verified"; attemptId: string; gates: string[]; review: "pass"; environmentKey?: string; executionDigest?: string }
+  | { type: "integration-verified"; attemptId: string; fromDigest: string; candidateDigest: string; proposal: Snapshot; gates: string[]; environmentKey?: string; executionDigest?: string }
   | { type: "integrated"; attemptId: string; baseline: Snapshot }
   | { type: "failed" | "blocked" | "interrupted"; attemptId: string; reason: string; usage?: Usage; failureStage?: "integration" }
   | { type: "stopped"; reason: string }
@@ -31,10 +33,11 @@ export type EventPayload =
   | { type: "application-started"; transactionId: string; intentDigest: string; direction: "apply" | "undo" }
   | { type: "application-completed"; transactionId: string; direction: "apply" | "undo"; recordId: string }
   | { type: "application-rolled-back"; transactionId: string; direction: "apply" | "undo" };
-export type TeamEvent = EventPayload & { version: 1 | 2 | 3; seq: number; at: string; runId: string };
-export interface AttemptState extends Attempt { usage?: Usage; reviewerUsage?: Usage; startedAt?: string; finishedAt?: string; status: "running" | "submitted" | "verified" | "integrated" | "failed" | "blocked" | "interrupted"; candidate?: Snapshot; terminalSeq?: number; failureStage?: "integration"; integration?: { fromDigest: string; proposal: Snapshot }; reason?: string; }
+export type TeamEvent = EventPayload & { version: 1 | 2 | 3 | 4; seq: number; at: string; runId: string };
+export interface AttemptState extends Attempt { environmentKey?: string; usage?: Usage; reviewerUsage?: Usage; startedAt?: string; finishedAt?: string; status: "running" | "submitted" | "verified" | "integrated" | "failed" | "blocked" | "interrupted"; candidate?: Snapshot; terminalSeq?: number; failureStage?: "integration"; integration?: { fromDigest: string; proposal: Snapshot; environmentKey?: string; executionDigest?: string }; reason?: string; }
 export interface TeamState {
-  version: 1 | 2 | 3; runId: string; seq: number; startedAt: string; plan: TeamPlan; planDigest: string; policy: Policy;
+  version: 1 | 2 | 3 | 4; runId: string; seq: number; startedAt: string; plan: TeamPlan; planDigest: string; policy: Policy;
+  execution?: ExecutionPin;
   finishedAt?: string; verificationDigest?: string; original: Snapshot; baseline: Snapshot; attempts: AttemptState[]; integrated: string[]; invalidated: string[];
   application?: { transactionId: string; intentDigest: string; direction: "apply" | "undo"; recordId?: string };
   appliedRecordId?: string; appliedTransactionId?: string; appliedIntentDigest?: string; resumeSeq?: number;

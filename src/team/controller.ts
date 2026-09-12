@@ -1,3 +1,7 @@
+import type { Config } from "../config.ts";
+import { getAdapter } from "../adapters/registry.ts";
+import { nodeNpm } from "../adapters/node-npm.ts";
+import { pinExecution } from "../project/execution.ts";
 import { abortRequested, recoverControl, type TeamControl } from "./control.ts";
 import { withContainmentSignal } from "../containment/process.ts";
 import { readFeatures } from "../features.ts";
@@ -19,18 +23,21 @@ import { snapshotSkills } from "./inputs.ts";
 export type WorkerResult =
   | { outcome: "submitted"; candidate: Candidate; usage: Usage; observedReads: string[]; workflowEvidence: string[] }
   | { outcome: "failed" | "blocked"; reason: string; usage: Usage };
-export interface Verification { usage?: Usage; passed: boolean; gates: string[]; review: string; reason?: string; blocked?: boolean; environmentKey?: string; }
+export interface Verification { usage?: Usage; passed: boolean; gates: string[]; review: string; reason?: string; blocked?: boolean; environmentKey?: string; executionDigest?: string; }
 /** Implementations execute and verify in disposable workspaces; never apply. */
 export interface Worker {
+  preflight?(): Promise<void>;
   execute(attempt: Attempt, task: TeamTask, role: Role): Promise<WorkerResult>;
   verify(attempt: Attempt, result: Extract<WorkerResult, { outcome: "submitted" }>, task: TeamTask): Promise<Verification>;
   verifyIntegration(attempt: Attempt, proposal: Snapshot, task: TeamTask, accepted: ReadonlySet<string>): Promise<Verification>;
   cleanup(attempt: Attempt): Promise<void>;
 }
-export async function createTeam(project: string, plan: TeamPlan, inputsRoot: string, policy: Policy, testCommand: readonly string[] = ["npm", "test"]): Promise<string> {
+export async function createTeam(project: string, plan: TeamPlan, inputsRoot: string, policy: Policy, testCommand: readonly string[] = ["npm", "test"], config?: Config): Promise<string> {
   const directory = path.join(harnessDirectory(project), "teams", `team-${randomUUID()}`);
   await mkdir(directory, { recursive: true, mode: 0o700 });
-  const baseline = await captureBaseline(project, path.join(directory, "baselines", "original"));
+  const execution = config ? await pinExecution(project, config, testCommand, path.join(directory, "inputs"), "team") : undefined;
+  const adapter = execution ? getAdapter(execution.settings.profile.adapter) : nodeNpm;
+  const baseline = await captureBaseline(project, path.join(directory, "baselines", "original"), adapter.source.generatedDirectories, execution?.digest);
   const features = await readFeatures(project);
   if (features && (!features.ok || digest(parseTeamPlan(plan, features.features).tasks) !== digest(plan.tasks))) throw new Error("Accepted feature assignments changed before team creation.");
   await assertLiveBaseline(project, baseline);
@@ -38,11 +45,12 @@ export async function createTeam(project: string, plan: TeamPlan, inputsRoot: st
   const skills = await snapshotSkills(inputsRoot, path.join(directory, "inputs", "skills"), selected);
   await atomicJson(path.join(directory, "inputs", "skills.json"), skills);
   for (const [id, file] of Object.entries(plan.contracts)) if (baseline.files[file] === undefined) throw new Error(`Contract ${id} is missing from source: ${file}.`);
-  const checks = await freezeChecks(baseline.directory, inputsRoot, directory, plan, testCommand);
-  await createState(directory, plan, baseline, policy, path.basename(directory), checks.digest);
+  const checks = await freezeChecks(baseline.directory, inputsRoot, directory, plan, testCommand, adapter);
+  await createState(directory, plan, baseline, policy, path.basename(directory), checks.digest, execution);
   return directory;
 }
 export async function driveTeam(directory: string, worker: Worker, control?: TeamControl): Promise<TeamState> {
+  await worker.preflight?.();
   const result = control ? await withContainmentSignal(control.signal, () => drive(directory, worker, control)) : await drive(directory, worker);
   if (control?.aborting && result.status !== "aborted") { await control.settleAbort(); return recoverTeam(directory, worker, true); }
   return result;
@@ -72,7 +80,7 @@ async function drive(directory: string, worker: Worker, control?: TeamControl): 
         if (skills.some(skill => expected.find(s => s.id === skill.id)?.digest !== skill.digest)) throw new Error("Frozen role skills changed before dispatch.");
         const contracts = Object.fromEntries(task.contracts.map(id => [id, state.baseline.files[state.plan.contracts[id]!]!]));
         const feedback = repair ? `Integration repair of ${repair.id}. Work from current accepted staging and stay inside the original scope. Failure: ${repair.reason}` : state.attempts.findLast(a => a.taskId === task.id)?.reason;
-        const attempt: Attempt = { ...(repair ? { repairOf: repair.id, ...(repair.candidate ? { repairCandidate: repair.candidate } : {}) } : {}), id, taskId: task.id, roleId: role.id, containerName: `harness-${id}`, directory: attemptDirectory, baseline: state.baseline, skills, contracts, instructionsDigest: digest(role), dependencyDigest: digest({ manifest: state.baseline.files["package.json"], lock: state.baseline.files["package-lock.json"] }), ...(feedback === undefined ? {} : { feedback }) };
+        const attempt: Attempt = { ...(state.execution ? { executionDigest: state.execution.digest } : {}), ...(repair ? { repairOf: repair.id, ...(repair.candidate ? { repairCandidate: repair.candidate } : {}) } : {}), id, taskId: task.id, roleId: role.id, containerName: `harness-${id}`, directory: attemptDirectory, baseline: state.baseline, skills, contracts, instructionsDigest: digest(role), dependencyDigest: digest(Object.fromEntries((state.execution ? getAdapter(state.execution.settings.profile.adapter) : nodeNpm).source.sharedInputs.map(file => [file, state.baseline.files[file]]))), ...(feedback === undefined ? {} : { feedback }) };
         await mkdir(attemptDirectory, { recursive: true, mode: 0o700 });
         checkAbort();
         state = await appendEvent(directory, { type: "dispatched", attempt });
@@ -101,7 +109,7 @@ async function drive(directory: string, worker: Worker, control?: TeamControl): 
         const relative = path.relative(attemptDirectory, result.candidate.directory);
         if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Candidate is outside its host-issued attempt directory.");
         await assertSnapshot(result.candidate);
-        const intake = await captureCandidate(attempt.baseline, result.candidate.directory, path.join(attemptDirectory, "intake"), { sharedInputs: task.kind === "shared-inputs", limits: role.limits ?? DEFAULT_LIMITS, contractPaths: Object.values(state.plan.contracts) });
+        const intake = await captureCandidate(attempt.baseline, result.candidate.directory, path.join(attemptDirectory, "intake"), { sharedInputs: task.kind === "shared-inputs", limits: role.limits ?? DEFAULT_LIMITS, contractPaths: Object.values(state.plan.contracts), sharedInputFiles: (state.execution ? getAdapter(state.execution.settings.profile.adapter) : nodeNpm).source.sharedInputs });
         for (const change of intake.changes) if (!inScope(change.file, task.changeScope)) throw new Error(`Candidate changed ${change.file} outside the assigned scope.`);
         result.candidate = intake;
       } catch (error) {
@@ -117,8 +125,8 @@ async function drive(directory: string, worker: Worker, control?: TeamControl): 
         state = await appendEvent(directory, { type: verification.blocked || attempt.repairOf ? "blocked" : "failed", attemptId: id, reason: verification.reason || "Candidate gates or review failed." });
         await cleanup(); continue;
       }
-      state = await appendEvent(directory, { type: "verified", attemptId: id, gates: verification.gates, review: "pass", ...(verification.environmentKey === undefined ? {} : { environmentKey: verification.environmentKey }) });
-      const merged = await integrateCandidate(attempt.baseline, result.candidate, state.baseline, path.join(attemptDirectory, "integration"), Object.values(state.plan.contracts));
+      state = await appendEvent(directory, { type: "verified", attemptId: id, gates: verification.gates, review: "pass", ...(verification.environmentKey === undefined ? {} : { environmentKey: verification.environmentKey }), ...(verification.executionDigest ? { executionDigest: verification.executionDigest } : {}) });
+      const merged = await integrateCandidate(attempt.baseline, result.candidate, state.baseline, path.join(attemptDirectory, "integration"), Object.values(state.plan.contracts), (state.execution ? getAdapter(state.execution.settings.profile.adapter) : nodeNpm).source.sharedInputs);
       if (!merged.ok) {
         state = await appendEvent(directory, { type: attempt.repairOf ? "blocked" : "failed", attemptId: id, failureStage: "integration", reason: merged.reason });
         await cleanup(); continue;
@@ -133,7 +141,7 @@ async function drive(directory: string, worker: Worker, control?: TeamControl): 
         await cleanup(); continue;
       }
       checkAbort();
-      state = await appendEvent(directory, { type: "integration-verified", attemptId: id, fromDigest, candidateDigest: result.candidate.digest, proposal: merged.proposal, gates: integration.gates });
+      state = await appendEvent(directory, { type: "integration-verified", attemptId: id, fromDigest, candidateDigest: result.candidate.digest, proposal: merged.proposal, gates: integration.gates, ...(integration.environmentKey ? { environmentKey: integration.environmentKey } : {}), ...(integration.executionDigest ? { executionDigest: integration.executionDigest } : {}) });
       checkAbort();
       state = await appendEvent(directory, { type: "integrated", attemptId: id, baseline: merged.proposal });
       await cleanup();

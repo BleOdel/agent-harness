@@ -1,6 +1,6 @@
 # Harness expansion development plan
 
-Status: E0 and the initial U0 guided journey implemented; expansion milestones remain planned.
+Status: E0, E1 and the initial U0 guided journey implemented. Next: E2 Python support.
 Updated 2026-09-12. See README.md for shipped commands and limitations.
 
 Delivered in E0/U0: strict reviewer schema, byte-preserving ordinary undo,
@@ -10,7 +10,9 @@ retained acceptance evidence, `guide`, `doctor`, and short check-setup prompts.
 Deterministic terminal/Docker tests cover the complete initial journey and
 interrupted planning; a human usability trial and advanced guided team/backlog
 operations remain U0 follow-up. No new project language or platform is supported
-yet. The controller remains Node/TypeScript.
+yet. E1 makes node-npm@1 / docker@1 explicit, with capability checks, frozen
+ordinary/planning skills, versioned execution records, guarded resume and guided
+project setup. The controller remains Node/TypeScript.
 Baseline: agent-harness main at d5662c1, including team M0–M6 and durable planning.
 
 ## Objective
@@ -189,7 +191,23 @@ A disposable Node project with text and binary fixtures, a malformed reviewer fi
 
 ## E1 — Explicit project adapters and runner capabilities
 
-### Deliver
+Implemented 2026-09-12. `harness project setup` selects the supported Node/Linux
+environment and skills. `doctor --json` returns readiness v2 and capability report
+v1. Team journals v4 bind dispatch, candidate verification and integration to the
+accepted execution identity. Ordinary and acceptance records retain the same
+identity; planning and team resume reject changed settings. Existing published
+application intents remain recoverable; unpinned legacy teams need new runs for
+further execution/application. Output artifact declarations are part of the adapter
+contract; retention/export remains E3. No production adapter beyond Node/npm or
+runner beyond Linux Docker is exposed.
+
+Verification: `npm run verify:adapters` covers a test-only text adapter, ambiguous
+selection, unavailable capabilities, frozen resources, journal identity refusals,
+real Node team staging/resume/apply and a complete keyboard-only guided journey.
+The human usability trial and advanced guided team/backlog operations remain U0
+follow-up; this milestone does not claim those are complete.
+
+### Delivered scope
 
 Introduce versioned contracts for project detection, runtime/toolchain identity, dependency preparation, source exclusions, test discovery, execution evidence, builds and output artifacts. Extract the current Node/npm implementation behind the contract. Pin the selected adapter and its configuration into run state so resume cannot silently switch environments.
 

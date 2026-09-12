@@ -7,7 +7,10 @@ import { harnessDirectory } from "../record/record.ts";
 import { atomicWrite, readArtifact } from "../planning/store.ts";
 import { readSafe, safePath } from "../workspace/safe-path.ts";
 import { assertSnapshot, type Snapshot } from "../workspace/candidate.ts";
-import { prepareEnvironment, installEnvironment } from "../workspace/dependencies.ts";
+import { getAdapter } from "../adapters/registry.ts";
+import { readProfile } from "../project/profile.ts";
+import { assertExecutionCompatible, assertExecutionPin, type ExecutionPin } from "../project/execution.ts";
+import { dockerRunner } from "../runners/docker.ts";
 import { buildVerificationArguments, type SandboxLayout } from "../containment/sandbox.ts";
 import { runContained } from "../containment/process.ts";
 import type { Config } from "../config.ts";
@@ -81,6 +84,7 @@ export interface AcceptanceProof {
   approvalDigest: string;
   candidateDigest: string;
   evidencePath: string;
+  executionDigest?: string;
 }
 export interface AcceptanceResult extends AcceptanceProof { summaries: string[]; }
 export class AcceptanceFailure extends OperatorError {
@@ -103,19 +107,24 @@ export async function assertAcceptanceProof(project: string, candidate: Snapshot
     || evidence.approvalDigest !== proof.approvalDigest || evidence.candidateDigest !== candidate.digest
     || proof.candidateDigest !== candidate.digest || !Array.isArray(evidence.tasks)
     || tasks.some(t => !evidence.tasks.includes(t))) throw new OperatorError("Acceptance evidence does not cover the current candidate and approved checks.");
+  if (candidate.executionDigest) assertExecutionPin(evidence.execution);
+  if (candidate.executionDigest && (proof.executionDigest !== candidate.executionDigest || evidence.execution?.digest !== candidate.executionDigest)) throw new OperatorError("Acceptance evidence does not match the candidate execution environment.");
   await assertSnapshot(candidate);
 }
 
-export async function verifyAcceptance(project: string, candidate: Snapshot, tasks: readonly string[], config: Config, approved: Approval): Promise<AcceptanceResult> {
+export async function verifyAcceptance(project: string, candidate: Snapshot, tasks: readonly string[], config: Config, approved: Approval, execution?: ExecutionPin): Promise<AcceptanceResult> {
   project = await realpath(project);
   await assertApprovalCurrent(project, approved);
   await assertSnapshot(candidate);
+  if (execution) await assertExecutionCompatible(execution, project, config, execution.settings.testCommand);
+  const adapter = getAdapter((execution?.settings.profile ?? await readProfile(project, true)).adapter);
   const evidenceRoot = path.join(harnessDirectory(project), "acceptance", "results");
   await mkdir(evidenceRoot, { recursive: true, mode: 0o700 });
-  const proof: AcceptanceProof = { approvalDigest: approved.digest, candidateDigest: candidate.digest, evidencePath: path.join(evidenceRoot, `${randomUUID()}.json`) };
-  const observations: { case: string; step: number; exitCode: number | null; timedOut: boolean; stdoutHash: string; stdoutPreview: string; stderrTail: string; files: Record<string, string | null> }[] = [];
+  const proof: AcceptanceProof = { ...(execution ? { executionDigest: execution.digest } : {}), approvalDigest: approved.digest, candidateDigest: candidate.digest, evidencePath: path.join(evidenceRoot, `${randomUUID()}.json`) };
+  let environmentKey: string | undefined;
+  const observations: { runner?: ReturnType<typeof dockerRunner.evidence>; case: string; step: number; exitCode: number | null; timedOut: boolean; stdoutHash: string; stdoutPreview: string; stderrTail: string; files: Record<string, string | null> }[] = [];
   const save = async (outcome: "passed" | "failed", error?: string) => atomicWrite(proof.evidencePath, JSON.stringify({
-    version: 1, at: new Date().toISOString(), project, ...proof, tasks, outcome, observations, ...(error ? { error } : {}),
+    version: 1, at: new Date().toISOString(), project, ...proof, execution, adapter: adapter.reference, runner: dockerRunner.reference, image: config.imageId, environmentKey, tasks, outcome, observations, ...(error ? { error } : {}),
   }, null, 2) + "\n");
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-acceptance-")));
   const base: SandboxLayout = {
@@ -126,17 +135,18 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
   };
   const summaries: string[] = [];
   try {
-    const environment = await prepareEnvironment(candidate.directory, path.join(root, "environment"), base, config.gateTimeoutMs, config.installPolicy);
+    const environment = await adapter.prepare(candidate.directory, path.join(root, "environment"), base, config.gateTimeoutMs, config.installPolicy);
+    environmentKey = environment.key;
     const selected = approved.manifest.cases.filter(c => c.tasks.includes("*") || tasks.some(t => c.tasks.includes(t)));
     if (!selected.length) throw new OperatorError("No approved acceptance cases apply to this work.");
     for (const [index, check] of selected.entries()) {
       const work = path.join(root, `case-${index}`);
-      await installEnvironment(candidate.directory, work, environment, base, config.gateTimeoutMs);
+      await adapter.install(candidate.directory, work, environment, base, config.gateTimeoutMs);
       const layout = { ...base, workDirectory: work };
       for (const [number, step] of check.steps.entries()) {
         const label = `acceptance ${check.id}, step ${number + 1}`;
         const result = await runContained(layout, buildVerificationArguments(layout, "none", step.command), { timeoutMs: config.gateTimeoutMs, maxOutputBytes: 2 * 1024 * 1024 });
-        const observation = { case: check.id, step: number + 1, exitCode: result.code, timedOut: result.timedOut, stdoutHash: hash(result.stdout), stdoutPreview: result.stdout.slice(0, 4000), stderrTail: result.stderr.slice(-2000), files: Object.create(null) as Record<string, string | null> };
+        const observation = { runner: dockerRunner.evidence(layout, result), case: check.id, step: number + 1, exitCode: result.code, timedOut: result.timedOut, stdoutHash: hash(result.stdout), stdoutPreview: result.stdout.slice(0, 4000), stderrTail: result.stderr.slice(-2000), files: Object.create(null) as Record<string, string | null> };
         observations.push(observation);
         if (result.outputLimited) throw new OperatorError(`${label}: application output exceeded 2 MiB.`);
         if (result.timedOut || result.code !== step.exitCode) throw new OperatorError(`${label}: ${result.timedOut ? "timed out" : `expected exit ${step.exitCode}, got ${result.code}`}.`);
@@ -155,6 +165,7 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
     }
     await assertSnapshot(candidate);
     await assertApprovalCurrent(project, approved);
+    if (execution) await assertExecutionCompatible(execution, project, config, execution.settings.testCommand);
     await save("passed");
     return { ...proof, summaries };
   } catch (error) {

@@ -1,3 +1,4 @@
+import { assertExecutionPin, type ExecutionPin } from "../project/execution.ts";
 /** Each committed event is immutable; state.json is only a rebuildable projection. */
 import { randomUUID } from "node:crypto";
 import { link, mkdir, open, readdir, readFile, rename, unlink } from "node:fs/promises";
@@ -31,12 +32,13 @@ function usage(state: TeamState, value: Usage | undefined): void {
   state.usage.complete = state.usage.complete && value.complete;
 }
 function reduce(previous: TeamState | undefined, event: TeamEvent): TeamState {
-  if (![1, 2, 3].includes(event.version) || (previous !== undefined && event.version !== previous.version) || event.seq !== (previous?.seq ?? 0) + 1 || !identifier(event.runId) || !Number.isFinite(Date.parse(event.at))) throw new Error("Unsupported or out-of-sequence team event.");
+  if (![1, 2, 3, 4].includes(event.version) || (previous !== undefined && event.version !== previous.version) || event.seq !== (previous?.seq ?? 0) + 1 || !identifier(event.runId) || !Number.isFinite(Date.parse(event.at))) throw new Error("Unsupported or out-of-sequence team event.");
   if (event.type === "created") {
     if (previous) throw new Error("Duplicate team creation.");
     const plan = parseTeamPlan(event.plan, event.plan.tasks); checkPolicy(event.policy); snapshot(event.baseline);
     if (digest(plan) !== event.planDigest) throw new Error("Accepted plan digest mismatch.");
-    return { ...(event.verificationDigest === undefined ? {} : { verificationDigest: event.verificationDigest }), version: event.version, runId: event.runId, seq: event.seq, startedAt: event.at, plan, planDigest: event.planDigest, policy: event.policy, original: event.baseline, baseline: event.baseline, attempts: [], integrated: [], invalidated: [], status: "running", usage: { tokens: 0, costUsd: 0, complete: true } };
+    if (event.version >= 4) { assertExecutionPin(event.execution!); if (event.baseline.executionDigest !== event.execution!.digest) throw new Error("Baseline execution identity does not match the run."); }
+    return { ...(event.execution ? { execution: event.execution } : {}), ...(event.verificationDigest === undefined ? {} : { verificationDigest: event.verificationDigest }), version: event.version, runId: event.runId, seq: event.seq, startedAt: event.at, plan, planDigest: event.planDigest, policy: event.policy, original: event.baseline, baseline: event.baseline, attempts: [], integrated: [], invalidated: [], status: "running", usage: { tokens: 0, costUsd: 0, complete: true } };
   }
   if (!previous || event.runId !== previous.runId) throw new Error("Event belongs to another or missing team run.");
   const state = structuredClone(previous); state.seq = event.seq;
@@ -79,8 +81,9 @@ function reduce(previous: TeamState | undefined, event: TeamEvent): TeamState {
     const limit = budgetReason(state, Date.parse(event.at));
     if (limit) throw new Error(limit);
     snapshot(a.baseline);
-    if (a.baseline.digest !== state.baseline.digest) throw new Error("Attempt uses a stale baseline.");
+    if (a.baseline.digest !== state.baseline.digest || a.baseline.executionDigest !== state.baseline.executionDigest) throw new Error("Attempt uses a stale baseline.");
     if (!path.isAbsolute(a.directory) || !/^harness-[a-zA-Z0-9_-]+$/u.test(a.containerName)) throw new Error("Invalid attempt resource identity.");
+    if (state.execution && a.executionDigest !== state.execution.digest) throw new Error("Attempt execution identity changed.");
     state.attempts.push({ ...a, startedAt: event.at, status: "running" });
     return state;
   }
@@ -92,19 +95,24 @@ function reduce(previous: TeamState | undefined, event: TeamEvent): TeamState {
       usage(state, event.usage); attempt.reviewerUsage = event.usage; break;
     case "submitted":
       if (attempt.status !== "running") throw new Error("Only a running attempt can submit.");
+      if (state.execution && event.candidate.executionDigest !== state.execution.digest) throw new Error("Candidate execution identity changed.");
       snapshot(event.candidate); attempt.candidate = event.candidate; attempt.status = "submitted";
       if (!Array.isArray(event.observedReads) || !Array.isArray(event.workflowEvidence)) throw new Error("Invalid skill evidence.");
       usage(state, event.usage); attempt.usage = event.usage; break;
     case "verified":
       if (attempt.status !== "submitted" || event.review !== "pass" || !Array.isArray(event.gates) || event.gates.length === 0) throw new Error("Verification requires a submitted candidate, gate evidence and passing review.");
+      if (state.execution && (event.executionDigest !== state.execution.digest || !event.environmentKey)) throw new Error("Verification execution evidence is missing or changed.");
+      if (event.environmentKey) attempt.environmentKey = event.environmentKey;
       attempt.status = "verified"; break;
     case "integration-verified":
       if (state.version < 2 || attempt.status !== "verified" || attempt.integration || event.fromDigest !== state.baseline.digest || event.candidateDigest !== attempt.candidate?.digest || !Array.isArray(event.gates) || event.gates.length === 0) throw new Error("Integration requires the current staging, verified candidate and gate evidence.");
+      if (state.execution && (event.executionDigest !== state.execution.digest || event.proposal.executionDigest !== state.execution.digest || !event.environmentKey)) throw new Error("Integration execution evidence is missing or changed.");
       snapshot(event.proposal);
-      attempt.integration = { fromDigest: event.fromDigest, proposal: event.proposal }; break;
+      attempt.integration = { fromDigest: event.fromDigest, proposal: event.proposal, ...(event.environmentKey ? { environmentKey: event.environmentKey } : {}), ...(event.executionDigest ? { executionDigest: event.executionDigest } : {}) }; break;
     case "integrated":
       if (attempt.status !== "verified") throw new Error("Only a verified candidate can advance staging.");
       snapshot(event.baseline);
+      if (state.execution && event.baseline.executionDigest !== state.execution.digest) throw new Error("Integrated baseline execution identity changed.");
       if (state.version === 1 ? event.baseline.digest !== attempt.candidate?.digest : !attempt.integration || attempt.integration.fromDigest !== state.baseline.digest || event.baseline.digest !== attempt.integration.proposal.digest) throw new Error("Staging must contain the verified integration bytes from the current baseline.");
       const task = state.plan.tasks.find(t => t.id === attempt.taskId)!;
       if (task.kind === "shared-inputs" && event.baseline.digest !== state.baseline.digest) {
@@ -137,8 +145,8 @@ export async function readState(root: string, repairProjection = true): Promise<
   if (repairProjection) await atomicJson(path.join(root, "state.json"), state);
   return state;
 }
-export async function createState(root: string, plan: TeamPlan, baseline: Snapshot, policy: Policy, runId = `team-${randomUUID()}`, verificationDigest?: string): Promise<TeamState> {
-  const event: TeamEvent = { version: 3, seq: 1, at: new Date().toISOString(), type: "created", ...(verificationDigest === undefined ? {} : { verificationDigest }), runId, plan, planDigest: digest(plan), baseline, policy };
+export async function createState(root: string, plan: TeamPlan, baseline: Snapshot, policy: Policy, runId = `team-${randomUUID()}`, verificationDigest?: string, execution?: ExecutionPin): Promise<TeamState> {
+  const event: TeamEvent = { version: execution ? 4 : 3, ...(execution ? { execution } : {}), seq: 1, at: new Date().toISOString(), type: "created", ...(verificationDigest === undefined ? {} : { verificationDigest }), runId, plan, planDigest: digest(plan), baseline, policy };
   const state = reduce(undefined, event);
   await atomicJson(path.join(root, "events", "00000001.json"), event, true);
   await atomicJson(path.join(root, "state.json"), state);

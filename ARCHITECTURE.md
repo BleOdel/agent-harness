@@ -1,7 +1,6 @@
 # Harness architecture
 
-Current implementation adds E0 hardening and the initial U0 guide to team M0–M6, published through
-[765d1f1](https://github.com/BleOdel/agent-harness/commit/765d1f1124267744a3cce1ddc65bb9ca03b1bda8).
+Current implementation includes E0 hardening, E1 adapter/runner contracts and the initial U0 guide on top of team M0–M6 and durable planning.
 Use the [README](README.md) for commands and [threat model](THREAT_MODEL.md) for
 security assumptions. These diagrams describe implemented behavior; milestone
 reports preserve their original observations.
@@ -10,8 +9,9 @@ reports preserve their original observations.
 
 ```mermaid
 flowchart TD
-  U["Operator answers interview"] --> W["Retained workspace: Pi session, decisions, draft PLAN.md"]
-  W -->|Resume after exit or timeout| U
+  E["Check pinned adapter, image, capabilities and frozen skills"] --> U["Operator answers interview"]
+  U --> W["Retained workspace: Pi session, decisions, draft PLAN.md"]
+  W -->|Resume after exit or timeout| E
   W -->|Operator: plan approve| P["Host snapshot of approved PLAN.md"]
   P --> G["Finite generation reads approved plan and saved session"]
   G --> V["Validate items and unchanged plan identity"]
@@ -40,10 +40,55 @@ and the installed Pi session manager without provider calls.
 `guide` confirms the selected project and derives actions from existing plan,
 feature, writer and application state. It has no separate workflow database or
 project index. Each prompt releases stdin before a child planning terminal starts.
-Readiness is available independently through `doctor [--json]`; it makes no model
+`project setup` selects the supported adapter and skill bundles; mixed roots need
+an explicit choice. Readiness v2 is available through `doctor [--json]`, including
+a v1 capability report from image inspection and an isolated runtime probe. It makes no model
 calls and distinguishes an authentication file from verified provider access.
 The first guide covers planning, item import, check setup, ordinary work and
 writer/pending-application recovery. Advanced team work remains explicit.
+
+## Adapter and runner contracts
+
+```mermaid
+flowchart TD
+  S["Operator project setup / unambiguous Node detection"] --> P["Host-owned project.json v1"]
+  P --> A["Installed node-npm@1 adapter"]
+  P --> R["Installed docker@1 runner"]
+  A --> T["Toolchain probe, dependency preparation, source policy, verification recipe"]
+  R --> C["Inspect OS, architecture, CPU/RAM and immutable image"]
+  T --> I["Accepted execution identity and selected skill hashes"]
+  C --> I
+  I --> B["Build; verify; integrate; compare approved behaviour"]
+  B --> E["Candidate, integration and run evidence"]
+  E --> Q{"Resume settings match?"}
+  Q -->|Yes| B
+  Q -->|No| X["Stop before new dispatch; preserve saved work"]
+```
+
+The adapter contract owns detection markers, runtime identity, clean dependency
+preparation/installation, source exclusions, shared inputs, verification recipes,
+test evidence and build-output declarations. The Node adapter retains existing
+npm policies and assertion instrumentation. A test-only text adapter exercises
+the same pipeline without a Node manifest; it is never registered for operators.
+Build-output declarations describe potential artifacts; E3 will add their export
+and retention lifecycle.
+
+The Docker runner prepares hardened launches, executes finite commands or connects
+RPC, inspects capabilities, cancels/cleans owned containers and exports execution
+evidence. Verification remains credential-free and offline. Capability requirements
+are checks against the fixed runner, not permission grants. No project can load
+host adapter code or select an unrestricted host backend.
+
+Execution identity includes the effective project profile, image, operator tool
+paths, configured provider/model, test command, install policy, contract paths,
+capability report and selected ordinary/planning skill hashes. Timeout ceilings are
+operational limits and can be adjusted on resume. Team role skill versions remain
+in the accepted inputs and dispatch events. Dependency environment keys additionally
+identify candidate manifests/lockfiles and actual runtime versions.
+
+Implementation: [adapter contract](src/adapters/contract.ts),
+[Node adapter](src/adapters/node-npm.ts), [runner contract](src/runners/contract.ts),
+[Docker runner](src/runners/docker.ts), [execution identity](src/project/execution.ts).
 
 ## Execution and acceptance
 
@@ -57,7 +102,8 @@ component tests alone advance team prerequisites.
 flowchart TD
   T["Accepted features, role profile and contracts"] --> H["Host controller and project writer lock"]
   H --> P["Require approved check coverage before dispatch"]
-  P --> S["Accepted immutable staging baseline"]
+  P --> EC["Pin adapter, runner and capability identity"]
+  EC --> S["Accepted immutable staging baseline"]
   S --> A["Builder A: private container and session"]
   S --> B["Builder B: private container and session"]
   A --> C["Stop worker, capture and validate frozen candidate"]
@@ -83,7 +129,7 @@ flowchart TD
 Failure at candidate intake, gates or review also refuses acceptance and follows
 the task's bounded retry or blocked-outcome policy. Repair repeats building,
 candidate gates, review and combined checks; it has no bypass. The default is
-one extra integration repair per task under journal version 3. It retains the
+one extra integration repair per task under journal versions 3 and 4. It retains the
 original role's skills rather than automatically switching to a diagnosis role.
 
 Each proposed integration passes its combined checks before it becomes staging.
@@ -105,7 +151,7 @@ flowchart LR
   V --> X["Stop container; capture output and safe file bytes"]
   A --> H["Host comparison"]
   X --> H
-  H --> E["Retain outcome, candidate digest and approval digest"]
+  H --> E["Retain outcome, candidate, approval and execution identities"]
   E -->|Passed and still current| W["Apply or publish application intent"]
 ```
 
@@ -151,8 +197,8 @@ Workers never receive the live repository, another attempt's workspace, controll
 state, host control socket or Docker socket.
 
 Team skill manifests validate names, dependencies, interaction modes, tool
-requirements and declared resources. Ordinary work/planning use `HARNESS_SKILLS`;
-teams use their accepted profile. All launchers disable implicit skills and
+requirements and declared resources. Ordinary work/planning freeze role selections from `HARNESS_SKILLS`;
+teams freeze declared resources from their accepted profile. All launchers disable implicit skills and
 extensions. Reviewers receive no skills. Skill availability, observed read-tool
 use and worker-reported workflow evidence are separate facts; none proves the
 model followed every instruction.
@@ -251,6 +297,10 @@ Implementation: [application journal](src/team/apply.ts),
 | Location beside the project | Meaning |
 |---|---|
 | `<project>-harness.writer-lock` | Canonical cooperating-writer ownership |
+| `<project>-harness/project.json` | Operator-selected adapter, capabilities and skill names |
+| `<project>-harness/executions/<run>/` | Ordinary execution identity and frozen skill resources |
+| `<project>-harness/plans/<plan>/execution.json` | Planning execution identity; frozen skills beside it |
+| `<project>-harness/teams/<run>/inputs/execution.json` | Team runner/adapter identity; authoritative copy in creation event |
 | `<project>-harness/teams/<run>/events/` | Authoritative acceptance and lifecycle events |
 | `<project>-harness/teams/<run>/state.json` | Rebuildable acceptance projection |
 | `<project>-harness/teams/<run>/telemetry/` | Immutable phases, reported model usage and steering history |
@@ -265,9 +315,11 @@ Implementation: [application journal](src/team/apply.ts),
 and retained artifacts, including task roles, prerequisites, phases, gates,
 review, repair, integration, elapsed time and reported builder/reviewer spend.
 Interrupted reported usage survives resume; missing usage is not inferred and
-in-flight calls may exceed dispatch budgets. Version 3 journals include bounded
-repair; version 2 retains its original retry policy; version 1 is inspect/recover
-only. Viewer reads never rebuild state files or start recovery.
+in-flight calls may exceed dispatch budgets. New version 4 journals bind candidates,
+component verification and integration to accepted execution identity. Older records
+remain inspect/recover/undo capable; unpinned runs cannot start new dispatch or
+application through the CLI. Pending application recovery remains available. Viewer
+reads never rebuild state files or start recovery.
 
 ## Console implementation and verification
 

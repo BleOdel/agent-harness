@@ -25,7 +25,8 @@
     "verify:team": "node src/verify-team.ts",
     "demo:team": "node src/demo-team.ts",
     "verify:planning": "node src/verify-planning.ts",
-    "verify:hardening": "node src/verify-hardening.ts"
+    "verify:hardening": "node src/verify-hardening.ts",
+    "verify:adapters": "node src/verify-adapters.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

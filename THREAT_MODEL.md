@@ -243,3 +243,27 @@ transaction journal. The host controller, approval filesystem, operator account
 and container runtime remain trusted. Existing application intent recovery keeps
 its previously captured transaction semantics; it does not certify historic runs
 under this new policy.
+
+## Versioned adapters and capabilities (E1)
+
+Only the installed `node-npm@1` and `docker@1` implementations are selectable.
+Project files cannot load host plugins, alter mounts, enable networked verification,
+or grant GUI/emulator/GPU access. Host-owned `<project>-harness/project.json`
+contains requirements; the runner checks them against its fixed limits and the
+actual immutable image/toolchain. Detection is a suggestion, and mixed roots require
+operator selection. It is not a security classification of project contents.
+
+New team journals, ordinary records and planning sessions retain execution identity.
+Changed accepted settings are refused on resume, before a new builder. Candidate and
+integration evidence carry that identity, and E1 acceptance proofs must match it.
+This is reproducibility against cooperating host state, not protection against an
+administrator rewriting both records and code. Older unpinned runs cannot acquire
+an invented historical environment; inspection, cleanup, undo and already-published
+application recovery remain possible.
+
+Ordinary/planning skill selections are copied and hashed before dispatch, outside
+worker-writable source. New builds report missing selected skills; resumed sessions
+use the saved bytes. Linked/special resources and oversized bundles are refused.
+Team role manifests retain their explicit unattended/resource validation. A selected
+custom ordinary skill is operator-trusted guidance, not an automatically proven safe
+workflow. Availability and read-tool observations remain distinct from compliance.

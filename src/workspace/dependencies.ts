@@ -38,7 +38,7 @@ export function dependencyInputs(manifest: string | undefined, lock: string | un
   return { install: lock !== undefined };
 }
 export function environmentKey(input: { manifest?: string | undefined; lock?: string | undefined; image: string; runtime: unknown; policy: InstallPolicy }): string {
-  return createHash("sha256").update(JSON.stringify({ version: 1, ...input, preparation: command(input.policy, false), verification: command(input.policy, true) })).digest("hex");
+  return createHash("sha256").update(JSON.stringify({ version: 2, adapter: { id: "node-npm", version: 1 }, ...input, preparation: command(input.policy, false), verification: command(input.policy, true) })).digest("hex");
 }
 export interface PreparedEnvironment {
   readonly key: string;
@@ -74,16 +74,8 @@ export async function prepareEnvironment(source: string, directory: string, layo
   const lock = await optionalRead(path.join(source, "package-lock.json"));
   if (await optionalRead(path.join(source, "npm-shrinkwrap.json")) !== undefined) throw new EnvironmentBlocked("npm-shrinkwrap.json is not supported by this preparation policy; use package-lock.json.");
   const { install } = dependencyInputs(manifest, lock, policy);
-  let runtime: unknown;
-  {
-    const probe = path.join(directory, "runtime"); await mkdir(probe);
-    const stdout = await execute(layout, probe, "none", ["node", "-e", 'console.log(JSON.stringify({node:process.version,npm:require("node:child_process").execFileSync("npm",["--version"],{encoding:"utf8"}).trim(),platform:process.platform,arch:process.arch}))'], timeoutMs);
-    try {
-      const identity: unknown = JSON.parse(stdout);
-      if (!identity || typeof identity !== "object" || ["node", "npm", "platform", "arch"].some(k => typeof (identity as Record<string, unknown>)[k] !== "string")) throw new Error();
-      runtime = identity;
-    } catch { throw new EnvironmentBlocked("Container runtime identity was not valid JSON."); }
-  }
+  const probe = path.join(directory, "runtime"); await mkdir(probe);
+  const runtime = await probeRuntime({ ...layout, workDirectory: probe }, timeoutMs);
   const environment: PreparedEnvironment = { key: environmentKey({ manifest, lock, image: layout.imageId, runtime, policy }), directory, install, policy, manifest, lock, runtime };
   if (install) {
     const preparation = path.join(directory, "preparation"); await mkdir(preparation);
@@ -124,4 +116,14 @@ export async function assertScriptPolicy(root: string, policy: InstallPolicy): P
     }
   };
   await walk(path.join(root, "node_modules"));
+}
+
+/** Probe the immutable runner image without project code or provider credentials. */
+export async function probeRuntime(layout: SandboxLayout, timeoutMs: number): Promise<Record<string, string>> {
+  const stdout = await execute(layout, layout.workDirectory, "none", ["node", "-e", 'console.log(JSON.stringify({node:process.version,npm:require("node:child_process").execFileSync("npm",["--version"],{encoding:"utf8"}).trim(),platform:process.platform,arch:process.arch}))'], timeoutMs);
+  try {
+    const identity = JSON.parse(stdout) as Record<string, string>;
+    if (!identity || typeof identity !== "object" || ["node", "npm", "platform", "arch"].some(k => typeof identity[k] !== "string")) throw new Error();
+    return identity;
+  } catch { throw new EnvironmentBlocked("Container runtime identity was not valid JSON."); }
 }

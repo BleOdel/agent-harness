@@ -1,12 +1,11 @@
 /** Pi 0.80.6 JSONL transport. A command acknowledgement is never completion. */
 import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
+import { dockerRunner } from "../runners/docker.ts";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { buildRunArguments, type SandboxLayout } from "../containment/sandbox.ts";
+import { type SandboxLayout } from "../containment/sandbox.ts";
 import { buildAgentCommand, type AgentRequest } from "./pi.ts";
 import { EventStream, type AgentUsage } from "./events.ts";
-import { stopContainer } from "../containment/stop.ts";
 
 export const PI_RPC_VERSION = "0.80.6";
 export type RpcValue = Record<string, unknown>;
@@ -98,11 +97,11 @@ export function buildRpcArguments(layout: SandboxLayout, request: AgentRequest):
   const command = buildAgentCommand(request).slice(0, -1).filter(arg => arg !== "--print");
   command[command.indexOf("--mode") + 1] = "rpc";
   if (layout.purpose === "review") command.push("--tools", "read,grep", "--no-session");
-  const args = buildRunArguments(layout, "bridge", command); args.splice(1, 0, "--interactive"); return args;
+  const args = dockerRunner.prepare(layout, "bridge", command).args; args.splice(1, 0, "--interactive"); return args;
 }
 export async function runRpcAgent(layout: SandboxLayout, request: AgentRequest, output: (text: string) => void, hooks: RpcHooks = {}) {
   await assertRpcVersion(layout.piPackageDirectory); hooks.signal?.throwIfAborted();
-  const child = spawn(layout.dockerExecutable, buildRpcArguments(layout, request), { stdio: ["pipe", "pipe", "pipe"] });
+  const child = dockerRunner.connect({ executable: layout.dockerExecutable, args: buildRpcArguments(layout, request), layout });
   const lifecycle = new RpcLifecycle(), events = new EventStream(); events.onTurn = hooks.turn;
   let stderr = "", closing = false, failure: Error | undefined;
   let resolveSettled!: () => void, rejectSettled!: (error: Error) => void;
@@ -138,6 +137,6 @@ export async function runRpcAgent(layout: SandboxLayout, request: AgentRequest, 
     return { code: 0, stdout: lifecycle.text, stderr, timedOut: false, usageComplete: lifecycle.usageComplete, usage: events.current(), observedReads: events.skillReads(), providerError: events.failure() };
   } finally {
     closing = true; hooks.ready?.(undefined); clearTimeout(timer); hooks.signal?.removeEventListener("abort", abort); peer.close(); child.kill("SIGKILL"); await closed;
-    await stopContainer(layout.dockerExecutable, layout.containerName);
+    await dockerRunner.cleanup(layout);
   }
 }

@@ -16,6 +16,7 @@
 
 import path from "node:path";
 import { applyConfigFile } from "./config.ts";
+import { projectCommand } from "./verbs/project.ts";
 import { guide } from "./verbs/guide.ts";
 import { doctor } from "./verbs/doctor.ts";
 import { checks } from "./verbs/checks.ts";
@@ -39,6 +40,8 @@ const USAGE = [
   "harness — build software in a sandbox, prove it, then apply it.",
   "",
   "  harness guide [path]        select a project and continue through guided steps",
+  "  harness project setup      select the project adapter and skill bundles",
+  "  harness project show       show saved environment requirements",
   "  harness doctor [--json]     readiness and the next remedy",
   "  harness init                  create a project the gates can work with",
   "  harness plan [<topic>]        a saved interview and draft plan",
@@ -84,6 +87,8 @@ async function main(): Promise<void> {
     case "guide":
       if (rest.length > 1) throw new OperatorError("Use: harness guide [project-path]");
       return guide(rest[0] ?? project);
+    case "project":
+      return projectCommand(project, rest);
     case "doctor":
       return doctor(project, rest);
     case "checks":

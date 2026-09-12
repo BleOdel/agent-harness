@@ -1,11 +1,13 @@
+import { dockerRunner } from "../runners/docker.ts";
 /** Interview drafts and Pi sessions survive every exit; approval advances document handoff. */
 import path from "node:path";
 import { realpath, rm } from "node:fs/promises";
-import { buildRunArguments, CONTAINER_PI_PACKAGE, type SandboxLayout } from "../containment/sandbox.ts";
+import { CONTAINER_PI_PACKAGE, type SandboxLayout } from "../containment/sandbox.ts";
 import { runContained, withContainmentSignal } from "../containment/process.ts";
 import { stopContainer } from "../containment/stop.ts";
 import { ConfigError, loadConfig, setting, type Config } from "../config.ts";
-import { listSkills } from "../agent/skills.ts";
+import { assertExecutionCompatible, pinExecution, type ExecutionPin } from "../project/execution.ts";
+import { assertSkillBundles } from "../project/skills.ts";
 import { resourceArguments } from "../agent/resources.ts";
 import { withWriter } from "../workspace/writer-lock.ts";
 import { confirmed, terminalDialogue } from "../guide/dialogue.ts";
@@ -76,6 +78,17 @@ async function reconcile(plan: SavedPlan, config: Config): Promise<SavedPlan> {
 }
 
 export async function runPlanAttempt(original: SavedPlan, config: Config): Promise<SavedPlan> {
+  if (original.state.phase === "ready") return original;
+  const previous = await readArtifact(original.directory, "execution.json", 16 * 1024 * 1024);
+  let execution: ExecutionPin;
+  if (previous) {
+    execution = JSON.parse(previous) as ExecutionPin;
+    await assertExecutionCompatible(execution, original.state.project, config, ["npm", "test"], true);
+    await assertSkillBundles(path.join(original.directory, "skills"), execution.skills);
+  } else {
+    if ((await readArtifact(original.work, SESSION_FILE))?.trim()) throw new OperatorError("This older planning session has no pinned environment.", `Preserve it and continue from its plan with: harness plan --from ${JSON.stringify(path.join(original.work, PLAN_FILE))}`);
+    execution = await pinExecution(original.state.project, config, ["npm", "test"], original.directory, "plan");
+  }
   let plan = await reconcile(original, config);
   const agent = await realpath(config.agentDirectory);
   const overlaps = (parent: string, child: string): boolean => {
@@ -93,20 +106,21 @@ export async function runPlanAttempt(original: SavedPlan, config: Config): Promi
   }
   // Empty explicit sessions make Pi persist even the initial user message before its first response.
   if (await readArtifact(plan.work, SESSION_FILE, 64 * 1024 * 1024) === undefined) await atomicWrite(path.join(plan.work, SESSION_FILE), "");
-  const skills = !items && config.skillsDirectory ? await listSkills(config.skillsDirectory) : [];
+  const skills = items ? [] : execution.skills.map(s => s.id);
   const layout: SandboxLayout = {
     dockerExecutable: config.dockerExecutable, imageId: config.imageId, containerName: planContainer(plan),
     workDirectory: plan.work, agentDirectory: config.agentDirectory, piPackageDirectory: config.piPackageDirectory,
-    ...(!items && config.skillsDirectory ? { skillsDirectory: config.skillsDirectory } : {}),
+    ...(skills.length ? { skillsDirectory: path.join(plan.directory, "skills") } : {}),
     user: `${process.getuid?.() ?? 501}:${process.getgid?.() ?? 20}`,
   };
-  const args = buildRunArguments(layout, "bridge", buildPlanCommand({ topic: plan.state.topic, skills,
+  const args = dockerRunner.prepare(layout, "bridge", buildPlanCommand({ topic: plan.state.topic, skills,
     skillsConfigured: skills.length > 0, provider: config.provider, model: config.model,
     phase: items ? "items" : "draft", ...(plan.state.error ? { diagnosis: plan.state.error } : {}),
-  }), !items);
+  }), !items).args;
   say(`plan: ${plan.state.id}`);
   say(`saved workspace: ${plan.work}`);
-  say(`skills: ${skills.join(", ") || "none"}`);
+  say(`skills available: ${skills.join(", ") || "none"}`);
+  say(`environment: ${execution.settings.profile.adapter.id}@1 on docker@1 · ${execution.digest.slice(0, 12)}`);
   plan = await savePlan(plan, { ...plan.state, status: "running" });
   const controller = new AbortController();
   const cancel = () => controller.abort(new Error("Planning interrupted by signal."));

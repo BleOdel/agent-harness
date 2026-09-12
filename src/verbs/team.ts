@@ -1,3 +1,4 @@
+import { assertExecutionCompatible } from "../project/execution.ts";
 import { requireChecks, verifyAcceptance, type AcceptanceResult } from "../acceptance/checks.ts";
 import path from "node:path";
 import { readFile, readdir } from "node:fs/promises";
@@ -49,7 +50,10 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
           const staged = await readState(directory, false);
           if (staged.status !== "applied") {
             const approved = await requireChecks(canonical, staged.integrated);
-            acceptance = await verifyAcceptance(canonical, staged.baseline, staged.integrated, loadConfig(), approved);
+            let config = loadConfig(); config = { ...config, ...await resolveTeamModel(config) };
+            if (!staged.execution) throw new OperatorError("This older team has no pinned execution environment.", "Inspect/recover/undo remain available. Start a new team to verify under the adapter contract.");
+            await assertExecutionCompatible(staged.execution, canonical, config, (setting(process.env, "HARNESS_TEST_COMMAND") ?? "npm test").split(" ").filter(Boolean), true);
+            acceptance = await verifyAcceptance(canonical, staged.baseline, staged.integrated, config, approved, staged.execution);
             for (const summary of acceptance.summaries) say(summary);
           }
         }
@@ -77,6 +81,8 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
       config = { ...config, ...await resolveTeamModel(config) };
       const existing = await readState(directory, false);
       if (["applied", "undone"].includes(existing.status)) { say(`${existing.runId}: ${existing.status}. No new dispatch.`); return; }
+      if (!existing.execution) throw new OperatorError("This older team has no pinned execution environment.", "Inspect/recover/undo remain available; start a new team for further builds.");
+      await assertExecutionCompatible(existing.execution, canonical, config, testCommand, true);
       const pendingTasks = existing.plan.tasks.filter(t => !existing.integrated.includes(t.id) && t.status !== "done" && t.priority !== "wont").map(t => t.id);
       if (pendingTasks.length) await requireChecks(canonical, pendingTasks);
       await assertRpcVersion(config.piPackageDirectory);
@@ -113,7 +119,7 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
     const pendingTasks = plan.tasks.filter(t => t.status !== "done" && t.priority !== "wont").map(t => t.id);
     if (!pendingTasks.length) { say("Nothing left to work on. No team dispatch."); return; }
     await requireChecks(canonical, pendingTasks);
-    const directory = await createTeam(canonical, plan, path.dirname(profile), policy, testCommand);
+    const directory = await createTeam(canonical, plan, path.dirname(profile), policy, testCommand, config);
     say(`team: ${path.basename(directory)}\nstate: ${directory}\nconcurrency: ${policy.maxWorkers ?? 1}; results stay in staging`);
     const control = await TeamControl.start(directory);
     let state;

@@ -111,7 +111,7 @@ const SYMLINK = "\u0000symlink";
  * "did anything change" as the apply step, and two notions of that would
  * eventually disagree.
  */
-export async function fingerprintTree(root: string, prefix = ""): Promise<Map<string, string>> {
+export async function fingerprintTree(root: string, prefix = "", exclusions: readonly string[] = []): Promise<Map<string, string>> {
   const found = new Map<string, string>();
   let entries;
   try {
@@ -123,10 +123,10 @@ export async function fingerprintTree(root: string, prefix = ""): Promise<Map<st
     if (prefix === "" && EXCLUDED_FROM_COPY.has(entry.name)) continue;
     // At any depth, not only the top: a monorepo has a node_modules under
     // every package.
-    if (NEVER_APPLIED.has(entry.name)) continue;
+    if (NEVER_APPLIED.has(entry.name) || exclusions.includes(entry.name)) continue;
     const relative = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
     if (entry.isDirectory()) {
-      for (const [key, value] of await fingerprintTree(root, relative)) found.set(key, value);
+      for (const [key, value] of await fingerprintTree(root, relative, exclusions)) found.set(key, value);
     } else {
       // Symlinks are recorded by path but never read for content. The
       // safety check below refuses them outright, so a symlink can be
@@ -142,8 +142,8 @@ export async function fingerprintTree(root: string, prefix = ""): Promise<Map<st
 }
 
 /** Every difference between the operator's project and the copy. */
-export async function collectChanges(original: string, copy: string): Promise<Change[]> {
-  const [before, after] = await Promise.all([fingerprintTree(original), fingerprintTree(copy)]);
+export async function collectChanges(original: string, copy: string, exclusions: readonly string[] = []): Promise<Change[]> {
+  const [before, after] = await Promise.all([fingerprintTree(original, "", exclusions), fingerprintTree(copy, "", exclusions)]);
   const changes: Change[] = [];
   for (const [file, content] of after) {
     const previous = before.get(file);

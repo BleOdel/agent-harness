@@ -1,3 +1,5 @@
+import type { ProjectAdapter, VerificationRecipe } from "../adapters/contract.ts";
+import { nodeNpm } from "../adapters/node-npm.ts";
 /** Trusted check inputs live beside the journal and are never mounted by builders. */
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -7,10 +9,9 @@ import { regularResource } from "./inputs.ts";
 import { digest, type ContractCheck, type TeamPlan } from "./schema.ts";
 import { atomicJson } from "./state.ts";
 
-export interface FrozenChecks { scripts: Record<string, string>; testCommand: readonly string[]; checks: (ContractCheck & { source: Snapshot })[]; }
-export async function freezeChecks(project: string, inputs: string, run: string, plan: TeamPlan, testCommand: readonly string[]): Promise<{ digest: string }> {
-  const pkg = JSON.parse(await readFile(path.join(project, "package.json"), "utf8").catch((e: NodeJS.ErrnoException) => { if (e.code === "ENOENT") return "{}"; throw e; })) as { scripts?: Record<string, string> };
-  if (Object.values(pkg.scripts ?? {}).some(s => typeof s !== "string")) throw new Error("Invalid package scripts.");
+export interface FrozenChecks { recipe?: VerificationRecipe; scripts: Record<string, string>; testCommand: readonly string[]; checks: (ContractCheck & { source: Snapshot })[]; }
+export async function freezeChecks(project: string, inputs: string, run: string, plan: TeamPlan, testCommand: readonly string[], adapter: ProjectAdapter = nodeNpm): Promise<{ digest: string }> {
+  const recipe = await adapter.recipe(project, testCommand);
   if (!testCommand.length || testCommand.some(s => !s)) throw new Error("Empty test command.");
   const checks: FrozenChecks["checks"] = [];
   for (const check of plan.checks ?? []) {
@@ -25,7 +26,7 @@ export async function freezeChecks(project: string, inputs: string, run: string,
     await rm(directory, { recursive: true });
     checks.push({ ...check, source });
   }
-  const frozen: FrozenChecks = { scripts: pkg.scripts ?? {}, testCommand, checks };
+  const frozen: FrozenChecks = { recipe, scripts: recipe.scripts ?? {}, testCommand, checks };
   await atomicJson(path.join(run, "inputs/verification.json"), frozen);
   return { digest: digest(frozen) };
 }

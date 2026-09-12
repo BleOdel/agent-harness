@@ -9,9 +9,10 @@ const text = (bytes: Buffer): string | undefined => {
   if (bytes.includes(0)) return undefined;
   try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { return undefined; }
 };
-export async function integrateCandidate(base: Snapshot, candidate: Snapshot, current: Snapshot, destination: string, contracts: readonly string[]): Promise<Integration> {
+export async function integrateCandidate(base: Snapshot, candidate: Snapshot, current: Snapshot, destination: string, contracts: readonly string[], sharedInputs: readonly string[] = ["package.json", "package-lock.json", "npm-shrinkwrap.json"]): Promise<Integration> {
+  if (base.executionDigest !== current.executionDigest || candidate.executionDigest !== current.executionDigest) throw new Error("Integration environment identity differs between source snapshots.");
   await Promise.all([assertSnapshot(base), assertSnapshot(candidate), assertSnapshot(current)]);
-  const shared = new Set([...Object.keys(base.files), ...Object.keys(current.files)].filter(file => ["package.json", "package-lock.json", "npm-shrinkwrap.json"].includes(path.basename(file)) || contracts.some(c => file === c || file.startsWith(`${c}/`))));
+  const shared = new Set([...Object.keys(base.files), ...Object.keys(current.files)].filter(file => sharedInputs.includes(path.basename(file)) || contracts.some(c => file === c || file.startsWith(`${c}/`))));
   const stale = [...shared].filter(file => base.files[file] !== current.files[file]);
   if (stale.length) return { ok: false, reason: "Candidate has stale dependency or contract inputs; retry from current staging.", files: stale };
   const writes = new Map<string, Buffer | undefined>();
@@ -41,7 +42,7 @@ export async function integrateCandidate(base: Snapshot, candidate: Snapshot, cu
   if (conflicts.length) return { ok: false, reason: conflicts.join("\n"), files: conflicts.map(c => c.split(":")[0]!) };
   const work = `${destination}.work`;
   try {
-    await copySource(current.directory, work);
+    await copySource(current.directory, work, current.exclusions);
     for (const [file, bytes] of writes) if (bytes === undefined) await rm(path.join(work, file), { force: true });
     for (const [file, bytes] of writes) {
       if (bytes === undefined) continue;
@@ -50,6 +51,6 @@ export async function integrateCandidate(base: Snapshot, candidate: Snapshot, cu
       await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, bytes);
       if (current.files[file] === undefined) await chmod(target, (await lstat(path.join(candidate.directory, file))).mode & 0o777);
     }
-    return { ok: true, proposal: await captureBaseline(work, destination) };
+    return { ok: true, proposal: await captureBaseline(work, destination, current.exclusions, current.executionDigest) };
   } finally { await rm(work, { recursive: true, force: true }); }
 }

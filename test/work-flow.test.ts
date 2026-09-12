@@ -36,8 +36,10 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const args = process.argv.slice(2);
 if (args[0] === 'rm') process.exit(0);
+if (args[0] === 'info') {console.log(JSON.stringify({OSType:'linux',NCPU:4,MemTotal:4294967296}));process.exit(0);}
+if (args[0] === 'image') {console.log(JSON.stringify([{Id:process.env.HARNESS_IMAGE_ID,Os:'linux',Architecture:process.arch==='x64'?'amd64':process.arch}]));process.exit(0);}
 // The process log below covers model and gate commands; this is the runtime probe.
-if (args.includes('-e') && args.some(a=>a.includes('platform:process.platform'))) { process.stdout.write(JSON.stringify({node:process.version,npm:'fixture',platform:process.platform,arch:process.arch}));process.exit(0); }
+if (args.includes('-e') && args.some(a=>a.includes('platform:process.platform'))) { process.stdout.write(JSON.stringify({node:process.version,npm:'11.5.0',platform:'linux',arch:process.arch}));process.exit(0); }
 const mount = args.find(a => a.startsWith('type=bind,src=') && a.includes(',dst=/work'));
 const work = mount.split(',src=')[1].split(',dst=')[0];
 const mode = process.env.FLOW_MODE;

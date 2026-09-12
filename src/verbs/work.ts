@@ -1,3 +1,8 @@
+import { getAdapter } from "../adapters/registry.ts";
+import { readProfile } from "../project/profile.ts";
+import { pinExecution, assertExecutionCompatible, type ExecutionPin } from "../project/execution.ts";
+import { assertSkillBundles } from "../project/skills.ts";
+import { dockerRunner } from "../runners/docker.ts";
 import { requireChecks, verifyAcceptance, assertAcceptanceProof, AcceptanceFailure } from "../acceptance/checks.ts";
 /**
  *   harness work <goal>
@@ -30,11 +35,10 @@ import { readClaim } from "../gates/claim.ts";
 import { counterPath } from "../gates/tests.ts";
 import { DEFAULT_LIMITS, type Limits } from "../gates/limits.ts";
 import { chooseNext, type Feature, markDone, markStatus, invalidateSharedInputs, readFeatures, unmetDependencies } from "../features.ts";
-import { listSkills } from "../agent/skills.ts";
 import { missingInProject } from "../deps.ts";
 import { clearStatus, type Phase, writeStatus } from "../view/status.ts";
 import { assertLiveBaseline, assertSnapshot, captureCandidate, InputChangeRequired, type Candidate } from "../workspace/candidate.ts";
-import { EnvironmentBlocked, installEnvironment, prepareEnvironment } from "../workspace/dependencies.ts";
+import { EnvironmentBlocked } from "../workspace/dependencies.ts";
 import { runPipeline } from "../pipeline.ts";
 import { appendRun, harnessDirectory, nextRunId, type Outcome, readRecord, recoveryPath, type RunRecord } from "../record/record.ts";
 import { renderDiff } from "../review/diff.ts";
@@ -164,8 +168,12 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
 
   const acceptanceTasks = [work.feature?.id ?? goal];
   const approvedChecks = await requireChecks(project, acceptanceTasks);
+  const adapter = getAdapter((await readProfile(project)).adapter);
   const workspace = await createRunWorkspace(project);
-  const { sandbox, baseline } = workspace;
+  const { sandbox } = workspace;
+  let baseline = workspace.baseline;
+  let execution: ExecutionPin | undefined;
+  const observedReads = new Set<string>();
   let candidateDigest: string | undefined;
   let environmentKey: string | undefined;
   say(`sandbox: ${sandbox.workDirectory}`);
@@ -185,14 +193,6 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
     ...(config.skillsDirectory === undefined ? {} : { skillsDirectory: config.skillsDirectory }),
     user: `${String(process.getuid?.() ?? 501)}:${String(process.getgid?.() ?? 20)}`,
   };
-  if (config.skillsDirectory !== undefined) {
-    // Named, not implied. Instructions reaching the model from outside the
-    // project are exactly the thing an operator should never discover by
-    // reading the source.
-    const loaded = await listSkills(config.skillsDirectory);
-    say(`skills: ${loaded.length === 0 ? "none found in " + config.skillsDirectory : loaded.join(", ")}`);
-  }
-
   const runId = await nextRunId(project);
 
   /**
@@ -217,6 +217,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       goal: work.feature?.id ?? goal,
       attempts,
       outcome,
+      ...(execution ? { execution, observedSkillReads: [...observedReads] } : {}),
       baselineDigest: baseline.digest,
       ...(candidateDigest === undefined ? {} : { candidateDigest }),
       ...(environmentKey === undefined ? {} : { environmentKey }),
@@ -291,9 +292,16 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
   try {
     let environment;
     try {
-      environment = await prepareEnvironment(baseline.directory, path.join(workspace.root, "environment"), layout, config.gateTimeoutMs, config.installPolicy);
+      execution = await pinExecution(project, config, testCommand, path.join(harnessDirectory(project), "executions", runId));
+      baseline = { ...baseline, executionDigest: execution.digest };
+      const skillDirectory = path.join(harnessDirectory(project), "executions", runId, "skills");
+      delete (layout as { skillsDirectory?: string }).skillsDirectory;
+      if (execution.skills.length) (layout as { skillsDirectory?: string }).skillsDirectory = skillDirectory;
+      say(`environment: ${adapter.reference.id}@${adapter.reference.version} on docker@1 (${execution.capabilities.arch})`);
+      say(`skills available to builder: ${execution.skills.map(s => s.id).join(", ") || "none"}`);
+      environment = await adapter.prepare(baseline.directory, path.join(workspace.root, "environment"), layout, config.gateTimeoutMs, config.installPolicy);
       environmentKey = environment.key;
-      await installEnvironment(baseline.directory, sandbox.workDirectory, environment, layout, config.gateTimeoutMs);
+      await adapter.install(baseline.directory, sandbox.workDirectory, environment, layout, config.gateTimeoutMs);
     } catch (error) {
       if (!(error instanceof EnvironmentBlocked)) throw error;
       if (work.feature !== undefined) await markStatus(project, work.feature.id, "blocked");
@@ -304,14 +312,16 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       attempts = attempt;
       if (attempt > 1) say(`\nattempt ${String(attempt)}, with a diagnosis`);
       await mark("building");
-      const execution = await executeAndSubmit(
+      await assertExecutionCompatible(execution!, project, config, testCommand);
+      await assertSkillBundles(path.join(harnessDirectory(project), "executions", runId, "skills"), execution!.skills);
+      const built = await executeAndSubmit(
         layout,
         {
           goal: instruction,
           provider: config.provider,
           model: config.model,
           timeoutMs: config.agentTimeoutMs,
-          skills: config.skillsDirectory !== undefined,
+          skills: execution!.skills.length > 0,
         },
         (chunk) => process.stdout.write(chunk),
         (usage) => {
@@ -319,7 +329,8 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
           void mark("building");
         },
       );
-      const agent = execution.agent;
+      const agent = built.agent;
+      for (const file of agent.observedReads) observedReads.add(file);
       inFlight = emptyUsage();
       spent = {
         ...agent.usage,
@@ -341,7 +352,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       if (agent.providerError) throw await stop("error", `agent: ${agent.providerError}`, "Restore provider authentication or resolve the provider error before retrying.");
       if (agent.code !== 0) throw await stop("error", `agent: exited ${String(agent.code)}`, agent.stderr);
 
-      const submission = execution.submission;
+      const submission = built.submission;
       if (submission.ok && submission.outcome === "blocked") {
         if (work.feature !== undefined) await markStatus(project, work.feature.id, "blocked");
         throw await stop("blocked", `blocked: ${submission.reason}`,
@@ -353,6 +364,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       try {
         candidate = await captureCandidate(baseline, sandbox.workDirectory, path.join(workspace.root, `candidate-${attempt}`), {
           sharedInputs: work.feature?.kind === "shared-inputs",
+          sharedInputFiles: adapter.source.sharedInputs,
           limits: limitsFrom(process.env),
           ...(config.contractPaths === undefined ? {} : { contractPaths: config.contractPaths }),
         });
@@ -367,6 +379,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       candidateDigest = candidate.digest;
       await mark("gating");
       const proof = await runPipeline({
+        adapter,
         config,
         layout: { ...layout, workDirectory: candidate.directory },
         project: baseline.directory,
@@ -380,7 +393,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       environmentKey = proof.environmentKey;
       const manifests = path.join(harnessDirectory(project), "candidates", runId);
       await mkdir(manifests, { recursive: true });
-      await writeFile(path.join(manifests, `attempt-${attempt}.json`), JSON.stringify({ baselineDigest: baseline.digest, candidateDigest: candidate.digest, files: candidate.files, changes, environmentKey, sharedInputsChanged: candidate.sharedInputsChanged }, null, 2) + "\n");
+      await writeFile(path.join(manifests, `attempt-${attempt}.json`), JSON.stringify({ baselineDigest: baseline.digest, candidateDigest: candidate.digest, files: candidate.files, changes, environmentKey, execution, runnerEvidence: dockerRunner.evidence(layout, agent), observedSkillReads: [...observedReads], sharedInputsChanged: candidate.sharedInputsChanged }, null, 2) + "\n");
       gateSummaries = run.verdicts.map((entry) => entry.summary);
       for (const verdict of run.verdicts) say(verdict.summary);
       for (const name of run.skipped) say(`${name}: not applicable to this project`);
@@ -416,6 +429,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
           goal: work.feature?.id ?? goal,
           attempts: attempt,
           outcome: "no-changes",
+          execution: execution!, observedSkillReads: [...observedReads], baselineDigest: baseline.digest, candidateDigest: candidate.digest, ...(environmentKey ? { environmentKey } : {}),
           gates: gateSummaries,
           changes: [],
           ...(spent.turns === 0 ? {} : {
@@ -509,7 +523,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       await mark("gating");
       let acceptance;
       try {
-        acceptance = await verifyAcceptance(project, candidate, acceptanceTasks, config, approvedChecks);
+        acceptance = await verifyAcceptance(project, candidate, acceptanceTasks, config, approvedChecks, execution);
         for (const summary of acceptance.summaries) say(summary);
         await assertLiveBaseline(project, baseline);
         await assertAcceptanceProof(project, candidate, acceptanceTasks, acceptance);
@@ -518,6 +532,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
           error instanceof OperatorError ? error.remedy : "Nothing applied. Inspect the failure and retry.",
           error instanceof AcceptanceFailure ? { acceptance: error.proof } : {});
       }
+      await assertExecutionCompatible(execution!, project, config, testCommand);
       await mark("applying");
       const recovery = await snapshotForRecovery(
         project,
@@ -533,6 +548,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
         goal: work.feature?.id ?? goal,
         attempts: attempt,
         outcome: "applied",
+        ...(execution ? { execution, observedSkillReads: [...observedReads] } : {}),
         baselineDigest: baseline.digest,
         candidateDigest: candidate.digest,
         ...(environmentKey === undefined ? {} : { environmentKey }),
