@@ -1,8 +1,8 @@
 # Artifacts and saved jobs
 
 E3 supports local output retention and finite, resumable command jobs on the
-existing Node and Python Linux Docker runners. A job runs code already in your
-project. It makes no model call, applies no source changes and publishes nothing.
+existing Node and Python Linux Docker runners. An ordinary job runs code already in your
+project; the [E4 ML workflow](ML.md) also supplies an installed regression recipe. It makes no model call, applies no source changes and publishes nothing.
 
 ## Guided use
 
@@ -67,6 +67,9 @@ an output is correct or safe to execute.
   quality.
 - `verify --retain` results are **diagnostics-passed**. Approved application
   acceptance remains a separate requirement; this command never applies source.
+- E4 creates **evaluation-passed** model manifests only after host comparison
+  against approved data and thresholds. They bind approval and report hashes;
+  the original training output remains unverified.
 - No artifact is signed, uploaded, installed on the host or automatically published.
 
 Limits in this first release:
@@ -121,8 +124,9 @@ Read `HARNESS_JOB_RESUME` when nonempty: it names the restored checkpoint file.
 it over the checkpoint so the controller observes a complete document. The
 installed protocol validates version, identity, integer progress bounds, total,
 nondecreasing completed steps and object payload. A newly reported step retains a
-new immutable artifact. The payload's algorithm-specific correctness is unverified;
-E4 will add domain-specific dataset/model evaluation rules.
+new immutable artifact. Generic payloads remain algorithmically unverified. E4 ML jobs additionally bind
+feature order, preprocessing, training settings and model epoch to their approval.
+Model quality still requires the separate protected evaluation described in ML.md.
 
 Identity binds the job declaration, frozen source, dependency environment, adapter,
 runner capabilities, immutable image and installation policy. Resume compares live
@@ -142,7 +146,8 @@ settings even when the current project configuration has changed.
 
 All manifest references protect blobs from cleanup, including checkpoints from
 active or resumable jobs. To reclaim those outputs, deliberately retire the job
-first. Release is irreversible at the harness level and disables resume. Store
+first. ML job/model references require `harness ml release`, which retires the
+whole workflow and preserves approval/data/evaluation audit files. Release is irreversible at the harness level and disables resume. Store
 limits refuse further retention with a cleanup remedy; they never evict an active
 job's checkpoint automatically. Interrupted atomic blob/manifest writes do not
 invalidate committed entries and can be collected. Existing source recovery and

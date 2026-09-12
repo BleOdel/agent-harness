@@ -10,7 +10,7 @@ export const ARTIFACT_LIMITS = { file:32*1024*1024, batch:64*1024*1024, store:51
 const pending = (name:string):boolean => /^\.harness-write-[a-f0-9-]{36}$/u.test(name);
 export const sha256 = (bytes: string | Buffer): string => createHash('sha256').update(bytes).digest('hex');
 export const artifactName = (name: string): boolean => /^[a-zA-Z0-9][a-zA-Z0-9_./+-]{0,199}$/u.test(name) && name.split('/').every(p=>p!=='.'&&p!=='..'&&p!=='');
-export interface Provenance { producer:string; input:string; environment:string; verification:'unverified'|'diagnostics-passed'; }
+export interface Provenance { producer:string; input:string; environment:string; verification:'unverified'|'diagnostics-passed'|'evaluation-passed'; evaluation?:{approval:string;reportHash:string}; }
 export interface Artifact extends Provenance { version:1; id:string; name:string; sha256:string; size:number; at:string; }
 export async function stateRoot(project:string):Promise<string> {
  const root=`${await canonicalProject(project)}-harness`;
@@ -33,7 +33,8 @@ export async function saveJson(root:string,file:string,value:unknown):Promise<vo
 export async function readJson(root:string,file:string):Promise<unknown> {const target=await safePath(root,file);if((await lstat(target)).size>2*1024*1024)throw new OperatorError('State file exceeds 2 MiB.');return JSON.parse(await readFile(target,'utf8'));}
 function parseArtifact(value:unknown):Artifact {
  const a=value as Artifact;
- if(!a||a.version!==1||!/^artifact-[a-f0-9-]{36}$/u.test(a.id)||!artifactName(a.name)||!/^[-a-zA-Z0-9]+$/u.test(a.producer)||![a.input,a.environment,a.sha256].every(v=>typeof v==='string'&&/^[a-f0-9]{64}$/u.test(v))||!Number.isSafeInteger(a.size)||a.size<0||a.size>ARTIFACT_LIMITS.file||!['unverified','diagnostics-passed'].includes(a.verification)||!Number.isFinite(Date.parse(a.at)))throw new OperatorError('Invalid artifact manifest.');return a;
+ if(!a||a.version!==1||!/^artifact-[a-f0-9-]{36}$/u.test(a.id)||!artifactName(a.name)||!/^[-a-zA-Z0-9]+$/u.test(a.producer)||![a.input,a.environment,a.sha256].every(v=>typeof v==='string'&&/^[a-f0-9]{64}$/u.test(v))||!Number.isSafeInteger(a.size)||a.size<0||a.size>ARTIFACT_LIMITS.file||!['unverified','diagnostics-passed','evaluation-passed'].includes(a.verification)||!Number.isFinite(Date.parse(a.at)))throw new OperatorError('Invalid artifact manifest.');
+ if(a.verification==='evaluation-passed'&&(!a.evaluation||![a.evaluation.approval,a.evaluation.reportHash].every(v=>typeof v==='string'&&/^[a-f0-9]{64}$/u.test(v))))throw new OperatorError('Evaluated artifacts require an approval and report identity.');return a;
 }
 export async function listArtifacts(project:string):Promise<Artifact[]> {
  const root=await store(project), files=(await readdir(path.join(root,'manifests'))).filter(name=>!pending(name)).sort();
@@ -67,7 +68,7 @@ export async function exportArtifact(project:string,id:string,destination:string
  const handle=await open(absolute,'wx',0o600);try{await handle.writeFile(bytes);await handle.sync();}finally{await handle.close();}
 }
 export async function releaseArtifacts(project:string,producer:string,protectedProducers:ReadonlySet<string>):Promise<void>{
- if(protectedProducers.has(producer))throw new OperatorError('Cannot release artifacts referenced by an active or recoverable job. Retire it with harness job release first.');
+ if(protectedProducers.has(producer))throw new OperatorError('Cannot release artifacts referenced by an active or recoverable job/workflow. Retire it through harness guide (job release or ml release) first.');
  const root=await store(project);for(const a of await listArtifacts(project))if(a.producer===producer)await unlink(await safePath(root,`manifests/${a.id}.json`));
 }
 export async function collectArtifacts(project:string):Promise<number>{

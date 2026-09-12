@@ -86,3 +86,13 @@ npm run verify:python
 This separate image variable selects the Python integration fixtures; project commands continue to use `HARNESS_IMAGE_ID`. The suite refuses missing prerequisites and skipped tests. It covers offline installation, source-only dependency refusal, changed locks, cache corruption, runtime mismatch, fixed collection, fake reports, timeout cleanup, repeated wheels, plan handoff, ordinary work, team application/resume and byte-preserving undo. A real PTY exercises the guided Python journey with a deterministic interview/builder fixture and a read-only `grill-me` resource. These automated fixtures make no model-provider calls and do not establish human usability or actual skill compliance. A human walkthrough remains part of U0 follow-up.
 
 For the file-analysis demo, approving `python -I -m file_analysis.cli sample.txt` with the exact expected JSON checks the installed package. A second invocation through `file_analysis` checks the console entry point. Missing-file checks should expect a nonzero exit and confirm any existing input/output files remain unchanged. Ordinary/team build wheels remain disposable; `harness verify --retain` keeps a fresh build against applied source.
+
+## Train and evaluate a numeric model
+
+E4 uses this Python image and adapter for the bounded [CPU ML workflow](ML.md).
+Choose **Build and evaluate a CPU ML model** in the guide, approve an external
+numeric CSV and quality thresholds, then train/evaluate and export safe JSON
+weights. Training-only data enters a fixed standard-library recipe after package
+preparation; independent fresh inference excludes project/dependency startup code.
+No ML dependencies need to be added. Python source tests and model-quality
+acceptance remain separate checks; arbitrary ML frameworks are not supported.

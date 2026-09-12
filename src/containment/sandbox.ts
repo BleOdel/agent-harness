@@ -86,6 +86,7 @@ export function mounts(layout: SandboxLayout): readonly {
   if (layout.purpose === "job") return [
     { source: layout.workDirectory, destination: "/harness-input", writable: false },
     { source: layout.instrumentationDirectory!, destination: "/harness-instrumentation", writable: false },
+    ...(layout.checksDirectory ? [{ source: layout.checksDirectory, destination: "/harness-checks", writable: false }] : []),
   ];
   if (layout.purpose === "verification") return [
     { source: layout.workDirectory, destination: CONTAINER_WORK, writable: true },

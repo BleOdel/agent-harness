@@ -1,6 +1,6 @@
 # Harness expansion development plan
 
-Status: E0–E3 and the initial U0 guided journey implemented. Next: E4 CPU ML.
+Status: E0–E4 and the initial U0 guided journey implemented. Next: E5 infrastructure checkpoint.
 Updated 2026-09-12. See README.md for shipped commands and limitations.
 
 Delivered in E0/U0: strict reviewer schema, byte-preserving ordinary undo,
@@ -278,15 +278,27 @@ A killed long-running fixture resumes only from a compatible checkpoint. Corrupt
 
 ## E4 — CPU ML workflows
 
-### Deliver
+Implemented 2026-09-12 as one bounded numeric linear-regression recipe. See
+[CPU ML workflows](ML.md) for exact data/metric limits, operator commands and example.
+The host freezes CSV schema, ordered split hashes, seed, train-only preprocessing,
+mean baseline, training parameters and quality thresholds before training. E3 jobs
+supply offline execution, domain-checked epochs, cancellation and fresh resume.
 
-Add a Python-based training/evaluation workflow with versioned dataset manifests, data schemas, immutable split definitions, deterministic seeds where supported, baseline models, approved metrics, evaluation thresholds and model artifacts. Pin evaluation specifications before training; training workers cannot rewrite the acceptance metric or inspect a protected holdout set. Keep ordinary code tests separate from model-quality evaluation.
+Fresh Python inference receives inert model JSON and holdout predictors; labels
+stay on the host, which recomputes predictions and compares measured RMSE with
+approved thresholds and the baseline. A separate report and evaluated model
+manifest retain the data/environment/recipe/model identities. One model hash is
+consumed per approval; operator reuse of data and semantic leakage remain limits.
 
-Record preprocessing, dependency versions, dataset identities, hyperparameters, limitations and measured results. Use tolerances rather than assuming every numerical result is byte-identical across platforms. Make train/test leakage checks part of the fixture suite; no generic checker can prove the absence of all leakage.
+`harness guide` covers data selection/approval, training/continuation, inspection,
+checked export and retirement without JSON edits or copied IDs. `verify:ml` covers
+real Docker execution, actual train-only mounts, interrupted training, changed
+holdout/data, known leakage, degraded/forged predictions, preprocessing mismatch
+and a complete PTY journey. The shipped synthetic example trains and exports with
+zero provider calls. Source tests remain distinct from model-quality checks.
 
-### Acceptance
-
-A small classifier or regressor trains, exports, loads in a fresh process and passes a protected evaluation against a baseline. Deliberately leaked data, a changed holdout, degraded predictions, fabricated metrics and mismatched preprocessing are rejected by the applicable checks. Training interruption resumes from validated state. No GPU is required.
+Human usability is still unmeasured U0 follow-up. Classification, grouped/temporal
+splits, arbitrary frameworks, tuning, GPU and publication are not supported.
 
 ## E5 — Isolated platform runners
 

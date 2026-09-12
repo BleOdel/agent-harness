@@ -153,8 +153,10 @@ Two installed adapters use **docker@1 on Linux**:
 The controller needs Node 26 or newer. Python target setup, the pinned image,
 dependency format and guided journey are documented in [Python projects](PYTHON.md).
 Local artifact retention and bounded resumable jobs are documented in [Jobs and outputs](JOBS.md).
-Mobile/native desktop toolchains, GUI automation, emulators,
-ML evaluation and GPUs remain later milestones in [the expansion plan](NEXT.md).
+E4 adds [CPU numeric regression](ML.md) with approved datasets, protected host
+evaluation, checkpoint resume and inert JSON model export. Use `harness guide` →
+**Build and evaluate a CPU ML model**. Source tests and model quality are separate.
+Mobile/native desktop toolchains, GUI automation, emulators and GPUs remain later milestones in [the expansion plan](NEXT.md).
 
 ```bash
 harness project setup       # choose the environment and skills using short prompts
@@ -318,6 +320,10 @@ Run them inside your project.
 | `harness checks setup` | define and approve observable behaviour through short prompts |
 | `harness checks review` | review and approve a saved check draft |
 | `harness checks approve <file>` | explicitly approve a JSON acceptance specification |
+| `harness ml setup` | approve data and thresholds through short prompts |
+| `harness ml train/resume <id>` | train the saved numeric recipe and evaluate its model |
+| `harness ml inspect <id> [--json]` | read the approved scope and saved model evaluation |
+| `harness ml export <id> <new-file>` | export a model that passed its approved evaluation |
 | `harness init [--python]` | create a Node or Python project |
 | `harness verify` | fresh offline project tests and packaging without model calls or application |
 | `harness plan [<topic>]` | start a saved interview and draft plan |
@@ -807,6 +813,7 @@ npm run verify:skills     # real Pi loader, no Docker or model calls
 npm run verify:adapters   # contracts, capabilities, resume and Node guided journeys
 npm run verify:python     # E2 Python image, wheels, pytest, CLI, guide and apply/undo
 npm run verify:jobs       # E3 outputs, jobs, quotas, crash recovery and guided export
+npm run verify:ml         # E4 numeric regression, protected evaluation, resume and guide
 npm run verify:boundary   # the container, against a real daemon
 npm run verify:hardening  # approved checks, binary undo, guide PTY and planning cleanup
 npm run verify:gates      # each gate broken in turn, confirmed to stop the apply
@@ -1157,6 +1164,7 @@ envelope can pass component tests while failing the combined contract check.
 
 | Document | Purpose |
 |---|---|
+| [CPU ML workflows](ML.md) | Numeric CSV setup, training, protected evaluation, resume, model export and limits |
 | [Python projects](PYTHON.md) | Current Python setup, dependency policy, packaging and guided workflow |
 | [Architecture](ARCHITECTURE.md) | Current execution, control, recovery and skill diagrams |
 | [Threat model](THREAT_MODEL.md) | Current boundaries, credential exposure and residual risks |

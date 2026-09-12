@@ -28,7 +28,8 @@
     "verify:hardening": "node src/verify-hardening.ts",
     "verify:adapters": "node src/verify-adapters.ts",
     "verify:python": "node src/verify-python.ts",
-    "verify:jobs": "node src/verify-jobs.ts"
+    "verify:jobs": "node src/verify-jobs.ts",
+    "verify:ml": "node src/verify-ml.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

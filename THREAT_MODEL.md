@@ -321,7 +321,8 @@ The host and supervisor enforce execution deadlines. The supervisor has a 60-sec
 transfer grace after execution. Recovery only removes a container with matching
 name, immutable image and host-issued labels. A timeout/crash cannot refund the
 accepted dispatch reservation. No monetary enforcement or provider-billing claim
-is made. Generic job payloads need domain-specific validation in later milestones.
+is made. Generic payloads remain unverified; E4 adds domain-specific validation for its
+installed ML recipe only.
 
 New candidate source rejects files over 2 MiB and known generated package/model/
 dataset extensions. Checkpoints and declared outputs use the separate local store.
@@ -330,3 +331,34 @@ bound retention. Referenced blobs cannot be collected; retiring a job explicitly
 disables resume before releasing its references. Verify outputs are labelled
 diagnostics-passed; job outputs are unverified. Export is an exclusive local copy
 outside source/state, and never signing, execution or publication.
+
+## Protected numeric model evaluation (E4)
+
+The operator approves an external CSV, frozen split, recipe, preprocessing,
+training settings and metric thresholds before training. Host state keeps the
+holdout labels; the training job receives only train rows after dependency
+preparation. Its fixed standard-library trainer uses `-I -S` so project imports
+and installed dependency startup hooks cannot inspect the injected data. Recipe
+resources are read-only; project source cannot select a different trainer.
+
+Only bounded inert JSON weights with the exact approved feature order and
+preprocessing can be evaluated. Fresh offline Python inference receives model
+JSON and holdout predictors, without source, project dependencies, provider
+credentials or labels. The host independently recomputes predictions and metrics;
+fabricated training scores cannot authorize export as an evaluated model. A
+passing manifest binds the model, approval and evaluation report hashes. Generic
+artifact export still permits opaque unverified bytes with their original status.
+
+One model identity is consumed before scoring under an approval. This prevents
+automatic replacement/tuning against the same approval, including after failure.
+An operator can reapprove the same dataset or tamper with host-owned state; this
+is not protection against the operator. The scan catches known source copies and
+recognized holdout rows, not encoded, temporal, grouped or semantic leakage.
+A small holdout is not evidence of fairness, robustness or production suitability.
+
+Data/audit state is retained until deliberate project removal, with no encryption,
+expiration or aggregate dataset quota. Safe paths and per-file limits protect
+storage mechanics, not data governance. Model formats with executable payloads,
+arbitrary frameworks, GPU, serving and external model publication are unavailable.
+The Docker boundary and pinned installed controller/image remain trusted. Numeric
+tolerances and supported dataset limits are explicit in [ML.md](ML.md).

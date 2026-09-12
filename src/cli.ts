@@ -15,6 +15,7 @@
  */
 
 import path from "node:path";
+import { mlCommand } from "./verbs/ml.ts";
 import { jobCommand } from "./verbs/job.ts";
 import { artifactsCommand } from "./verbs/artifacts.ts";
 import { applyConfigFile } from "./config.ts";
@@ -46,6 +47,7 @@ const USAGE = [
   "  harness guide [path]        select a project and continue through guided steps",
   "  harness project setup      select the project adapter and skill bundles",
   "  harness project show       show saved environment requirements",
+  "  harness ml setup           approve CSV data, train and evaluate a CPU regressor",
   "  harness job setup          save a bounded offline job through short prompts",
   "  harness job list           inspect, run, resume, cancel or recover saved jobs",
   "  harness artifacts list     inspect, export or clean retained outputs",
@@ -92,6 +94,7 @@ async function main(): Promise<void> {
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
 
   switch (verb) {
+    case "ml": return mlCommand(project, rest);
     case "job": return jobCommand(project, rest);
     case "artifacts": return artifactsCommand(project, rest);
     case "guide":

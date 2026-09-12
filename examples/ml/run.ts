@@ -1,0 +1,23 @@
+/** Run from the harness checkout. Creates a new demo directory; refuses an existing one. */
+import { mkdir, readFile, realpath } from 'node:fs/promises';
+import path from 'node:path';
+import { applyConfigFile, loadConfig } from '../../src/config.ts';
+import { init } from '../../src/verbs/init.ts';
+import { approveMl } from '../../src/ml/store.ts';
+import { trainMl } from '../../src/ml/workflow.ts';
+import { exportModel } from '../../src/ml/evaluation.ts';
+import { evaluationSummary } from '../../src/verbs/ml.ts';
+import { withWriter } from '../../src/workspace/writer-lock.ts';
+applyConfigFile();
+const destination=process.argv[2];if(!destination)throw new Error('Usage: node examples/ml/run.ts /new/demo-directory');
+const spec=JSON.parse(await readFile(new URL('./spec.json',import.meta.url),'utf8'));
+await mkdir(path.resolve(destination));const root=await realpath(destination),project=path.join(root,'model');await mkdir(project);
+await init(project,['--python']);
+const approval=await withWriter(project,'example ml approve',()=>approveMl(project,path.join(import.meta.dirname,'data.csv'),spec));
+console.log('Approved the shipped synthetic example:',spec);
+const config=loadConfig({...process.env,HARNESS_PROJECT:project});
+const result=await trainMl(project,approval.id,console.log,config);
+if(!result.evaluation||result.evaluation.outcome!=='passed')throw new Error(result.evaluation?evaluationSummary(result.evaluation):'Training stopped; inspect the saved workflow through harness guide.');
+await exportModel(project,approval.id,path.join(root,'model.json'));
+console.log(evaluationSummary(result.evaluation));
+console.log(`Exported ${path.join(root,'model.json')}. Return with: harness guide ${JSON.stringify(project)}`);

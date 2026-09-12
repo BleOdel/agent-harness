@@ -56,6 +56,7 @@ export const EXCLUDED_FROM_COPY = new Set([
   // it could not meet.
   "features.json",
   ".harness-job-context.json",
+  ".harness-ml-training.json",
   ".harness-output",
   ".harness-job-status.json",
   ".harness-job-status.tmp",

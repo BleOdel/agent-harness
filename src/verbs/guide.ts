@@ -1,3 +1,4 @@
+import { guideMl } from "../guide/ml.ts";
 import { guideJobs } from "../guide/jobs.ts";
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
@@ -43,7 +44,7 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
         io.write(`Writer: ${owner.command}, pid ${owner.pid}. ${owner.recoverable ? "The owner process has ended." : "The owner is live or cannot be verified. Wait for it to finish."}`);
         if (owner.recoverable) actions.push({ label: "Recover the ended writer (preserve saved work)", async run() {
           await recoverWriter(project, owner.token);
-          io.write("Writer recovered. Resume the saved plan, or reconcile team resources before more work.");
+          io.write("Writer recovered. Resume the saved plan, or recover saved job/team resources before more work.");
         } });
       } else if (pending) {
         const value = JSON.parse(pending);
@@ -116,6 +117,7 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
     actions.push({ label: "Check readiness", run: () => run("doctor") });
     actions.push({ label: "Review project status and history", run: () => run("look") });
     actions.push({ label: "Manage jobs and retained outputs", run: () => guideJobs(project, io, command) });
+    actions.push({ label: "Build and evaluate a CPU ML model", run: () => guideMl(project, io, command) });
     const choice = await choose(io, "Next action", actions.map(a => a.label));
     if (choice < 0) { io.write(`Saved work stays with ${project}. Return with harness guide ${JSON.stringify(project)}.`); return; }
     try { await actions[choice]!.run(); }

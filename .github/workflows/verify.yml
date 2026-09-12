@@ -33,6 +33,7 @@ jobs:
       - run: npm run verify:adapters
       - run: npm run verify:python
       - run: npm run verify:jobs
+      - run: npm run verify:ml
       - run: npm run verify:hardening
       - run: npm run verify:gates
       - run: npm run verify:candidates

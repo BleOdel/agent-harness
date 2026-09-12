@@ -1,6 +1,6 @@
 # Harness architecture
 
-Current implementation includes E0 hardening, E1 adapter/runner contracts, E2 Python support, E3 artifacts/jobs and the initial U0 guide on top of team M0–M6 and durable planning.
+Current implementation includes E0 hardening, E1 adapter/runner contracts, E2 Python support, E3 artifacts/jobs, E4 CPU regression and the initial U0 guide on top of team M0–M6 and durable planning.
 Use the [README](README.md) for commands and [threat model](THREAT_MODEL.md) for
 security assumptions. These diagrams describe implemented behavior; milestone
 reports preserve their original observations.
@@ -325,6 +325,9 @@ Implementation: [application journal](src/team/apply.ts),
 | Location beside the project | Meaning |
 |---|---|
 | `<project>-harness.writer-lock` | Canonical cooperating-writer ownership |
+| `<project>-harness/ml/<id>/approved.json` | Frozen schema, split hashes/IDs, recipe, preprocessing, thresholds and job budget |
+| `<project>-harness/ml/<id>/train.json`, `holdout.json` | Host-only approved data; never mounted together into workers |
+| `<project>-harness/ml/<id>/state.json`, `evaluation-<hash>.json` | Saved job/model references and host evaluation results |
 | `<project>-harness/jobs/<job>/state.json` | Accepted command, identities, bounded events and latest checkpoint reference |
 | `<project>-harness/artifacts/manifests/` | Immutable output provenance and references |
 | `<project>-harness/artifacts/blobs/` | SHA256 bytes; only unreferenced blobs can be collected |
@@ -406,3 +409,37 @@ keeps tmpfs alive for at most 60 seconds for transfer. The host normally cleans 
 sooner. SIGKILL recovery checks saved ownership labels and environment before
 removing resources; a compatible checkpoint is required for another attempt.
 See [JOBS.md](JOBS.md) for protocol, quotas, retention and operator commands.
+
+## CPU regression and protected evaluation (E4)
+
+```mermaid
+flowchart TD
+  O["Operator selects external CSV and approves thresholds / training settings"] --> H["Host freezes schema, recipe, seeded split and train-only preprocessing"]
+  H --> T["Train rows injected AFTER fresh Python dependency preparation"]
+  H --> Y["Protected holdout labels remain in host state"]
+  T --> J["E3 offline job: fixed Python -I -S trainer; checkpoint each epoch"]
+  J --> C["Host validates checkpoint feature order, preprocessing, parameters and epoch"]
+  C --> R["Cancellation / ended-owner recovery; unchanged identities required for resume"]
+  R --> T
+  J --> M["Inert model JSON retained as unverified artifact"]
+  M --> F["Fresh offline Python predictor: model and holdout X only"]
+  H -->|Holdout X only| F
+  F --> P["Host independently checks numeric predictions"]
+  Y --> P
+  P --> Q["Compare RMSE ceiling and training-mean baseline; one model hash per approval"]
+  Q --> E["Saved report; passing model gets a separate evaluation-passed manifest"]
+  E --> X["Checked local export; no overwrite, signing or publication"]
+```
+
+The fixed trainer bypasses project imports and Python dependency startup hooks.
+No protected labels or ML state directory are mounted during training, dependency
+preparation or inference. Recipe source hashes and approval hashes bind jobs;
+changed data or settings cannot silently reuse a checkpoint. Evaluation metrics
+are host computations, independent of training/project reports. A transient
+inference infrastructure failure can retry only the same model. Quality failure
+consumes that model's evaluation and retains the failed result.
+
+The guide reads these same saved approvals and jobs; it adds no parallel lifecycle
+store. Retirement releases artifact references while retaining host-only data and
+audit records. See [ML.md](ML.md) for numerical tolerances, leakage limitations,
+retention, the supported CSV/JSON schemas and the exact runnable example.

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "title": "Predict a synthetic numeric target",
+  "target": "target",
+  "seed": 42,
+  "epochs": 200,
+  "learningRate": 0.05,
+  "maxRmse": 0.01,
+  "minImprovement": 0.9,
+  "limits": { "timeoutSeconds": 60, "totalSeconds": 180, "maxAttempts": 3 }
+}

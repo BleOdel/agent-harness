@@ -13,6 +13,7 @@
  * accumulates unread.
  */
 
+import { listMl, readMlState } from "../ml/store.ts";
 import { listJobs } from "../jobs/state.ts";
 import { listArtifacts } from "../artifacts/store.ts";
 import { readTeams, formatTeams } from "../view/status.ts";
@@ -37,6 +38,7 @@ export function stateOfItem(feature: Feature, runs: readonly RunRecord[]): strin
 }
 
 export async function look(project: string): Promise<void> {
+  for (const ml of await listMl(project)) say(`ML ${ml.spec.title} · ${(await readMlState(project, ml.id)).status} · ${ml.id}`);
   const jobs = await listJobs(project);
   for (const job of jobs) say(`JOB ${job.spec.title} · ${job.status} · checkpoint ${job.completed ?? "none"} · cost unknown · ${job.id}`);
   const artifacts = await listArtifacts(project);

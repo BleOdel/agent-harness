@@ -1,3 +1,5 @@
+import { jobRecipe, validateJobCheckpoint } from '../ml/recipe.ts';
+import { readMlState } from '../ml/store.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -37,6 +39,7 @@ async function checkpoint(project:string,j:Job):Promise<void>{
  if(!j.spec.checkpoint)return;
  const bytes=await transfer(j,'.harness-output/checkpoint.json',true);if(!bytes)return;
  const point=validateCheckpoint(bytes,j.spec.checkpoint,j.identity!,j.completed??0);
+ await validateJobCheckpoint(project,j.spec,point);
  if(j.checkpoint&&point.completed===(j.completed??0))return;
  if(j.events.filter(e=>e.phase==='checkpoint').length>=100)required('Checkpoint retention limit reached (100 per job).');
  const artifact=await putArtifact(project,'checkpoint.json',bytes,{producer:j.id,input:j.source!.digest,environment:j.identity!,verification:'unverified'});
@@ -62,7 +65,7 @@ export async function recoverJob(project:string,id:string):Promise<Job>{return w
  j.status='interrupted';delete j.container;await saveJob(project,j,'interrupted','Owned resources removed. Resume uses only a previously validated checkpoint.');return j;
 });}
 export async function releaseJob(project:string,id:string):Promise<void>{return withWriter(project,'job release',async()=>{
- const j=await readJob(project,id);if(['preparing','running'].includes(j.status))required('Cannot release an active job; cancel or recover it first.');
+ const j=await readJob(project,id);if(j.spec.recipe&&(await readMlState(project,j.spec.recipe.approvalId)).status!=='released')required('Retire this ML workflow with harness ml release first.');if(['preparing','running'].includes(j.status))required('Cannot release an active job; cancel or recover it first.');
  if(await owned(j))required('Job resources still exist; recover them first.');
  j.status='released';delete j.checkpoint;j.artifacts=[];await saveJob(project,j,'released','Recovery outputs released. This job can no longer resume.');await releaseArtifacts(project,id,new Set());
  const root=await jobRoot(project,id);for(const name of ['source',...Array.from({length:8},(_,i)=>`environment-${i+1}`),...Array.from({length:8},(_,i)=>`input-${i+1}`)])await rm(path.join(root,name),{recursive:true,force:true});
@@ -74,21 +77,22 @@ export async function runJob(project:string,id:string,notify:(message:string)=>v
  if(['preparing','running'].includes(j.status))required('This job was interrupted or is active. Recover its writer and run harness job recover before resuming.');
  if(['succeeded','released'].includes(j.status))required(`Job is ${j.status}; create a new job to run again.`);
  if(j.attempts>=j.spec.limits.maxAttempts||j.reservedSeconds+j.spec.limits.timeoutSeconds>j.spec.limits.totalSeconds)required('Job dispatch budget exhausted. Saved artifacts remain available; create a new job with an explicit budget to run more.');
- const adapter=getAdapter((await readProfile(project)).adapter);
+ const adapter=getAdapter((await readProfile(project)).adapter),recipe=await jobRecipe(project,j.spec);
+ if(recipe&&adapter.reference.id!=='python-pip')required('ML training requires the approved Python project environment.');
  // A retry always starts from an accepted checkpoint. It never silently restarts a partial job.
  if(j.attempts>0&&(!j.checkpoint||!j.spec.checkpoint))required('No compatible checkpoint is saved. Create a new job to start from the beginning.');
  if(j.source){if(j.source.directory!==path.join(root,'source'))required('Saved source location changed.');await assertSnapshot(j.source);await assertLiveBaseline(project,j.source);}
  const profile=await readProfile(project),capabilities=await inspectCapabilities(profile,config),policy=config.installPolicy??DEFAULT_INSTALL_POLICY;
  if(j.identity&&(JSON.stringify(profile)!==JSON.stringify(j.profile)||JSON.stringify(capabilities)!==JSON.stringify(j.capabilities)||JSON.stringify(policy)!==JSON.stringify(j.installPolicy)||config.dockerExecutable!==j.docker))required('Job environment or settings changed. Restore the original settings before resume.');
  let resume:Buffer|undefined;
- if(j.checkpoint){resume=await artifactBytes(project,j.checkpoint);validateCheckpoint(resume,j.spec.checkpoint!,j.identity!,j.completed??0);}
+ if(j.checkpoint){resume=await artifactBytes(project,j.checkpoint);const point=validateCheckpoint(resume,j.spec.checkpoint!,j.identity!,j.completed??0);recipe?.validate(point);}
  if(!j.source){await rm(path.join(root,'source'),{recursive:true,force:true});j.source=await captureBaseline(project,path.join(root,'source'),adapter.source.generatedDirectories);}
  j.profile=profile;j.capabilities=capabilities;j.image=config.imageId;j.docker=config.dockerExecutable;j.installPolicy=policy;
  j.status='preparing';j.token=randomUUID();j.attempts++;j.reservedSeconds+=j.spec.limits.timeoutSeconds;
  await saveJob(project,j,'preparing',`Preparing attempt ${j.attempts}/${j.spec.limits.maxAttempts}. Execution reservation ${j.reservedSeconds}/${j.spec.limits.totalSeconds}s; compute cost unknown.`);
  notify(j.events.at(-1)!.message);
  let interrupted=false,started=0;const signal=()=>{interrupted=true;};process.on('SIGINT',signal);process.on('SIGTERM',signal);
- const layout:SandboxLayout={...executionLayout(config,path.join(root,`input-${j.attempts}`),`harness-job-${randomUUID()}`),purpose:'job',instrumentationDirectory:resources,...(adapter.executionEnvironment?{environment:adapter.executionEnvironment}:{})};
+ const layout:SandboxLayout={...executionLayout(config,path.join(root,`input-${j.attempts}`),`harness-job-${randomUUID()}`),purpose:'job',instrumentationDirectory:resources,...(recipe?{checksDirectory:recipe.directory}:{}),...(adapter.executionEnvironment?{environment:adapter.executionEnvironment}:{})};
  try{
   await rm(path.join(root,`environment-${j.attempts}`),{recursive:true,force:true});await rm(layout.workDirectory,{recursive:true,force:true});
   const environment=await adapter.prepare(j.source.directory,path.join(root,`environment-${j.attempts}`),{...layout,purpose:'verification'},config.gateTimeoutMs,config.installPolicy);
@@ -96,6 +100,7 @@ export async function runJob(project:string,id:string,notify:(message:string)=>v
   if(j.identity&&j.identity!==identity)required('Prepared dependency identity changed; checkpoint resume refused.');j.identity=identity;j.environment=environment.key;
   await adapter.install(j.source.directory,layout.workDirectory,environment,{...layout,purpose:'verification'},config.gateTimeoutMs);
   await assertSnapshot(j.source);await assertLiveBaseline(project,j.source);
+  await recipe?.prepare(layout.workDirectory);
   if(interrupted||await requestMatches(root,j)){j.status='cancelled';await saveJob(project,j,'cancelled','Stopped after the bounded preparation step.');return j;}
   if(resume){await mkdir(path.join(layout.workDirectory,'.harness-output'),{recursive:true});await writeFile(path.join(layout.workDirectory,'.harness-output/resume.json'),resume);}
   await writeFile(path.join(layout.workDirectory,'.harness-job-context.json'),JSON.stringify({command:j.spec.command,identity,total:j.spec.checkpoint?.total,resume:!!resume,timeoutSeconds:j.spec.limits.timeoutSeconds}));
