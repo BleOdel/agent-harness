@@ -112,6 +112,14 @@ export function parseReview(text: string): Review {
     };
   }
   const record = raw as Record<string, unknown>;
+  for (const field of ["unmet", "unaccounted", "notes"]) {
+    const value = record?.[field];
+    if (field === "notes" && value === undefined) continue;
+    if (!Array.isArray(value) || value.some(entry => typeof entry !== "string" || !entry.trim())) {
+      return { verdict: "escalate", unmet: [], unaccounted: [], notes: [], failure: `the reviewer's ${field} must be an array of nonempty strings` };
+    }
+  }
+
   const list = (value: unknown): string[] =>
     Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
 

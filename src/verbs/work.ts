@@ -1,3 +1,4 @@
+import { requireChecks, verifyAcceptance, assertAcceptanceProof, AcceptanceFailure } from "../acceptance/checks.ts";
 /**
  *   harness work <goal>
  *
@@ -161,6 +162,8 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
   const work = await resolveWork(project, goal);
   if (work.feature !== undefined) say(`item: ${work.title}`);
 
+  const acceptanceTasks = [work.feature?.id ?? goal];
+  const approvedChecks = await requireChecks(project, acceptanceTasks);
   const workspace = await createRunWorkspace(project);
   const { sandbox, baseline } = workspace;
   let candidateDigest: string | undefined;
@@ -362,6 +365,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
         throw error;
       }
       candidateDigest = candidate.digest;
+      await mark("gating");
       const proof = await runPipeline({
         config,
         layout: { ...layout, workDirectory: candidate.directory },
@@ -378,7 +382,6 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       await mkdir(manifests, { recursive: true });
       await writeFile(path.join(manifests, `attempt-${attempt}.json`), JSON.stringify({ baselineDigest: baseline.digest, candidateDigest: candidate.digest, files: candidate.files, changes, environmentKey, sharedInputsChanged: candidate.sharedInputsChanged }, null, 2) + "\n");
       gateSummaries = run.verdicts.map((entry) => entry.summary);
-      await mark("gating");
       for (const verdict of run.verdicts) say(verdict.summary);
       for (const name of run.skipped) say(`${name}: not applicable to this project`);
 
@@ -503,6 +506,18 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       try { await assertLiveBaseline(project, baseline); } catch (error) {
         throw await stop("error", (error as Error).message, "Nothing was applied.");
       }
+      await mark("gating");
+      let acceptance;
+      try {
+        acceptance = await verifyAcceptance(project, candidate, acceptanceTasks, config, approvedChecks);
+        for (const summary of acceptance.summaries) say(summary);
+        await assertLiveBaseline(project, baseline);
+        await assertAcceptanceProof(project, candidate, acceptanceTasks, acceptance);
+      } catch (error) {
+        throw await stop("gate-failed", (error as Error).message,
+          error instanceof OperatorError ? error.remedy : "Nothing applied. Inspect the failure and retry.",
+          error instanceof AcceptanceFailure ? { acceptance: error.proof } : {});
+      }
       await mark("applying");
       const recovery = await snapshotForRecovery(
         project,
@@ -521,7 +536,8 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
         baselineDigest: baseline.digest,
         candidateDigest: candidate.digest,
         ...(environmentKey === undefined ? {} : { environmentKey }),
-        gates: run.verdicts.map((entry) => entry.summary),
+        acceptance,
+        gates: [...run.verdicts.map((entry) => entry.summary), ...acceptance.summaries],
         review: { verdict: verdict.verdict, findings: [...verdict.unmet, ...verdict.unaccounted] },
         changes,
         ...(spent.turns === 0 ? {} : {

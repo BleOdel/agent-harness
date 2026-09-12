@@ -8,6 +8,7 @@ import { ConfigError, loadConfig, setting, type Config } from "../config.ts";
 import { listSkills } from "../agent/skills.ts";
 import { resourceArguments } from "../agent/resources.ts";
 import { withWriter } from "../workspace/writer-lock.ts";
+import { confirmed, terminalDialogue } from "../guide/dialogue.ts";
 import { OperatorError, say } from "./io.ts";
 import { approvePlan, approvedText, atomicWrite, createPlan, finishItems, readArtifact, resolvePlan, savePlan, type SavedPlan } from "../planning/store.ts";
 
@@ -155,18 +156,26 @@ async function planUnlocked(project: string, argv: readonly string[]): Promise<v
     const saved = await createPlan(project, "Continue the supplied plan");
     await atomicWrite(path.join(saved.work, PLAN_FILE), text); await describe(saved); return;
   }
-  const existing = action === "resume" || action === "approve";
+  const existing = action === "resume" || action === "approve" || action === "review";
   if (existing && argv.length > 2) throw new OperatorError(`Use: harness plan ${action} [id]`);
   if (!existing && argv.some(a => a.startsWith("--"))) throw new OperatorError("Unknown plan option. Use plan [topic], resume, approve, status, or --from.");
   let saved = existing ? await resolvePlan(project, argv[1]) : undefined;
-  if (action !== "approve" && saved?.state.phase !== "items" && saved?.state.phase !== "ready" && !process.stdin.isTTY) {
+  if (action !== "approve" && action !== "review" && saved?.state.phase !== "items" && saved?.state.phase !== "ready" && !process.stdin.isTTY) {
     throw new OperatorError("plan needs a terminal for the interview.", "Run it directly in a shell. Saved plan approval and item generation also work without a terminal.");
   }
   let config: Config;
   try { config = loadConfig(); } catch (error) { if (error instanceof ConfigError) throw new OperatorError(error.message, error.remedy); throw error; }
   saved ??= await createPlan(project, argv.join(" ").trim());
   saved = await reconcile(saved, config);
-  if (action === "approve") saved = await approvePlan(saved);
+  if (action === "review") {
+    const text = await readArtifact(saved.work, PLAN_FILE);
+    if (!text?.trim()) throw new OperatorError("The draft has no plan yet. Continue the interview.");
+    const io = terminalDialogue(); io.write(text);
+    if (!await confirmed(io, "Approve this scope and generate its work items?")) return;
+    // The old container is stopped and the writer lease spans review and capture.
+    if (await readArtifact(saved.work, PLAN_FILE) !== text) throw new OperatorError("The draft changed during review. Review it again before approval.");
+  }
+  if (action === "approve" || action === "review") saved = await approvePlan(saved);
   await describe(await runPlanAttempt(saved, config));
 }
 

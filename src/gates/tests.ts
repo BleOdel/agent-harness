@@ -1,8 +1,9 @@
 /**
- * The gate that decides whether anything reaches the operator's
- * repository.
+ * Diagnostic project-test execution. Counts are project-controlled reports;
+ * host-evaluated acceptance checks independently decide application.
  *
- * Two questions, not one. "Did the suite pass" is the question everyone
+ * The count catches accidental empty suites; it cannot establish coverage.
+ * Two diagnostic questions, not one. "Did the suite pass" is the question everyone
  * asks; "did it verify anything" is the one that catches a suite the
  * model wrote to satisfy the gate. A test file containing no assertion
  * passes every runner in existence.
@@ -12,7 +13,8 @@
  */
 
 import path from "node:path";
-import { readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import { mkdtemp, realpath, readFile, rm, writeFile } from "node:fs/promises";
 import { buildVerificationArguments, CONTAINER_WORK, type SandboxLayout } from "../containment/sandbox.ts";
 import { runContained } from "../containment/process.ts";
 import { failed, type GateVerdict, passed } from "./gate.ts";
@@ -39,16 +41,17 @@ export function shimPath(): string {
   return path.join(import.meta.dirname, "assert-shim.mjs");
 }
 
-/** Written into the copy so the container can load it; removed before the diff. */
-export const COUNTER_IN_COPY = ".harness-assert-counter.mjs";
-export const SHIM_IN_COPY = ".harness-assert-shim.mjs";
+/** A diagnostic output in the disposable verifier copy; never acceptance authority. */
 export const COUNT_FILE = ".harness-assert-count";
 
 /** Sums the per-process counts. Absent or unreadable reads as zero. */
 async function assertionsExecuted(workDirectory: string): Promise<number> {
   try {
     const raw = await readFile(path.join(workDirectory, COUNT_FILE), "utf8");
-    return raw.split("\n").reduce((total, line) => total + (Number(line.trim()) || 0), 0);
+    const values = raw.split("\n").filter(line => line.trim()).map(Number);
+    if (values.some(n => !Number.isSafeInteger(n) || n < 0)) return 0;
+    const total = values.reduce((sum, n) => sum + n, 0);
+    return Number.isSafeInteger(total) ? total : 0;
   } catch {
     return 0;
   }
@@ -60,24 +63,18 @@ export async function runTestGate(
   command: readonly string[],
   timeoutMs: number,
 ): Promise<GateVerdict> {
-  // The counter's hook resolves the shim as a sibling, so the two names
-  // in the copy must keep the same relationship as the two on disk.
-  await writeFile(
-    path.join(layout.workDirectory, COUNTER_IN_COPY),
-    counterSource.replace("./assert-shim.mjs", `./${SHIM_IN_COPY}`),
-    "utf8",
-  );
-  await writeFile(path.join(layout.workDirectory, SHIM_IN_COPY), await readFile(shimPath(), "utf8"), "utf8");
-  await writeFile(path.join(layout.workDirectory, COUNT_FILE), "", "utf8");
-
-  const args = buildVerificationArguments(layout, "none", command);
-  args.splice(
-    args.indexOf(layout.imageId),
-    0,
-    `--env=NODE_OPTIONS=--import=${CONTAINER_WORK}/${COUNTER_IN_COPY}`,
-    `--env=HARNESS_ASSERT_COUNT_FILE=${CONTAINER_WORK}/${COUNT_FILE}`,
-  );
-  const result = await runContained(layout, args, { timeoutMs });
+  const instrumentation = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-instrumentation-")));
+  let result;
+  try {
+    await writeFile(path.join(instrumentation, "assert-counter.mjs"), counterSource, "utf8");
+    await writeFile(path.join(instrumentation, "assert-shim.mjs"), await readFile(shimPath(), "utf8"), "utf8");
+    await writeFile(path.join(layout.workDirectory, COUNT_FILE), "", "utf8");
+    const args = buildVerificationArguments({ ...layout, instrumentationDirectory: instrumentation }, "none", command);
+    args.splice(args.indexOf(layout.imageId), 0,
+      "--env=NODE_OPTIONS=--import=/harness-instrumentation/assert-counter.mjs",
+      `--env=HARNESS_ASSERT_COUNT_FILE=${CONTAINER_WORK}/${COUNT_FILE}`);
+    result = await runContained(layout, args, { timeoutMs });
+  } finally { await rm(instrumentation, { recursive: true, force: true }); }
   const executed = await assertionsExecuted(layout.workDirectory);
 
   if (result.timedOut) {
@@ -106,5 +103,5 @@ export async function runTestGate(
       + result.stdout,
     );
   }
-  return passed(`tests: passed, ${String(executed)} assertions executed`, result.stdout);
+  return passed(`tests: passed, ${String(executed)} assertions reported by project tests; approved acceptance checks still required`, result.stdout);
 }

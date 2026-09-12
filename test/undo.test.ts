@@ -88,7 +88,7 @@ test("undoing a run nothing has touched since restores it exactly", async () => 
     const run = await applyRun(directory, "r1", { "app.js": "const version = 2;\n" });
     const { outcomes, writes } = await planUndo(directory, run, recoveryPath(directory, "r1"));
     assert.deepEqual(outcomes.map((o) => o.action), ["restored"]);
-    assert.equal(writes.get("app.js"), "const version = 1;\n");
+    assert.equal(writes.get("app.js")?.toString("utf8"), "const version = 1;\n");
   } finally {
     await rm(path.dirname(directory), { recursive: true, force: true });
   }
@@ -104,7 +104,7 @@ test("undoing a run whose file a later run also changed keeps the later work", a
 
     const { outcomes, writes } = await planUndo(directory, r1, recoveryPath(directory, "r1"));
     assert.deepEqual(outcomes.map((o) => o.action), ["merged"]);
-    assert.equal(writes.get("app.js"), "header\nold\nfooter\nADDED BY R2\n");
+    assert.equal(writes.get("app.js")?.toString("utf8"), "header\nold\nfooter\nADDED BY R2\n");
   } finally {
     await rm(path.dirname(directory), { recursive: true, force: true });
   }
@@ -157,7 +157,7 @@ test("undoing a run that deleted a file puts it back", async () => {
     assert.equal(existsSync(path.join(directory, "gone.js")), false);
     const { outcomes, writes } = await planUndo(directory, run, recoveryPath(directory, "r1"));
     assert.deepEqual(outcomes.map((o) => o.action), ["restored"]);
-    assert.equal(writes.get("gone.js"), "export const gone = true;\n");
+    assert.equal(writes.get("gone.js")?.toString("utf8"), "export const gone = true;\n");
   } finally {
     await rm(path.dirname(directory), { recursive: true, force: true });
   }

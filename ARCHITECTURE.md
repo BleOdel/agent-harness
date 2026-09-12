@@ -1,6 +1,6 @@
-# Harness architecture after team M6
+# Harness architecture
 
-Current implementation: team M0–M6, published through
+Current implementation adds E0 hardening and the initial U0 guide to team M0–M6, published through
 [765d1f1](https://github.com/BleOdel/agent-harness/commit/765d1f1124267744a3cce1ddc65bb9ca03b1bda8).
 Use the [README](README.md) for commands and [threat model](THREAT_MODEL.md) for
 security assumptions. These diagrams describe implemented behavior; milestone
@@ -18,7 +18,8 @@ flowchart TD
   V -->|Failure: save diagnosis| G
   V -->|Ready| I["Operator reviews and imports items"]
   I --> F["features.json: tasks plus approved plan context"]
-  F --> B["Ordinary or team builders"]
+  F --> C["Operator approves task-scoped behaviour checks"]
+  C --> B["Ordinary or team builders"]
 ```
 
 The planner can write only its retained project copy and configured Pi data.
@@ -34,6 +35,16 @@ Implementation: [planning state](src/planning/store.ts), [commands](src/verbs/pl
 [import](src/verbs/add.ts). `verify:planning` exercises deterministic Docker recovery
 and the installed Pi session manager without provider calls.
 
+## Guided entry and readiness
+
+`guide` confirms the selected project and derives actions from existing plan,
+feature, writer and application state. It has no separate workflow database or
+project index. Each prompt releases stdin before a child planning terminal starts.
+Readiness is available independently through `doctor [--json]`; it makes no model
+calls and distinguishes an authentication file from verified provider access.
+The first guide covers planning, item import, check setup, ordinary work and
+writer/pending-application recovery. Advanced team work remains explicit.
+
 ## Execution and acceptance
 
 Ordinary `work` verifies and applies one item. `team run` stages a batch with one
@@ -45,7 +56,8 @@ component tests alone advance team prerequisites.
 ```mermaid
 flowchart TD
   T["Accepted features, role profile and contracts"] --> H["Host controller and project writer lock"]
-  H --> S["Accepted immutable staging baseline"]
+  H --> P["Require approved check coverage before dispatch"]
+  P --> S["Accepted immutable staging baseline"]
   S --> A["Builder A: private container and session"]
   S --> B["Builder B: private container and session"]
   A --> C["Stop worker, capture and validate frozen candidate"]
@@ -64,7 +76,8 @@ flowchart TD
   Q -->|No| X["Stop or block; retain accepted staging"]
   I --> E{"All requested tasks integrated?"}
   E -->|Yes| Z["Staged; live project unchanged"]
-  Z -->|Operator runs team apply| J["Journaled batch application"]
+  Z -->|Operator runs team apply| AC["Fresh offline cases; host compares output and file bytes"]
+  AC --> J["Recheck source and approval; journaled batch application"]
 ```
 
 Failure at candidate intake, gates or review also refuses acceptance and follows
@@ -75,12 +88,39 @@ original role's skills rather than automatically switching to a diagnosis role.
 
 Each proposed integration passes its combined checks before it becomes staging.
 There is no separate model-driven final approval phase: `team apply` validates
-the retained source, requirements and trusted-check identities before writing.
+the retained source, requirements and trusted-check identities and runs the
+operator-approved behaviour cases on final staging before writing.
 An ordinary run follows the same frozen-candidate boundary but applies its item
 without the team's serial merge, staging or batch journal.
 
 Implementation: [controller](src/team/controller.ts), [worker](src/team/worker.ts),
 [scheduler](src/team/scheduler.ts), [integration](src/team/integrate.ts).
+
+## Acceptance evidence boundary
+
+```mermaid
+flowchart LR
+  O["Operator reviews expected behaviour"] --> A["Host approval snapshot and digest"]
+  C["Frozen candidate"] --> V["Fresh case copy; offline, credential-free container"]
+  V --> X["Stop container; capture output and safe file bytes"]
+  A --> H["Host comparison"]
+  X --> H
+  H --> E["Retain outcome, candidate digest and approval digest"]
+  E -->|Passed and still current| W["Apply or publish application intent"]
+```
+
+Expected values and approval state are not mounted by this runner. Steps in a
+case share source/data; cases use fresh installations. Assertions reported by
+project tests remain diagnostics; a read-only shim and lexical counter make
+accidental corruption harder but cannot make a candidate's own report trusted.
+Host comparison verifies declared behaviour only, not universal correctness or
+resistance to a program tailored to those examples. Approval archives and result
+files live under `<project>-harness/acceptance/`, outside writable agent state.
+Application validates proof against the current candidate and approved checks;
+failed runs retain evidence even though disposable work is removed.
+
+Implementation: [checks and evidence](src/acceptance/checks.ts),
+[setup prompts](src/verbs/checks.ts), [readiness](src/guide/readiness.ts).
 
 ## Isolation and skills
 
@@ -199,7 +239,9 @@ only reconciles workers and retained staging.
 This is a recoverable sequence of file replacements, not one atomic multi-file
 filesystem operation. Cooperating harness writers are excluded; external editors
 can still race a final check. Team undo preserves unrelated edits, refuses edits
-to batch files and has no redo. Ordinary undo retains its three-way semantics.
+to batch files and has no redo. Ordinary undo restores raw bytes, merges only supported UTF-8 text and refuses
+divergent binary content. Existing hard links and symlink ancestors are refused
+in ordinary apply and undo before source writes.
 
 Implementation: [application journal](src/team/apply.ts),
 [writer lock](src/workspace/writer-lock.ts), [state reducer](src/team/state.ts).

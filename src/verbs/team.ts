@@ -1,3 +1,4 @@
+import { requireChecks, verifyAcceptance, type AcceptanceResult } from "../acceptance/checks.ts";
 import path from "node:path";
 import { readFile, readdir } from "node:fs/promises";
 import { ConfigError, loadConfig, setting } from "../config.ts";
@@ -43,7 +44,16 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
       if (!identifier(argv[1]) || (argv.length !== 2 && !(argv[0] === "recover" && argv.length === 3 && argv[2] === "--rollback"))) throw new OperatorError(USAGE);
       const directory = path.join(harnessDirectory(canonical), "teams", argv[1]);
       if (argv[0] === "apply" || argv[0] === "undo") {
-        const state = await (argv[0] === "apply" ? applyTeam : undoTeam)(canonical, directory);
+        let acceptance: AcceptanceResult | undefined;
+        if (argv[0] === "apply") {
+          const staged = await readState(directory, false);
+          if (staged.status !== "applied") {
+            const approved = await requireChecks(canonical, staged.integrated);
+            acceptance = await verifyAcceptance(canonical, staged.baseline, staged.integrated, loadConfig(), approved);
+            for (const summary of acceptance.summaries) say(summary);
+          }
+        }
+        const state = await (argv[0] === "apply" ? applyTeam : undoTeam)(canonical, directory, acceptance ? { acceptance } : {});
         say(`${state.runId}: ${state.status}. Record: ${state.application?.recordId ?? state.appliedRecordId ?? "none"}.`); return;
       }
       const pending = await readFile(applicationPath(canonical)).catch((e: NodeJS.ErrnoException) => { if (e.code === "ENOENT") return undefined; throw e; });
@@ -67,6 +77,8 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
       config = { ...config, ...await resolveTeamModel(config) };
       const existing = await readState(directory, false);
       if (["applied", "undone"].includes(existing.status)) { say(`${existing.runId}: ${existing.status}. No new dispatch.`); return; }
+      const pendingTasks = existing.plan.tasks.filter(t => !existing.integrated.includes(t.id) && t.status !== "done" && t.priority !== "wont").map(t => t.id);
+      if (pendingTasks.length) await requireChecks(canonical, pendingTasks);
       await assertRpcVersion(config.piPackageDirectory);
       const control = await TeamControl.start(directory);
       let state;
@@ -98,6 +110,9 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
       if (role.model === undefined && config.model !== undefined) role.model = config.model;
     }
     await assertRpcVersion(config.piPackageDirectory);
+    const pendingTasks = plan.tasks.filter(t => t.status !== "done" && t.priority !== "wont").map(t => t.id);
+    if (!pendingTasks.length) { say("Nothing left to work on. No team dispatch."); return; }
+    await requireChecks(canonical, pendingTasks);
     const directory = await createTeam(canonical, plan, path.dirname(profile), policy, testCommand);
     say(`team: ${path.basename(directory)}\nstate: ${directory}\nconcurrency: ${policy.maxWorkers ?? 1}; results stay in staging`);
     const control = await TeamControl.start(directory);

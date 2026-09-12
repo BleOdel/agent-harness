@@ -210,3 +210,36 @@ artifacts. The planner's writable Pi directory may not overlap the live project
 or its saved planning state. Imported plan context cannot authorize unrelated
 work or bypass the normal gates. This does not make an approved plan correct:
 the operator still reviews scope and proposed tasks.
+
+
+## Approved behaviour and diagnostic test reports (E0)
+
+Project tests and assertion-count files are untrusted reports. The assertion shim
+is mounted read-only outside candidate source and uses a lexical counter; neither
+property makes an in-process test oracle independent of the candidate. Positive
+counts alone cannot authorize a new application.
+
+The operator approves task-scoped expected output or file content. Credential-free,
+offline cases execute fresh candidate copies. Once each container is stopped, the
+host compares its exit/output and bounded, regular, singly linked file bytes to
+host-retained expectations. Missing coverage, mismatches, malformed reviews and
+changed approval/candidate identities refuse application. Approval specifications
+are archived by digest and outcomes remain beside the project with run references.
+The builder cannot rewrite these files through its configured writable data mount:
+canonical overlap with live source, sidecar state or their ancestors is refused.
+
+This establishes only the declared observable examples. It does not prove all
+requirements, code coverage or general correctness. A malicious candidate can
+recognize public inputs or produce expected output without implementing the
+intended general behaviour. Checks whose only expectation is a test runner's
+“passed” message are poor acceptance specifications. Read-only team contract
+scripts remain useful additional checks but are not themselves independent
+host-side result interpretation.
+
+Ordinary application/undo preflight existing symlinks, hard links and unsafe
+parents; binary recovery uses raw bytes. These checks do not eliminate concurrent
+external-editor races, and ordinary multi-file writes remain outside the team
+transaction journal. The host controller, approval filesystem, operator account
+and container runtime remain trusted. Existing application intent recovery keeps
+its previously captured transaction semantics; it does not certify historic runs
+under this new policy.

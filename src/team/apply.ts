@@ -1,4 +1,5 @@
 /** Host-only batch application. Intent precedes writes; fingerprints decide recovery. */
+import { assertAcceptanceProof, type AcceptanceProof } from "../acceptance/checks.ts";
 import { abortRequested } from "./control.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, open, readFile, rm, unlink } from "node:fs/promises";
@@ -13,7 +14,7 @@ import { readChecks } from "./checks.ts";
 import { digest, safeRelative, type TeamState } from "./schema.ts";
 import { appendEvent, atomicJson, readState } from "./state.ts";
 
-export interface ApplicationOptions { rollback?: boolean; checkpoint?: (point: string) => void | Promise<void>; }
+export interface ApplicationOptions { acceptance?: AcceptanceProof; rollback?: boolean; checkpoint?: (point: string) => void | Promise<void>; }
 interface Intent {
   version: 1; id: string; project: string; teamDirectory: string; teamRunId: string; direction: "apply" | "undo";
   before: Snapshot; after: Snapshot; featuresBefore: string; featuresAfter: string;
@@ -88,7 +89,7 @@ async function begin(project: string, directory: string, state: TeamState, sourc
     modes[file] = stat ? stat.mode & 0o777 : (await lstat(path.join(after.directory, file))).mode & 0o777;
   }
   const history = await readRecord(project); if (history.malformed.length) throw new Error("Malformed record requires repair before application.");
-  const record: RunRecord = { id: await nextRunId(project), at: new Date().toISOString(), project, goal: direction === "apply" ? state.runId : `undo ${state.appliedRecordId}`, attempts: state.attempts.length, outcome: "applied", gates: direction === "apply" ? ["All staged candidates passed gates, review and combined verification."] : [], changes, teamRunId: state.runId, taskIds: [...state.integrated], transactionId: id, baselineDigest: before.digest, candidateDigest: after.digest, ...(direction === "undo" ? { reverses: state.appliedRecordId! } : {}) };
+  const record: RunRecord = { id: await nextRunId(project), at: new Date().toISOString(), project, goal: direction === "apply" ? state.runId : `undo ${state.appliedRecordId}`, attempts: state.attempts.length, outcome: "applied", gates: direction === "apply" ? ["All staged candidates passed gates, review, combined verification and approved acceptance checks."] : [], ...(direction === "apply" && options.acceptance ? { acceptance: options.acceptance } : {}), changes, teamRunId: state.runId, taskIds: [...state.integrated], transactionId: id, baselineDigest: before.digest, candidateDigest: after.digest, ...(direction === "undo" ? { reverses: state.appliedRecordId! } : {}) };
   const intent: Intent = { version: 1, id, project, teamDirectory: directory, teamRunId: state.runId, direction, before, after, featuresBefore: raw.toString(), featuresAfter: featuresAfter(raw.toString(), state, direction === "undo"), changes, modes, record };
   // The intent may outlive this process; flush its source bytes before publication.
   for (const snapshot of [before, after]) {
@@ -104,6 +105,7 @@ async function begin(project: string, directory: string, state: TeamState, sourc
   // Recheck after preparation and before publishing an intent that may write.
   await options.checkpoint?.("prepared-intent");
   await assertLiveBaseline(project, expected);
+  if (direction === "apply") await assertAcceptanceProof(project, state.baseline, state.integrated, options.acceptance);
   await atomicJson(applicationPath(project), { version: 1, id, teamRunId: state.runId, intentDigest: digest(intent) } satisfies Pending, true);
   return intent;
 }
@@ -187,6 +189,7 @@ export async function applyTeam(project: string, directory: string, options: App
     if (!state.original.controls) throw new Error("Application requires a captured feature-manifest fingerprint.");
     await assertLiveBaseline(project, state.original); await assertSnapshot(state.baseline);
     await readChecks(directory, state.verificationDigest);
+    await assertAcceptanceProof(project, state.baseline, state.integrated, options.acceptance);
     const intent = await begin(project, directory, state, state.baseline.directory, "apply", state.original, options);
     await options.checkpoint?.("intent");
     return finish(intent, options);

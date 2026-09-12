@@ -1,5 +1,5 @@
 /**
- * Counts assertions actually executed during a test run.
+ * Reports observed assertions for diagnostics. The report file is untrusted.
  *
  * Loaded through NODE_OPTIONS=--import, so it applies to every Node
  * process the test command spawns -- including through `npm test`, which
@@ -14,7 +14,7 @@
  *    and the test runner's own `t.assert.*`, since those reach the real
  *    module rather than an import binding.
  *
- * Both increment one counter on globalThis, so a call counted by one is
+ * Both increment one lexical counter, so a call counted by one is
  * never counted again by the other.
  */
 
@@ -23,7 +23,7 @@ import { registerHooks } from "node:module";
 import assert from "node:assert";
 import strict from "node:assert/strict";
 
-globalThis.__harnessAssertions ??= 0;
+let assertions = 0;
 
 const SHIM = new URL("./assert-shim.mjs", import.meta.url).href;
 const REDIRECTED = new Set(["node:assert", "assert", "node:assert/strict", "assert/strict"]);
@@ -42,7 +42,7 @@ registerHooks({
 const count = (fn) =>
   new Proxy(fn, {
     apply(target, self, args) {
-      globalThis.__harnessAssertions += 1;
+      assertions += 1;
       return Reflect.apply(target, self, args);
     },
   });
@@ -70,7 +70,7 @@ process.on("exit", () => {
   const target = process.env.HARNESS_ASSERT_COUNT_FILE;
   if (!target) return;
   try {
-    fs.appendFileSync(target, `${globalThis.__harnessAssertions}\n`);
+    fs.appendFileSync(target, `${assertions}\n`);
   } catch {
     // Nothing to do from inside an exit handler. A missing count reads as
     // zero, which fails the gate closed.

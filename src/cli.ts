@@ -16,6 +16,9 @@
 
 import path from "node:path";
 import { applyConfigFile } from "./config.ts";
+import { guide } from "./verbs/guide.ts";
+import { doctor } from "./verbs/doctor.ts";
+import { checks } from "./verbs/checks.ts";
 import { add } from "./verbs/add.ts";
 import { OperatorError, say } from "./verbs/io.ts";
 import { commit } from "./verbs/commit.ts";
@@ -35,14 +38,18 @@ import { work } from "./verbs/work.ts";
 const USAGE = [
   "harness — build software in a sandbox, prove it, then apply it.",
   "",
+  "  harness guide [path]        select a project and continue through guided steps",
+  "  harness doctor [--json]     readiness and the next remedy",
   "  harness init                  create a project the gates can work with",
   "  harness plan [<topic>]        a saved interview and draft plan",
   "  harness plan resume [<id>]    continue the saved interview or item generation",
+  "  harness plan review [<id>]    read the draft and approve it in one step",
   "  harness plan approve [<id>]   approve PLAN.md and generate work items",
   "  harness plan status [<id>]    show saved files and the next step",
   "  harness plan --from <path>    start from an existing PLAN.md",
   "  harness add <id> --title \"...\" --criterion \"...\" [--priority must]",
   "  harness add --from latest     import the items a plan proposed",
+  "  harness checks [setup | review | approve <file>]  review and approve application acceptance checks",
   "  harness work [<item-id or goal>]",
   "  harness team run             stage accepted assignments, up to two builders",
   "  harness team steer <attempt> \"message\"  send live builder guidance",
@@ -74,6 +81,13 @@ async function main(): Promise<void> {
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
 
   switch (verb) {
+    case "guide":
+      if (rest.length > 1) throw new OperatorError("Use: harness guide [project-path]");
+      return guide(rest[0] ?? project);
+    case "doctor":
+      return doctor(project, rest);
+    case "checks":
+      return checks(project, rest);
     case "team":
       return team(project, rest);
     case "recover-lock":

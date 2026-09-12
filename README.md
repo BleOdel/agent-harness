@@ -16,18 +16,20 @@ see the [documentation index](#documentation-index) for current guidance.
 
 ```
 npm run add  -- feed --title "RSS feed" --criterion "feed.xml is generated from site data"
+harness checks setup       # approve expected application behaviour for this item
 npm run work
 ```
 
 ```
 taking the next must: feed
-tests: passed, 139 assertions executed
+tests: passed, 139 assertions reported by project tests; approved acceptance checks still required
 test collection: all 12 test files are collected
 build: reproducible, committed artefacts match their sources
 size: 10 files, 430 lines, within ceilings
 claim: all 5 criteria point at real files
 boundary: 10 files, all inside the project
 review: passed, 5 criteria accounted for
+acceptance: feed passed against operator-approved expectations
   added    feed.xml
   added    src/render-feed.js
   ...
@@ -36,9 +38,13 @@ applied as r5. undo with: npm run undo -- r5
 
 ## The guarantee
 
-> **The model works only on a copy. Nothing reaches your repository until
-> the machine has proved it, and nothing that reaches it is irreversible
-> or unrecorded.**
+> **The model works on a disposable copy. New application requires project
+> gates, a valid independent review, and operator-approved behaviour checked
+> by the host. Recovery snapshots preserve applied source bytes.**
+
+These are bounded checks, not a proof of complete correctness. Ordinary undo
+can refuse conflicting edits, and ordinary multi-file application is not a
+crash-atomic transaction. Team batch application has a recovery journal.
 
 This is deliberately *not* "the model cannot act". The predecessor to this
 project put a human approval in front of every byte the model wrote. It
@@ -65,10 +71,12 @@ flowchart TD
   W -->|Stop and capture| C["Frozen candidates"]
   C --> G["Fresh offline gates and separate read-only review"]
   G --> O{"Execution mode"}
-  O -->|Ordinary work| A["Recheck and apply one item"]
+  O -->|Ordinary work| V["Host evaluates approved behaviour in a fresh offline copy"]
+  V --> A["Recheck approval and candidate; apply one item"]
   O -->|Team run| I["Serial merge and combined project / contract checks"]
   I --> S["Accepted staging; live project unchanged"]
-  S -->|Explicit team apply| J["Recheck and journal batch application"]
+  S -->|Explicit team apply| Q["Host evaluates approved behaviour on final staging"]
+  Q --> J["Recheck and journal batch application"]
   A --> P
   J --> P
 ```
@@ -76,6 +84,8 @@ flowchart TD
 - **The live project is never mounted.** Containers receive disposable copies.
 - **Executable gates are offline and credential-free.** Package downloads and
   model calls use separate containers with bridge networking.
+- **Acceptance expectations are approved by the operator.** Host-side comparison
+  of application output and file content is separate from project test reports.
 - **Review uses a separate process and read-only source.** It has no builder
   context or skills; model errors can still be correlated.
 - **Team acceptance and application are separate.** Every integration is checked;
@@ -241,9 +251,15 @@ Run them inside your project.
 
 | | |
 |---|---|
+| `harness guide [path]` | select a project and follow saved planning, checks, work and recovery |
+| `harness doctor [--json]` | read-only readiness with a relevant remedy; exit 1 when blocked |
+| `harness checks setup` | define and approve observable behaviour through short prompts |
+| `harness checks review` | review and approve a saved check draft |
+| `harness checks approve <file>` | explicitly approve a JSON acceptance specification |
 | `harness init` | create a project the gates can work with |
 | `harness plan [<topic>]` | start a saved interview and draft plan |
 | `harness plan resume [<id>]` | resume the saved interview or item generation |
+| `harness plan review [id]` | read a stopped draft and approve it interactively |
 | `harness plan approve [<id>]` | approve the draft and generate work items |
 | `harness plan status [<id>]` | show saved files, phase and next action |
 | `harness plan --from <path>` | start from an existing plan document |
@@ -275,6 +291,26 @@ project is the directory you are in, or `HARNESS_PROJECT` if you set it.
 
 ## Start to finish
 
+For guided use, run `harness guide ~/Developer/my-project`. Confirm the project
+path, create or select a Node project, continue its interview, review the draft
+and generated tasks, set up acceptance checks, then build the next item. The
+guide reads the saved documents; you do not copy the specification between steps.
+It shows the selected project before mutation, including when `HARNESS_PROJECT`
+differs from the shell directory. It uses numbered, keyboard-only prompts.
+
+`harness doctor` checks runtime, configuration, Docker, the pinned image, project
+setup, locks and check coverage without starting a model. A stored authentication
+file is reported as **unknown validity**: expiry is discovered on provider use.
+Fix authentication through Pi on the host and resume the saved plan or retry the
+item. `doctor --json` is versioned and noninteractive. The guide requires a TTY;
+existing explicit commands continue to work in scripts.
+
+The initial guide covers one-item builds, saved planning and dead-writer/pending
+application recovery. Advanced team dispatch, backlog editing and platform
+selection still use explicit commands and remain part of U0/E1 follow-up.
+
+The equivalent explicit workflow is:
+
 ```bash
 mkdir ~/Developer/site && cd ~/Developer/site
 export HARNESS_PROJECT="$PWD"
@@ -286,8 +322,67 @@ harness plan status
 harness plan approve
 # Read the generated items before accepting them.
 harness add --from latest
+harness checks setup
 harness work
 ```
+
+### Required acceptance checks
+
+`harness checks setup` asks for a task, an application command, its expected exit
+code and expected output or file content. Enter `\n` for a newline. It displays
+the concrete checks before approval, preserves existing approved cases, and
+saves a declined draft for `harness checks review`. Checks run in an offline
+container, never directly on your computer. A case can have multiple steps that
+share files, such as save in one process and load in another. Each case starts
+from a fresh candidate copy with clean dependencies.
+
+For automation, review a document like this and run `harness checks approve /path/to/checks.json`:
+
+```json
+{
+  "version": 1,
+  "cases": [{
+    "id": "greet-reader",
+    "tasks": ["greeting"],
+    "steps": [{
+      "command": ["node", "src/cli.js", "Ada"],
+      "exitCode": 0,
+      "stdout": "Hello, Ada!\n"
+    }]
+  }]
+}
+```
+
+Use task IDs, or `"*"` only for a check that is appropriate to every covered task.
+Each pending task needs at least one applicable approved case before ordinary
+work or team dispatch/resume. `stdout` matches exactly; `stdoutIncludes` requires
+nonempty text. `files` can contain `{ "path": "result.json", "text": "..." }` or
+a lowercase SHA-256 digest in `sha256`. Exit code alone is insufficient. Check
+actual application behaviour rather than a script printing “tests passed”.
+
+The host retains approvals and expected values outside verification mounts. It
+compares actual output and safe file bytes **after the container stops**. A
+candidate-written assertion counter cannot satisfy this policy. Assertion counts
+are diagnostic reports; their shim is read-only and their counter is lexical,
+but executing project code can still fabricate its own report or output. Approved
+cases cover only the declared examples, not every input or acceptance criterion.
+They do not establish correctness of a malicious program that recognizes them.
+Files you independently keep in the project are visible to its builder.
+
+`work` applies only after these checks pass; `team apply` checks final combined
+staging. Failure records a reason and retains results under
+`<project>-harness/acceptance/results/`. Run records link candidate and approval
+digests to those results. Approved specifications are archived by digest under
+`acceptance/approvals/`; the current approval is `acceptance/approved.json`.
+Changed approvals or source require new verification. Output is limited to 2 MiB
+per step and expected files to 8 MiB. Each step uses `HARNESS_GATE_TIMEOUT`.
+
+**Migration:** existing projects must approve checks before starting new work or
+applying staged teams; old project test results are insufficient. Historical
+records remain readable and are not retroactively labelled as acceptance-checked.
+Undo reverses recorded bytes and does not rerun checks. Recovery of an already
+published application intent finishes or rolls back that same transaction; it
+does not reinterpret old evidence as a new build.
 
 ### Saved planning and document handoff
 
@@ -408,7 +503,7 @@ journal for explicit team batch application and batch undo.
 
 ## How a run works
 
-1. **Select and freeze.** Prerequisites are checked first. The harness
+1. **Select and freeze.** Prerequisites and approved acceptance coverage are checked before model dispatch. The harness
    captures source and requirements identities in a host-owned baseline,
    then creates a disposable worker copy from that baseline. The
    project itself is never mounted. Withheld from the copy, and announced
@@ -423,12 +518,11 @@ journal for explicit team batch application and batch undo.
    captured. Paths, symlinks, scope and shared-input permissions are checked
    before creating a frozen candidate outside the worker directory. Each
    executable gate receives a fresh disposable verification workspace,
-   with clean dependencies and no network or provider credentials. The first answers two
-   questions, and the second is the one people forget to ask:
+   with clean dependencies and no network or provider credentials. They check:
 
    - the test suite passes;
-   - **assertions actually ran** — a suite that asserts nothing has not
-     passed in any sense you care about;
+   - project tests report observed assertions; zero or malformed counts refuse
+     the diagnostic gate, but a positive report is not trusted acceptance evidence;
    - every test file is one the runner actually collects;
    - the project typechecks, where it declares a typecheck;
    - the build is reproducible, so committed artefacts match their sources;
@@ -443,7 +537,8 @@ journal for explicit team batch application and batch undo.
    builder, judges the diff against the item's acceptance criteria. It
    answers two questions: is each criterion actually satisfied, and is
    anything here unaccounted for? It passes silently or escalates to you.
-5. **Apply.** Recheck the live baseline and candidate identity, then apply
+5. **Accept and apply.** Run the approved behaviour checks and compare results on
+   the host after cleanup. Recheck their approval, the live baseline and candidate identity, then apply
    only frozen candidate files. Test-generated files never become source.
    Recovery snapshots and append-only records carry the resulting change.
    Host-owned attempt manifests live under `<project>-harness/candidates/`.
@@ -632,6 +727,11 @@ it left behind, so undoing is a three-way merge rather than a restore:
 later work is kept, and where the undo and later work rewrote the same
 lines, nothing is written and the conflict is named.
 
+Exact restores and recovery snapshots preserve binary bytes. Divergent binary
+content is a conflict; only valid UTF-8 text without NUL is eligible for merging.
+Application and undo refuse symlink parents and multiply linked destination files
+before changing any source, protecting unrelated files reached through aliases.
+
 An ordinary undo is itself a run, with its own snapshot, so it can be undone
 in turn. Team batch undo has stricter conflict checks and no redo; see
 [batch application, recovery and undo](#batch-application-recovery-and-undo).
@@ -642,11 +742,15 @@ in turn. Team batch undo has stricter conflict checks and no redo; see
 npm run check             # typecheck and unit suite; local HTTP tests need loopback access
 npm run verify:skills     # real Pi loader, no Docker or model calls
 npm run verify:boundary   # the container, against a real daemon
+npm run verify:hardening  # approved checks, binary undo, guide PTY and planning cleanup
 npm run verify:gates      # each gate broken in turn, confirmed to stop the apply
 npm run verify:candidates # worker-dependency tampering, fresh verifiers and offline installs
 npm run verify:team       # configured Docker: isolation, repair, RPC, steering and abort
 npm run verify:reviewer   # the four real defects, plus the control; live model calls
 ```
+
+`verify:hardening` additionally needs Python 3 and a POSIX terminal for PTY tests.
+It uses deterministic agent fixtures, not model-provider calls.
 
 Boundary, gate and candidate verification need Docker and a configured
 image. Candidate verification downloads one pinned public fixture package.
@@ -813,6 +917,7 @@ not proof of compliance.
 Run `npm run verify:team` in a configured Docker environment for isolation,
 crash recovery, bounded repair, CLI application/undo, pinned gates, live steering,
 abort, installed Pi RPC compatibility and incompatible-component integration checks. It uses deterministic worker processes and no model credentials.
+`npm run verify:hardening` covers the E0 and initial U0 regressions.
 `npm run verify:skills` also checks the adapted role bundles against pinned Pi.
 
 
@@ -910,7 +1015,8 @@ session with an empty queue. Ordinary gates and independent review still follow.
 
 `team apply` rechecks the original live source and feature-manifest fingerprints
 under the project writer lock, and checks the verified staging and trusted-check
-identities. Live drift refuses application and preserves staging; start a new
+identities, then evaluates operator-approved acceptance checks on final staging.
+The application journal retains their evidence identity. Live drift refuses application and preserves staging; start a new
 run from the changed project for revalidation.
 
 The host stores an immutable intent, before/after source snapshots, feature

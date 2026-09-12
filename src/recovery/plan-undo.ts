@@ -9,17 +9,15 @@
  * not live in a file that does something when you load it.
  */
 
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import type { RunRecord } from "../record/record.ts";
 import { threeWayMerge } from "./merge.ts";
+import { readSafe } from "../workspace/safe-path.ts";
+import path from "node:path";
 
-const read = async (file: string): Promise<string | undefined> => {
-  try {
-    return await readFile(file, "utf8");
-  } catch {
-    return undefined;
-  }
+const equal = (a: Buffer | undefined, b: Buffer | undefined): boolean => a === undefined ? b === undefined : b !== undefined && a.equals(b);
+const text = (bytes: Buffer): string | undefined => {
+  if (bytes.includes(0)) return undefined;
+  try { return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes); } catch { return undefined; }
 };
 
 export interface FileOutcome {
@@ -37,20 +35,19 @@ export async function planUndo(
   project: string,
   run: RunRecord,
   snapshot: string,
-): Promise<{ outcomes: FileOutcome[]; writes: Map<string, string | undefined> }> {
+): Promise<{ outcomes: FileOutcome[]; writes: Map<string, Buffer | undefined> }> {
   const outcomes: FileOutcome[] = [];
-  const writes = new Map<string, string | undefined>();
+  const writes = new Map<string, Buffer | undefined>();
 
   for (const change of run.changes) {
-    const live = path.join(project, change.file);
-    const current = await read(live);
-    const before = await read(path.join(snapshot, "before", change.file));
-    const after = await read(path.join(snapshot, "after", change.file));
+    const current = await readSafe(project, change.file);
+    const before = await readSafe(path.join(snapshot, "before"), change.file);
+    const after = await readSafe(path.join(snapshot, "after"), change.file);
 
     if (change.kind === "added") {
       if (current === undefined) {
         outcomes.push({ file: change.file, action: "already-gone" });
-      } else if (current === after) {
+      } else if (equal(current, after)) {
         writes.set(change.file, undefined);
         outcomes.push({ file: change.file, action: "removed" });
       } else {
@@ -77,7 +74,7 @@ export async function planUndo(
       continue;
     }
     if (change.kind === "deleted" || after === undefined) {
-      if (current === before) {
+      if (equal(current, before)) {
         outcomes.push({ file: change.file, action: "already-gone", detail: "already back to its previous content" });
       } else {
         outcomes.push({
@@ -88,18 +85,23 @@ export async function planUndo(
       }
       continue;
     }
-    if (current === after) {
+    if (equal(current, after)) {
       writes.set(change.file, before);
       outcomes.push({ file: change.file, action: "restored" });
       continue;
     }
 
-    const merged = threeWayMerge(after.split("\n"), current.split("\n"), before.split("\n"));
+    const [afterText, currentText, beforeText] = [text(after), text(current), text(before)];
+    if (afterText === undefined || currentText === undefined || beforeText === undefined) {
+      outcomes.push({ file: change.file, action: "conflicted", detail: "binary content changed since this run; text merging is not safe" });
+      continue;
+    }
+    const merged = threeWayMerge(afterText.split("\n"), currentText.split("\n"), beforeText.split("\n"));
     if (!merged.ok) {
       outcomes.push({ file: change.file, action: "conflicted", detail: merged.conflicts.join("; ") });
       continue;
     }
-    writes.set(change.file, merged.lines.join("\n"));
+    writes.set(change.file, Buffer.from(merged.lines.join("\n")));
     outcomes.push({ file: change.file, action: "merged", detail: `${String(merged.kept)} later edits kept` });
   }
 

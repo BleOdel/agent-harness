@@ -8,7 +8,7 @@
  * directory are all required, and each refusal says how to fix it.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 
 export interface Config {
@@ -168,6 +168,15 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
       + "It is mounted writable, so it must not be inside the project.",
     );
   }
+
+  const project = path.resolve(setting(environment, "HARNESS_PROJECT") ?? process.cwd());
+  const canonical = (value: string): string => existsSync(value) ? realpathSync(value) : path.join(canonical(path.dirname(value)), path.basename(value));
+  const live = canonical(project), writable = canonical(agentDirectory);
+  const inside = (parent: string, child: string): boolean => {
+    const relative = path.relative(parent, child);
+    return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+  };
+  if ([live, canonical(`${live}-harness`)].some(protectedPath => inside(protectedPath, writable) || inside(writable, protectedPath))) throw new ConfigError("Pi's writable data directory overlaps the live project or its harness state.", "Select a separate HARNESS_AGENT_DIR outside the project, its harness state and their ancestors.");
 
   const skills = setting(environment, "HARNESS_SKILLS");
   if (skills !== undefined && !existsSync(skills)) {

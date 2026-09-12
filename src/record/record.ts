@@ -61,6 +61,7 @@ export interface RunRecord {
   readonly baselineDigest?: string;
   readonly candidateDigest?: string;
   readonly environmentKey?: string;
+  readonly acceptance?: import("../acceptance/checks.ts").AcceptanceProof;
   /** Set on an undo run, naming the run it reversed. */
   readonly reverses?: string;
   readonly teamRunId?: string;

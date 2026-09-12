@@ -1,4 +1,5 @@
 import { writeRpcFixture } from "./rpc-fixture.ts";
+import { approveChecks } from "../src/acceptance/checks.ts";
 import assert from "node:assert/strict";
 import { spawn, execFile } from "node:child_process";
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
@@ -74,6 +75,9 @@ test("M3 real containers isolate attempts and reconcile controller death", { ski
       const execute = promisify(execFile);
       const configFile = path.join(f.root, "config"); await writeFile(configFile, "# fixture config\n");
       const env = { ...process.env, HARNESS_CONFIG: configFile, HARNESS_PROJECT: f.project, HARNESS_DOCKER: f.config.dockerExecutable, HARNESS_IMAGE_ID: f.config.imageId, HARNESS_AGENT_DIR: f.config.agentDirectory, HARNESS_PI_PACKAGE: f.config.piPackageDirectory, HARNESS_PROVIDER: "fixture", HARNESS_MODEL: "fixture", HARNESS_SKILLS: "" };
+      const checkFile = path.join(f.root, "acceptance.json");
+      await writeFile(checkFile, JSON.stringify({version:1,cases:[{id:"api",tasks:["api"],steps:[{command:["cat","api.txt"],exitCode:0,stdout:"accepted api"}]},{id:"ui",tasks:["ui"],steps:[{command:["cat","ui.txt"],exitCode:0,stdout:"accepted ui"}]}]}));
+      await approveChecks(f.project, checkFile);
       const cli = path.resolve(import.meta.dirname, "../src/cli.ts");
       await assert.rejects(execute(process.execPath, [cli, "team", "run", "--max-workers", "3"], { env }), (error: unknown) => /maxWorkers/u.test((error as { stderr: string }).stderr));
       const result = await execute(process.execPath, [cli, "team", "run", "--max-workers", "1", "--max-dispatches", "2"], { env });

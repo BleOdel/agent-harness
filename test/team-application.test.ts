@@ -8,7 +8,8 @@ import { parseTeamPlan } from "../src/team/schema.ts";
 import { copySource, captureCandidate } from "../src/workspace/candidate.ts";
 import { readState } from "../src/team/state.ts";
 import { readRecord } from "../src/record/record.ts";
-import { applyTeam, recoverApplication, undoTeam } from "../src/team/apply.ts";
+import { applyTeam } from "./acceptance-fixture.ts";
+import { recoverApplication, undoTeam } from "../src/team/apply.ts";
 import { withWriter } from "../src/workspace/writer-lock.ts";
 
 async function fixture(executables = false) {
@@ -117,7 +118,7 @@ test("an external edit during application preparation is refused before intent p
 test("real process SIGKILL at preparation, rename, metadata and record boundaries recovers once", async () => {
   const { execFile } = await import("node:child_process"), { promisify } = await import("node:util");
   const { recoverWriter, writerPath } = await import("../src/workspace/writer-lock.ts");
-  const exec = promisify(execFile), module = new URL("../src/team/apply.ts", import.meta.url).href;
+  const exec = promisify(execFile), module = new URL("./acceptance-fixture.ts", import.meta.url).href;
   for (const point of ["intent", "prepared:added.bin", "replaced:added.bin", "sources", "features", "record", "event"]) {
     const f = await fixture(); try {
       const program = `import {applyTeam} from ${JSON.stringify(module)};await applyTeam(${JSON.stringify(f.project)},${JSON.stringify(f.directory)},{checkpoint(point){if(point===${JSON.stringify(point)})process.kill(process.pid,'SIGKILL')}});`;
@@ -157,5 +158,16 @@ test("new executable files and deleted executable restoration retain permissions
     assert.equal((await stat(path.join(f.project, "removed.sh"))).mode & 0o777, 0o755);
     assert.equal(await readFile(path.join(f.project, "removed.sh"), "utf8"), "#!/bin/sh\necho before\n");
     await assert.rejects(readFile(path.join(f.project, "new.sh")), { code: "ENOENT" });
+  } finally { await f.close(); }
+});
+
+
+test("team application refuses staged work without approved acceptance evidence", async () => {
+  const f = await fixture();
+  try {
+    const { applyTeam: unchecked } = await import("../src/team/apply.ts");
+    await assert.rejects(unchecked(f.project, f.directory), /acceptance/i);
+    assert.equal(await readFile(path.join(f.project, "old.txt"), "utf8"), "before");
+    assert.equal((await readRecord(f.project)).runs.length, 0);
   } finally { await f.close(); }
 });

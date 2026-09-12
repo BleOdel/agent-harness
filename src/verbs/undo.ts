@@ -17,12 +17,13 @@
  * can be undone in turn.
  */
 
+import { safePath, readSafe } from "../workspace/safe-path.ts";
 import { undoTeam } from "../team/apply.ts";
 import { harnessDirectory } from "../record/record.ts";
 import { withWriter } from "../workspace/writer-lock.ts";
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   appendUndo,
@@ -120,15 +121,15 @@ async function undoUnlocked(project: string, argv: readonly string[]): Promise<v
   const undoSnapshot = recoveryPath(project, undoId);
   const undoChanges: Change[] = [];
   for (const [file, content] of writes) {
-    const live = path.join(project, file);
-    const previous = await readFile(live, "utf8").catch(() => undefined);
+    await safePath(project, file);
+    const previous = await readSafe(project, file);
     if (previous !== undefined) {
       await mkdir(path.dirname(path.join(undoSnapshot, "before", file)), { recursive: true });
-      await writeFile(path.join(undoSnapshot, "before", file), previous, "utf8");
+      await writeFile(path.join(undoSnapshot, "before", file), previous);
     }
     if (content !== undefined) {
       await mkdir(path.dirname(path.join(undoSnapshot, "after", file)), { recursive: true });
-      await writeFile(path.join(undoSnapshot, "after", file), content, "utf8");
+      await writeFile(path.join(undoSnapshot, "after", file), content);
     }
     undoChanges.push({
       file,
@@ -137,13 +138,14 @@ async function undoUnlocked(project: string, argv: readonly string[]): Promise<v
     });
   }
 
+  for (const file of writes.keys()) await safePath(project, file);
   for (const [file, content] of writes) {
-    const live = path.join(project, file);
+    const live = await safePath(project, file);
     if (content === undefined) {
       await rm(live, { force: true });
     } else {
       await mkdir(path.dirname(live), { recursive: true });
-      await writeFile(live, content, "utf8");
+      await writeFile(live, content);
     }
   }
   await appendUndo(project, undoId, run, undoChanges);

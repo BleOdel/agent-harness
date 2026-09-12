@@ -56,6 +56,7 @@ export async function look(project: string): Promise<void> {
     for (const run of stillOpen) {
       say(`  ${pad(run.id, 5)} ${clip(run.goal, 40)}`);
       say(`        ${run.reason ?? "(no reason recorded)"}`);
+      if (run.acceptance) say(`        Acceptance evidence: ${run.acceptance.evidencePath}`);
       if (run.requestedInput !== undefined) say(`        Needed: ${run.requestedInput}`);
       for (const finding of run.review?.findings ?? []) say(`        - ${clip(finding, 90)}`);
       say();

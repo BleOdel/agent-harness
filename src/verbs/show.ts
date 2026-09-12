@@ -42,6 +42,7 @@ export async function show(project: string, argv: readonly string[]): Promise<vo
     say(`  review: ${run.review.verdict}`);
     for (const finding of run.review.findings) say(`    - ${finding}`);
   }
+  if (run.acceptance) say(`  acceptance evidence: ${run.acceptance.evidencePath}`);
   if (run.reason !== undefined) say(`  ${run.reason}`);
   say();
 

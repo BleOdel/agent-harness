@@ -10,6 +10,7 @@
 import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { safePath } from "./safe-path.ts";
 import { captureBaseline, type Snapshot } from "./candidate.ts";
 import { type Change, EXCLUDED_FROM_COPY, NEVER_APPLIED } from "./changes.ts";
 
@@ -104,7 +105,11 @@ export async function applyChanges(
   changes: readonly Change[],
 ): Promise<void> {
   for (const change of changes) {
-    const destination = path.join(project, change.file);
+    await safePath(project, change.file);
+    if (change.kind !== "deleted") await safePath(copy, change.file);
+  }
+  for (const change of changes) {
+    const destination = await safePath(project, change.file);
     if (change.kind === "deleted") {
       await rm(destination, { force: true });
       continue;

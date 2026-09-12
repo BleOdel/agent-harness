@@ -35,6 +35,8 @@ export interface SandboxLayout {
   readonly skillsDirectory?: string;
   /** Trusted contract resources, mounted only in credential-free verification. */
   readonly checksDirectory?: string;
+  /** Harness assertion instrumentation, mounted read-only outside candidate source. */
+  readonly instrumentationDirectory?: string;
   /** Non-root uid:gid. */
   readonly user: string;
   readonly labels?: Readonly<Record<string, string>>;
@@ -81,6 +83,7 @@ export function mounts(layout: SandboxLayout): readonly {
 }[] {
   if (layout.purpose === "verification") return [
     { source: layout.workDirectory, destination: CONTAINER_WORK, writable: true },
+    ...(layout.instrumentationDirectory ? [{ source: layout.instrumentationDirectory, destination: "/harness-instrumentation", writable: false }] : []),
     ...(layout.checksDirectory ? [{ source: layout.checksDirectory, destination: "/harness-checks", writable: false }] : []),
   ];
   return [

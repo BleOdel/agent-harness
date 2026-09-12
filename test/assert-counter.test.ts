@@ -150,3 +150,9 @@ test("the counter file is where the gate looks for it", async () => {
   const source = await readFile(counterPath(), "utf8");
   assert.match(source, /HARNESS_ASSERT_COUNT_FILE/u);
 });
+
+
+test("a global counter assignment cannot fabricate the instrumentation report", async () => {
+  const { counted, code } = await countFor('globalThis.__harnessAssertions = 47;');
+  assert.equal(code, 0); assert.equal(counted, 0);
+});

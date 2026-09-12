@@ -26,8 +26,8 @@ export async function sourceFiles(root: string, prefix = ""): Promise<Record<str
     const relative = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
     const file = path.join(root, relative);
     const stat = await lstat(file);
-    if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) {
-      throw new BoundaryViolation(`${relative} is a symlink or special file; only regular source files are supported.`, relative);
+    if (stat.isSymbolicLink() || (stat.isFile() && stat.nlink !== 1) || (!stat.isDirectory() && !stat.isFile())) {
+      throw new BoundaryViolation(`${relative} is a symlink, hard link or special file; only regular source files are supported.`, relative);
     }
     if (stat.isDirectory()) Object.assign(found, await sourceFiles(root, relative));
     else found[relative] = hash(await readFile(file));

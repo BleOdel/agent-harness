@@ -7,9 +7,9 @@ need, write what you like, run what you want.
 ## What has to be true before anything lands
 
 - **The test command passes.** `npm test`.
-- **Assertions actually ran.** The gate counts executed assertions and
-  refuses a suite that ran none. A test file with no `assert` call passes
-  every runner and proves nothing; it will not get past this.
+- **Tests report observed assertions.** Empty reports are refused. Counts are
+  diagnostics, not independent proof: approved application behaviour is compared
+  by the host before a new application. Do not modify or fabricate reports.
 - **Every test file is one the runner collects.** `npm test` globs
   `test/*.test.ts` and does not recurse. A test anywhere else is green by
   never running, and it hides whatever it was written to catch.

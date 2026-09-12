@@ -74,9 +74,10 @@ need, write what you like, run what you want.
 
 ## What has to be true before anything lands
 
-- **\`npm test\` passes**, and **assertions actually ran**. A test file with
-  no \`assert\` call passes every runner and proves nothing; the gate counts
-  executed assertions and refuses a suite that ran none.
+- **\`npm test\` passes** and reports observed assertions. Empty reports are
+  refused; counts are diagnostics, not independent acceptance evidence.
+- **Operator-approved behaviour passes host comparison.** These checks are
+  outside your workspace. Do not fabricate reports or weaken project tests.
 - **Every test file is one the runner collects.** \`npm test\` runs
   \`node --test test/*.test.js\`, which does not recurse and never reaches
   the repository root. A test anywhere else is green by never running.
@@ -147,10 +148,12 @@ async function initUnlocked(project: string): Promise<void> {
   say("");
   say(`${name} is ready. Check it with:  npm test`);
   say("");
-  say("Then decide what to build:");
+  say("Continue with short prompts: harness guide");
+  say("Or use explicit commands:");
   say("  harness plan            an interview that settles what this is");
   say("  harness plan approve    generate items from the reviewed plan");
   say("  harness add --from latest");
+  say("  harness checks setup    approve observable application behaviour");
   say("  harness work");
   say("");
   say("Fill in the Conventions section of AGENTS.md once you know them.");
