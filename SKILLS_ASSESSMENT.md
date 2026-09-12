@@ -8,6 +8,7 @@ Assessed `/Users/blessingodeleye/Developer/agent-skills/` and the harness's actu
 
 - M0 supplies explicit-only discovery and disables extensions in all launchers.
 - Ordinary `work` and interactive `plan` still use the configured skill directory.
+- Planning sessions and drafts persist for resume. After explicit plan approval, finite item generation reads the approved document and saved session without mounting skills or starting another interview. Previously loaded skill text may remain in that saved conversation.
   Teams use accepted role profiles with immutable selected resources and declared
   interaction/tool requirements; reviewers receive no skills.
 - M3 provides adapted TDD, design and diagnosis definitions under

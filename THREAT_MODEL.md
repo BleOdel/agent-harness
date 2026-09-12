@@ -197,3 +197,16 @@ endpoint, starts no project execution and escapes untrusted content. It reads
 records, snapshots, team events and telemetry without rewriting acceptance state.
 The private control socket and viewer trust the local operator account; these
 are not authentication mechanisms for a hostile host or remote multi-user service.
+
+## Retained planning state
+
+Planning workspaces and Pi conversations are intentionally retained beside the
+project for resume. Treat them as private, untrusted model and operator content;
+retention lasts until the operator removes them. No host approval state is mounted
+into the planner. Approval captures a plan outside the writable workspace; import
+checks the captured plan and generated proposal hashes and refuses incomplete
+managed plans. Bounded regular-file reads refuse symlinks and hard links in planning
+artifacts. The planner's writable Pi directory may not overlap the live project
+or its saved planning state. Imported plan context cannot authorize unrelated
+work or bypass the normal gates. This does not make an approved plan correct:
+the operator still reviews scope and proposed tasks.

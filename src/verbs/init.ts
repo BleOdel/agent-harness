@@ -149,6 +149,7 @@ async function initUnlocked(project: string): Promise<void> {
   say("");
   say("Then decide what to build:");
   say("  harness plan            an interview that settles what this is");
+  say("  harness plan approve    generate items from the reviewed plan");
   say("  harness add --from latest");
   say("  harness work");
   say("");

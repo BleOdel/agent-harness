@@ -53,7 +53,7 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
           await assertSnapshot(attempt.repairCandidate);
           repairDiff = "Rejected candidate diff, provided only as repair context:\n" + await renderDiff(origin.baseline.directory, attempt.repairCandidate.directory, await collectChanges(origin.baseline.directory, attempt.repairCandidate.directory));
         }
-        const goal = [role.instructions, repairDiff, ...(attempt.feedback ? [`Previous attempt diagnosis: ${attempt.feedback}`] : []), briefing(task.title, task.criteria, task.kind === "shared-inputs"),
+        const goal = [role.instructions, repairDiff, ...(attempt.feedback ? [`Previous attempt diagnosis: ${attempt.feedback}`] : []), briefing(task.title, task.criteria, task.kind === "shared-inputs", task.planContext),
           `Allowed change scope: ${task.changeScope.join(", ")}.`,
           `Contract versions: ${JSON.stringify(attempt.contracts)}.`,
           ...attempt.skills.map(skill => `Read /opt/skills/${skill.id}/SKILL.md before using that workflow.`),

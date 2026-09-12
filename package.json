@@ -23,7 +23,8 @@
     "harness": "node --experimental-strip-types src/cli.ts",
     "plan": "node --experimental-strip-types src/cli.ts plan",
     "verify:team": "node src/verify-team.ts",
-    "demo:team": "node src/demo-team.ts"
+    "demo:team": "node src/demo-team.ts",
+    "verify:planning": "node src/verify-planning.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

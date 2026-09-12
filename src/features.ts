@@ -35,6 +35,8 @@ export interface Feature {
   readonly assignedRole?: string;
   readonly changeScope?: readonly string[];
   readonly contracts?: readonly string[];
+  /** Snapshot of the operator-approved plan, carried with imported work. */
+  readonly planContext?: string;
 }
 
 export type FeatureListResult =
@@ -96,7 +98,9 @@ export function parseFeatures(text: string): FeatureListResult {
     for (const field of ["changeScope", "contracts"]) {
       if (item[field] !== undefined && (!Array.isArray(item[field]) || (item[field] as unknown[]).some(v => typeof v !== "string" || !v.trim()))) return { ok: false, reason: fault(index, `has an invalid ${field}.`) };
     }
+    if (item.planContext !== undefined && (typeof item.planContext !== "string" || item.planContext.length > 2 * 1024 * 1024)) return { ok: false, reason: fault(index, "has invalid planContext.") };
     features.push({
+      ...(item.planContext === undefined ? {} : { planContext: item.planContext as string }),
       id: item.id,
       title: item.title,
       priority: item.priority as Priority,

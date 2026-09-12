@@ -242,7 +242,11 @@ Run them inside your project.
 | | |
 |---|---|
 | `harness init` | create a project the gates can work with |
-| `harness plan [<topic>]` | an interview, in the sandbox, to settle criteria |
+| `harness plan [<topic>]` | start a saved interview and draft plan |
+| `harness plan resume [<id>]` | resume the saved interview or item generation |
+| `harness plan approve [<id>]` | approve the draft and generate work items |
+| `harness plan status [<id>]` | show saved files, phase and next action |
+| `harness plan --from <path>` | start from an existing plan document |
 | `harness add <id> …` | put an item on the feature list |
 | `harness add --from latest` | import the items a plan proposed |
 | `harness work [<id>]` | build the highest-priority eligible item, or a named item |
@@ -273,61 +277,88 @@ project is the directory you are in, or `HARNESS_PROJECT` if you set it.
 
 ```bash
 mkdir ~/Developer/site && cd ~/Developer/site
+export HARNESS_PROJECT="$PWD"
 harness init
 harness plan "what this website should be"
+# Answer questions, then exit Pi when the draft is ready.
+harness plan status
+# Read the printed PLAN.md path before approving it.
+harness plan approve
+# Read the generated items before accepting them.
 harness add --from latest
 harness work
 ```
 
-### The chain
+### Saved planning and document handoff
 
-```
-plan  ──►  PLAN.md + items.json  ──►  add --from  ──►  features.json  ──►  work
-interview      the interview's         you read it        the backlog        build
-               conclusions,            and accept
-               machine-readable
-```
+Planning now keeps a workspace under `<project>-harness/plans/<id>/work/`.
+Pi writes its explicit `session.jsonl` there throughout the conversation, including
+user messages before the first assistant response. The planner is instructed to
+update `DECISIONS.md` after each answer round and maintain `PLAN.md` as a draft.
+Draft updates depend on the model following the instruction; the Pi conversation
+is retained independently. A streamed response interrupted before Pi persists it
+may be incomplete. These are process-recovery guarantees, not power-loss guarantees.
 
-`plan` writes its work items twice: as prose in `PLAN.md`, and as JSON in
-`items.json`. Import the second rather than retyping the first:
+`harness plan resume` reopens that same session and workspace. It does not require
+pasting the interview or approved scope. `harness plan status` prints the saved
+paths and next action without a model call. Both default to the newest plan; pass
+an ID to select an older one. `harness plan --from /path/to/PLAN.md` imports an
+existing document as a draft without a model call or automatic approval.
+
+After reviewing the draft, `harness plan approve` captures its exact bytes outside
+the model's mount and starts a finite generation step. That step reads the saved
+approved plan, carries the conversation forward, and writes `items.json` without
+another interview. It disables skill discovery and does not mount interview skills.
+It validates nonempty criteria, IDs, priorities, assignment kinds and an acyclic
+dependency graph before marking the proposal ready. It requires a newly written
+proposal on each attempt. A generator that edits the approved plan is refused.
+
+A failed generation stays resumable: `harness plan resume` supplies the approved
+plan and previous diagnosis. `harness plan approve` can instead accept a revised
+draft and regenerate. Approval generates a proposal; it neither implements the
+project nor imports tasks. Those are separate operations.
+
+`harness add --from latest` imports only a ready managed proposal whose plan and
+items still match their saved hashes. It never silently falls back to an older
+plan when the newest is unfinished. Legacy proposals and explicitly supplied
+standalone items files remain importable. Imports reject duplicate IDs and invalid
+dependencies before writing anything. A proposed status is normalised to `todo`.
+
+Imported items carry an exact snapshot of the approved plan in `planContext`.
+Ordinary and team builders receive that context automatically, including retries.
+It supplies project intent, not authorization to implement other tasks. Each
+item's acceptance criteria, assignment kind, scope and verification remain binding.
+The model still never writes the live `features.json`.
+
+### Interruption and cleanup
+
+The planner uses the same contained-process cleanup as other agent commands.
+Timeouts, nonzero exits and handled termination signals report failure and retain
+state; they do not announce successful completion. Resume stops any container from
+the previous attempt before reading or reusing the workspace. The configured
+`HARNESS_AGENT_TIMEOUT` still limits each invocation, including interview time;
+resuming starts a new invocation.
+
+After an abrupt host-process kill, first recover the exact dead writer token
+reported by the CLI, then resume:
 
 ```bash
-npm run add -- --from <project>-harness/plans/<stamp>/items.json
+harness recover-lock <exact-owner-token>
+harness plan resume
 ```
 
-**The model still never writes `features.json`.** It proposes; you run the
-command that accepts. That is the same shape as `work` — propose inside
-the sandbox, then a gate before anything lands — except the gate here is
-you reading the list. Read it: a proposal comes from a model that has just
-spent an interview agreeing with you.
+Drafts, decisions and transcripts are private planning data, retained beside the
+project until the operator removes them. Nothing from the planning workspace is
+applied to source. Do not edit retained files while their planner is running.
+Old sessions that ended before this feature and saved no files cannot be recovered
+by it. An old saved PLAN.md can be adopted with `harness plan --from`.
 
-A proposed `status` is discarded rather than trusted. Status is the
-harness's own verdict, reached through the gates and the reviewer, and an
-item importable as already done would let a model mark its homework before
-doing it. An import that clashes with an existing id writes nothing at
-all, rather than landing half a backlog.
+Verify the installed Pi session behavior, timeout cleanup, killed-controller
+recovery, document generation and import without paid model calls:
 
-### Interactive planning
-
-Planning supplies the accepted requirements before execution begins. `work` demands acceptance criteria and offers no help
-writing them, while everything downstream — the reviewer's judgement,
-whether an escalation means anything — rests on how good they are. `add`
-takes whatever string you type.
-
-`plan` runs Pi **interactively**, with your terminal attached to the
-container, so an interview skill can ask a round of questions and wait for
-your answers. `work` cannot do this: it runs with `--print`, one prompt in
-and one answer out, with nobody to wait for.
-
-Nothing a `plan` run does is ever applied. The model works in a disposable
-copy and proposes `PLAN.md` and `items.json`, collected to `<project>-harness/plans/` rather
-than into the project. A plan is a document to argue with, not a change,
-and it faces none of the gates because it changes nothing they could
-check.
-
-The containment is identical to every other run — verified by asserting
-that an interactive argument list differs from a one-shot one by exactly
-`--interactive` and `--tty` and nothing else.
+```bash
+npm run verify:planning
+```
 
 ## Prerequisites, blocked work and revalidation
 

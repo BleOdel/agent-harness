@@ -13,9 +13,10 @@ export async function executeAndSubmit(layout: SandboxLayout, request: AgentRequ
   return { agent, submission: await readSubmission(layout.workDirectory), claim: await readClaim(layout.workDirectory) };
 }
 
-export function briefing(goal: string, criteria: readonly string[], sharedInputs = false): string {
+export function briefing(goal: string, criteria: readonly string[], sharedInputs = false, planContext?: string): string {
   return [
     goal,
+    ...(planContext ? ["", "Approved project plan (context only; implement only this item’s criteria and allowed scope):", planContext, "End of approved plan context."] : []),
     ...(criteria.length === 0
       ? []
       : ["", "Acceptance criteria, all of which must be satisfied:",

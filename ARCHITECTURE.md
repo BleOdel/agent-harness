@@ -6,6 +6,34 @@ Use the [README](README.md) for commands and [threat model](THREAT_MODEL.md) for
 security assumptions. These diagrams describe implemented behavior; milestone
 reports preserve their original observations.
 
+## Durable planning and handoff
+
+```mermaid
+flowchart TD
+  U["Operator answers interview"] --> W["Retained workspace: Pi session, decisions, draft PLAN.md"]
+  W -->|Resume after exit or timeout| U
+  W -->|Operator: plan approve| P["Host snapshot of approved PLAN.md"]
+  P --> G["Finite generation reads approved plan and saved session"]
+  G --> V["Validate items and unchanged plan identity"]
+  V -->|Failure: save diagnosis| G
+  V -->|Ready| I["Operator reviews and imports items"]
+  I --> F["features.json: tasks plus approved plan context"]
+  F --> B["Ordinary or team builders"]
+```
+
+The planner can write only its retained project copy and configured Pi data.
+Host approval, proposal hashes and lifecycle state live outside that copy. A
+failed document-generation step requires `plan resume`; retries are not dispatched
+automatically. No planning artifact directly changes live source. On timeout or
+handled termination, contained-process cleanup precedes completion handling.
+After an uncatchable controller kill, explicit writer recovery and resume stop
+the previous owned container before continuing. Pi's persisted messages survive
+independently of whether the model has finished writing its draft.
+
+Implementation: [planning state](src/planning/store.ts), [commands](src/verbs/plan.ts),
+[import](src/verbs/add.ts). `verify:planning` exercises deterministic Docker recovery
+and the installed Pi session manager without provider calls.
+
 ## Execution and acceptance
 
 Ordinary `work` verifies and applies one item. `team run` stages a batch with one

@@ -12,7 +12,7 @@
 
 import { withWriter } from "../workspace/writer-lock.ts";
 
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   type Feature,
@@ -22,7 +22,7 @@ import {
   PRIORITIES,
   type Priority,
 } from "../features.ts";
-import { harnessDirectory } from "../record/record.ts";
+import { acceptedProposal, latestPlanDirectory, readArtifact, resolvePlan } from "../planning/store.ts";
 import { OperatorError, say } from "./io.ts";
 
 interface Parsed {
@@ -122,19 +122,16 @@ export function parseAddArguments(argv: readonly string[]): Parsed {
  */
 async function resolveProposal(project: string, given: string): Promise<string> {
   if (given !== "latest") return path.resolve(given);
-  const plans = path.join(harnessDirectory(project), "plans");
-  const stamps = await readdir(plans).catch(() => [] as string[]);
-  const newest = stamps.sort().at(-1);
-  if (newest === undefined) {
-    throw new OperatorError(
-      "No plan has been run for this project yet.",
-      "Run `harness plan` first, or pass the path to an items file.",
-    );
-  }
-  return path.join(plans, newest, "items.json");
+  return path.join(await latestPlanDirectory(project), "items.json");
 }
 
-async function itemsFromFile(source: string): Promise<Feature[]> {
+async function itemsFromFile(project: string, source: string): Promise<Feature[]> {
+  const directory = path.dirname(source);
+  if (path.basename(source) === "items.json" && await readArtifact(directory, "state.json") !== undefined) {
+    const plan = await resolvePlan(project, path.basename(directory));
+    if (plan.directory !== directory) throw new OperatorError("Plan proposal belongs to a different project.");
+    return (await acceptedProposal(plan)).features;
+  }
   const text = await readFile(source, "utf8").catch(() => undefined);
   if (text === undefined) {
     throw new OperatorError(
@@ -153,7 +150,7 @@ async function itemsFromFile(source: string): Promise<Feature[]> {
 async function addUnlocked(project: string, argv: readonly string[]): Promise<void> {
   const fromIndex = argv.indexOf("--from");
   const incoming = fromIndex >= 0
-    ? await itemsFromFile(await resolveProposal(project, argv[fromIndex + 1] ?? "latest"))
+    ? await itemsFromFile(project, await resolveProposal(project, argv[fromIndex + 1] ?? "latest"))
     : [{ ...parseAddArguments(argv), status: "todo" as const }];
 
   const file = path.join(project, FEATURES_FILE);

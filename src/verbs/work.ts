@@ -296,7 +296,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       if (work.feature !== undefined) await markStatus(project, work.feature.id, "blocked");
       throw await stop("environment-blocked", "environment-blocked: clean dependencies are unavailable", error.message, { requestedInput: error.message });
     }
-    let instruction = briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs");
+    let instruction = briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs", work.feature?.planContext);
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       attempts = attempt;
       if (attempt > 1) say(`\nattempt ${String(attempt)}, with a diagnosis`);
@@ -397,7 +397,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
             `${diagnosis.cause}\n\n${diagnosis.fix}\n\n${failure.detail}`,
           );
         }
-        instruction = `${diagnosis.forAgent}\n\n---\n\nThe original goal:\n\n${briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs")}`;
+        instruction = `${diagnosis.forAgent}\n\n---\n\nThe original goal:\n\n${briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs", work.feature?.planContext)}`;
         continue;
       }
 
@@ -479,7 +479,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
           say("");
           for (const finding of findings) say(`  - ${finding}`);
           instruction = `${diagnose("review-escalated", findings.map((f) => `- ${f}`).join("\n")).forAgent}`
-            + `\n\n---\n\nThe original goal:\n\n${briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs")}`;
+            + `\n\n---\n\nThe original goal:\n\n${briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs", work.feature?.planContext)}`;
           continue;
         }
         throw await stop(
