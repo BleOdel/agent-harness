@@ -34,7 +34,7 @@ export const pythonPip: ProjectAdapter = {
     const again = await pythonRun(layout, layout.workDirectory, ['/work/.venv/bin/python', '-I', '/harness-instrumentation/package.py', 'build'], timeoutMs);
     const after = await readFile(path.join(layout.workDirectory, 'dist', wheel.file)).catch(() => Buffer.alloc(0));
     if (again.code !== 0 || again.timedOut || again.outputLimited || sourceBefore !== await fingerprint() || !before.equals(after)) return failed('build-not-reproducible', 'Python wheel build is not reproducible', again.stdout + again.stderr);
-    return passed('build: repeated pure-Python wheels match; installed package tested offline; output retention is not yet supported');
+    return passed('build: repeated pure-Python wheels match; installed package tested offline; use harness verify --retain to keep the wheel');
    } },
   ];
  },

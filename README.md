@@ -131,6 +131,16 @@ npm run verify:boundary
 # no Docker socket, read-only container, writable copy only
 ```
 
+## Retain outputs and run saved jobs
+
+Use `harness guide` → **Manage jobs and retained outputs** to save a command, run it,
+resume a compatible checkpoint, inspect results and export a new local file.
+`harness verify --retain` keeps declared build outputs after fresh diagnostics.
+Jobs and generated artifacts never apply source or publish themselves.
+See [the job guide](JOBS.md) for limits, checkpoint conventions and cleanup.
+New source candidates refuse files over 2 MiB and known package/model/dataset
+formats; retain generated outputs as artifacts.
+
 ## Project environments
 
 Two installed adapters use **docker@1 on Linux**:
@@ -142,7 +152,8 @@ Two installed adapters use **docker@1 on Linux**:
 
 The controller needs Node 26 or newer. Python target setup, the pinned image,
 dependency format and guided journey are documented in [Python projects](PYTHON.md).
-Mobile/native desktop toolchains, GUI automation, emulators, artifact retention,
+Local artifact retention and bounded resumable jobs are documented in [Jobs and outputs](JOBS.md).
+Mobile/native desktop toolchains, GUI automation, emulators,
 ML evaluation and GPUs remain later milestones in [the expansion plan](NEXT.md).
 
 ```bash
@@ -795,6 +806,7 @@ npm run check             # typecheck and unit suite; local HTTP tests need loop
 npm run verify:skills     # real Pi loader, no Docker or model calls
 npm run verify:adapters   # contracts, capabilities, resume and Node guided journeys
 npm run verify:python     # E2 Python image, wheels, pytest, CLI, guide and apply/undo
+npm run verify:jobs       # E3 outputs, jobs, quotas, crash recovery and guided export
 npm run verify:boundary   # the container, against a real daemon
 npm run verify:hardening  # approved checks, binary undo, guide PTY and planning cleanup
 npm run verify:gates      # each gate broken in turn, confirmed to stop the apply

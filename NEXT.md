@@ -1,6 +1,6 @@
 # Harness expansion development plan
 
-Status: E0–E2 and the initial U0 guided journey implemented. Next: E3 artifacts and jobs.
+Status: E0–E3 and the initial U0 guided journey implemented. Next: E4 CPU ML.
 Updated 2026-09-12. See README.md for shipped commands and limitations.
 
 Delivered in E0/U0: strict reviewer schema, byte-preserving ordinary undo,
@@ -233,8 +233,8 @@ reports, empty/skipped/failing suites, timeout cleanup, stale/corrupt dependency
 and runtime/backend refusals. It makes no model-provider calls. These tests do not
 establish human usability or actual skill compliance; the U0 human trial remains
 follow-up. Python team contract suites, arbitrary pytest plugins/backends, source
-dependency builds and artifact retention remain unsupported; approved acceptance
-cases are required. No host Python installation counts as project verification.
+dependency builds remain unsupported; approved acceptance cases are required.
+E3 adds explicit artifact retention and export. No host Python installation counts as project verification.
 
 ### Delivered scope
 
@@ -251,6 +251,20 @@ Build a Python CLI through plan → accepted items → work/team → verificatio
 A small Python file-analysis CLI with deterministic fixtures, validation errors, and a packaged output.
 
 ## E3 — Artifacts and long-running jobs
+
+Implemented as a bounded Linux Docker command-job workflow. See [JOBS.md](JOBS.md)
+for guided setup/run/resume/export, explicit commands, json-step@1 checkpoints,
+finite resources and retention. `verify --retain` keeps declared build outputs;
+ordinary/team source runs keep generated outputs disposable. Job results are
+unverified and retained build results are diagnostics-passed; neither publishes
+an artifact or replaces independent application acceptance.
+
+Configured `verify:jobs` covers real Node/Python jobs, crash and cancellation
+recovery, internal deadline enforcement, checkpoint compatibility/corruption,
+resource limits, source-output separation, wheel retention and a PTY guided
+create/run/inspect/export journey. Deterministic fixtures make zero model-provider
+calls. Human U0 usability remains unmeasured; no background daemon, arbitrary
+checkpoint format, native/GPU runner or external release is included.
 
 ### Deliver
 

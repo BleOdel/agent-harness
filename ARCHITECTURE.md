@@ -1,6 +1,6 @@
 # Harness architecture
 
-Current implementation includes E0 hardening, E1 adapter/runner contracts, E2 Python support and the initial U0 guide on top of team M0–M6 and durable planning.
+Current implementation includes E0 hardening, E1 adapter/runner contracts, E2 Python support, E3 artifacts/jobs and the initial U0 guide on top of team M0–M6 and durable planning.
 Use the [README](README.md) for commands and [threat model](THREAT_MODEL.md) for
 security assumptions. These diagrams describe implemented behavior; milestone
 reports preserve their original observations.
@@ -71,8 +71,8 @@ test evidence and build-output declarations. The Node adapter retains existing
 npm policies and assertion instrumentation. Python uses a separate wheel/pytest
 implementation without the Node counter. A test-only text adapter exercises
 the same pipeline without a Node manifest; it is never registered for operators.
-Build-output declarations describe potential artifacts; E3 will add their export
-and retention lifecycle.
+Build-output declarations feed explicit `verify --retain` collection into the local
+SHA256 store. Manifests bind each output to source and execution identities.
 
 The Docker runner prepares hardened launches, executes finite commands or connects
 RPC, inspects capabilities, cancels/cleans owned containers and exports execution
@@ -112,7 +112,7 @@ flowchart TD
 Dependency installation is recreated per executable gate and acceptance case.
 Candidate test reports are diagnostic: a Python process can fabricate its output,
 so only a matching host-side acceptance result permits application. Build outputs
-are discarded; E3 owns artifact retention. The adapter contributes fixed container
+are discarded in source work; E3 retains fresh outputs through `verify --retain`. The adapter contributes fixed container
 environment variables so Python commands and console entry points resolve to the
 fresh venv in builders and acceptance checks. Project files cannot supply these
 harness settings. Python contract-suite declarations are refused until supported.
@@ -325,6 +325,10 @@ Implementation: [application journal](src/team/apply.ts),
 | Location beside the project | Meaning |
 |---|---|
 | `<project>-harness.writer-lock` | Canonical cooperating-writer ownership |
+| `<project>-harness/jobs/<job>/state.json` | Accepted command, identities, bounded events and latest checkpoint reference |
+| `<project>-harness/artifacts/manifests/` | Immutable output provenance and references |
+| `<project>-harness/artifacts/blobs/` | SHA256 bytes; only unreferenced blobs can be collected |
+| `<project>-harness/verify-<id>.json` | Retained verification build environment and input identities |
 | `<project>-harness/project.json` | Operator-selected adapter, capabilities and skill names |
 | `<project>-harness/executions/<run>/` | Ordinary execution identity and frozen skill resources |
 | `<project>-harness/plans/<plan>/execution.json` | Planning execution identity; frozen skills beside it |
@@ -369,3 +373,36 @@ Verification references: [usage events](test/events.test.ts),
 [static viewer](test/view.test.ts), [live status and server](test/server.test.ts),
 [team projections](test/team-status.test.ts), [RPC](test/rpc.test.ts), and
 [controller crash recovery](test/team-controller-crash.test.ts).
+
+## Artifact and job lifecycle (E3)
+
+```mermaid
+flowchart TD
+  O["Operator: saved command, outputs, checkpoint protocol, limits"] --> J["Atomic host job state and bounded event history"]
+  J --> P["Frozen source + fresh adapter dependencies; identity pin"]
+  P --> R["Offline Docker: readonly prepared input and fixed supervisor"]
+  R --> W["512 MiB tmpfs /work; 2 CPUs; 2 GiB RAM; finite execution"]
+  W --> C["Bounded regular-file transfer; installed checkpoint validation"]
+  C --> A["SHA256 blobs + provenance manifests outside worker mounts"]
+  A --> U["Compare source, settings and checkpoint hash before fresh resume"]
+  U --> P
+  W --> K["Host cancel / supervisor deadline; remove labelled owned resources"]
+  V["verify --retain: fresh passing build diagnostics"] --> A
+  A --> E["Explicit hash-checked local export; no overwrite or publication"]
+  A --> G["Explicit job retirement / reference release; collect only orphan blobs"]
+```
+
+The job controller owns source snapshots and accepted declarations in sibling state.
+A worker gets a read-only prepared input plus a bounded tmpfs; generated data never
+writes into host project source. Fixed transfer code reads bounded regular files;
+no worker archive is extracted on the host. Job output is unverified, while retained
+verification builds are labelled diagnostics-passed. Neither status is independent
+application acceptance or publication. Ordinary and team source application remain
+unchanged except for the new source-file size and generated-format refusals.
+
+Reservations charge the full declared attempt allowance before launch, even on early
+exit or controller loss. The supervisor enforces a second execution deadline and
+keeps tmpfs alive for at most 60 seconds for transfer. The host normally cleans it
+sooner. SIGKILL recovery checks saved ownership labels and environment before
+removing resources; a compatible checkpoint is required for another attempt.
+See [JOBS.md](JOBS.md) for protocol, quotas, retention and operator commands.

@@ -13,6 +13,8 @@
  * accumulates unread.
  */
 
+import { listJobs } from "../jobs/state.ts";
+import { listArtifacts } from "../artifacts/store.ts";
 import { readTeams, formatTeams } from "../view/status.ts";
 import { readFeatures, chooseNext, unmetDependencies, type Feature } from "../features.ts";
 import { readRecord, type RunRecord, undoableRuns } from "../record/record.ts";
@@ -35,6 +37,10 @@ export function stateOfItem(feature: Feature, runs: readonly RunRecord[]): strin
 }
 
 export async function look(project: string): Promise<void> {
+  const jobs = await listJobs(project);
+  for (const job of jobs) say(`JOB ${job.spec.title} · ${job.status} · checkpoint ${job.completed ?? "none"} · cost unknown · ${job.id}`);
+  const artifacts = await listArtifacts(project);
+  if (artifacts.length) say(`${artifacts.length} retained artifacts. Inspect with harness artifacts list; nothing published.`);
   const teams = await readTeams(project);
   if (teams.length) { say("TEAMS"); say(formatTeams(teams)); say(); }
   const { runs, malformed } = await readRecord(project);

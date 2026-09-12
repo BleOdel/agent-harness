@@ -1,3 +1,4 @@
+import { guideJobs } from "../guide/jobs.ts";
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -108,12 +109,13 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
           }
           }
         }
-        if (initialized) actions.push({ label: "Test and package in fresh offline containers", run: () => run("verify") });
+        if (initialized) actions.push({ label: "Test, package and retain build outputs", run: () => run("verify", "--retain") });
         actions.push({ label: "Configure project environment and skills", run: () => run("project", "setup") });
       }
     } catch (error) { io.write(`Needs attention: ${(error as Error).message}`); }
     actions.push({ label: "Check readiness", run: () => run("doctor") });
     actions.push({ label: "Review project status and history", run: () => run("look") });
+    actions.push({ label: "Manage jobs and retained outputs", run: () => guideJobs(project, io, command) });
     const choice = await choose(io, "Next action", actions.map(a => a.label));
     if (choice < 0) { io.write(`Saved work stays with ${project}. Return with harness guide ${JSON.stringify(project)}.`); return; }
     try { await actions[choice]!.run(); }

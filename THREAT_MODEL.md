@@ -292,3 +292,41 @@ reports still cannot authorize application without independent acceptance. Neith
 host virtualenvs nor builder-installed dependencies are verification proof. Cache
 hashes, source identities and image/runtime pins are checked before reuse. Only the
 Linux/arm64 reference image has been qualified by the shipped E2 container tests.
+
+## Job outputs and retention (E3)
+
+Jobs add a distinct Docker mount policy: prepared input and harness transport/
+supervisor code are read-only; `/work` is a 512 MiB tmpfs. The existing CPU/RAM,
+PID, capability and root-filesystem restrictions remain. No credentials, model
+launcher, skills, artifact store, network or Docker socket are available to the
+job. Dependencies execute only during existing bounded preparation and fresh
+offline installation. Input snapshots/environment caches are host-owned and are
+not the job's writable workspace.
+
+Job stdout, status and checkpoint payload are untrusted. The installed JSON-step
+protocol establishes structural compatibility with pinned source, environment and
+declaration identities, not the correctness of arbitrary algorithm state. Child
+code can produce false results; E3 never grants source application, quality approval
+or release permission based on those reports. A compromised job can destroy its
+own current output; the last committed host checkpoint remains separate.
+
+Transfer refuses traversal, links, special files, changing sizes and byte limits.
+It moves opaque bytes, never a worker archive to unpack on the host. Artifact
+reads/exports check SHA256 and size; host state paths refuse links. Store mutations
+share the project writer; only the narrow cancellation request can be issued by
+another controller while it is held. Hashes are integrity identities, not signatures
+against a hostile operator or processes with the operator's host permissions.
+
+The host and supervisor enforce execution deadlines. The supervisor has a 60-second
+transfer grace after execution. Recovery only removes a container with matching
+name, immutable image and host-issued labels. A timeout/crash cannot refund the
+accepted dispatch reservation. No monetary enforcement or provider-billing claim
+is made. Generic job payloads need domain-specific validation in later milestones.
+
+New candidate source rejects files over 2 MiB and known generated package/model/
+dataset extensions. Checkpoints and declared outputs use the separate local store.
+A 32 MiB/file, 64 MiB/output batch, 512 MiB/project store and 256-manifest limit
+bound retention. Referenced blobs cannot be collected; retiring a job explicitly
+disables resume before releasing its references. Verify outputs are labelled
+diagnostics-passed; job outputs are unverified. Export is an exclusive local copy
+outside source/state, and never signing, execution or publication.

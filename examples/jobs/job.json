@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "title": "Count four steps",
+  "command": ["node", "counter.mjs"],
+  "outputs": ["result.json"],
+  "checkpoint": { "protocol": "json-step@1", "total": 4 },
+  "limits": { "timeoutSeconds": 20, "totalSeconds": 60, "maxAttempts": 3 }
+}

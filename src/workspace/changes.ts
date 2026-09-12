@@ -55,6 +55,10 @@ export const EXCLUDED_FROM_COPY = new Set([
   // refused it -- the same access would have let it rewrite a criterion
   // it could not meet.
   "features.json",
+  ".harness-job-context.json",
+  ".harness-output",
+  ".harness-job-status.json",
+  ".harness-job-status.tmp",
   ".secure-harness",
   ".env",
   ".env.local",
@@ -179,6 +183,9 @@ export class BoundaryViolation extends Error {
  */
 export function assertChangesAreApplicable(changes: readonly Change[], copy: string): void {
   for (const change of changes) {
+    if (change.kind !== "deleted" && /\.(?:whl|apk|aab|dmg|msi|safetensors|ckpt|onnx|pt|h5|hdf5|parquet|arrow)$/iu.test(change.file)) {
+      throw new BoundaryViolation(`${change.file} is a generated package, model or dataset. Retain it as a declared job artifact; do not apply it as source.`, change.file);
+    }
     if (change.symlink) {
       throw new BoundaryViolation(
         `${change.file} is a symlink. Applying one would write through it to wherever it points, `

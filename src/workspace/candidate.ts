@@ -87,6 +87,9 @@ export async function captureCandidate(baseline: Snapshot, worker: string, direc
   }
   changes.sort((a, b) => a.file.localeCompare(b.file));
   assertChangesAreApplicable(changes, worker);
+  for (const change of changes) if (change.kind !== "deleted" && (await lstat(path.join(worker, change.file))).size > 2 * 1024 * 1024) {
+    throw new BoundaryViolation(`${change.file} exceeds the 2 MiB source-file ceiling. Retain generated data as a job artifact.`, change.file);
+  }
   const contracts = policy.contractPaths ?? ["contracts"];
   const inputChanges = changes.filter(c => (policy.sharedInputFiles ?? ["package.json", "package-lock.json", "npm-shrinkwrap.json"]).includes(path.basename(c.file))
     || contracts.some(p => c.file === p || c.file.startsWith(`${p}/`)));

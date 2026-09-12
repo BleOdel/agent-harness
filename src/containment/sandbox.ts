@@ -42,7 +42,7 @@ export interface SandboxLayout {
   readonly user: string;
   readonly labels?: Readonly<Record<string, string>>;
   readonly environment?: Readonly<Record<string, string>>;
-  readonly purpose?: "agent" | "verification" | "review";
+  readonly purpose?: "agent" | "verification" | "review" | "job";
 }
 
 /**
@@ -83,6 +83,10 @@ export function mounts(layout: SandboxLayout): readonly {
   readonly destination: string;
   readonly writable: boolean;
 }[] {
+  if (layout.purpose === "job") return [
+    { source: layout.workDirectory, destination: "/harness-input", writable: false },
+    { source: layout.instrumentationDirectory!, destination: "/harness-instrumentation", writable: false },
+  ];
   if (layout.purpose === "verification") return [
     { source: layout.workDirectory, destination: CONTAINER_WORK, writable: true },
     ...(layout.instrumentationDirectory ? [{ source: layout.instrumentationDirectory, destination: "/harness-instrumentation", writable: false }] : []),
@@ -144,7 +148,7 @@ export function assertMountsAreSafe(layout: SandboxLayout): void {
     if (!relative || (!relative.startsWith("..") && !path.isAbsolute(relative))) throw new ContainmentError("Contract checks must be outside writable source.", "CHECKS_INSIDE_PROJECT");
   }
   const writable = mounts(layout).filter((mount) => mount.writable);
-  const expected = layout.purpose === "verification" || layout.purpose === "review" ? 1 : 2;
+  const expected = layout.purpose === "job" ? 0 : layout.purpose === "verification" || layout.purpose === "review" ? 1 : 2;
   if (writable.length !== expected) {
     throw new ContainmentError(
       `Expected ${String(expected)} writable mounts, found ${String(writable.length)}.`,
@@ -174,6 +178,7 @@ export function buildRunArguments(
   interactive = false,
 ): string[] {
   assertMountsAreSafe(layout);
+  if (layout.purpose === "job" && (network !== "none" || interactive)) throw new ContainmentError("Jobs require offline noninteractive execution.", "JOB_NETWORK");
   if (command.length === 0) {
     // Without this, Docker runs the image's default entrypoint. For a
     // Node image that is a bare `node`, which reads EOF, exits 0 and
@@ -189,6 +194,7 @@ export function buildRunArguments(
     "run",
     "--rm",
     ...(interactive ? ["--interactive", "--tty"] : []),
+    ...(layout.purpose === "job" ? ["--detach", "--tmpfs=/work:rw,nosuid,nodev,size=536870912,mode=1777"] : []),
     "--pull=never",
     "--read-only",
     "--cap-drop=ALL",
@@ -214,7 +220,7 @@ export function buildRunArguments(
       `type=bind,src=${mount.source},dst=${mount.destination}${mount.writable ? "" : ",readonly"}`,
     ]),
     "--env=HOME=/home/node",
-    ...(layout.purpose === "verification" ? [] : [`--env=PI_CODING_AGENT_DIR=${CONTAINER_AGENT}`]),
+    ...(["verification", "job"].includes(layout.purpose ?? "agent") ? [] : [`--env=PI_CODING_AGENT_DIR=${CONTAINER_AGENT}`]),
     "--env=NODE_DISABLE_COMPILE_CACHE=1",
     "--env=NO_COLOR=1",
     ...Object.entries(layout.environment ?? {}).map(([key, value]) => `--env=${key}=${value}`),

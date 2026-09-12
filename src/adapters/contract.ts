@@ -11,7 +11,7 @@ export interface ProjectAdapter {
  readonly markers: readonly string[];
  readonly defaultTestCommand: readonly string[];
  readonly source: { generatedDirectories: readonly string[]; sharedInputs: readonly string[] };
- /** Declared build outputs, not permission to apply them. E3 adds artifact export. */
+ /** Declared build outputs for explicit artifact retention, never source application. */
  readonly executionEnvironment?: Readonly<Record<string, string>>;
  readonly artifacts: readonly string[];
  runtime(layout: SandboxLayout, timeoutMs: number): Promise<Record<string, string>>;
