@@ -1,5 +1,6 @@
+import { guidedSetup, readGuidedDraft, reviewGuidedDraft } from "../acceptance/guided.ts";
 import { randomUUID } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { readApproval, approveChecks, parseChecks, type CheckStep } from "../acceptance/checks.ts";
 import { readFeatures } from "../features.ts";
@@ -11,13 +12,14 @@ import { OperatorError, say } from "./io.ts";
 
 const decode = (text: string): string => text.replace(/\\(n|t|r|\\)/gu, (_, code: string) => ({ n: "\n", t: "\t", r: "\r", "\\": "\\" })[code]!);
 
-export async function setupChecks(project: string, io: Dialogue): Promise<void> {
+export async function setupChecks(project: string, io: Dialogue, manual = false): Promise<void> {
   project = await canonicalProject(project);
   const features = await readFeatures(project);
   if (!features?.ok || !features.features.length) throw new OperatorError("Accept work items before setting up checks.", "Use harness guide to plan and accept items first.");
   const index = await choose(io, "Which task should this check cover?", features.features.map(t => `${t.title} (${t.id})`));
   if (index < 0) return;
   const task = features.features[index]!;
+  if (!manual) return guidedSetup(project, task, io);
   task.criteria.forEach(c => io.write(`  Expected: ${c}`));
   io.write("Describe observable application behaviour. Commands run only in an isolated, offline verification copy. Do not use a test runner's 'passed' message as the expected result.");
   io.write("Use /work for project paths. Enter \\n for a newline or \\t for a tab in expected text.");
@@ -56,6 +58,7 @@ export async function setupChecks(project: string, io: Dialogue): Promise<void> 
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const draft = path.join(directory, "draft.json");
     await atomicWrite(draft, JSON.stringify(manifest, null, 2) + "\n");
+    await rm(path.join(directory, "guided-draft.json"), { force: true });
     if (approve) { await approveChecks(project, draft); io.write("Checks approved. They will be required before application."); }
     else io.write(`Draft saved without approval: ${draft}. Review later with harness checks review.`);
   });
@@ -63,8 +66,10 @@ export async function setupChecks(project: string, io: Dialogue): Promise<void> 
 
 export async function checks(project: string, args: readonly string[]): Promise<void> {
   if (args.length === 1 && args[0] === "setup") return setupChecks(project, terminalDialogue());
+  if (args.length === 2 && args[0] === "setup" && args[1] === "--manual") return setupChecks(project, terminalDialogue(), true);
   if (args.length === 1 && args[0] === "review") {
     const io = terminalDialogue();
+    if (await readGuidedDraft(project)) return reviewGuidedDraft(project, io);
     const { readArtifact } = await import("../planning/store.ts");
     const directory = path.join(harnessDirectory(await canonicalProject(project)), "acceptance");
     const raw = await readArtifact(directory, "draft.json");
@@ -80,9 +85,9 @@ export async function checks(project: string, args: readonly string[]): Promise<
     const approval = await readApproval(project);
     if (approval) { say(`Approved acceptance checks: ${approval.manifest.cases.length} cases`); for (const c of approval.manifest.cases) say(`  ${c.id}: ${c.tasks.join(", ")}`); }
     else say("No acceptance checks approved. Builds stop before model work until checks cover their tasks.");
-    say("Next: harness checks setup (short prompts), or harness checks approve <file> (JSON document).");
+    say("Next: harness checks setup (draft from your plan), or harness checks approve <file> (JSON document).");
     say("Use application behaviour, not a test runner's claim that tests passed. The host checks expectations outside the candidate process."); return;
   }
-  if (args.length !== 2 || args[0] !== "approve") throw new OperatorError("Use: harness checks [setup | review | approve <file>]");
+  if (args.length !== 2 || args[0] !== "approve") throw new OperatorError("Use: harness checks [setup [--manual] | review | approve <file>]");
   await withWriter(project, "checks", async () => { const approval = await approveChecks(project, path.resolve(args[1]!)); say(`Approved ${approval.manifest.cases.length} acceptance cases. These exact expectations will be checked before application.`); });
 }

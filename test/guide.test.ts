@@ -20,12 +20,12 @@ function answers(values:string[]) { const lines:string[]=[];return {lines,write:
 test("check setup takes short answers, preserves existing cases, and requires concrete approval",()=>fixture(async(root,project)=>{
  await writeFile(path.join(project,"features.json"),JSON.stringify([feature]));
  let io=answers(["1","node src/cli.js Ada","0","1","Hello, Ada!\\n","n","n"]);
- await setupChecks(project,io);assert.equal(await readApproval(project),undefined);
+ await setupChecks(project,io,true);assert.equal(await readApproval(project),undefined);
  assert.match(io.lines.join("\n"),/Hello, Ada!/);assert.match(io.lines.join("\n"),/Approve/);
  io=answers(["1","node src/cli.js Ada","0","1","Hello, Ada!\\n","n","y"]);
- await setupChecks(project,io);assert.equal((await readApproval(project))?.manifest.cases.length,1);
+ await setupChecks(project,io,true);assert.equal((await readApproval(project))?.manifest.cases.length,1);
  io=answers(["1","node src/cli.js Grace","0","1","Hello, Grace!\\n","n","y"]);
- await setupChecks(project,io);assert.equal((await readApproval(project))?.manifest.cases.length,2);
+ await setupChecks(project,io,true);assert.equal((await readApproval(project))?.manifest.cases.length,2);
 }));
 
 test("guide selects the target before creating files and leaves other project untouched",()=>fixture(async(root,project)=>{

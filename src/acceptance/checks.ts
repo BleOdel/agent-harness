@@ -14,11 +14,13 @@ import { dockerRunner } from "../runners/docker.ts";
 import { buildVerificationArguments, type SandboxLayout } from "../containment/sandbox.ts";
 import { runContained } from "../containment/process.ts";
 import type { Config } from "../config.ts";
+import { readFeatures } from "../features.ts";
+import { taskDigest } from "./draft.ts";
 import { OperatorError } from "../verbs/io.ts";
 
 export interface ExpectFile { path:string; text?:string; sha256?:string; }
 export interface CheckStep { command:string[]; exitCode:number; stdout?:string; stdoutIncludes?:string; files?:ExpectFile[]; }
-export interface AcceptanceCase { id:string; tasks:string[]; steps:CheckStep[]; }
+export interface AcceptanceCase { id:string; tasks:string[]; steps:CheckStep[]; description?:string; contract?:string; taskDigest?:string; }
 export interface CheckManifest { version:1; cases:AcceptanceCase[]; }
 export interface Approval { version:1; digest:string; approvedAt:string; manifest:CheckManifest; }
 const hash=(text:string|Buffer)=>createHash("sha256").update(text).digest("hex");
@@ -34,6 +36,8 @@ export function parseChecks(raw:unknown):CheckManifest{
  for(const entry of raw.cases){
   if(!object(entry)||typeof entry.id!=="string"||!entry.id.trim()||ids.has(entry.id)||!strings(entry.tasks)||!Array.isArray(entry.steps)||!entry.steps.length)throw new OperatorError("Each acceptance case needs a unique id, task ids (or *), and steps.");
   ids.add(entry.id);
+  for (const key of ["description", "contract", "taskDigest"]) if (entry[key] !== undefined && (typeof entry[key] !== "string" || !(entry[key] as string).trim())) throw new OperatorError(`${entry.id}: invalid ${key}.`);
+  if (entry.taskDigest !== undefined && (!/^[a-f0-9]{64}$/u.test(entry.taskDigest as string) || entry.tasks.length !== 1 || entry.tasks[0] === "*")) throw new OperatorError(`${entry.id}: task fingerprint requires exactly one named task.`);
   for(const step of entry.steps){
    if(!object(step)||!Array.isArray(step.command)||!step.command.length||typeof step.command[0]!=="string"||!step.command[0].trim()||step.command.some(v=>typeof v!=="string"||v.includes("\0"))||!Number.isInteger(step.exitCode)||(step.exitCode as number)<0||(step.exitCode as number)>255)throw new OperatorError(`${entry.id}: each step needs a command array and exitCode.`);
    if(step.stdout!==undefined&&typeof step.stdout!=="string")throw new OperatorError(`${entry.id}: stdout must be exact text.`);
@@ -74,7 +78,12 @@ export async function requireChecks(project:string,tasks:readonly string[]):Prom
  const approved=await readApproval(project);
  if(!approved)throw new OperatorError("Acceptance checks have not been approved for this project.","Run harness checks to prepare and review expected application behaviour, then approve the checks. No model work has started.");
  const missing=tasks.filter(task=>!approved.manifest.cases.some(c=>c.tasks.includes("*")||c.tasks.includes(task)));
- if(missing.length)throw new OperatorError(`No approved acceptance checks cover: ${missing.join(", ")}.`,"Add cases for those tasks, then run harness checks approve <file>.");
+ if(missing.length)throw new OperatorError(`No approved acceptance checks cover: ${missing.join(", ")}.`,"Run harness checks setup to draft and approve checks for the next task.");
+ const features = await readFeatures(project);
+ for (const c of approved.manifest.cases.filter(c => c.taskDigest && c.tasks.some(t => tasks.includes(t)))) {
+  const task = features?.ok ? features.features.find(t => t.id === c.tasks[0]) : undefined;
+  if (!task || taskDigest(task) !== c.taskDigest) throw new OperatorError(`Approved checks for ${c.tasks[0]} describe older requirements.`, "Run harness checks setup to draft and review checks for the current task.");
+ }
  return approved;
 }
 export async function assertApprovalCurrent(project:string,expected:Approval):Promise<void>{

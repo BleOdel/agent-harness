@@ -7,7 +7,7 @@ import path from "node:path";
 import { hostname } from "node:os";
 import { ConfigError, loadConfig, setting } from "../config.ts";
 import { readFeatures } from "../features.ts";
-import { readApproval } from "../acceptance/checks.ts";
+import { readApproval, requireChecks } from "../acceptance/checks.ts";
 import { writerPath, canonicalProject } from "../workspace/writer-lock.ts";
 import { run } from "../run.ts";
 
@@ -49,7 +49,8 @@ export async function readiness(project: string, environment: NodeJS.ProcessEnv 
     const tasks = features?.features.filter(t => t.priority !== "wont" && t.status !== "done").map(t => t.id) ?? [];
     const approval = await readApproval(project);
     const missing = tasks.filter(t => !approval?.manifest.cases.some(c => c.tasks.includes(t) || c.tasks.includes("*")));
-    add({ id: "acceptance", status: approval && !missing.length ? "ready" : "missing", message: !approval ? "No acceptance checks approved." : missing.length ? `Checks needed for: ${missing.join(", ")}.` : `${approval.manifest.cases.length} acceptance cases approved.`, remedy: "Use harness checks setup to enter expected application behaviour and approve it." });
+    if (approval && !missing.length && tasks.length) await requireChecks(project, tasks);
+    add({ id: "acceptance", status: approval && !missing.length ? "ready" : "missing", message: !approval ? "No acceptance checks approved." : missing.length ? `Checks needed for: ${missing.join(", ")}.` : `${approval.manifest.cases.length} acceptance cases approved.`, remedy: "Use harness checks setup to draft checks from the saved plan and review their expected behaviour." });
   } catch (error) { add({ id: "acceptance", status: "blocked", message: (error as Error).message, remedy: "Review the saved checks and task list with harness guide." }); }
   try {
     const config = loadConfig({ ...environment, HARNESS_PROJECT: project });

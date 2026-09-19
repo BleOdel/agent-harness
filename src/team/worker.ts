@@ -1,3 +1,5 @@
+import { contractContext } from "../acceptance/draft.ts";
+import type { Approval } from "../acceptance/checks.ts";
 import { getAdapter } from "../adapters/registry.ts";
 import { nodeNpm } from "../adapters/node-npm.ts";
 import { assertExecutionPin, assertSettingsMatch, executionSettings } from "../project/execution.ts";
@@ -28,7 +30,7 @@ import type { Attempt, Usage } from "./schema.ts";
 import { atomicJson, readState } from "./state.ts";
 import type { Worker } from "./controller.ts";
 
-export function processWorker(config: Config, runDirectory: string, testCommand: readonly string[], output: (text: string) => void = text => process.stdout.write(text), control?: TeamControl): Worker {
+export function processWorker(config: Config, runDirectory: string, testCommand: readonly string[], output: (text: string) => void = text => process.stdout.write(text), control?: TeamControl, approval?: Approval): Worker {
   const labels = (a: Attempt): Record<string, string> => ({ "io.harness.run": path.basename(runDirectory), "io.harness.attempt": a.id });
   const layout = (a: Attempt, directory: string, reviewer = false): SandboxLayout => ({
     dockerExecutable: config.dockerExecutable, imageId: config.imageId, containerName: a.containerName,
@@ -63,7 +65,7 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
           await assertSnapshot(attempt.repairCandidate);
           repairDiff = "Rejected candidate diff, provided only as repair context:\n" + await renderDiff(origin.baseline.directory, attempt.repairCandidate.directory, await collectChanges(origin.baseline.directory, attempt.repairCandidate.directory));
         }
-        const goal = [role.instructions, repairDiff, ...(attempt.feedback ? [`Previous attempt diagnosis: ${attempt.feedback}`] : []), briefing(task.title, task.criteria, task.kind === "shared-inputs", task.planContext),
+        const goal = [role.instructions, repairDiff, ...(attempt.feedback ? [`Previous attempt diagnosis: ${attempt.feedback}`] : []), briefing(task.title, task.criteria, task.kind === "shared-inputs", task.planContext), contractContext(approval, [task.id]),
           `Allowed change scope: ${task.changeScope.join(", ")}.`,
           `Contract versions: ${JSON.stringify(attempt.contracts)}.`,
           ...attempt.skills.map(skill => `Read /opt/skills/${skill.id}/SKILL.md before using that workflow.`),

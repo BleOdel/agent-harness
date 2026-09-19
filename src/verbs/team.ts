@@ -85,11 +85,11 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
       const testCommand = await projectTestCommand(canonical, setting(process.env, "HARNESS_TEST_COMMAND"));
       await assertExecutionCompatible(existing.execution, canonical, config, testCommand, true);
       const pendingTasks = existing.plan.tasks.filter(t => !existing.integrated.includes(t.id) && t.status !== "done" && t.priority !== "wont").map(t => t.id);
-      if (pendingTasks.length) await requireChecks(canonical, pendingTasks);
+      const approved = pendingTasks.length ? await requireChecks(canonical, pendingTasks) : undefined;
       await assertRpcVersion(config.piPackageDirectory);
       const control = await TeamControl.start(directory);
       let state;
-      try { state = await resumeTeam(canonical, directory, processWorker(config, directory, testCommand, undefined, control), control); }
+      try { state = await resumeTeam(canonical, directory, processWorker(config, directory, testCommand, undefined, control, approved), control); }
       finally { await control.close(); }
       say(`${state.runId}: ${state.status}. ${state.integrated.length} assignments staged. No new application requested.`);
       if (["stopped", "aborted"].includes(state.status)) throw new OperatorError(state.reason ?? "Team stopped.");
@@ -120,12 +120,12 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
     await assertRpcVersion(config.piPackageDirectory);
     const pendingTasks = plan.tasks.filter(t => t.status !== "done" && t.priority !== "wont").map(t => t.id);
     if (!pendingTasks.length) { say("Nothing left to work on. No team dispatch."); return; }
-    await requireChecks(canonical, pendingTasks);
+    const approved = await requireChecks(canonical, pendingTasks);
     const directory = await createTeam(canonical, plan, path.dirname(profile), policy, testCommand, config);
     say(`team: ${path.basename(directory)}\nstate: ${directory}\nconcurrency: ${policy.maxWorkers ?? 1}; results stay in staging`);
     const control = await TeamControl.start(directory);
     let state;
-    try { state = await driveTeam(directory, processWorker(config, directory, testCommand, undefined, control), control); }
+    try { state = await driveTeam(directory, processWorker(config, directory, testCommand, undefined, control, approved), control); }
     catch (error) { throw new OperatorError(`Team execution interrupted: ${(error as Error).message}`, `Reconcile owned resources with: harness team recover ${path.basename(directory)}`); }
     finally { await control.close(); }
     say(`${state.runId}: ${state.status}. ${state.integrated.length} assignments staged. Nothing applied.`);

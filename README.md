@@ -321,7 +321,7 @@ Run them inside your project.
 | `harness doctor [--json]` | readiness and runner capability report; exit 1 when blocked |
 | `harness project setup` | choose the supported environment and planning/build skills |
 | `harness project show` | display saved project configuration |
-| `harness checks setup` | define and approve observable behaviour through short prompts |
+| `harness checks setup` | draft checks from the saved plan and approve plain-language behaviours |
 | `harness checks review` | review and approve a saved check draft |
 | `harness checks approve <file>` | explicitly approve a JSON acceptance specification |
 | `harness ml setup` | approve data and thresholds through short prompts |
@@ -401,13 +401,35 @@ harness work
 
 ### Required acceptance checks
 
-`harness checks setup` asks for a task, an application command, its expected exit
-code and expected output or file content. Enter `\n` for a newline. It displays
-the concrete checks before approval, preserves existing approved cases, and
-saves a declined draft for `harness checks review`. Checks run in an offline
-container, never directly on your computer. A case can have multiple steps that
-share files, such as save in one process and load in another. Each case starts
-from a fresh candidate copy with clean dependencies.
+`harness checks setup` asks you to choose a task and optionally describe changes
+in plain language. Your configured model reads the source in a read-only copy,
+plus the task criteria and saved approved plan, and proposes executable checks.
+It cannot edit the application. Drafting uses provider access; the eventual
+acceptance checks run offline.
+
+Review the proposed behaviours, interface choices and criterion-by-criterion
+coverage. Unchecked aspects are explicitly listed as limitations; approval does
+not waive those requirements. Technical commands are available through **View
+technical commands and expected results**, but you do not need to type them.
+If API routes or startup details are not yet defined, the draft proposes an
+interface contract for approval. The builder receives that contract in ordinary
+and team builds, without receiving the host's expected outputs or check commands.
+
+Drafts are saved outside source in `acceptance/guided-draft.json` before review.
+Use `harness checks review` to resume without another model request, or setup
+again to request changes. Approval replaces cases scoped only to the selected
+task and retains all other cases. A changed source or task blocks approval of a
+stale draft; changes to task requirements also invalidate generated approvals.
+Provider failure or cancelling review leaves existing approved checks unchanged.
+These are model-proposed checks, not proof that the application works: the host
+must still execute and compare them before applying a candidate. Coverage labels
+are proposals and still require human review, especially for privacy and UI work.
+
+For advanced manual entry, use `harness checks setup --manual`: enter an
+application command, exit code and expected output or file content (`\n` means
+a newline). Checks run in an offline container, never directly on your computer.
+Each case gets a fresh candidate copy. Steps share files but not running
+processes; server checks must start and stop the server within the same step.
 
 For automation, review a document like this and run `harness checks approve /path/to/checks.json`:
 
