@@ -1,7 +1,7 @@
 import { assertModelEffort, modelLabel } from "../model-settings.ts";
 /** Drafts are proposals, never evidence. Only the operator can approve expectations. */
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { type Feature } from '../features.ts';
@@ -15,6 +15,7 @@ import { CONTAINER_PI_PACKAGE, buildRunArguments, type SandboxLayout } from '../
 import { runContained, withContainmentSignal } from '../containment/process.ts';
 import { resourceArguments } from '../agent/resources.ts';
 import { OperatorError } from '../verbs/io.ts';
+import { harnessDirectory } from '../record/record.ts';
 
 export interface Coverage { criterion: number; cases: string[]; limitation?: string; }
 export interface Proposal { version: 1; contract: string; coverage: Coverage[]; manifest: CheckManifest; }
@@ -81,7 +82,13 @@ export async function requestCheckJson(project: string, prompt: string): Promise
   await assertLiveBaseline(project, baseline);
   let raw: unknown;
   try { raw = JSON.parse(result.stdout.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, '')); }
-  catch { throw new OperatorError('The check drafter did not return valid JSON.', 'No checks approved. Retry harness checks setup.'); }
+  catch {
+   const directory=path.join(harnessDirectory(project),'acceptance','model-errors');
+   await mkdir(directory,{recursive:true,mode:0o700});
+   const file=path.join(directory,`${Date.now()}-${randomUUID()}.json`);
+   await writeFile(file,JSON.stringify({version:1,requestDigest:createHash('sha256').update(prompt).digest('hex'),model:modelLabel(config),stdout:result.stdout,stderr:result.stderr},null,2)+'\n',{flag:'wx',mode:0o600});
+   throw new OperatorError('The check drafter did not return valid JSON.', 'The malformed response and completed preparation are saved. No checks approved. Continue with harness checks review.');
+  }
   return raw;
  } finally {
   process.removeListener('SIGINT', cancel); process.removeListener('SIGTERM', cancel);

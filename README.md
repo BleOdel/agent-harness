@@ -434,47 +434,73 @@ plus the task criteria and saved approved plan, and proposes executable checks.
 It cannot edit the application. Drafting uses provider access; the eventual
 acceptance checks run offline.
 
-Before presenting a draft, the harness parses inline Node/Python probe syntax
-without executing it and runs a fresh read-only model review against the plan
-and interface contract. It checks request headers, version tokens, observation
-ordering, SQLite representations, lifecycle assumptions, cleanup and coverage
-claims. Existing shared contract files are supplied directly to drafting and
-review so completed interfaces remain compatibility constraints. Drafting and
-review also receive the offline Linux runner constraints, including the absence
-of guaranteed non-loopback network interfaces. Defects return
-to the drafter automatically, with at most two contract/behaviour repairs and a
-fresh review after each. Repairs use exact, finding-linked text edits instead of
-regenerating the suite; case identities, task mappings and step order remain fixed.
-Reviewers receive the preceding findings as context and see the exact executable
-source directly, alongside structured metadata, instead of escaped code inside
-a large JSON string. They still audit the complete draft. Requests are delivered
-through temporary read-only file attachments, avoiding Linux argument-length
-limits for large drafts. These files never enter project source. Parser defects have a separate budget of two syntax
-repairs; those can replace only failing inline code, not expected results,
-coverage or interface contracts. Syntax repairs never skip independent review. Persistent defects stop without
-approval; the latest proposal and findings remain in `acceptance/review-progress.json`
-for the next setup attempt. Each checkpoint is also retained in
-`acceptance/review-history/`, and a final rejection displays its unresolved findings.
-Resuming retains both the proposal and its findings. Older saved drafts receive this review automatically.
-A model review can still miss defects: this is check-quality review, not a claim
-that the unbuilt application passes. Application verification still happens only
-against the candidate in the offline acceptance gate.
+Preparation has two stages. First the model proposes a small behaviour outline,
+criterion coverage and one interface contract. An independent review checks that
+outline against the saved plan and existing shared contracts before any executable
+checks are generated. Up to two automatic outline corrections are independently
+reviewed; their budget also survives interruption. Then each behaviour is generated
+separately and checkpointed
+in `acceptance/preparation.json`. The request and optional guidance are saved before
+the first provider call, so even an early failure can resume without retyping.
+Initial case generation is limited to 16 KiB of JSON-encoded steps; up to 24 cases
+may be proposed. Invalid generated cases are saved with their raw response and
+receive at most two format/size corrections before quality review; this budget
+also survives resume. If a case is still oversized, preparation can partition that
+unfinished behaviour into two or three smaller checks, at most twice (28 cases
+maximum). The interface, completed checks and unrelated behaviours are preserved;
+the new outline must pass independent review. Retired oversized responses and
+partition progress are saved. Existing drafts remain readable.
 
-Review the proposed behaviours, interface choices and criterion-by-criterion
-coverage. Unchecked aspects are explicitly listed as limitations; approval does
+Quality review checks the interface outline and each case separately. Findings
+must identify a numbered requirement, a concrete defect and supporting context.
+The host labels exact quotations; imprecise quotations remain unverified reviewer
+context beside the exact requirement and cannot turn a rejection into a pass. Optional extensions and disclosed
+source/browser evidence gaps are reported separately. Malformed reference fields
+get one format-correction request that cannot alter the finding, criterion number,
+limitations or verdict. Raw and corrected responses are retained in
+`acceptance/review-responses/`. This does not make model judgment infallible or
+waive any requirement.
+
+Inline Node/Python syntax is parsed without executing the probe on the host.
+A case can receive at most two semantic repairs and two syntax repairs. Repairs
+use exact text edits and cannot change the interface contract, coverage outline,
+case descriptions or another case. A repaired case is independently reviewed
+again. A repair that changes nothing stops immediately. Once code generation starts,
+an interface contradiction stops for a revised outline rather than silently moving
+the builder's target.
+
+Successful scope reviews, findings and repair counts are retained in
+`acceptance/review-progress.json`; checkpoints are archived in
+`acceptance/review-history/`. Unchanged scopes reuse their review when source and
+task fingerprints still match. Restarting cannot reset a depleted repair budget.
+Use **Draft again with changes** in setup to deliberately start a new preparation;
+old state is archived. The latest repaired proposal and findings inform the new
+preparation. Explain changes in ordinary language, not probe code.
+
+Reviewers receive exact executable source, existing shared contracts and offline
+Linux runner constraints. Requests use temporary read-only file attachments to
+avoid command-argument size limits. No request file enters project source.
+Model review assesses check design only. Actual application verification still
+runs later against the candidate in the offline acceptance gate.
+
+Review the proposed behaviours and criterion-by-criterion coverage. Exact routes,
+fields and startup choices are available through **View the interface contract**. Unchecked aspects are explicitly listed as limitations; approval does
 not waive those requirements. Technical commands are available through **View
 technical commands and expected results**, but you do not need to type them.
 If API routes or startup details are not yet defined, the draft proposes an
 interface contract for approval. The builder receives that contract in ordinary
 and team builds, without receiving the host's expected outputs or check commands.
 
-Drafts are saved outside source in `acceptance/guided-draft.json` before review.
-Use `harness checks review` to resume. A draft that already passed quality review
+Completed drafts are saved outside source in `acceptance/guided-draft.json` before
+operator approval. `harness checks review` also resumes a partial preparation
+before a complete draft exists. A draft that already passed quality review
 needs no model request; older or unreviewed drafts are checked and repaired first.
 Use setup again to request changes. Approval replaces cases scoped only to the selected
 task and retains all other cases. A changed source or task blocks approval of a
 stale draft; changes to task requirements also invalidate generated approvals.
 Provider failure or cancelling review leaves existing approved checks unchanged.
+Malformed JSON responses are retained privately in `acceptance/model-errors/`
+for diagnosis; `harness checks review` resumes from completed preparation.
 These are model-proposed checks, not proof that the application works: the host
 must still execute and compare them before applying a candidate. Coverage labels
 are proposals and still require human review, especially for privacy and UI work.

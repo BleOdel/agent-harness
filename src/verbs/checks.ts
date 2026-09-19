@@ -1,4 +1,4 @@
-import { guidedSetup, readGuidedDraft, reviewGuidedDraft } from "../acceptance/guided.ts";
+import { guidedSetup, readGuidedDraft, reviewGuidedDraft, resumePreparation } from "../acceptance/guided.ts";
 import { randomUUID } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
@@ -70,6 +70,7 @@ export async function checks(project: string, args: readonly string[]): Promise<
   if (args.length === 1 && args[0] === "review") {
     const io = terminalDialogue();
     if (await readGuidedDraft(project)) return reviewGuidedDraft(project, io);
+    if (await resumePreparation(project, io)) return;
     const { readArtifact } = await import("../planning/store.ts");
     const directory = path.join(harnessDirectory(await canonicalProject(project)), "acceptance");
     const raw = await readArtifact(directory, "draft.json");

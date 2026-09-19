@@ -109,7 +109,7 @@ test('repair progress survives a provider failure and resumes without regenerati
  const drafter=async()=>{generated++;return parseProposal(proposal(),task);};
  await assert.rejects(realGuidedSetup(project,task,dialogue(['']),drafter,async()=>{throw new Error('provider unavailable');}),/provider unavailable/);
  assert.equal(await readApproval(project),undefined);
- const io=dialogue(['','3']);
+ const io=dialogue(['1','3']);
  await realGuidedSetup(project,task,io,drafter,async(_project,_task,p)=>({proposal:p,validation:{version:1,status:'reviewed',digest:proposalDigest(p),rounds:1,limitations:[],at:new Date().toISOString()}}));
  assert.equal(generated,1);assert.match(io.lines.join('\n'),/Resuming the saved check draft/);
 }));
@@ -123,12 +123,47 @@ test('resume retains saved findings, archives review snapshots and never approve
  const {readdir}=await import('node:fs/promises');
  const before=await readdir(path.join(directory,'review-history'));
  assert.equal(before.length,2);
- await assert.rejects(realGuidedSetup(project,task,dialogue(['']),async()=>{throw new Error('must resume');},async(_project,_task,_p,_progress,_checkpoint,issues)=>{
+ await assert.rejects(realGuidedSetup(project,task,dialogue(['1']),async()=>{throw new Error('must resume');},async(_project,_task,_p,_progress,_checkpoint,issues)=>{
   assert.deepEqual(issues,['contradictory response helper']);throw new Error('provider unavailable');
  }),/provider unavailable/);
  const latest=JSON.parse(await readFile(path.join(directory,'review-progress.json'),'utf8'));
  assert.deepEqual(latest.issues,['contradictory response helper']);
  const after=await readdir(path.join(directory,'review-history'));
  assert.equal(after.length,3);assert.ok(before.every(file=>after.includes(file)));
+ assert.equal(await readApproval(project),undefined);
+}));
+test('explicitly drafting again with empty feedback does not resume the old proposal',()=>fixture(async project=>{
+ let calls=0;
+ const drafter=async()=>{calls++;const p=proposal();p.contract+=' generation '+calls;return parseProposal(p,task);};
+ await guidedSetup(project,task,dialogue(['','3']),drafter);
+ await guidedSetup(project,task,dialogue(['2','','3']),drafter);
+ assert.equal(calls,2);
+ const saved=JSON.parse(await readFile(path.join(harnessDirectory(project),'acceptance','guided-draft.json'),'utf8'));
+ assert.match(saved.proposal.contract,/generation 2/);assert.equal(await readApproval(project),undefined);
+}));
+test('default review shows behaviours without dumping API details; interface choices remain inspectable',()=>fixture(async project=>{
+ const io=dialogue(['','3']);await guidedSetup(project,task,io,async()=>parseProposal(proposal(),task));
+ assert.match(io.lines.join('\n'),/Submit a story/);assert.doesNotMatch(io.lines.join('\n'),/POST \/api\/stories/);
+ const details=dialogue(['4','3']);await reviewGuidedDraft(project,details);
+ assert.match(details.lines.join('\n'),/POST \/api\/stories/);assert.equal(await readApproval(project),undefined);
+}));
+test('a deliberate restart carries the latest repaired proposal forward rather than the older guided draft',()=>fixture(async project=>{
+ await guidedSetup(project,task,dialogue(['','3']),async()=>parseProposal(proposal(),task));
+ const progressFile=path.join(harnessDirectory(project),'acceptance','review-progress.json');
+ const latest=JSON.parse(await readFile(progressFile,'utf8'));latest.proposal.contract='Latest corrected interface.';await writeFile(progressFile,JSON.stringify(latest));
+ await guidedSetup(project,task,dialogue(['2','','3']),async(_project,_task,_feedback,previous)=>{assert.equal(previous!.contract,'Latest corrected interface.');return previous!;});
+}));
+
+test('revising an interrupted preparation retains its latest outline and findings',()=>fixture(async project=>{
+ await guidedSetup(project,task,dialogue(['','3']),async()=>parseProposal(proposal(),task));
+ const dir=path.join(harnessDirectory(project),'acceptance');
+ const draft=JSON.parse(await readFile(path.join(dir,'guided-draft.json'),'utf8'));
+ const p=draft.proposal;
+ await writeFile(path.join(dir,'preparation.json'),JSON.stringify({version:1,taskId:task.id,taskDigest:taskDigest(task),sourceDigest:draft.sourceDigest,state:{version:1,blueprint:{version:1,contract:'Latest partial interface.',coverage:p.coverage,cases:p.manifest.cases.map((c:{id:string;description:string})=>({id:c.id,description:c.description}))},cases:[],outlineReview:{review:{verdict:'repair',issues:['Missing response field.'],limitations:[]}}}}));
+ await rm(path.join(dir,'guided-draft.json'));await rm(path.join(dir,'review-progress.json'));
+ const io=dialogue(['2','Keep the saved scope.','3']);
+ await realGuidedSetup(project,task,io,async(_project,_task,_feedback,previous)=>{assert.equal(previous!.contract,'Latest partial interface.');return previous!;},async(_project,_task,p,_progress,_checkpoint,issues)=>{
+  assert.deepEqual(issues,['Missing response field.']);return {proposal:p,validation:{version:1,status:'reviewed',digest:proposalDigest(p),rounds:1,limitations:[],at:new Date().toISOString()}};
+ });
  assert.equal(await readApproval(project),undefined);
 }));

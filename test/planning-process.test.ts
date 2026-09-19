@@ -1,3 +1,4 @@
+import {installFixtureCatalog} from './model-fixture.ts';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -25,11 +26,12 @@ test("Docker: timeout retains plan and session, removes container, and resume ge
   const root = await mkdtemp(path.join(os.tmpdir(),"planning-process-"));
   const project=path.join(root,"project"), pi=path.join(root,"pi"), agent=path.join(root,"agent");
   for(const dir of [project,path.join(pi,"dist"),agent]) await mkdir(dir,{recursive:true});
+  await installFixtureCatalog(pi);
   await writeFile(path.join(project,"original.txt"),"live source");
   let saved=await createPlan(project,"Blog");
   await writeFile(path.join(saved.work,"PLAN.md"),"# Approved blog\nUse Markdown");
   saved=await approvePlan(saved);
-  const config={...loadConfig(),piPackageDirectory:pi,agentDirectory:agent,agentTimeoutMs:2000};
+  const config={...loadConfig(),piPackageDirectory:pi,agentDirectory:agent,agentTimeoutMs:2000,provider:"fixture",model:"fixture",effort:"medium" as const};
   await writeFile(path.join(pi,"dist/cli.js"),`const fs=require('node:fs');
     const session=process.argv[process.argv.indexOf('--session')+1];
     fs.writeFileSync(session,JSON.stringify({decision:'Use Markdown'})+'\\n');
@@ -84,9 +86,10 @@ test("Docker: public planning CLI survives a killed controller and resumes after
   const root=await mkdtemp(path.join(os.tmpdir(),"plan-cli-crash-"));
   const project=path.join(root,"project"),pi=path.join(root,"pi"),agent=path.join(root,"agent");
   for(const d of [project,path.join(pi,"dist"),agent])await mkdir(d,{recursive:true});
+  await installFixtureCatalog(pi);
   const source=path.join(root,"approved.md");await writeFile(source,"# Blog\nNo client JavaScript.");
   const config=loadConfig();const cli=path.resolve("src/cli.ts");
-  const env={...process.env,HARNESS_PROJECT:project,HARNESS_PI_PACKAGE:pi,HARNESS_AGENT_DIR:agent,HARNESS_AGENT_TIMEOUT:"60"};
+  const env={...process.env,HARNESS_PROJECT:project,HARNESS_PI_PACKAGE:pi,HARNESS_AGENT_DIR:agent,HARNESS_AGENT_TIMEOUT:"60",HARNESS_PROVIDER:"fixture",HARNESS_MODEL:"fixture",HARNESS_REASONING_EFFORT:"medium"};
   const call=(...args:string[])=>run(process.execPath,[cli,...args],{timeoutMs:20000,env});
   assert.equal((await call("plan","--from",source)).code,0);
   const saved=await resolvePlan(project);

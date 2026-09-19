@@ -118,6 +118,42 @@ fresh venv in builders and acceptance checks. Project files cannot supply these
 harness settings. Python contract-suite declarations are refused until supported.
 See [Python policy and migration](PYTHON.md) and [adapter](src/adapters/python-pip.ts).
 
+## Acceptance-check preparation
+
+```mermaid
+flowchart LR
+  P["Saved plan, criteria and source"] --> O["Behaviour outline and interface"]
+  O --> R["Independent outline review"]
+  R -->|conflict| O2["Correct outline; at most two attempts"]
+  O2 --> R
+  R -->|consistent| C["Generate and save one behaviour at a time"]
+  C -->|still oversized| P2["Partition unfinished behaviour; at most twice"]
+  P2 --> R2["Review partition; retain interface and completed checks"]
+  R2 --> C
+  C --> S["Syntax check and independent case review"]
+  S -->|concrete defect| F["Repair only that case; bounded budget"]
+  F --> S
+  S -->|all scopes reviewed| U["Operator reviews behaviours and limitations"]
+  U -->|approved| A["Existing offline candidate acceptance gate"]
+```
+
+The contract and coverage outline stay fixed during case repairs. Each review
+receipt binds task requirements, outline and selected case bytes; the outer saved
+state additionally binds project source. Resume reuses matching successful reviews
+and retains spent repair budgets. Before code exists, outline corrections are
+independently reviewed with a separate two-attempt budget. Invalid generated cases
+retain their raw response and at most two format/size correction attempts before
+quality review. Persistently oversized unfinished behaviours may be partitioned
+at most twice, preserving the interface and completed cases and independently
+reviewing the updated outline. Retired case responses remain in preparation state.
+Unchanged repairs and
+exhausted budgets stop without approving checks. Preparation and review ledgers
+live outside application source. The initial request is saved before provider
+access; a deliberate restart carries forward the latest proposal and findings
+while archiving the old attempt. Legacy complete drafts can enter scoped review
+without retyping requirements. Provider calls remain independent of application
+execution; a reviewed check design is not an observed application pass.
+
 ## Execution and acceptance
 
 Ordinary `work` verifies and applies one item. `team run` stages a batch with one
