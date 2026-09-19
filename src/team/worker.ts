@@ -73,13 +73,13 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
         ].join("\n\n");
         const startedAt = new Date().toISOString();
         await control?.record({ type: "phase", attemptId: attempt.id, phase: "building", modelRole: "builder" });
-        const agent = await runRpcAgent(local, { goal, provider: role.provider ?? config.provider, model: role.model ?? config.model, timeoutMs: Math.min(role.timeoutMs ?? config.agentTimeoutMs, config.agentTimeoutMs), skills: attempt.skills.length > 0, sessionDirectory: "/pi-agent/sessions" }, output, {
+        const agent = await runRpcAgent(local, { goal, provider: role.provider ?? config.provider, model: role.model ?? config.model, effort: config.effort ?? "medium", timeoutMs: Math.min(role.timeoutMs ?? config.agentTimeoutMs, config.agentTimeoutMs), skills: attempt.skills.length > 0, sessionDirectory: "/pi-agent/sessions" }, output, {
           ...(control ? { signal: control.signal } : {}), ready: handle => control?.register(attempt.id, handle), event: event => control?.observe(attempt.id, event),
           turn: usage => { spent = { tokens: usage.totalTokens, costUsd: usage.costUsd, complete: true }; void control?.record({ type: "usage", attemptId: attempt.id, modelRole: "builder", usage }).catch(() => {}); },
         });
         await control?.flush();
         const result = { agent, submission: await readSubmission(work), claim: await readClaim(work) };
-        await atomicJson(path.join(attempt.directory, "builder.json"), { startedAt, finishedAt: new Date().toISOString(), containerName: attempt.containerName, sessionDirectory: path.join(local.agentDirectory, "sessions"), provider: role.provider ?? config.provider, model: role.model ?? config.model, code: result.agent.code, timedOut: result.agent.timedOut, usage: result.agent.usage, executionDigest: state.execution?.digest, environmentKey: environment.key, runner: dockerRunner.evidence(local, result.agent) });
+        await atomicJson(path.join(attempt.directory, "builder.json"), { startedAt, finishedAt: new Date().toISOString(), containerName: attempt.containerName, sessionDirectory: path.join(local.agentDirectory, "sessions"), provider: role.provider ?? config.provider, model: role.model ?? config.model, effort: config.effort ?? "medium", code: result.agent.code, timedOut: result.agent.timedOut, usage: result.agent.usage, executionDigest: state.execution?.digest, environmentKey: environment.key, runner: dockerRunner.evidence(local, result.agent) });
         const usage: Usage = spent = { tokens: result.agent.usage.totalTokens, costUsd: result.agent.usage.costUsd, complete: result.agent.usageComplete };
         // Builder totals enter the acceptance journal; reviewer usage is added
         // separately by the controller, avoiding double-counting live telemetry.
@@ -115,8 +115,8 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
       const reviewer = layout(attempt, result.candidate.directory, true);
       await privateAgentDirectory(config.agentDirectory, reviewer.agentDirectory);
       await control?.record({ type: "phase", attemptId: attempt.id, phase: "reviewing", modelRole: "reviewer" });
-      const request = { title: task.title, criteria: task.criteria, diff: await renderDiff(attempt.baseline.directory, result.candidate.directory, result.candidate.changes), provider: config.provider, model: config.model, timeoutMs: config.agentTimeoutMs };
-      const reviewed = await runRpcAgent({ ...reviewer, purpose: "review" }, { goal: reviewPrompt(request), provider: request.provider, model: request.model, timeoutMs: request.timeoutMs, skills: false }, () => {}, {
+      const request = { title: task.title, criteria: task.criteria, diff: await renderDiff(attempt.baseline.directory, result.candidate.directory, result.candidate.changes), provider: config.provider, model: config.model, effort: config.effort ?? "medium", timeoutMs: config.agentTimeoutMs };
+      const reviewed = await runRpcAgent({ ...reviewer, purpose: "review" }, { goal: reviewPrompt(request), provider: request.provider, model: request.model, effort: request.effort, timeoutMs: request.timeoutMs, skills: false }, () => {}, {
         ...(control ? { signal: control.signal } : {}), turn: usage => { void control?.record({ type: "usage", attemptId: attempt.id, modelRole: "reviewer", usage }).catch(() => {}); },
       });
       await control?.flush();

@@ -43,6 +43,7 @@ export interface RunRecord {
   readonly review?: { readonly verdict: string; readonly findings: readonly string[] };
   /** What the model cost, summed across the run's turns. */
   readonly usage?: {
+    readonly requestedEffort?: string;
     readonly provider?: string;
     readonly model?: string;
     readonly input: number;

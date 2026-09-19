@@ -15,13 +15,13 @@ import { availableSkills, freezeSelectedSkills, type SkillBundle } from "./skill
 import { run } from "../run.ts";
 export function executionSettings(profile: ProjectProfile, config: Config, testCommand: readonly string[]) {
  return { profile, image: config.imageId, docker: config.dockerExecutable, pi: config.piPackageDirectory, agent: config.agentDirectory,
-  skills: config.skillsDirectory ?? null, provider: config.provider ?? null, model: config.model ?? null,
+  effort: config.effort ?? "medium", skills: config.skillsDirectory ?? null, provider: config.provider ?? null, model: config.model ?? null,
   installPolicy: config.installPolicy ?? DEFAULT_INSTALL_POLICY, testCommand: [...testCommand], contracts: config.contractPaths ?? [] };
 }
 export type ExecutionSettings = ReturnType<typeof executionSettings>;
 export interface ExecutionPin { version: 1; settings: ExecutionSettings; capabilities: Capabilities; skills: SkillBundle[]; digest: string; }
 export function assertSettingsMatch(expected: ExecutionSettings, current: ExecutionSettings): void {
- if (digest(expected) !== digest(current)) throw new OperatorError("Execution settings changed since this run was accepted. Restore the saved settings shown by harness project show / team inspect, or start a new run. Saved work remains available.");
+ if (digest({ ...expected, effort: expected.effort ?? "medium" }) !== digest({ ...current, effort: current.effort ?? "medium" })) throw new OperatorError("Execution settings changed since this run was accepted. Restore the saved settings shown by harness project show / team inspect, or start a new run. Saved work remains available.");
 }
 export function assertExecutionPin(pin: ExecutionPin): void {
  if (!pin || pin.version !== 1 || !pin.settings || !pin.capabilities || !Array.isArray(pin.skills)) throw new OperatorError("Missing or unsupported execution identity. Inspect or recover this older run; start a new run to build with the current adapter contract.");

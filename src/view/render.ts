@@ -110,6 +110,7 @@ function runSection(view: RunView): string {
     ` &middot; <span class="outcome">${escape(OUTCOME_LABEL[run.outcome] ?? run.outcome)}</span>`,
     run.attempts > 1 ? ` &middot; ${String(run.attempts)} attempts` : "",
     run.usage === undefined ? "" : ` &middot; <span class="usage">${escape(run.usage.model ?? "model")}`
+      + (run.usage.requestedEffort ? ` &middot; reasoning ${escape(run.usage.requestedEffort)} (requested)` : "")
       + ` &middot; ${run.usage.totalTokens.toLocaleString("en-GB")} tokens`
       + (run.usage.cacheRead > 0
         ? ` &middot; ${String(Math.round((run.usage.cacheRead

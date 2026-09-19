@@ -119,7 +119,7 @@ export function processAlive(pid: number): boolean {
 export interface TeamView {
   runId: string; status: string; live: boolean; reason?: string; elapsedMs: number; costUsd: number; tokens: number;
   tasks: { id: string; role: string; waitingFor: string[]; criteria?: readonly string[] }[];
-  attempts: { id: string; task: string; role: string; phase: string; repairOf?: string; skills?: string[]; observedReads?: string[]; workflowEvidence?: string[]; activity?: string[]; findings?: string[]; integrationGates?:string[]; elapsedMs: number; gates: string[]; review: string; integration: string; models: { role: string; tokens: number; costUsd: number; provider?: string; model?: string }[] }[];
+  attempts: { id: string; task: string; role: string; phase: string; repairOf?: string; skills?: string[]; observedReads?: string[]; workflowEvidence?: string[]; activity?: string[]; findings?: string[]; integrationGates?:string[]; elapsedMs: number; gates: string[]; review: string; integration: string; models: { role: string; tokens: number; costUsd: number; provider?: string; model?: string; requestedEffort?: string }[] }[];
   reviewHandoffs?: { id: string; at: string; attemptId: string }[];
   steering: { id: string; attemptId: string; message: string; state: string }[];
 }
@@ -161,11 +161,11 @@ export async function readTeams(project: string, now = Date.now()): Promise<Team
     const strings=(v:unknown):string[]=>Array.isArray(v)?v.filter((s):s is string=>typeof s==='string'):[];
     for (const attempt of state.attempts) {
       const history = telemetry.filter(e => e.attemptId === attempt.id), models = new Map<string, TeamView["attempts"][number]["models"][number]>();
-      for (const event of history) if (event.type === "usage" && event.usage && event.modelRole) models.set(event.modelRole, { role: event.modelRole, tokens: event.usage.totalTokens, costUsd: event.usage.costUsd, ...(event.usage.provider ? { provider: event.usage.provider } : {}), ...(event.usage.model ? { model: event.usage.model } : {}) });
+      for (const event of history) if (event.type === "usage" && event.usage && event.modelRole) models.set(event.modelRole, { role: event.modelRole, tokens: event.usage.totalTokens, costUsd: event.usage.costUsd, ...(event.usage.provider ? { provider: event.usage.provider } : {}), ...(event.usage.model ? { model: event.usage.model } : {}), ...(event.usage.requestedEffort ? { requestedEffort: event.usage.requestedEffort } : {}) });
       // Old runs have finite-process artifacts rather than live telemetry.
       for (const [role, filename] of [["builder", "builder.json"], ["reviewer", "reviewer.json"]]) if (!models.has(role!)) {
         const artifact = await optional(path.join(attempt.directory, filename!));
-        if (artifact?.usage) models.set(role!, { role: role!, tokens: artifact.usage.totalTokens ?? 0, costUsd: artifact.usage.costUsd ?? 0, ...(artifact.usage.provider ? { provider: artifact.usage.provider } : {}), ...(artifact.usage.model ? { model: artifact.usage.model } : {}) });
+        if (artifact?.usage) models.set(role!, { role: role!, tokens: artifact.usage.totalTokens ?? 0, costUsd: artifact.usage.costUsd ?? 0, ...(artifact.usage.provider ? { provider: artifact.usage.provider } : {}), ...(artifact.usage.model ? { model: artifact.usage.model } : {}), ...(artifact.usage.requestedEffort ? { requestedEffort: artifact.usage.requestedEffort } : {}) });
       }
       const review = await optional(path.join(attempt.directory,"review.json"));
       const verification = await optional(path.join(attempt.directory,"verification.json"));

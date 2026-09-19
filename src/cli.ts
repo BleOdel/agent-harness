@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --experimental-strip-types
+import { modelCommand } from "./verbs/model.ts";
 /**
  * The operator surface: five verbs.
  *
@@ -46,6 +47,7 @@ import { work } from "./verbs/work.ts";
 const USAGE = [
   "harness — build software in a sandbox, prove it, then apply it.",
   "",
+  "  harness model [setup]      inspect or choose provider, model and reasoning strength",
   "  harness guide [path]        select a project and continue through guided steps",
   "  harness project setup      select the project adapter and skill bundles",
   "  harness project show       show saved environment requirements",
@@ -98,6 +100,7 @@ async function main(): Promise<void> {
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
 
   switch (verb) {
+    case "model": return modelCommand(project, rest);
     case "release": return releaseCommand(project, rest);
     case "desktop": return desktopCommand(project, rest);
     case "ml": return mlCommand(project, rest);

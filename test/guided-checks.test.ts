@@ -26,10 +26,12 @@ test('contract handoff excludes hidden commands and task fingerprint ignores sta
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { guidedSetup, reviewGuidedDraft } from '../src/acceptance/guided.ts';
+import { guidedSetup as realGuidedSetup, reviewGuidedDraft } from '../src/acceptance/guided.ts';
 import { readApproval, requireChecks, approveChecks } from '../src/acceptance/checks.ts';
 import { harnessDirectory } from '../src/record/record.ts';
 import { draftPrompt } from '../src/acceptance/draft.ts';
+import { proposalDigest } from '../src/acceptance/repair.ts';
+const guidedSetup = (project: string, selected: Parameters<typeof realGuidedSetup>[1], io: Parameters<typeof realGuidedSetup>[2], drafter: Parameters<typeof realGuidedSetup>[3]) => realGuidedSetup(project, selected, io, drafter, async (_project, _task, proposal) => ({ proposal, validation: { version: 1, status: 'reviewed', digest: proposalDigest(proposal), rounds: 1, limitations: [], at: new Date().toISOString() } }));
 function dialogue(values: string[]) {
  const lines: string[] = [];
  return { lines, write: (text: string) => { lines.push(text); }, ask: async (q: string) => { lines.push(q); assert.ok(values.length, `Unexpected prompt: ${q}`); return values.shift()!; } };
@@ -90,3 +92,24 @@ test('draft instruction asks for executable behaviour, isolated data and honest 
  assert.match(prompt, /complete minimal interface contract/);
  assert.match(prompt, /not hardcoded success claims/);
 });
+
+test('legacy saved drafts receive automatic review before approval without retyping feedback', () => fixture(async project => {
+ await guidedSetup(project, task, dialogue(['', '3']), async () => parseProposal(proposal(), task));
+ const file=path.join(harnessDirectory(project),'acceptance','guided-draft.json');
+ const legacy=JSON.parse(await readFile(file,'utf8'));delete legacy.validation;await writeFile(file,JSON.stringify(legacy,null,2)+'\n');
+ let reviewed=0;
+ const io=dialogue(['1','y']);
+ await reviewGuidedDraft(project,io,undefined,async(_project,_task,p)=>{reviewed++;return {proposal:p,validation:{version:1,status:'reviewed',digest:proposalDigest(p),rounds:1,limitations:[],at:new Date().toISOString()}};});
+ assert.equal(reviewed,1);assert.ok(await readApproval(project));
+ assert.match(io.lines.join('\n'),/predates automatic quality review/);
+ assert.ok(!io.lines.some(line=>line.includes('Anything to add')));
+}));
+test('repair progress survives a provider failure and resumes without regenerating the draft',()=>fixture(async project=>{
+ let generated=0;
+ const drafter=async()=>{generated++;return parseProposal(proposal(),task);};
+ await assert.rejects(realGuidedSetup(project,task,dialogue(['']),drafter,async()=>{throw new Error('provider unavailable');}),/provider unavailable/);
+ assert.equal(await readApproval(project),undefined);
+ const io=dialogue(['','3']);
+ await realGuidedSetup(project,task,io,drafter,async(_project,_task,p)=>({proposal:p,validation:{version:1,status:'reviewed',digest:proposalDigest(p),rounds:1,limitations:[],at:new Date().toISOString()}}));
+ assert.equal(generated,1);assert.match(io.lines.join('\n'),/Resuming the saved check draft/);
+}));

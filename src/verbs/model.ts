@@ -1,0 +1,33 @@
+import { mkdir } from 'node:fs/promises';
+import path from 'node:path';
+import { resolveModelSettings, modelSettingsPath, supportedEfforts, type ReasoningEffort } from '../model-settings.ts';
+import { atomicWrite } from '../planning/store.ts';
+import { canonicalProject, withWriter } from '../workspace/writer-lock.ts';
+import { choose, confirmed, terminalDialogue, type Dialogue } from '../guide/dialogue.ts';
+import { OperatorError, say } from './io.ts';
+export async function modelCommand(project: string, args: readonly string[], io?: Dialogue): Promise<void> {
+ project = await canonicalProject(project);
+ if (args.length > 1 || (args.length && args[0] !== 'setup')) throw new OperatorError('Use: harness model [setup]');
+ const current = resolveModelSettings(project);
+ const write = io?.write ?? say;
+ write(`Provider: ${current.provider ?? 'not selected'} (${current.sources.provider})`);
+ write(`Model: ${current.model ?? 'not selected'} (${current.sources.model})`);
+ write(`Reasoning effort: ${current.effort} (${current.sources.effort})`);
+ write('Medium and High are reasoning settings, not different model versions. Higher effort may take longer and consume more tokens.');
+ if (!args.length) return;
+ io ??= terminalDialogue();
+ const provider = (await io.ask(`Provider (Enter for ${current.provider ?? 'none'}):`)).trim() || current.provider;
+ const model = (await io.ask(`Model id (Enter for ${current.model ?? 'none'}):`)).trim() || current.model;
+ if (!provider || !model) throw new OperatorError('A provider and exact model id are required.');
+ if (!process.env.HARNESS_PI_PACKAGE) throw new OperatorError('Set HARNESS_PI_PACKAGE before choosing model strength.');
+ const levels = await supportedEfforts(process.env.HARNESS_PI_PACKAGE,provider,model);
+ const hints: Partial<Record<ReasoningEffort,string>> = {medium:'balanced; harness default',high:'more reasoning; may take longer',off:'no explicit reasoning effort'};
+ const index = await choose(io, 'Reasoning strength supported by this model', levels.map(level=>`${level}${hints[level] ? ` — ${hints[level]}` : ''}`));
+ if (index < 0) return;
+ const effort = levels[index]!;
+ io.write(`Save ${provider}/${model}, reasoning ${effort}, for this project.`);
+ for (const [key,value] of [['HARNESS_PROVIDER',provider],['HARNESS_MODEL',model],['HARNESS_REASONING_EFFORT',effort]]) if (process.env[key!]?.trim() && process.env[key!]!.trim() !== value) io.write(`${key} currently overrides this choice. Update or unset it (and remove conflicting entries from your harness config file) for the saved choice to take effect.`);
+ if (!await confirmed(io,'Save model settings?')) return;
+ await withWriter(project,'model setup',async()=>{ const file=modelSettingsPath(project); await mkdir(path.dirname(file),{recursive:true,mode:0o700});await atomicWrite(file,JSON.stringify({version:1,provider,model,effort},null,2)+'\n'); });
+ io.write('Saved. Run harness model to see the effective settings. Authentication was not changed.');
+}

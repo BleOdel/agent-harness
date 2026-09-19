@@ -1,3 +1,4 @@
+import { assertModelEffort, modelLabel } from "../model-settings.ts";
 /** Drafts are proposals, never evidence. Only the operator can approve expectations. */
 import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -56,8 +57,10 @@ export function draftPrompt(task: Feature, feedback = '', previous?: Proposal): 
   JSON.stringify({ task: { id: task.id, title: task.title, criteria: task.criteria.map((text, i) => ({ number: i + 1, text })), plan: task.planContext ?? 'No saved plan; use task criteria and source.' }, feedback, previous }),
  ].join('\n\n');
 }
-export async function generateProposal(project: string, task: Feature, feedback = '', previous?: Proposal): Promise<Proposal> {
- const config = loadConfig();
+export async function requestCheckJson(project: string, prompt: string): Promise<unknown> {
+ const config = loadConfig({ ...process.env, HARNESS_PROJECT: project });
+ await assertModelEffort(config.piPackageDirectory, config);
+ process.stdout.write(`Model: ${modelLabel(config)}\n`);
  const adapter = getAdapter((await readProfile(project, true)).adapter);
  const root = await mkdtemp(path.join(os.tmpdir(), 'harness-check-draft-'));
  const controller = new AbortController();
@@ -67,16 +70,20 @@ export async function generateProposal(project: string, task: Feature, feedback 
   const baseline = await captureBaseline(project, path.join(root, 'source'), adapter.source.generatedDirectories);
   const agentDirectory = await privateAgentDirectory(config.agentDirectory, path.join(root, 'agent'));
   const layout: SandboxLayout = { dockerExecutable: config.dockerExecutable, imageId: config.imageId, containerName: `harness-check-draft-${path.basename(root).toLowerCase()}`, workDirectory: baseline.directory, agentDirectory, piPackageDirectory: config.piPackageDirectory, purpose: 'review', user: `${process.getuid?.() ?? 501}:${process.getgid?.() ?? 20}`, ...(adapter.executionEnvironment ? { environment: adapter.executionEnvironment } : {}) };
-  const command = ['node', `${CONTAINER_PI_PACKAGE}/dist/cli.js`, '--print', '--approve', '--tools', 'read,grep', '--no-session', ...resourceArguments(false), ...(config.provider ? ['--provider', config.provider] : []), ...(config.model ? ['--model', config.model] : []), draftPrompt(task, feedback, previous)];
+  const command = ['node', `${CONTAINER_PI_PACKAGE}/dist/cli.js`, '--print', '--approve', '--tools', 'read,grep', '--no-session', ...resourceArguments(false), ...(config.provider ? ['--provider', config.provider] : []), ...(config.model ? ['--model', config.model] : []), '--thinking', config.effort ?? 'medium', prompt];
   const result = await withContainmentSignal(controller.signal, () => runContained(layout, buildRunArguments(layout, 'bridge', command), { timeoutMs: config.agentTimeoutMs, maxOutputBytes: 2 * 1024 * 1024 }));
   if (result.code !== 0 || result.timedOut || result.outputLimited) throw new OperatorError(`Check drafting did not complete${result.timedOut ? ' before the timeout' : ` (exit ${result.code})`}. ${result.stderr.slice(-1500)}`, 'Previous saved checks are unchanged. Retry harness checks setup.');
   await assertLiveBaseline(project, baseline);
   let raw: unknown;
   try { raw = JSON.parse(result.stdout.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, '')); }
   catch { throw new OperatorError('The check drafter did not return valid JSON.', 'No checks approved. Retry harness checks setup.'); }
-  return parseProposal(raw, task);
+  return raw;
  } finally {
   process.removeListener('SIGINT', cancel); process.removeListener('SIGTERM', cancel);
   await rm(root, { recursive: true, force: true });
  }
+}
+
+export async function generateProposal(project: string, task: Feature, feedback = '', previous?: Proposal): Promise<Proposal> {
+ return parseProposal(await requestCheckJson(project, draftPrompt(task, feedback, previous)), task);
 }

@@ -1,3 +1,4 @@
+import { assertModelEffort, modelLabel, type ReasoningEffort } from "../model-settings.ts";
 import { projectTestCommand } from "../project/profile.ts";
 import { dockerRunner } from "../runners/docker.ts";
 /** Interview drafts and Pi sessions survive every exit; approval advances document handoff. */
@@ -46,6 +47,7 @@ export function planPrompt(topic: string, skills: readonly string[]): string {
 }
 
 export function buildPlanCommand(request: {
+  effort?: ReasoningEffort;
   topic: string; skills: readonly string[]; skillsConfigured: boolean;
   provider: string | undefined; model: string | undefined;
   phase?: "draft" | "items"; diagnosis?: string; adapter?: string;
@@ -58,6 +60,7 @@ export function buildPlanCommand(request: {
     ...(items ? ["--print"] : []),
     ...(request.provider === undefined ? [] : ["--provider", request.provider]),
     ...(request.model === undefined ? [] : ["--model", request.model]),
+    "--thinking", request.effort ?? "medium",
     [environment, items ? [
       "The operator approved the PLAN.md now on disk. Read it and generate items.json from it.",
       "Do not restart the interview or ask questions. Do not change PLAN.md or implement the project.",
@@ -81,6 +84,7 @@ async function reconcile(plan: SavedPlan, config: Config): Promise<SavedPlan> {
 
 export async function runPlanAttempt(original: SavedPlan, config: Config): Promise<SavedPlan> {
   if (original.state.phase === "ready") return original;
+  await assertModelEffort(config.piPackageDirectory, config);
   const previous = await readArtifact(original.directory, "execution.json", 16 * 1024 * 1024);
   let execution: ExecutionPin;
   if (previous) {
@@ -116,9 +120,10 @@ export async function runPlanAttempt(original: SavedPlan, config: Config): Promi
     user: `${process.getuid?.() ?? 501}:${process.getgid?.() ?? 20}`,
   };
   const args = dockerRunner.prepare(layout, "bridge", buildPlanCommand({ topic: plan.state.topic, skills,
-    adapter: execution.settings.profile.adapter.id, skillsConfigured: skills.length > 0, provider: config.provider, model: config.model,
+    adapter: execution.settings.profile.adapter.id, skillsConfigured: skills.length > 0, provider: config.provider, model: config.model, effort: config.effort ?? "medium",
     phase: items ? "items" : "draft", ...(plan.state.error ? { diagnosis: plan.state.error } : {}),
   }), !items).args;
+  say(`Model: ${modelLabel(config)}`);
   say(`plan: ${plan.state.id}`);
   say(`saved workspace: ${plan.work}`);
   say(`skills available: ${skills.join(", ") || "none"}`);

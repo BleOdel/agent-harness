@@ -14,6 +14,7 @@
  */
 
 export interface AgentUsage {
+  readonly requestedEffort?: string;
   readonly provider: string | undefined;
   readonly model: string | undefined;
   readonly input: number;
@@ -185,6 +186,7 @@ export function describeUsage(usage: AgentUsage): string {
   const cached = cachedShare(usage);
   return [
     `model: ${usage.model ?? "unknown"}`,
+    ...(usage.requestedEffort ? [`reasoning ${usage.requestedEffort} (requested)`] : []),
     `${String(usage.turns)} turns`,
     `${usage.totalTokens.toLocaleString("en-GB")} tokens`,
     ...(cached > 0 ? [`${String(cached)}% cached`] : []),

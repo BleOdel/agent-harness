@@ -123,6 +123,7 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
     actions.push({ label: "Build and evaluate a CPU ML model", run: () => guideMl(project, io, command) });
     actions.push({ label: "Linux desktop apps", run: () => guideDesktop(project, io, command) });
     actions.push({ label: "Prepare and stage a release", run: () => guideReleases(project, io, command) });
+    actions.push({ label: "Choose model and reasoning strength", run: () => run("model", "setup") });
     const choice = await choose(io, "Next action", actions.map(a => a.label));
     if (choice < 0) { io.write(`Saved work stays with ${project}. Return with harness guide ${JSON.stringify(project)}.`); return; }
     try { await actions[choice]!.run(); }

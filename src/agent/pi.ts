@@ -1,3 +1,4 @@
+import { assertModelEffort, type ReasoningEffort } from "../model-settings.ts";
 import { dockerRunner } from "../runners/docker.ts";
 /**
  * Running the model.
@@ -21,6 +22,7 @@ import { runContained } from "../containment/process.ts";
 import { resourceArguments } from "./resources.ts";
 
 export interface AgentRequest {
+  readonly effort?: ReasoningEffort;
   readonly goal: string;
   readonly provider: string | undefined;
   readonly model: string | undefined;
@@ -48,6 +50,7 @@ export function buildAgentCommand(request: AgentRequest): string[] {
     ...(request.sessionDirectory === undefined ? [] : ["--session-dir", request.sessionDirectory]),
     ...(request.provider === undefined ? [] : ["--provider", request.provider]),
     ...(request.model === undefined ? [] : ["--model", request.model]),
+    "--thinking", request.effort ?? "medium",
     request.goal,
   ];
 }
@@ -62,6 +65,7 @@ export async function runAgent(
   onOutput: (chunk: string) => void,
   onTurn?: (usage: AgentUsage) => void,
 ): Promise<RunResult & { usage: AgentUsage; observedReads: string[]; providerError: string | undefined }> {
+  await assertModelEffort(layout.piPackageDirectory, request);
   const events = new EventStream();
   events.onTurn = onTurn;
   const result = await runContained(
@@ -70,5 +74,5 @@ export async function runAgent(
     { timeoutMs: request.timeoutMs, onOutput: (chunk) => { onOutput(events.push(chunk)); } },
   );
   onOutput(events.finish());
-  return { ...result, usage: events.current(), observedReads: events.skillReads(), providerError: events.failure() };
+  return { ...result, usage: { ...events.current(), requestedEffort: request.effort ?? "medium" }, observedReads: events.skillReads(), providerError: events.failure() };
 }

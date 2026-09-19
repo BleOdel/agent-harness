@@ -1,3 +1,4 @@
+import { modelLabel } from "../model-settings.ts";
 import { contractContext } from "../acceptance/draft.ts";
 import { getAdapter } from "../adapters/registry.ts";
 import { projectTestCommand, readProfile } from "../project/profile.ts";
@@ -228,6 +229,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
         usage: {
           ...(spent.provider === undefined ? {} : { provider: spent.provider }),
           ...(spent.model === undefined ? {} : { model: spent.model }),
+          requestedEffort: config.effort ?? "medium",
           input: spent.input,
           output: spent.output,
           cacheRead: spent.cacheRead,
@@ -307,6 +309,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       if (work.feature !== undefined) await markStatus(project, work.feature.id, "blocked");
       throw await stop("environment-blocked", "environment-blocked: clean dependencies are unavailable", error.message, { requestedInput: error.message });
     }
+    say(`Model: ${modelLabel(config)}`);
     let instruction = (briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs", work.feature?.planContext) + contractContext(approvedChecks, acceptanceTasks));
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       attempts = attempt;
@@ -320,6 +323,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
           goal: instruction,
           provider: config.provider,
           model: config.model,
+          effort: config.effort ?? "medium",
           timeoutMs: config.agentTimeoutMs,
           skills: execution!.skills.length > 0,
         },
@@ -436,6 +440,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
             usage: {
               ...(spent.provider === undefined ? {} : { provider: spent.provider }),
               ...(spent.model === undefined ? {} : { model: spent.model }),
+          requestedEffort: config.effort ?? "medium",
               input: spent.input,
               output: spent.output,
               cacheRead: spent.cacheRead,
@@ -474,6 +479,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
         diff: await renderDiff(baseline.directory, candidate.directory, changes),
         provider: config.provider,
         model: config.model,
+          effort: config.effort ?? "medium",
         timeoutMs: config.agentTimeoutMs,
       });
       if (verdict.failure !== undefined) {
@@ -560,6 +566,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
           usage: {
             ...(spent.provider === undefined ? {} : { provider: spent.provider }),
             ...(spent.model === undefined ? {} : { model: spent.model }),
+          requestedEffort: config.effort ?? "medium",
             input: spent.input,
             output: spent.output,
             cacheRead: spent.cacheRead,

@@ -19,6 +19,9 @@ async function fixture(features: Feature[], mode = "blocked") {
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-flow-")));
   const project = path.join(root, "project");
   await mkdir(path.join(root, "agent"));
+  const catalog = path.join(root, "node_modules/@earendil-works/pi-ai/dist");
+  await mkdir(catalog, { recursive: true });
+  await writeFile(path.join(catalog, "compat.js"), "exports.getModel = (provider, id) => provider === 'fixture' && id === 'fixture' ? {id} : undefined; exports.getSupportedThinkingLevels = () => ['medium'];");
   await mkdir(path.join(project, "test"), { recursive: true });
   await writeFile(path.join(project, "features.json"), JSON.stringify(features));
   await writeFile(path.join(project, "app.js"), "export const value = 1;\n");
@@ -77,6 +80,7 @@ if (kind === 'builder') {
   const env: NodeJS.ProcessEnv = {
     ...environment, HARNESS_CONFIG: config, HARNESS_PROJECT: project,
     HARNESS_DOCKER: docker, HARNESS_IMAGE_ID: `sha256:${"a".repeat(64)}`, HARNESS_AGENT_DIR: path.join(root, "agent"),
+    HARNESS_PROVIDER: "fixture", HARNESS_MODEL: "fixture", HARNESS_REASONING_EFFORT: "medium",
     HARNESS_PI_PACKAGE: root, HARNESS_SKILLS: "", HARNESS_TEST_COMMAND: "npm test",
     FLOW_MODE: mode, FLOW_LOG: path.join(root, "calls")
   };

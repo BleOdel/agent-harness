@@ -1,3 +1,4 @@
+import { assertModelEffort } from "../model-settings.ts";
 /** Pi 0.80.6 JSONL transport. A command acknowledgement is never completion. */
 import { randomUUID } from "node:crypto";
 import { dockerRunner } from "../runners/docker.ts";
@@ -100,6 +101,7 @@ export function buildRpcArguments(layout: SandboxLayout, request: AgentRequest):
   const args = dockerRunner.prepare(layout, "bridge", command).args; args.splice(1, 0, "--interactive"); return args;
 }
 export async function runRpcAgent(layout: SandboxLayout, request: AgentRequest, output: (text: string) => void, hooks: RpcHooks = {}) {
+  await assertModelEffort(layout.piPackageDirectory, request);
   await assertRpcVersion(layout.piPackageDirectory); hooks.signal?.throwIfAborted();
   const child = dockerRunner.connect({ executable: layout.dockerExecutable, args: buildRpcArguments(layout, request), layout });
   const lifecycle = new RpcLifecycle(), events = new EventStream(); events.onTurn = hooks.turn;
@@ -126,7 +128,8 @@ export async function runRpcAgent(layout: SandboxLayout, request: AgentRequest, 
   const timer = setTimeout(() => fail(new Error("RPC agent timed out.")), request.timeoutMs);
   try {
     hooks.signal?.throwIfAborted();
-    await peer.request("get_state");
+    const initial = await peer.request("get_state");
+    if (initial.data?.thinkingLevel !== undefined && initial.data.thinkingLevel !== (request.effort ?? "medium")) throw new Error(`Pi selected reasoning ${initial.data.thinkingLevel}, expected ${request.effort ?? "medium"}.`);
     const prompt = peer.request("prompt", { message: request.goal });
     hooks.ready?.({ async steer(message) { if (lifecycle.complete || failure) throw new Error("Builder is no longer accepting steering."); await peer.request("steer", { message }); } });
     await prompt; await settled;
@@ -134,7 +137,7 @@ export async function runRpcAgent(layout: SandboxLayout, request: AgentRequest, 
     if (failure) throw failure;
     if (idle.data?.isStreaming !== false || idle.data?.isCompacting !== false || idle.data?.pendingMessageCount !== 0) throw new Error("RPC settled without an idle, empty session.");
     hooks.signal?.throwIfAborted();
-    return { code: 0, stdout: lifecycle.text, stderr, timedOut: false, usageComplete: lifecycle.usageComplete, usage: events.current(), observedReads: events.skillReads(), providerError: events.failure() };
+    return { code: 0, stdout: lifecycle.text, stderr, timedOut: false, usageComplete: lifecycle.usageComplete, usage: { ...events.current(), requestedEffort: request.effort ?? "medium" }, observedReads: events.skillReads(), providerError: events.failure() };
   } finally {
     closing = true; hooks.ready?.(undefined); clearTimeout(timer); hooks.signal?.removeEventListener("abort", abort); peer.close(); child.kill("SIGKILL"); await closed;
     await dockerRunner.cleanup(layout);

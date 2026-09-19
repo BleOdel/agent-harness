@@ -1,3 +1,4 @@
+import { assertModelEffort, type ReasoningEffort } from "../model-settings.ts";
 /**
  * The Reviewer.
  *
@@ -20,6 +21,7 @@ import { runContained } from "../containment/process.ts";
 import { resourceArguments } from "../agent/resources.ts";
 
 export interface ReviewRequest {
+  readonly effort?: ReasoningEffort;
   readonly title: string;
   readonly criteria: readonly string[];
   readonly diff: string;
@@ -164,11 +166,13 @@ export function buildReviewCommand(request: ReviewRequest): string[] {
     ...resourceArguments(false),
     ...(request.provider === undefined ? [] : ["--provider", request.provider]),
     ...(request.model === undefined ? [] : ["--model", request.model]),
+    "--thinking", request.effort ?? "medium",
     reviewPrompt(request),
   ];
 }
 
 export async function review(layout: SandboxLayout, request: ReviewRequest): Promise<Review> {
+  await assertModelEffort(layout.piPackageDirectory, request);
   const isolated: SandboxLayout = { ...layout, purpose: "review" };
   const result = await runContained(
     isolated,

@@ -321,6 +321,8 @@ Run them inside your project.
 | `harness doctor [--json]` | readiness and runner capability report; exit 1 when blocked |
 | `harness project setup` | choose the supported environment and planning/build skills |
 | `harness project show` | display saved project configuration |
+| `harness model` | show effective provider, model and reasoning effort with their sources |
+| `harness model setup` | choose supported reasoning strength and save model settings for this project |
 | `harness checks setup` | draft checks from the saved plan and approve plain-language behaviours |
 | `harness checks review` | review and approve a saved check draft |
 | `harness checks approve <file>` | explicitly approve a JSON acceptance specification |
@@ -399,6 +401,31 @@ harness checks setup
 harness work
 ```
 
+### Model and reasoning strength
+
+Run `harness model` to see the provider, model id and reasoning effort, including
+where each setting came from. `harness model setup` (also in `harness guide`)
+lets you keep or choose a model and select an effort supported by the installed
+Pi catalog. Medium is the harness default; High asks for more reasoning and may
+use more tokens and time. Effort levels are settings, not model versions.
+
+Choices are saved outside source in `<project>-harness/model.json`. Environment
+variables/config-file entries (`HARNESS_PROVIDER`, `HARNESS_MODEL`,
+`HARNESS_REASONING_EFFORT`) override saved choices; setup warns about conflicts.
+Unset or update conflicting overrides to use the saved setting. Pi's provider
+and model defaults are a fallback, but its personal reasoning setting is not
+copied. `HARNESS_REASONING_EFFORT=high harness work <task>` is a one-run override.
+Authentication remains with Pi; this command does not log in or spend a token.
+
+Planning, drafting, independent reviews, ordinary builds and team workers pass
+`--thinking` explicitly. Unsupported model/effort combinations stop before model
+work. Team role model overrides use the selected harness effort and must support
+it. Terminal output and new run records show the requested strength; the web
+history also displays it. This is labelled requested rather than claiming the
+provider disclosed its internal reasoning. RPC additionally rejects a reported
+Pi thinking level that differs from the request. Changing effort on a pinned
+run requires a new run (older pins with no effort mean Medium).
+
 ### Required acceptance checks
 
 `harness checks setup` asks you to choose a task and optionally describe changes
@@ -406,6 +433,18 @@ in plain language. Your configured model reads the source in a read-only copy,
 plus the task criteria and saved approved plan, and proposes executable checks.
 It cannot edit the application. Drafting uses provider access; the eventual
 acceptance checks run offline.
+
+Before presenting a draft, the harness parses inline Node/Python probe syntax
+without executing it and runs a fresh read-only model review against the plan
+and interface contract. It checks request headers, version tokens, observation
+ordering, SQLite representations, lifecycle assumptions, cleanup and coverage
+claims. Defects are returned to the drafter automatically, with at most two
+repair attempts and a new review after each. Persistent defects stop without
+approval; the latest proposal and findings remain in `acceptance/review-progress.json`
+for the next setup attempt. Older saved drafts receive this review automatically.
+A model review can still miss defects: this is check-quality review, not a claim
+that the unbuilt application passes. Application verification still happens only
+against the candidate in the offline acceptance gate.
 
 Review the proposed behaviours, interface choices and criterion-by-criterion
 coverage. Unchecked aspects are explicitly listed as limitations; approval does

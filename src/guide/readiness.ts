@@ -1,3 +1,4 @@
+import { modelLabel } from "../model-settings.ts";
 import { readProfile, type ProjectProfile } from "../project/profile.ts";
 import { getAdapter } from "../adapters/registry.ts";
 import { inspectCapabilities } from "../project/execution.ts";
@@ -54,6 +55,7 @@ export async function readiness(project: string, environment: NodeJS.ProcessEnv 
   } catch (error) { add({ id: "acceptance", status: "blocked", message: (error as Error).message, remedy: "Review the saved checks and task list with harness guide." }); }
   try {
     const config = loadConfig({ ...environment, HARNESS_PROJECT: project });
+    add({ id: "model", status: "unknown", message: `Configured model: ${modelLabel(config)}; provider access is tested only when a request runs.`, remedy: "Use harness model setup to adjust model and reasoning strength." });
     add({ id: "configuration", status: "ready", message: "Container configuration and writable paths are valid." });
     if (profile) {
       try {

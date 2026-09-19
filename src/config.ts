@@ -1,3 +1,4 @@
+import { resolveModelSettings, type ReasoningEffort } from "./model-settings.ts";
 /**
  * Every setting the harness needs, resolved once and refused loudly.
  *
@@ -12,6 +13,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 
 export interface Config {
+  readonly effort?: ReasoningEffort;
   readonly dockerExecutable: string;
   /** Immutable sha256 image id. Tags move; ids do not. */
   readonly imageId: string;
@@ -197,6 +199,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
   if (!Array.isArray(flags) || flags.some(f => typeof f !== "string" || !["--legacy-peer-deps", "--install-links", "--no-bin-links"].includes(f))) throw new ConfigError("Unsupported HARNESS_NPM_FLAGS.", "Use --legacy-peer-deps, --install-links or --no-bin-links in a JSON array.");
   if (!Array.isArray(contracts) || contracts.some(p => typeof p !== "string" || !p || path.isAbsolute(p) || p.includes("\\") || p.split("/").some((part: string) => !part || part === "." || part === ".."))) throw new ConfigError("Contract paths must be project-relative files or directories.", "Set HARNESS_CONTRACT_PATHS to a JSON array of normalized relative paths.");
 
+  const selection = resolveModelSettings(project, environment);
   return {
     dockerExecutable,
     imageId,
@@ -205,8 +208,9 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
     piPackageDirectory,
     agentDirectory,
     skillsDirectory: skills,
-    provider: setting(environment, "HARNESS_PROVIDER"),
-    model: setting(environment, "HARNESS_MODEL"),
+    provider: selection.provider,
+    model: selection.model,
+    effort: selection.effort,
     agentTimeoutMs: positiveInteger(setting(environment, "HARNESS_AGENT_TIMEOUT"), 900_000, "HARNESS_AGENT_TIMEOUT"),
     gateTimeoutMs: positiveInteger(setting(environment, "HARNESS_GATE_TIMEOUT"), 300_000, "HARNESS_GATE_TIMEOUT"),
   };

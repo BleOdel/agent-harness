@@ -1,3 +1,4 @@
+import { validateProposal, proposalDigest, type DraftValidation } from "./repair.ts";
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -13,8 +14,10 @@ import { readApproval, approveChecks, parseChecks, type CheckManifest } from './
 import { generateProposal, parseProposal, taskDigest, type Proposal } from './draft.ts';
 import { OperatorError } from '../verbs/io.ts';
 
-interface SavedDraft { version: 1; taskId: string; inputDigest: string; sourceDigest: string; baseApprovalDigest: string | null; proposal: Proposal; manifest: CheckManifest; }
+interface SavedDraft { validation?: DraftValidation; version: 1; taskId: string; inputDigest: string; sourceDigest: string; baseApprovalDigest: string | null; proposal: Proposal; manifest: CheckManifest; }
 export type Drafter = typeof generateProposal;
+export type Validator = typeof validateProposal;
+const isReviewed = (saved: SavedDraft) => saved.validation?.version === 1 && saved.validation.status === "reviewed" && saved.validation.digest === proposalDigest(saved.proposal);
 const directory = (project: string) => path.join(harnessDirectory(project), 'acceptance');
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 async function sourceDigest(project: string): Promise<string> {
@@ -63,10 +66,16 @@ export function describeProposal(io: Dialogue, proposal: Proposal, task: Feature
  io.write('Approval does not waive any task criteria. Unchecked aspects still need separate evidence.');
  io.write('Approval replaces previous cases scoped only to this task; checks for other tasks are retained.');
 }
-export async function reviewGuidedDraft(project: string, io: Dialogue, draft?: SavedDraft): Promise<void> {
+export async function reviewGuidedDraft(project: string, io: Dialogue, draft?: SavedDraft, validator: Validator = validateProposal): Promise<void> {
  const saved = draft ?? await readGuidedDraft(project);
  if (!saved) throw new OperatorError('No generated check draft is saved.', 'Run harness checks setup.');
  await assertCurrent(project, saved);
+ if (!isReviewed(saved)) {
+  io.write('This draft predates automatic quality review. Checking and repairing it before approval…');
+  return guidedSetup(project, await currentTask(project, saved.taskId), io, generateProposal, validator, saved.proposal);
+ }
+ io.write(`Draft quality reviewed in ${saved.validation!.rounds} round(s). This is not an application test result.`);
+ for (const limitation of saved.validation!.limitations) io.write(`Reviewer limitation: ${limitation}`);
  describeProposal(io, saved.proposal, await currentTask(project, saved.taskId));
  for (;;) {
   const action = await choose(io, 'Review actions', ['Approve these behaviours and interface choices', 'View technical commands and expected results', 'Save for later']);
@@ -84,28 +93,40 @@ export async function reviewGuidedDraft(project: string, io: Dialogue, draft?: S
   io.write(`Next: harness work ${saved.taskId}`); return;
  }
 }
-export async function guidedSetup(project: string, task: Feature, io: Dialogue, drafter: Drafter = generateProposal): Promise<void> {
+export async function guidedSetup(project: string, task: Feature, io: Dialogue, drafter: Drafter = generateProposal, validator: Validator = validateProposal, automatic?: Proposal): Promise<void> {
  const existing = await readGuidedDraft(project).catch((error: Error) => { io.write(`Saved draft cannot be reused: ${error.message}`); return undefined; });
- if (existing?.taskId === task.id) {
-  const option = await choose(io, 'A saved draft exists for this task', ['Review saved draft (no model request)', 'Draft again with changes']);
+ if (!automatic && existing?.taskId === task.id) {
+  const option = await choose(io, 'A saved draft exists for this task', [isReviewed(existing) ? 'Review saved draft (no model request)' : 'Check and repair saved draft automatically', 'Draft again with changes']);
   if (option < 0) return;
-  if (option === 0) return reviewGuidedDraft(project, io, existing);
+  if (option === 0) return reviewGuidedDraft(project, io, existing, validator);
  }
- const feedback = (await io.ask('Anything to add or change? (Enter to use the saved plan and criteria):')).trim();
- io.write('Drafting checks from the saved plan, criteria and source using your configured model. Application source is read-only.');
+ const feedback = automatic ? '' : (await io.ask('Anything to add or change? (Enter to use the saved plan and criteria):')).trim();
+ io.write('Preparing and independently reviewing checks with your configured model. Application source is read-only.');
  let saved!: SavedDraft;
  await withWriter(project, 'checks draft', async () => {
   const fresh = await currentTask(project, task.id);
   const source = await sourceDigest(project);
   const previous = await readApproval(project);
-  const proposal = parseProposal(await drafter(project, fresh, feedback, existing?.taskId === task.id ? existing.proposal : undefined), fresh);
+  await mkdir(directory(project), { recursive: true, mode: 0o700 });
+  let pending: Proposal | undefined;
+  const progress = await readArtifact(directory(project), 'review-progress.json', 8 * 1024 * 1024);
+  if (!feedback && progress) {
+   const record = JSON.parse(progress);
+   if (record.taskId === fresh.id && record.taskDigest === taskDigest(fresh) && record.sourceDigest === source) {
+    pending = parseProposal(record.proposal, fresh); io.write('Resuming the saved check draft; no requirements need retyping.');
+   }
+  }
+  const initial = pending ?? automatic ?? parseProposal(await drafter(project, fresh, feedback, existing?.taskId === task.id ? existing.proposal : undefined), fresh);
+  const checkpoint = async (proposal: Proposal, round: number, issues: string[]) => atomicWrite(path.join(directory(project), 'review-progress.json'), JSON.stringify({ version: 1, taskId: fresh.id, taskDigest: taskDigest(fresh), sourceDigest: source, proposal, round, issues }, null, 2) + '\n');
+  await checkpoint(initial, 0, []);
+  const { proposal, validation } = await validator(project, fresh, initial, io.write, checkpoint);
   if (source !== await sourceDigest(project) || taskDigest(fresh) !== taskDigest(await currentTask(project, task.id))) throw new OperatorError('Project changed while drafting. Retry setup.');
   if ((await readApproval(project))?.digest !== previous?.digest) throw new OperatorError('Checks changed while drafting. Retry setup.');
   const prefix = randomUUID().slice(0, 8);
   const manifest = parseChecks({ version: 1, cases: [...(previous?.manifest.cases.filter(c => !(c.tasks.length === 1 && c.tasks[0] === fresh.id)) ?? []), ...proposal.manifest.cases.map(c => ({ ...c, id: `${fresh.id}-${prefix}-${c.id}`, contract: proposal.contract, taskDigest: taskDigest(fresh) }))] });
-  saved = { version: 1, taskId: fresh.id, inputDigest: taskDigest(fresh), sourceDigest: source, baseApprovalDigest: previous?.digest ?? null, proposal, manifest };
+  saved = { validation, version: 1, taskId: fresh.id, inputDigest: taskDigest(fresh), sourceDigest: source, baseApprovalDigest: previous?.digest ?? null, proposal, manifest };
   await mkdir(directory(project), { recursive: true, mode: 0o700 });
   await atomicWrite(path.join(directory(project), 'guided-draft.json'), JSON.stringify(saved, null, 2) + '\n');
  });
- await reviewGuidedDraft(project, io, saved);
+ await reviewGuidedDraft(project, io, saved, validator);
 }
