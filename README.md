@@ -438,8 +438,12 @@ Before presenting a draft, the harness parses inline Node/Python probe syntax
 without executing it and runs a fresh read-only model review against the plan
 and interface contract. It checks request headers, version tokens, observation
 ordering, SQLite representations, lifecycle assumptions, cleanup and coverage
-claims. Defects are returned to the drafter automatically, with at most two
-repair attempts and a new review after each. Persistent defects stop without
+claims. Existing shared contract files are supplied directly to drafting and
+review so completed interfaces remain compatibility constraints. Defects return
+to the drafter automatically, with at most two contract/behaviour repairs and a
+fresh review after each. Parser defects have a separate budget of two syntax
+repairs; those can replace only failing inline code, not expected results,
+coverage or interface contracts. Syntax repairs never skip independent review. Persistent defects stop without
 approval; the latest proposal and findings remain in `acceptance/review-progress.json`
 for the next setup attempt. Older saved drafts receive this review automatically.
 A model review can still miss defects: this is check-quality review, not a claim
@@ -455,8 +459,9 @@ interface contract for approval. The builder receives that contract in ordinary
 and team builds, without receiving the host's expected outputs or check commands.
 
 Drafts are saved outside source in `acceptance/guided-draft.json` before review.
-Use `harness checks review` to resume without another model request, or setup
-again to request changes. Approval replaces cases scoped only to the selected
+Use `harness checks review` to resume. A draft that already passed quality review
+needs no model request; older or unreviewed drafts are checked and repaired first.
+Use setup again to request changes. Approval replaces cases scoped only to the selected
 task and retains all other cases. A changed source or task blocks approval of a
 stale draft; changes to task requirements also invalidate generated approvals.
 Provider failure or cancelling review leaves existing approved checks unchanged.

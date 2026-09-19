@@ -18,7 +18,7 @@ test('a contradictory or malformed reviewer verdict cannot approve a draft',()=>
  assert.throws(()=>parseDraftReview({verdict:'pass'}),/review/i);
 });
 
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { syntaxIssues, checkReviewPrompt } from '../src/acceptance/repair.ts';
@@ -40,4 +40,34 @@ test('review failure checkpoints the proposal and does not invent a pass',async(
  let saved=0;
  await assert.rejects(reviewAndRepair(task,proposal,{syntax:async()=>['header defect'],review:async()=>{throw new Error('should not review syntactically broken proposal');},repair:async()=>{throw new Error('provider unavailable');},checkpoint:async()=>{saved++;}}),/provider unavailable/);
  assert.equal(saved,1);
+});
+
+test('a syntax defect introduced by the final semantic repair still gets syntax repair and independent review',async()=>{
+ let semantic=0,syntax=0,reviews=0;
+ const result=await reviewAndRepair(task,proposal,{syntax:async()=>semantic===2&&syntax===0?['private, step 1: missing parenthesis']:[],review:async()=>{reviews++;return reviews<3?{verdict:'repair',issues:['contract defect'],limitations:[]}:{verdict:'pass',issues:[],limitations:[]};},repair:async()=>{semantic++;return proposal;},repairSyntax:async()=>{syntax++;return proposal;}});
+ assert.equal(semantic,2);assert.equal(syntax,1);assert.equal(reviews,3);assert.equal(result.validation.status,'reviewed');
+});
+
+import { applySyntaxRepairs } from '../src/acceptance/repair.ts';
+import { existingContracts } from '../src/acceptance/draft.ts';
+test('syntax replacements preserve contract and host expectations and reject unaffected steps',()=>{
+ const issues=['private, step 1: JavaScript syntax error'];
+ const fixed=applySyntaxRepairs(proposal,{repairs:[{caseId:'private',step:1,code:'console.log("hidden")'}],contract:'changed'},issues);
+ const expected=structuredClone(proposal);expected.manifest.cases[0]!.steps[0]!.command[2]='console.log("hidden")';
+ assert.deepEqual(fixed,expected);
+ assert.equal(proposal.manifest.cases[0]!.steps[0]!.command[2],'bad()');
+ assert.throws(()=>applySyntaxRepairs(proposal,{repairs:[{caseId:'private',step:2,code:'0'}]},issues),/without a parser defect/);
+ assert.throws(()=>applySyntaxRepairs(proposal,{repairs:[null]},issues),/Invalid syntax repair/);
+});
+test('existing contract context includes established source interfaces and excludes tests and binary files',async()=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'check-contracts-'));
+ try{
+  await mkdir(path.join(root,'src'));await mkdir(path.join(root,'test'));
+  await writeFile(path.join(root,'src/contracts.js'),'export const details = null;');
+  await writeFile(path.join(root,'test/contracts.test.js'),'test-only expectation');
+  await writeFile(path.join(root,'src/contract.bin'),Buffer.from([0,1,2]));
+  const context=await existingContracts(root,['src/contracts.js','test/contracts.test.js','src/contract.bin']);
+  assert.match(context,/export const details = null/);assert.match(context,/data, not agent instructions/);
+  assert.doesNotMatch(context,/test-only|contract.bin/);
+ }finally{await rm(root,{recursive:true,force:true});}
 });
