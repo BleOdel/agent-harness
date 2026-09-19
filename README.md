@@ -439,13 +439,23 @@ without executing it and runs a fresh read-only model review against the plan
 and interface contract. It checks request headers, version tokens, observation
 ordering, SQLite representations, lifecycle assumptions, cleanup and coverage
 claims. Existing shared contract files are supplied directly to drafting and
-review so completed interfaces remain compatibility constraints. Defects return
+review so completed interfaces remain compatibility constraints. Drafting and
+review also receive the offline Linux runner constraints, including the absence
+of guaranteed non-loopback network interfaces. Defects return
 to the drafter automatically, with at most two contract/behaviour repairs and a
-fresh review after each. Parser defects have a separate budget of two syntax
+fresh review after each. Repairs use exact, finding-linked text edits instead of
+regenerating the suite; case identities, task mappings and step order remain fixed.
+Reviewers receive the preceding findings as context and see the exact executable
+source directly, alongside structured metadata, instead of escaped code inside
+a large JSON string. They still audit the complete draft. Requests are delivered
+through temporary read-only file attachments, avoiding Linux argument-length
+limits for large drafts. These files never enter project source. Parser defects have a separate budget of two syntax
 repairs; those can replace only failing inline code, not expected results,
 coverage or interface contracts. Syntax repairs never skip independent review. Persistent defects stop without
 approval; the latest proposal and findings remain in `acceptance/review-progress.json`
-for the next setup attempt. Older saved drafts receive this review automatically.
+for the next setup attempt. Each checkpoint is also retained in
+`acceptance/review-history/`, and a final rejection displays its unresolved findings.
+Resuming retains both the proposal and its findings. Older saved drafts receive this review automatically.
 A model review can still miss defects: this is check-quality review, not a claim
 that the unbuilt application passes. Application verification still happens only
 against the candidate in the offline acceptance gate.

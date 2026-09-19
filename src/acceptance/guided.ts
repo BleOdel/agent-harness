@@ -109,17 +109,25 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
   const previous = await readApproval(project);
   await mkdir(directory(project), { recursive: true, mode: 0o700 });
   let pending: Proposal | undefined;
+  let previousIssues: string[] = [];
   const progress = await readArtifact(directory(project), 'review-progress.json', 8 * 1024 * 1024);
   if (!feedback && progress) {
    const record = JSON.parse(progress);
    if (record.taskId === fresh.id && record.taskDigest === taskDigest(fresh) && record.sourceDigest === source) {
+    if (Array.isArray(record.issues) && record.issues.every((issue: unknown) => typeof issue === 'string')) previousIssues = record.issues;
     pending = parseProposal(record.proposal, fresh); io.write('Resuming the saved check draft; no requirements need retyping.');
    }
   }
   const initial = pending ?? automatic ?? parseProposal(await drafter(project, fresh, feedback, existing?.taskId === task.id ? existing.proposal : undefined), fresh);
-  const checkpoint = async (proposal: Proposal, round: number, issues: string[]) => atomicWrite(path.join(directory(project), 'review-progress.json'), JSON.stringify({ version: 1, taskId: fresh.id, taskDigest: taskDigest(fresh), sourceDigest: source, proposal, round, issues }, null, 2) + '\n');
-  await checkpoint(initial, 0, []);
-  const { proposal, validation } = await validator(project, fresh, initial, io.write, checkpoint);
+  const checkpoint = async (proposal: Proposal, round: number, issues: string[]) => {
+   const record = JSON.stringify({ version: 1, taskId: fresh.id, taskDigest: taskDigest(fresh), sourceDigest: source, proposal, round, issues }, null, 2) + '\n';
+   const history = path.join(directory(project), 'review-history');
+   await mkdir(history, { recursive: true, mode: 0o700 });
+   await atomicWrite(path.join(history, `${Date.now()}-${randomUUID()}.json`), record);
+   await atomicWrite(path.join(directory(project), 'review-progress.json'), record);
+  };
+  await checkpoint(initial, 0, previousIssues);
+  const { proposal, validation } = await validator(project, fresh, initial, io.write, checkpoint, previousIssues);
   if (source !== await sourceDigest(project) || taskDigest(fresh) !== taskDigest(await currentTask(project, task.id))) throw new OperatorError('Project changed while drafting. Retry setup.');
   if ((await readApproval(project))?.digest !== previous?.digest) throw new OperatorError('Checks changed while drafting. Retry setup.');
   const prefix = randomUUID().slice(0, 8);

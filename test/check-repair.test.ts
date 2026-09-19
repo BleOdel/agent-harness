@@ -71,3 +71,29 @@ test('existing contract context includes established source interfaces and exclu
   assert.doesNotMatch(context,/test-only|contract.bin/);
  }finally{await rm(root,{recursive:true,force:true});}
 });
+
+test('successive reviews retain prior findings and a final rejection exposes actionable reasons',async()=>{
+ const received:string[][]=[];const messages:string[]=[];
+ let review=0;
+ await assert.rejects(reviewAndRepair(task,proposal,{syntax:async()=>[],review:async(_p,prior)=>{
+  received.push([...prior]);review++;return {verdict:'repair',issues:[`remaining defect ${review}`],limitations:[]};
+ },repair:async()=>proposal,progress:text=>messages.push(text)},['saved contradiction']),/could not prepare consistent/);
+ assert.deepEqual(received,[['saved contradiction'],['remaining defect 1'],['remaining defect 2']]);
+ assert.ok(messages.some(line=>line.includes('remaining defect 3')));
+});
+
+test('a repaired syntax candidate is checkpointed before a reviewer provider failure',async()=>{
+ let fixed=false;let last=proposal;
+ const corrected=structuredClone(proposal);corrected.manifest.cases[0]!.steps[0]!.command[2]='console.log("hidden")';
+ await assert.rejects(reviewAndRepair(task,proposal,{syntax:async()=>fixed?[]:['private, step 1: syntax error'],repair:async()=>proposal,repairSyntax:async()=>{fixed=true;return corrected;},review:async()=>{throw new Error('reviewer unavailable');},checkpoint:async p=>{last=p as typeof proposal;}}),/reviewer unavailable/);
+ assert.deepEqual(last,corrected);
+});
+
+test('review input preserves literal source and separates it from escaped command metadata',()=>{
+ const p=structuredClone(proposal);const code="const request = {raw: '{'};\nconsole.log(request.raw);";
+ p.manifest.cases[0]!.steps[0]!.command=['node','-e',code];
+ const prompt=checkReviewPrompt(task,p,['Check malformed request']);
+ assert.ok(prompt.includes(code));assert.equal(prompt.split(code).length,2);
+ assert.ok(!prompt.includes(JSON.stringify(code)));
+ assert.match(prompt,/Exact executable source for case "private", step 1/);
+});

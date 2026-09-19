@@ -113,3 +113,22 @@ test('repair progress survives a provider failure and resumes without regenerati
  await realGuidedSetup(project,task,io,drafter,async(_project,_task,p)=>({proposal:p,validation:{version:1,status:'reviewed',digest:proposalDigest(p),rounds:1,limitations:[],at:new Date().toISOString()}}));
  assert.equal(generated,1);assert.match(io.lines.join('\n'),/Resuming the saved check draft/);
 }));
+
+test('resume retains saved findings, archives review snapshots and never approves a failed repair',()=>fixture(async project=>{
+ const drafter=async()=>parseProposal(proposal(),task);
+ await assert.rejects(realGuidedSetup(project,task,dialogue(['']),drafter,async(_project,_task,p,_progress,checkpoint)=>{
+  await checkpoint!(p,3,['contradictory response helper']);throw new Error('review blocked');
+ }),/review blocked/);
+ const directory=path.join(harnessDirectory(project),'acceptance');
+ const {readdir}=await import('node:fs/promises');
+ const before=await readdir(path.join(directory,'review-history'));
+ assert.equal(before.length,2);
+ await assert.rejects(realGuidedSetup(project,task,dialogue(['']),async()=>{throw new Error('must resume');},async(_project,_task,_p,_progress,_checkpoint,issues)=>{
+  assert.deepEqual(issues,['contradictory response helper']);throw new Error('provider unavailable');
+ }),/provider unavailable/);
+ const latest=JSON.parse(await readFile(path.join(directory,'review-progress.json'),'utf8'));
+ assert.deepEqual(latest.issues,['contradictory response helper']);
+ const after=await readdir(path.join(directory,'review-history'));
+ assert.equal(after.length,3);assert.ok(before.every(file=>after.includes(file)));
+ assert.equal(await readApproval(project),undefined);
+}));
