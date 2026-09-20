@@ -1,3 +1,5 @@
+import {blockedScopes, renewScope, repairScopeInIsolation} from './targeted.ts';
+import {assertServerRuntimes} from './server-runtime.ts';
 import { validateProposal, proposalDigest, type DraftValidation } from "./repair.ts";
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, rm } from 'node:fs/promises';
@@ -88,6 +90,7 @@ export async function reviewGuidedDraft(project: string, io: Dialogue, draft?: S
   if (!await confirmed(io, 'Approve this draft, including the stated limitations?')) return;
   await withWriter(project, 'checks approve', async () => {
    await assertCurrent(project, saved);
+   assertServerRuntimes(saved.manifest);
    if (await readArtifact(directory(project), 'guided-draft.json', 8 * 1024 * 1024) !== JSON.stringify(saved, null, 2) + '\n') throw new OperatorError('The draft changed while you reviewed it. Run harness checks review again.');
    const file = path.join(directory(project), 'draft.json');
    await atomicWrite(file, JSON.stringify(saved.manifest, null, 2) + '\n');
@@ -109,9 +112,12 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
  if (!automatic && !resume && !existing) {
   const incomplete = await readArtifact(directory(project),'review-progress.json',8*1024*1024) ?? await readArtifact(directory(project),'preparation.json',8*1024*1024);
   if (incomplete && JSON.parse(incomplete).taskId === task.id) {
-   const option=await choose(io,'Preparation is saved for this task',['Resume saved preparation (reuse completed reviews)','Prepare again with changes']);
+   const record=JSON.parse(incomplete);
+   const repairable=record.ledger && blockedScopes(task,parseProposal(record.proposal,task),record.ledger).length;
+   const option=await choose(io,'Preparation is saved for this task',['Resume saved preparation (reuse completed reviews)','Prepare again with changes',...(repairable?['Repair a blocked check (keep the other checks)']:[])]);
    if(option<0)return;
    if(option===0)return guidedSetup(project,task,io,drafter,validator,undefined,true);
+   if(option===2)return repairSavedCheck(project,io);
    freshPreparation=true;
   }
  }
@@ -225,4 +231,48 @@ export async function resumePreparation(project:string,io:Dialogue):Promise<bool
   await guidedSetup(project,task,io,generateProposal,validateProposal,undefined,true);return true;
  }
  return false;
+}
+
+/** The operator chooses a fresh bounded attempt; ordinary resume never resets budgets. */
+export async function repairSavedCheck(project:string,io:Dialogue,caseId?:string,repair=repairScopeInIsolation):Promise<void>{
+ const file=path.join(directory(project),'review-progress.json');
+ const raw=await readArtifact(directory(project),'review-progress.json',8*1024*1024);
+ if(!raw)throw new OperatorError('No saved check review to repair.','Run harness checks setup.');
+ const record=JSON.parse(raw);const task=await currentTask(project,record.taskId);
+ const proposal=parseProposal(record.proposal,task);
+ const checkCurrent=async()=>{
+  if(record.taskDigest!==taskDigest(await currentTask(project,task.id))||record.sourceDigest!==await sourceDigest(project))throw new OperatorError('Saved checks describe older source or requirements.','Use harness checks setup to prepare a current draft.');
+ };
+ await checkCurrent();
+ const ledger=record.ledger as ReviewLedger;
+ if(ledger?.version!==1||!Array.isArray(ledger.entries))throw new OperatorError('This draft has no scoped review history.','Use harness checks review first.');
+ const ids=blockedScopes(task,proposal,ledger);
+ if(!ids.length)throw new OperatorError('No check has exhausted its repair budget.','Use harness checks review to resume saved work.');
+ io.write('Repair one blocked check with a fresh, bounded attempt. Existing findings are retained; other checks and approvals are preserved.');
+ let selected=caseId;
+ if(!selected){const index=await choose(io,'Which blocked check should be repaired?',ids.map(id=>proposal.manifest.cases.find(c=>c.id===id)!.description!));if(index<0)return;selected=ids[index]!;}
+ if(!ids.includes(selected))throw new OperatorError('Select one of the blocked checks.');
+ const scope=selected;
+ await withWriter(project,'checks repair',async()=>{
+  await checkCurrent();
+  if(await readArtifact(directory(project),'review-progress.json',8*1024*1024)!==raw)throw new OperatorError('Saved checks changed during selection. Run harness checks repair again.');
+  const approval=(await readApproval(project))?.digest;
+  const history=path.join(directory(project),'review-history');await mkdir(history,{recursive:true,mode:0o700});
+  await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}-before-targeted-repair.json`),raw);
+  const save=async(p:Proposal,current:ReviewLedger)=>{
+   const updated={...record,proposal:p,ledger:current,issues:[...(current.previousIssues??[]),...current.entries.flatMap(e=>e.review?.issues??[])],targetedRetry:{scope,at:new Date().toISOString()}};
+   const text=JSON.stringify(updated,null,2)+'\n';
+   await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}.json`),text);await atomicWrite(file,text);
+  };
+  const renewed=renewScope(task,proposal,ledger,scope);
+  await save(proposal,renewed);
+  // A prior full-draft receipt cannot authorize subsequently repaired code.
+  const oldDraft=await readArtifact(directory(project),'guided-draft.json',8*1024*1024);
+  if(oldDraft&&JSON.parse(oldDraft).taskId===task.id){await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}-guided-draft.json`),oldDraft);await rm(path.join(directory(project),'guided-draft.json'));}
+  await repair(project,task,proposal,scope,renewed,save,io.write);
+  await checkCurrent();
+  if((await readApproval(project))?.digest!==approval)throw new OperatorError('Approvals changed during repair. Review the current draft again.');
+ });
+ io.write('The selected check passed design review. Other generated checks are retained; the application has not been tested or changed.');
+ io.write('Next: harness checks review. Nothing was approved.');
 }

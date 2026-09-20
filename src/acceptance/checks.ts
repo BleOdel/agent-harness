@@ -1,3 +1,4 @@
+import {assertServerRuntimes, writeServerRuntime} from './server-runtime.ts';
 /** Approved expectations are evaluated by the host and never mounted into candidate processes. */
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
@@ -19,7 +20,7 @@ import { taskDigest } from "./draft.ts";
 import { OperatorError } from "../verbs/io.ts";
 
 export interface ExpectFile { path:string; text?:string; sha256?:string; }
-export interface CheckStep { command:string[]; exitCode:number; stdout?:string; stdoutIncludes?:string; files?:ExpectFile[]; }
+export interface CheckStep { serverRuntime?:string; command:string[]; exitCode:number; stdout?:string; stdoutIncludes?:string; files?:ExpectFile[]; }
 export interface AcceptanceCase { id:string; tasks:string[]; steps:CheckStep[]; description?:string; contract?:string; taskDigest?:string; }
 export interface CheckManifest { version:1; cases:AcceptanceCase[]; }
 export interface Approval { version:1; digest:string; approvedAt:string; manifest:CheckManifest; }
@@ -40,6 +41,7 @@ export function parseChecks(raw:unknown):CheckManifest{
   if (entry.taskDigest !== undefined && (!/^[a-f0-9]{64}$/u.test(entry.taskDigest as string) || entry.tasks.length !== 1 || entry.tasks[0] === "*")) throw new OperatorError(`${entry.id}: task fingerprint requires exactly one named task.`);
   for(const step of entry.steps){
    if(!object(step)||!Array.isArray(step.command)||!step.command.length||typeof step.command[0]!=="string"||!step.command[0].trim()||step.command.some(v=>typeof v!=="string"||v.includes("\0"))||!Number.isInteger(step.exitCode)||(step.exitCode as number)<0||(step.exitCode as number)>255)throw new OperatorError(`${entry.id}: each step needs a command array and exitCode.`);
+   if(step.serverRuntime!==undefined && (typeof step.serverRuntime!=="string" || !/^[a-f0-9]{64}$/u.test(step.serverRuntime)))throw new OperatorError(`${entry.id}: invalid server runtime digest.`);
    if(step.stdout!==undefined&&typeof step.stdout!=="string")throw new OperatorError(`${entry.id}: stdout must be exact text.`);
    if(step.stdoutIncludes!==undefined&&(typeof step.stdoutIncludes!=="string"||!step.stdoutIncludes))throw new OperatorError(`${entry.id}: stdoutIncludes must be nonempty text.`);
    if(step.files!==undefined&&(!Array.isArray(step.files)||!step.files.length))throw new OperatorError(`${entry.id}: files must be a nonempty list.`);
@@ -57,7 +59,7 @@ export const approvalPath=(project:string)=>path.join(harnessDirectory(project),
 export async function approveChecks(project:string,source:string):Promise<Approval>{
  const canonical=await realpath(project);const raw=await readArtifact(path.dirname(source),path.basename(source));
  if(!raw)throw new OperatorError("No acceptance-check document at that path.");
- const manifest=parseChecks(json(raw, "Acceptance document"));const approval:Approval={version:1,digest:hash(JSON.stringify(manifest)),approvedAt:new Date().toISOString(),manifest};
+ const manifest=parseChecks(json(raw, "Acceptance document"));assertServerRuntimes(manifest);const approval:Approval={version:1,digest:hash(JSON.stringify(manifest)),approvedAt:new Date().toISOString(),manifest};
  await mkdir(path.dirname(approvalPath(canonical)),{recursive:true,mode:0o700});
  const archive=path.join(path.dirname(approvalPath(canonical)),"approvals");
  await mkdir(archive,{recursive:true,mode:0o700});
@@ -124,6 +126,7 @@ export async function assertAcceptanceProof(project: string, candidate: Snapshot
 export async function verifyAcceptance(project: string, candidate: Snapshot, tasks: readonly string[], config: Config, approved: Approval, execution?: ExecutionPin): Promise<AcceptanceResult> {
   project = await realpath(project);
   await assertApprovalCurrent(project, approved);
+  assertServerRuntimes(approved.manifest);
   await assertSnapshot(candidate);
   if (execution) await assertExecutionCompatible(execution, project, config, execution.settings.testCommand);
   const adapter = getAdapter((execution?.settings.profile ?? await readProfile(project, true)).adapter);
@@ -145,6 +148,8 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
   };
   const summaries: string[] = [];
   try {
+    const helpers = path.join(root, "runtime");
+    await writeServerRuntime(helpers);
     const environment = await adapter.prepare(candidate.directory, path.join(root, "environment"), base, config.gateTimeoutMs, config.installPolicy);
     environmentKey = environment.key;
     const selected = approved.manifest.cases.filter(c => c.tasks.includes("*") || tasks.some(t => c.tasks.includes(t)));
@@ -152,7 +157,7 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
     for (const [index, check] of selected.entries()) {
       const work = path.join(root, `case-${index}`);
       await adapter.install(candidate.directory, work, environment, base, config.gateTimeoutMs);
-      const layout = { ...base, workDirectory: work };
+      const layout = { ...base, workDirectory: work, ...(check.steps.some(s=>s.serverRuntime) ? {checksDirectory:helpers} : {}) };
       for (const [number, step] of check.steps.entries()) {
         const label = `acceptance ${check.id}, step ${number + 1}`;
         const result = await runContained(layout, buildVerificationArguments(layout, "none", step.command), { timeoutMs: config.gateTimeoutMs, maxOutputBytes: 2 * 1024 * 1024 });

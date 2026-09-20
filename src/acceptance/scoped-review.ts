@@ -1,3 +1,4 @@
+import {serverRuntimeReview, serverRuntimePrompt} from './server-runtime.ts';
 /** Reviews bind to exact scope bytes. Only changed scopes consume another model review. */
 import {createHash} from 'node:crypto';
 import type {Feature} from '../features.ts';
@@ -9,7 +10,7 @@ import {mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import {harnessDirectory} from '../record/record.ts';
 import {atomicWrite} from '../planning/store.ts';
-export interface ScopeEntry {scope:string;digest:string;repairs:number;syntaxRepairs:number;review?:DraftReview;previousIssues?:string[];}
+export interface ScopeEntry {scope:string;digest:string;repairs:number;syntaxRepairs:number;review?:DraftReview;previousIssues?:string[];retryCount?:number;}
 export interface ReviewLedger {version:1;entries:ScopeEntry[];previousIssues?:string[];}
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const metadata=(p:Proposal)=>({contract:p.contract,coverage:p.coverage,cases:p.manifest.cases.map(c=>({id:c.id,tasks:c.tasks,description:c.description}))});
@@ -68,6 +69,7 @@ export function scopedPrompt(task:Feature,p:Proposal,scope:string,previous:reado
   'Evidence routing applies to BOTH outline and case review: the harness separately runs project tests, test collection and assertion diagnostics after a build. A project-test criterion may map to no acceptance case with that limitation explained. Do not require or propose npm test, pytest, copied project tests, or a test-runner acceptance step. Meaningfulness of test assertions and coverage still require source review. Likewise do not demand automatic proof of explicit source/browser evidence limitations.',
   'The interface contract is frozen during repairs. Report a real contradiction rather than silently changing it. Optional hardening or exhaustive encodings are evidence limits unless the selected behaviour explicitly promises them. Previously reported findings are context, not proof. Recheck the selected scope for regressions.',
   JSON.stringify({task:{id:task.id,criteria:task.criteria,plan:task.planContext},scope,previous,outline:metadata(p),selected:selected?{...selected,steps:selected.steps.map(s=>({...s,command:s.command.slice(0,-1),inlineCode:'Exact final argument below'}))}:null}),
+  serverRuntimeReview(selected?.steps??[]),
   ...(selected?.steps.map((s,i)=>`Exact executable source, step ${i+1}:\n${s.command.at(-1)}`)??[]),
  ].join('\n\n');
 }
@@ -78,13 +80,14 @@ interface Services{
  save:(p:Proposal,ledger:ReviewLedger)=>Promise<void>;
  progress?:(text:string)=>void;
 }
-export async function scopedReview(task:Feature,original:Proposal,services:Services,saved:ReviewLedger={version:1,entries:[]}):Promise<{proposal:Proposal;validation:DraftValidation}>{
+export async function reviewScopes(task:Feature,original:Proposal,services:Services,saved:ReviewLedger={version:1,entries:[]},onlyScope?:string):Promise<{proposal:Proposal;ledger:ReviewLedger}>{
  let p=parseProposal(original,task);
  if(p.manifest.cases.some(c=>c.id==='$contract'))throw new OperatorError('Reserved acceptance case ID.');
  const scopes=['$contract',...p.manifest.cases.map(c=>c.id)];
  const ledger:ReviewLedger={version:1,entries:saved.version===1?structuredClone(saved.entries.filter(e=>e&&scopes.includes(e.scope)&&e.digest===scopeDigest(task,p,e.scope))):[],...(saved.previousIssues?{previousIssues:[...saved.previousIssues]}:{})};
- const remedy='Nothing was approved. Completed reviews and remaining findings are saved. Use harness checks setup to review progress or revise the behaviour outline; no probe code needs pasting.';
- for(const scope of scopes){
+ if(onlyScope && (onlyScope==='$contract'||!scopes.includes(onlyScope)))throw new OperatorError('Select an existing executable check to repair.');
+ const remedy='Nothing was approved. Completed reviews and remaining findings are saved. Use harness checks repair to repair only a blocked check, or checks setup to revise the outline; no probe code needs pasting.';
+ for(const scope of onlyScope?[onlyScope]:scopes){
   let fingerprint=scopeDigest(task,p,scope);
   const old=ledger.entries.find(e=>e.scope===scope&&e.digest===fingerprint);
   if(old&&(!Number.isInteger(old.repairs)||old.repairs<0||old.repairs>2||!Number.isInteger(old.syntaxRepairs)||old.syntaxRepairs<0||old.syntaxRepairs>2))throw new OperatorError('Invalid saved review budget.');
@@ -127,8 +130,12 @@ export async function scopedReview(task:Feature,original:Proposal,services:Servi
    await services.save(next,ledger);return next;
   }
  }
- delete ledger.previousIssues;
+ if(!onlyScope)delete ledger.previousIssues;
  await services.save(p,ledger);
+ return {proposal:p,ledger};
+}
+export async function scopedReview(task:Feature,original:Proposal,services:Services,saved?:ReviewLedger):Promise<{proposal:Proposal;validation:DraftValidation}>{
+ const {proposal:p,ledger}=await reviewScopes(task,original,services,saved);
  return {proposal:p,validation:{version:1,status:'reviewed',digest:proposalDigest(p),rounds:Math.max(1,...ledger.entries.map(e=>e.repairs+1)),limitations:[...new Set(ledger.entries.flatMap(e=>e.review?.limitations??[]))],at:new Date().toISOString()}};
 }
 export async function validateInScopes(project:string,task:Feature,p:Proposal,progress:(text:string)=>void,save:Services['save'],saved?:ReviewLedger){
@@ -137,8 +144,9 @@ export async function validateInScopes(project:string,task:Feature,p:Proposal,pr
   review:(scope,proposal,previous)=>requestScopedReview(project,task,proposal,scope,previous,progress),
   repair:async(scope,proposal,issues,syntax)=>{
    const selected=scopeProposal(proposal,scope);
+   if(saved?.entries.some(e=>e.scope===scope&&e.retryCount))return (await import('./targeted.ts')).repairCaseCode(project,task,proposal,scope,issues);
    if(syntax){const fixed=await repairProbeSyntax(project,selected,issues);return {...proposal,manifest:{...proposal.manifest,cases:proposal.manifest.cases.map(c=>c.id===scope?fixed.manifest.cases[0]!:c)}};}
-   const raw=await requestCheckJson(project,checkEditPrompt(task,selected,issues)+'\n\nThe contract, coverage, descriptions and all other cases are FROZEN. Only code and existing output expectations in the selected case may change. Do not add evidence limitations to coverage: the independent reviewer can report them separately.');
+   const raw=await requestCheckJson(project,checkEditPrompt(task,selected,issues)+'\n\n'+serverRuntimePrompt()+'\n\nThe contract, coverage, descriptions and all other cases are FROZEN. Only code and existing output expectations in the selected case may change. Do not add evidence limitations to coverage: the independent reviewer can report them separately.');
    return applyCheckEdits(proposal,raw,issues,task);
   },
  },saved);

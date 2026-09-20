@@ -167,3 +167,27 @@ test('revising an interrupted preparation retains its latest outline and finding
  });
  assert.equal(await readApproval(project),undefined);
 }));
+
+import {repairSavedCheck} from '../src/acceptance/guided.ts';
+import {scopeDigest,reviewScopes} from '../src/acceptance/scoped-review.ts';
+import {applyCodeRepair} from '../src/acceptance/targeted.ts';
+test('targeted repair archives its prior budget, keeps unrelated cases and approvals, and never approves the selected fix',()=>fixture(async project=>{
+ const p=parseProposal(proposal(),task);p.manifest.cases.push({...structuredClone(p.manifest.cases[0]!),id:'second'});p.coverage[0]!.cases.push('second');
+ await assert.rejects(realGuidedSetup(project,task,dialogue(['']),async()=>p,async()=>{throw Error('interrupted');}),/interrupted/);
+ const file=path.join(harnessDirectory(project),'acceptance','review-progress.json');
+ const before=JSON.parse(await readFile(file,'utf8'));const pass={verdict:'pass' as const,issues:[],limitations:[]};
+ before.ledger={version:1,entries:[{scope:'pending',digest:scopeDigest(task,p,'pending'),repairs:2,syntaxRepairs:0,review:{verdict:'repair',issues:['shutdown defect'],limitations:[]}},{scope:'second',digest:scopeDigest(task,p,'second'),repairs:0,syntaxRepairs:0,review:pass}]};
+ await writeFile(file,JSON.stringify(before));
+ const io=dialogue(['1']);
+ await repairSavedCheck(project,io,undefined,async(_project,t,input,scope,l,save,progress)=>reviewScopes(t,input,{syntax:async()=>[],review:async()=>pass,repair:async()=>applyCodeRepair(t,input,scope,{codes:[{step:1,code:'console.log("repaired")'}]}),save,progress},l,scope));
+ const after=JSON.parse(await readFile(file,'utf8'));
+ assert.deepEqual(after.proposal.manifest.cases[1],before.proposal.manifest.cases[1]);
+ assert.deepEqual(after.ledger.entries[1],before.ledger.entries[1]);assert.equal(after.ledger.entries[0].retryCount,1);
+ assert.equal(await readApproval(project),undefined);assert.match(io.lines.join('\n'),/Next: harness checks review/);
+ assert.ok((await (await import('node:fs/promises')).readdir(path.join(harnessDirectory(project),'acceptance','review-history'))).some(n=>n.endsWith('-before-targeted-repair.json')));
+}));
+test('targeted repair refuses changed source before spending model work',()=>fixture(async project=>{
+ await assert.rejects(realGuidedSetup(project,task,dialogue(['']),async()=>parseProposal(proposal(),task),async()=>{throw Error('interrupted');}),/interrupted/);
+ await writeFile(path.join(project,'changed.js'),'changed');
+ await assert.rejects(repairSavedCheck(project,dialogue([]),'pending',async()=>{throw Error('must not dispatch');}),/older source/);
+}));

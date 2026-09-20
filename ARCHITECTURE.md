@@ -133,6 +133,9 @@ flowchart LR
   C --> S["Syntax check and independent case review"]
   S -->|concrete defect| F["Repair only that case; bounded budget"]
   F --> S
+  F -->|budget exhausted| B["Saved blocked case"]
+  B -->|operator selects targeted retry| T["Archive budget; repair selected code with shared helper"]
+  T --> S
   S -->|all scopes reviewed| U["Operator reviews behaviours and limitations"]
   U -->|approved| A["Existing offline candidate acceptance gate"]
 ```
@@ -153,6 +156,24 @@ access; a deliberate restart carries forward the latest proposal and findings
 while archiving the old attempt. Legacy complete drafts can enter scoped review
 without retyping requirements. Provider calls remain independent of application
 execution; a reviewed check design is not an observed application pass.
+
+Targeted retry is an explicit operator action (`checks repair [case-id]`), separate
+from resume. The writer-locked transaction checks source/task fingerprints and the
+selected case receipt, archives the old state, and records a renewed per-case
+budget before a provider request. The host accepts inline code replacements only:
+case identity, command prefix, expected output, coverage, contract and unrelated
+cases stay fixed. Independent review still gates the selected code; a partial
+review cannot create a suite approval receipt. Existing approvals are unchanged.
+
+The server helper is bundled outside project source. Acceptance snapshots its
+bytes into a read-only `/harness-checks` mount without model credentials or host
+expectations. A `serverRuntime` digest in each importing step binds those bytes to
+the proposal and approval. A different helper digest fails closed. The helper
+bounds readiness and termination waits, checks both exit and signal states,
+escalates termination, releases pipe handles, removes isolated data even on
+failure, and retains data across intentional restarts. Linux process-group
+signalling complements container teardown. The helper supplies lifecycle mechanics;
+application observations and their host comparisons remain separate.
 
 ## Execution and acceptance
 

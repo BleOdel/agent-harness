@@ -324,7 +324,8 @@ Run them inside your project.
 | `harness model` | show effective provider, model and reasoning effort with their sources |
 | `harness model setup` | choose supported reasoning strength and save model settings for this project |
 | `harness checks setup` | draft checks from the saved plan and approve plain-language behaviours |
-| `harness checks review` | review and approve a saved check draft |
+| `harness checks review` | resume preparation, review and approve a saved check draft |
+| `harness checks repair [case-id]` | repair one blocked check, retaining the other checks |
 | `harness checks approve <file>` | explicitly approve a JSON acceptance specification |
 | `harness ml setup` | approve data and thresholds through short prompts |
 | `harness ml train/resume <id>` | train the saved numeric recipe and evaluate its model |
@@ -472,10 +473,29 @@ the builder's target.
 Successful scope reviews, findings and repair counts are retained in
 `acceptance/review-progress.json`; checkpoints are archived in
 `acceptance/review-history/`. Unchanged scopes reuse their review when source and
-task fingerprints still match. Restarting cannot reset a depleted repair budget.
+task fingerprints still match. Ordinary resume cannot reset a depleted repair budget.
+If one executable check exhausts its budget, use `harness checks repair` (or
+**Repair a blocked check** in setup). Choose the failed behaviour; no probe code
+or correction text is needed. This explicitly grants a new bounded attempt for
+that case, archives the previous budget and findings, and preserves all other
+cases and review receipts. It repairs and independently reviews only that case;
+then `harness checks review` continues the remaining suite. A provider interruption
+preserves the renewed attempt's spent budget. Contract changes still require a
+revised outline. Repair does not approve checks or execute the application.
 Use **Draft again with changes** in setup to deliberately start a new preparation;
 old state is archived. The latest repaired proposal and findings inform the new
 preparation. Explain changes in ordinary language, not probe code.
+
+Node server probes use a harness-owned `withServer` helper mounted read-only at
+`/harness-checks/server.mjs` during acceptance. It owns isolated temporary data,
+startup readiness waits, restarts with the same database, bounded TERM/KILL waits,
+output limits and cleanup after failures. Application assertions, request timeouts,
+HTTP statuses and database-readiness observations remain in each probe. The outer
+container remains the final process boundary. Each importing step carries a
+`serverRuntime` SHA-256 pin; changed or unpinned helper bytes block approval and
+execution until reviewed and approved again. Existing independent probes remain
+supported; targeted repair can migrate a blocked probe without changing its
+contract or expected results.
 
 Reviewers receive exact executable source, existing shared contracts and offline
 Linux runner constraints. Requests use temporary read-only file attachments to
