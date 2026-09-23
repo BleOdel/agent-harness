@@ -1,3 +1,5 @@
+import { repairClaim } from "../agent/claim-repair.ts";
+import { atomicBytes } from "../workspace/atomic.ts";
 import { createHash } from "node:crypto";
 import { assertCheckpointInputs, findWorkCheckpoint, listWorkCheckpoints, restoreWorkCheckpoint, retireWorkCheckpoint, saveWorkCheckpoint } from "../workspace/work-checkpoints.ts";
 import { modelLabel } from "../model-settings.ts";
@@ -182,6 +184,10 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
 
   const acceptanceTasks = [work.feature?.id ?? goal];
   const approvedChecks = await requireChecks(project, acceptanceTasks);
+  const approvedContext = (work.feature?.planContext ?? "") + contractContext(approvedChecks, acceptanceTasks);
+  const originalInstruction = briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs", work.feature?.planContext) + contractContext(approvedChecks, acceptanceTasks);
+  let instruction = originalInstruction;
+  let claimCorrectionUsed = false;
   const adapter = getAdapter((await readProfile(project)).adapter);
   const workspace = await createRunWorkspace(project, adapter.source.generatedDirectories);
   const { sandbox } = workspace;
@@ -225,6 +231,19 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
     detail: string,
     extra: Partial<RunRecord> = {},
   ): Promise<OperatorError> => {
+    if ((outcome === "gate-failed" || outcome === "escalated") && execution && attempts > 0) {
+      try {
+        const saved = await saveWorkCheckpoint(project, runId, sandbox.workDirectory, {
+          goal:task, workDigest, approvalDigest:approvedChecks.digest, executionDigest:execution.digest, baseline,
+          attempt:attempts, instruction:`Continue the retained implementation. The previous verification did not pass.\n${summary}\n${detail}\n\nOriginal task and approved interfaces:\n${originalInstruction}`,
+        });
+        if (checkpoint) await retireWorkCheckpoint(checkpoint, "superseded", runId);
+        extra = {...extra, implementationCheckpoint:runId};
+        detail += `\n\nUnverified source retained: ${path.join(saved.directory,"source")}\nContinue with: harness work --resume ${runId}\nAll verification must pass before anything is applied.`;
+      } catch (error) {
+        detail += `\nPartial source could not be checkpointed: ${(error as Error).message}`;
+      }
+    }
     await appendRun(project, {
       id: runId,
       at: new Date().toISOString(),
@@ -256,10 +275,14 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       }),
       ...extra,
     });
+    recorded = true;
     return new OperatorError(summary, detail);
   };
 
   let attempts = 0;
+  let recorded = false;
+  let workerStopped = false;
+  let applicationStarted = false;
   let gateSummaries: string[] = [];
   const startedAt = new Date().toISOString();
 
@@ -339,7 +362,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       say("Starting from current project source. Older partial snapshots are retained for inspection.");
     }
     say(`Model: ${modelLabel(config)}`);
-    let instruction = (briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs", work.feature?.planContext) + contractContext(approvedChecks, acceptanceTasks));
+
     if (checkpoint) instruction = checkpoint.instruction;
     for (let attempt = checkpoint?.attempt ?? 1; attempt <= 2; attempt += 1) {
       attempts = attempt;
@@ -347,6 +370,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       await mark("building");
       await assertExecutionCompatible(execution!, project, config, testCommand);
       await assertSkillBundles(path.join(harnessDirectory(project), "executions", runId, "skills"), execution!.skills);
+      workerStopped = false;
       const built = await executeAndSubmit(
         layout,
         {
@@ -363,6 +387,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
           void mark("building");
         },
       );
+      workerStopped = true;
       const agent = built.agent;
       for (const file of agent.observedReads) observedReads.add(file);
       inFlight = emptyUsage();
@@ -421,7 +446,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       }
       candidateDigest = candidate.digest;
       await mark("gating");
-      const proof = await runPipeline({
+      const verifyCandidate = async () => runPipeline({
         adapter,
         config,
         layout: { ...layout, workDirectory: candidate.directory },
@@ -432,6 +457,31 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
         counterSource,
         limits: limitsFrom(process.env),
       });
+      let proof = await verifyCandidate();
+      let claimCorrectionFailure: string | undefined;
+      if (proof.run.firstFailure?.name === "claim" && built.claim.ok && !claimCorrectionUsed) {
+        claimCorrectionUsed = true;
+        say("Claim needs correction. One read-only request (up to 180s); implementation files cannot be edited.");
+        try {
+          await assertExecutionCompatible(execution!, project, config, testCommand);
+          const corrected = await repairClaim(layout, {
+            title:work.title, criteria:work.criteria, approvedContext, diff:"", candidate,
+            existing:await readClaim(sandbox.workDirectory), failure:proof.run.firstFailure.detail,
+            provider:config.provider, model:config.model, effort:config.effort ?? "medium", timeoutMs:config.agentTimeoutMs,
+            onUsage:usage => {
+              spent = {...spent, provider:usage.provider ?? spent.provider, model:usage.model ?? spent.model,
+                input:spent.input+usage.input, output:spent.output+usage.output, cacheRead:spent.cacheRead+usage.cacheRead,
+                cacheWrite:spent.cacheWrite+usage.cacheWrite, reasoning:spent.reasoning+usage.reasoning,
+                totalTokens:spent.totalTokens+usage.totalTokens, costUsd:spent.costUsd+usage.costUsd, turns:spent.turns+usage.turns};
+              say(`claim correction: ${describeUsage(usage)}`);
+              void mark("gating");
+            },
+          });
+          await atomicBytes(path.join(sandbox.workDirectory,".harness-claim.json"),Buffer.from(JSON.stringify(corrected)+"\n"));
+          say("Claim corrected; rerunning all candidate gates before independent review and acceptance.");
+          proof = await verifyCandidate();
+        } catch (error) {claimCorrectionFailure=(error as Error).message;}
+      }
       const { run, changes } = proof;
       environmentKey = proof.environmentKey;
       const manifests = path.join(harnessDirectory(project), "candidates", runId);
@@ -449,11 +499,11 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
           throw await stop("environment-blocked", failure.summary, failure.detail, { requestedInput: failure.detail });
         }
         const diagnosis = diagnose(failure.kind, failure.detail);
-        if (attempt === 2) {
+        if (attempt === 2 || (failure.name === "claim" && claimCorrectionUsed)) {
           throw await stop(
             "gate-failed",
             `${failure.name} gate: ${failure.summary}`,
-            `${diagnosis.cause}\n\n${diagnosis.fix}\n\n${failure.detail}`,
+            `${diagnosis.cause}\n\n${diagnosis.fix}\n\n${failure.detail}${claimCorrectionFailure ? `\nClaim-only correction: ${claimCorrectionFailure}` : ""}`,
           );
         }
         instruction = `${diagnosis.forAgent}\n\n---\n\nThe original goal:\n\n${(briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs", work.feature?.planContext) + contractContext(approvedChecks, acceptanceTasks))}`;
@@ -511,6 +561,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       // work that was asked for.
       const verdict = await review({ ...layout, workDirectory: candidate.directory, purpose: "review" }, {
         title: work.title,
+        approvedContext,
         criteria: work.criteria.length > 0
           ? work.criteria
           // Without a feature list there is nothing exact to check
@@ -555,8 +606,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
             ...(verdict.unaccounted.length === 0 ? [] : ["In the change, but nothing asked for it:",
               ...verdict.unaccounted.map((entry) => `  - ${entry}`), ""]),
             ...(verdict.notes.length === 0 ? [] : ["Notes:", ...verdict.notes.map((entry) => `  - ${entry}`), ""]),
-            `Nothing was applied. The work is in ${sandbox.workDirectory}, which is about to be destroyed;`,
-            "re-run to try again, or narrow the item.",
+            "Nothing was applied. Repair the saved implementation or narrow the item.",
           ].join("\n"),
           { review: { verdict: "escalate", findings: [...verdict.unmet, ...verdict.unaccounted] } },
         );
@@ -587,6 +637,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
         changes,
         recoveryPath(project, runId),
       );
+      applicationStarted = true;
       await applyChanges(project, candidate.directory, changes);
       await appendRun(project, {
         id: runId,
@@ -638,6 +689,15 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       say(`recovery: ${recovery.directory}`);
       return;
     }
+  } catch (error) {
+    // A failed verifier cannot write the original worker source. Preserve that source
+    // even when a gate/reviewer throws instead of returning a structured failure.
+    // Never snapshot an unconfirmed live builder or imply recovery after partial apply.
+    if (!recorded && workerStopped && !applicationStarted && attempts > 0) {
+      throw await stop((phase as Phase) === "reviewing" ? "escalated" : "gate-failed",
+        `Verification could not finish: ${(error as Error).message}`, "Nothing was applied. Resolve the verification failure before continuing.");
+    }
+    throw error;
   } finally {
     // Every path, including a crash. A sandbox that survives a failure is
     // a stale copy the operator will one day mistake for the project.

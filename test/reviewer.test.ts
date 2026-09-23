@@ -107,3 +107,9 @@ test("a binary file is named, never embedded in the prompt", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+
+test("review receives approved choices without treating the entire plan as this item's scope",()=>{
+ const prompt=reviewPrompt({title:"service",criteria:["public reads"],diff:"new API",provider:undefined,model:undefined,timeoutMs:1,approvedContext:"PLAN: Local-only demo. CONTRACT: /continue reveals noted prose."});
+ assert.match(prompt,/Local-only demo/);assert.match(prompt,/\/continue reveals noted prose/);assert.match(prompt,/does not authorize other.*items/i);
+});

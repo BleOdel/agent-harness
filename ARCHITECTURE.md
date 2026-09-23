@@ -293,6 +293,10 @@ flowchart TD
   T -->|No: completed normally| V["Freeze candidate against original live baseline"]
   V --> G["All gates, independent review, approved acceptance and identity checks"]
   G -->|Pass| A["Apply; record current usage and resumedFrom; retire checkpoint"]
+  G -->|Terminal gate or review failure| S
+  G -->|Well-formed claim fails; correction unused| CR["One read-only claim proposal; at most 180 seconds"]
+  CR -->|Validate shape, complete diff and criteria; replace claim only| G
+  CR -->|Failure| S
 ```
 
 A checkpoint is not a candidate or an acceptance proof. Publication is host-owned,
@@ -305,8 +309,18 @@ explicit `work --fresh`. Repeated timeouts publish a new checkpoint before retir
 the parent. Run IDs account for published checkpoints even if record append was
 interrupted. Incomplete `.pending-*` directories are not resumable.
 
-Only handled builder timeouts create this checkpoint. Arbitrary controller death,
-reviewer/provider errors and old deleted workspaces are not recovered by it.
+Handled builder timeouts, terminal gate/acceptance failures and review failures
+create checkpoints. Unexpected verification exceptions retain worker source only
+after confirmed builder cleanup and before application starts. Arbitrary controller
+death, builder/provider errors, partial applications and old deleted workspaces are
+not recovered by this mechanism.
+
+Claim-only correction is a separate read-only proposal with one request per run,
+no skills/session and a 180-second ceiling. The host validates it against the full
+original-baseline change set and requested evidence before replacing only the claim.
+It reruns candidate gates before review and acceptance. Independent ordinary review
+receives host-approved plan/contract context, never private acceptance commands or
+the builder conversation. See [claim correction](src/agent/claim-repair.ts).
 
 Implementation: [checkpoint store](src/workspace/work-checkpoints.ts),
 [ordinary work](src/verbs/work.ts). `test/work-resume-docker.test.ts` exercises a real

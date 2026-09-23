@@ -72,7 +72,7 @@ const USAGE = [
   "  harness checks status        saved preparation status and reported usage",
   "  harness checks [setup | review | repair [case-id] | use-recipe [case-id] | simplify [case-id] | approve <file>]  review and approve application acceptance checks",
   "  harness work [<item-id or goal>]  build or resume saved partial work",
-  "  harness work --resume <run-id>   resume a timed-out builder",
+  "  harness work --resume <run-id>   resume saved implementation",
   "  harness work --fresh [<item-id>] start from current source",
   "  harness team run             stage accepted assignments, up to two builders",
   "  harness team steer <attempt> \"message\"  send live builder guidance",

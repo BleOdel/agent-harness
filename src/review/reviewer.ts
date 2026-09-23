@@ -25,6 +25,8 @@ export interface ReviewRequest {
   readonly title: string;
   readonly criteria: readonly string[];
   readonly diff: string;
+  /** Host-approved plan and task-scoped interface choices, not builder reasoning. */
+  readonly approvedContext?: string;
   readonly provider: string | undefined;
   readonly model: string | undefined;
   readonly timeoutMs: number;
@@ -51,6 +53,12 @@ export function reviewPrompt(request: ReviewRequest): string {
     "Its acceptance criteria:",
     ...request.criteria.map((criterion, index) => `  ${String(index + 1)}. ${criterion}`),
     "",
+    ...(request.approvedContext ? [
+      "Operator-approved plan and interface choices (context for the criteria above):",
+      request.approvedContext,
+      "This context does not authorize other plan items. Judge only the current item's scope. Required interface choices are not scope creep merely because a criterion summarizes them. If approved requirements conflict, identify that conflict rather than silently discarding either requirement.",
+      "End of approved context.", "",
+    ] : []),
     "Answer two questions, and only these two:",
     "",
     "1. Is each acceptance criterion actually satisfied by this change? A",

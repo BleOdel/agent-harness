@@ -46,9 +46,18 @@ if (args.includes('-e') && args.some(a=>a.includes('platform:process.platform'))
 const mount = args.find(a => a.startsWith('type=bind,src=') && a.includes(',dst=/work'));
 const work = mount.split(',src=')[1].split(',dst=')[0];
 const mode = process.env.FLOW_MODE;
-const kind = args.includes('--mode') ? 'builder' : args.includes('read,grep') ? 'reviewer' : args.some(a=>a.startsWith('--env=NODE_OPTIONS')) ? 'gate' : 'acceptance';
+const kind = args.at(-1)?.includes('Correct only the completion claim') ? 'claim-correction' : args.includes('--mode') ? 'builder' : args.includes('read,grep') ? 'reviewer' : args.some(a=>a.startsWith('--env=NODE_OPTIONS')) ? 'gate' : 'acceptance';
 fs.appendFileSync(process.env.FLOW_LOG, JSON.stringify({kind, work}) + '\\n');
+if(kind === 'claim-correction') {
+  if(mode==='claim-timeout'){setInterval(()=>{},1000);return;}
+  if(mode==='claim-source-write')fs.writeFileSync(path.join(work,'app.js'),'untrusted repair edit');
+  const text=JSON.stringify({files:mode==='claim-bad'?[]:['app.js'],deletions:[],criteria:mode==='claim-omit-criterion'?[]:[{criterion:'works',verifiedBy:mode==='claim-no-evidence'?'missing.test.js':'test/app.test.js'}]});
+  const message={role:'assistant',content:[{type:'text',text}],usage:{input:4,output:6,totalTokens:10,cost:{total:0.01}}};
+  console.log(JSON.stringify({type:'message_end',message}));console.log(JSON.stringify({type:'turn_end',message}));console.log(JSON.stringify({type:'agent_end',messages:[message]}));return;
+}
 if (kind === 'builder') {
+  if(mode.startsWith('claim-')){fs.writeFileSync(path.join(work,'app.js'),'export const value = 2;\\n');fs.writeFileSync(path.join(work,'.harness-claim.json'),JSON.stringify({files:[],deletions:[],criteria:[{criterion:'works',verifiedBy:'test/app.test.js'}]}));return;}
+
   if (mode.startsWith('timeout') || (mode === 'gate-then-timeout' && fs.readFileSync(process.env.FLOW_LOG,'utf8').split('\\n').filter(l=>l && JSON.parse(l).kind==='builder').length > 1)) {
     fs.writeFileSync(path.join(work,'app.js'),'export const value = 2;\\n');
     fs.writeFileSync(path.join(work,'.harness-claim.json'),'{unfinished');
@@ -356,6 +365,8 @@ test("resumed broken implementation still fails gates and applies nothing", asyn
   assert.equal(await readFile(path.join(f.project,"app.js"),"utf8"),"export const value = 1;\n");
   assert.match(result.text,/Resuming.*r1/);
   assert.equal((await readRecord(f.project)).runs.at(-1)?.outcome,"gate-failed");
+  const saved=JSON.parse(await readFile(path.join(harnessDirectory(f.project),"implementation/r2/state.json"),"utf8"));
+  assert.equal(saved.attempt,2);assert.match(saved.instruction,/test/i);
  }finally{await f.close();}
 });
 
@@ -403,6 +414,94 @@ test("resumed code passing project tests and review still needs approved accepta
   f.env.FLOW_MODE="resume-wrong";f.env.HARNESS_AGENT_TIMEOUT="5";
   const result=await f.run("work","--resume","r1");assert.notEqual(result.code,0);assert.match(result.text,/acceptance.*did not match/);
   const run=(await readRecord(f.project)).runs.at(-1)!;assert.equal(run.outcome,"gate-failed");assert.ok(run.acceptance);assert.equal(run.resumedFrom,"r1");
+  const saved=JSON.parse(await readFile(path.join(harnessDirectory(f.project),"implementation/r2/state.json"),"utf8"));assert.match(saved.instruction,/acceptance/);
   assert.equal(await readFile(path.join(f.project,"app.js"),"utf8"),"export const value = 1;\n");
+ }finally{await f.close();}
+});
+
+
+test("an incomplete file claim is corrected once without rebuilding; all gates, review and acceptance still run",async()=>{
+ const f=await fixture([item("api")],"changed");
+ try {
+  f.env.FLOW_MODE="claim-only";const result=await f.run("work","api");assert.equal(result.code,0,result.text);
+  const kinds=(await f.calls()).map(c=>c.kind);
+  assert.equal(kinds.filter(k=>k==="builder").length,1);assert.equal(kinds.filter(k=>k==="claim-correction").length,1);
+  assert.equal(kinds.filter(k=>k==="gate").length,2);assert.ok(kinds.includes("reviewer"));assert.ok(kinds.includes("acceptance"));
+  const record=(await readRecord(f.project)).runs[0]!;assert.equal(record.outcome,"applied");assert.equal(record.usage?.totalTokens,10);
+ }finally{await f.close();}
+});
+for(const mode of ["claim-bad","claim-timeout","claim-source-write","claim-no-evidence","claim-omit-criterion"]) test(`unsuccessful claim correction retains recoverable source and stops (${mode})`,async()=>{
+ const f=await fixture([item("api")],"changed");
+ try {
+  f.env.FLOW_MODE=mode;f.env.HARNESS_AGENT_TIMEOUT="1";
+  const result=await f.run("work","api");assert.notEqual(result.code,0);assert.match(result.text,/harness work --resume r1/);
+  assert.equal((await f.calls()).filter(c=>c.kind==="claim-correction").length,1);
+  const state=JSON.parse(await readFile(path.join(harnessDirectory(f.project),"implementation/r1/state.json"),"utf8"));
+  assert.equal(state.status,"available");assert.match(state.instruction,/claim/i);
+  assert.equal(await readFile(path.join(harnessDirectory(f.project),"implementation/r1/source/app.js"),"utf8"),"export const value = 2;\n");
+  assert.equal(await readFile(path.join(f.project,"app.js"),"utf8"),"export const value = 1;\n");
+ }finally{await f.close();}
+});
+test("final review failure retains source and findings for a successful continuation",async()=>{
+ const f=await fixture([item("api")],"changed");
+ try {
+  const docker=f.env.HARNESS_DOCKER!;await writeFile(docker,(await readFile(docker,"utf8")).replaceAll("mode === 'reject'","mode === 'changed'"));
+  const first=await f.run("work","api");assert.notEqual(first.code,0);assert.match(first.text,/harness work --resume r1/);
+  const saved=JSON.parse(await readFile(path.join(harnessDirectory(f.project),"implementation/r1/state.json"),"utf8"));assert.equal(saved.attempt,2);assert.match(saved.instruction,/works/);
+  f.env.FLOW_MODE="resume";const second=await f.run("work","api");assert.equal(second.code,0,second.text);
+  assert.equal((await readRecord(f.project)).runs.at(-1)?.resumedFrom,"r1");
+ }finally{await f.close();}
+});
+
+test("ordinary reviewer sees the approved plan and contract but not private acceptance commands",async()=>{
+ const f=await fixture([{...item("api"),planContext:"LOCAL_PLAN_MARKER"}],"changed");
+ try {
+  const checks=path.join(f.root,"checks.json"),draft=JSON.parse(await readFile(checks,"utf8"));
+  draft.cases[0].contract="CONTENT_GATE_REQUIRED";draft.cases[0].steps[0].command[3]+="; // PRIVATE_PROBE_MARKER";
+  await writeFile(checks,JSON.stringify(draft));await approveChecks(f.project,checks);
+  const docker=f.env.HARNESS_DOCKER!;await writeFile(docker,(await readFile(docker,"utf8")).replace("} else if (kind === 'reviewer') {", "} else if (kind === 'reviewer') { if(!args.at(-1).includes('LOCAL_PLAN_MARKER')||!args.at(-1).includes('CONTENT_GATE_REQUIRED')||args.at(-1).includes('PRIVATE_PROBE_MARKER'))throw Error('incorrect reviewer context');"));
+  const result=await f.run("work","api");assert.equal(result.code,0,result.text);
+ }finally{await f.close();}
+});
+
+test("a reviewer process failure retains implementation for another independent review",async()=>{
+ const f=await fixture([item("api")],"changed");
+ try {
+  const docker=f.env.HARNESS_DOCKER!,original=await readFile(docker,"utf8");await writeFile(docker,original.replace("} else if (kind === 'reviewer') {","} else if (kind === 'reviewer') {process.exit(7);"));
+  const first=await f.run("work","api");assert.notEqual(first.code,0);assert.match(first.text,/harness work --resume r1/);
+  const saved=JSON.parse(await readFile(path.join(harnessDirectory(f.project),"implementation/r1/state.json"),"utf8"));assert.match(saved.instruction,/reviewer exited 7/);
+  await writeFile(docker,original);f.env.FLOW_MODE="resume";const second=await f.run("work","api");assert.equal(second.code,0,second.text);
+ }finally{await f.close();}
+});
+
+test("an unexpected verification exception preserves the stopped builder source",async()=>{
+ const f=await fixture([item("api")],"changed");
+ try {
+  const docker=f.env.HARNESS_DOCKER!;await writeFile(docker,(await readFile(docker,"utf8")).replace("} else if (kind === 'reviewer') {","} else if (kind === 'reviewer') {fs.writeFileSync(path.join(work,'app.js'),'host-side candidate corruption');"));
+  const result=await f.run("work","api");assert.notEqual(result.code,0);assert.match(result.text,/Verification could not finish/);assert.match(result.text,/harness work --resume r1/);
+  assert.equal(await readFile(path.join(harnessDirectory(f.project),"implementation/r1/source/app.js"),"utf8"),"export const value = 2;\n");
+  assert.equal(await readFile(path.join(f.project,"app.js"),"utf8"),"export const value = 1;\n");
+ }finally{await f.close();}
+});
+
+
+test("a claim omission on the final implementation attempt is corrected without restarting the build",async()=>{
+ const f=await fixture([item("api")],"changed");
+ try {
+  const docker=f.env.HARNESS_DOCKER!;let code=await readFile(docker,"utf8");
+  code=code.replace("fs.writeFileSync(path.join(work,'.harness-claim.json'),JSON.stringify(claim));", "if(fs.readFileSync(process.env.FLOW_LOG,'utf8').split('\\n').filter(l=>l && JSON.parse(l).kind==='builder').length===2)claim.files=[];fs.writeFileSync(path.join(work,'.harness-claim.json'),JSON.stringify(claim));");
+  code=code.replace("} else if (kind === 'reviewer') {", "} else if (kind === 'reviewer') {if(fs.readFileSync(process.env.FLOW_LOG,'utf8').split('\\n').filter(l=>l && JSON.parse(l).kind==='reviewer').length===1){console.log(JSON.stringify({verdict:'escalate',unmet:['works'],unaccounted:[],notes:[]}));return;}");
+  await writeFile(docker,code);const result=await f.run("work","api");assert.equal(result.code,0,result.text);
+  const kinds=(await f.calls()).map(c=>c.kind);assert.equal(kinds.filter(k=>k==="builder").length,2);assert.equal(kinds.filter(k=>k==="claim-correction").length,1);assert.equal(kinds.filter(k=>k==="reviewer").length,2);
+  assert.equal((await readRecord(f.project)).runs[0]!.attempts,2);
+ }finally{await f.close();}
+});
+
+test("claim-only correction has one shared allowance across both implementation attempts",async()=>{
+ const f=await fixture([item("api")],"changed");
+ try {
+  f.env.FLOW_MODE="claim-only";const docker=f.env.HARNESS_DOCKER!;await writeFile(docker,(await readFile(docker,"utf8")).replaceAll("mode === 'reject'","mode === 'claim-only'"));
+  const result=await f.run("work","api");assert.notEqual(result.code,0);assert.match(result.text,/harness work --resume r1/);
+  const kinds=(await f.calls()).map(c=>c.kind);assert.equal(kinds.filter(k=>k==="builder").length,2);assert.equal(kinds.filter(k=>k==="claim-correction").length,1);
  }finally{await f.close();}
 });

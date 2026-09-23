@@ -348,7 +348,7 @@ Run them inside your project.
 | `harness add <id> …` | put an item on the feature list |
 | `harness add --from latest` | import the items a plan proposed |
 | `harness work [<id>]` | build or resume the highest-priority eligible item, or a named item |
-| `harness work --resume <run-id>` | continue a timed-out builder from saved unverified source |
+| `harness work --resume <run-id>` | continue saved unverified implementation |
 | `harness work --fresh [<id>]` | start from live source; retain older checkpoints for inspection |
 | `harness team run [options]` | run assigned builders and retain verified staging |
 | `harness team inspect <id>` | read durable acceptance state |
@@ -874,14 +874,15 @@ journal for explicit team batch application and batch undo.
    Recovery snapshots and append-only records carry the resulting change.
    Host-owned attempt manifests live under `<project>-harness/candidates/`.
 6. **Clean up.** Normal and handled-error paths remove owned containers and
-   disposable workspaces. Builder timeouts first retain an unverified source checkpoint. Abrupt process death can leave resources requiring
+   disposable workspaces. Builder timeouts and failed verification first retain an unverified source checkpoint. Abrupt process death can leave resources requiring
    explicit recovery; retained evidence is separate from disposable inputs.
 
-## Resuming a timed-out implementation
+## Resuming an interrupted or rejected implementation
 
-When an ordinary `harness work` builder reaches its time limit, the harness stops
-its container and saves unverified partial source outside the project before
-removing the temporary workspace. Nothing is applied. Continue with:
+When an ordinary `harness work` builder reaches its time limit, or verification
+ends with a gate or review failure, the harness saves unverified source and the
+failure diagnosis outside the project before removing temporary workspaces.
+Worker cleanup is confirmed before snapshotting its source. Nothing is applied. Continue with:
 
 ```bash
 harness work                       # resume if the next item has saved partial work
@@ -901,7 +902,7 @@ dependencies. **Pi starts a fresh conversation**, with the original task and any
 current repair diagnosis, and is instructed to inspect interrupted edits or mutation
 tests before continuing. The original attempt number is retained. Source gates,
 independent review and approved acceptance checks still have to pass before apply;
-a saved checkpoint is not evidence of correctness. A repeated timeout saves a new
+a saved checkpoint is not evidence of correctness. A repeated timeout or verification failure saves a new
 checkpoint and supersedes the old one. Each run records only its own reported usage.
 
 The project source and requirements, approved checks, limits, environment, model,
@@ -919,11 +920,36 @@ To allow longer model calls while retaining a checkpoint, set the timeout in sec
 HARNESS_AGENT_TIMEOUT=1800 harness work local-story-service
 ```
 
-This first implementation saves **handled builder timeouts**, not arbitrary process
-kills, machine crashes, provider failures or reviewer timeouts. Existing checkpoints
-remain available after unsuccessful resume attempts. A run that timed out before
+Checkpoints cover handled builder timeouts, terminal gate failures (including
+acceptance), reviewer escalation, and reviewer process failure or timeout. An
+unexpected verification exception also preserves source when builder cleanup was
+confirmed. Arbitrary process kills, machine crashes, builder/provider failures and
+partial application failures are not covered. Existing checkpoints remain available
+when an unsuccessful resume cannot publish a replacement. A run that timed out before
 this feature and already deleted its temporary directory cannot be recovered.
 No provider conversation or credential directory is saved with the source.
+
+## Correcting an incomplete claim
+
+If preceding gates pass but a well-formed claim is incomplete or inconsistent,
+ordinary work allows **one claim-only model request per run**, capped at 180 seconds
+(or the configured agent timeout, if shorter). This does not consume another full
+implementation attempt. The model receives the complete change list against the
+original baseline, the existing claim, criteria and approved context. It gets only
+read/grep tools and a read-only source mount, with no builder session or skills.
+
+The host accepts only a claim that exactly covers the observed files/deletions,
+accounts for each requested criterion once and names existing evidence files.
+Only `.harness-claim.json` is replaced. All candidate gates then rerun, followed by
+independent review and approved acceptance; no source changes or test evidence are
+accepted from the correction response. Reported correction usage is included in the
+current run. Failed, timed-out or invalid correction stops and retains the implementation
+for explicit resume. Malformed or blocked submissions are not converted into completion
+claims by this step; ordinary implementation-repair rules still apply.
+
+The ordinary reviewer receives the same approved plan and task-scoped interface
+choices as the builder, while private acceptance commands and expected outputs stay
+host-owned. The wider plan does not authorize implementation of unrelated items.
 
 ## Running unattended
 
