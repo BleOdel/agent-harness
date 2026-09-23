@@ -319,7 +319,7 @@ export async function repairSavedCheck(project:string,io:Dialogue,caseId?:string
  const ledger=record.ledger as ReviewLedger;
  if(ledger?.version!==1||!Array.isArray(ledger.entries))throw new OperatorError('This draft has no scoped review history.','Use harness checks review first.');
  const ids=blockedScopes(task,proposal,ledger);
- if(!ids.length)throw new OperatorError('No check has exhausted its repair budget.','Use harness checks review to resume saved work.');
+ if(!ids.length)throw new OperatorError('No check has an interrupted or exhausted repair.','Use harness checks review to resume saved work.');
  io.write('Repair one blocked check with a fresh, bounded attempt. Existing findings are retained; other checks and approvals are preserved.');
  let selected=caseId;
  if(!selected){const index=await choose(io,'Which blocked check should be repaired?',ids.map(id=>proposal.manifest.cases.find(c=>c.id===id)!.description!));if(index<0)return;selected=ids[index]!;}

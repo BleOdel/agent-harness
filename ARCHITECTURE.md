@@ -132,7 +132,8 @@ flowchart LR
   R2 --> C
   C --> S["Syntax check and independent case review"]
   S -->|concrete defect| F["Repair only that case; bounded budget"]
-  F --> S
+  F --> CP["Save reply and resume the same charged attempt"]
+  CP --> S
   F -->|budget exhausted| B["Saved blocked case"]
   B -->|operator selects targeted retry| T["Archive budget; repair selected code with shared helper"]
   T --> S
@@ -682,9 +683,11 @@ before approval or execution. Dependency upgrades need a fresh review and approv
 for affected checks. The helper does not execute browser scripts or replace
 operator-approved application assertions.
 
-### Targeted repair-response recovery
+### Scoped repair-response recovery
 
-A host checkpoint saves each model code-repair reply before interpreting it.
+Ordinary scoped reviews and explicit retries share one code-replacement path;
+ordinary repair no longer relies on exact before/after text matching. A host
+checkpoint saves each model code-repair reply before interpreting it.
 The strict replacement schema still permits only a one-based step and complete
 inline source. A malformed reply receives at most one separate format correction;
 it cannot change commands, expectations, the contract or another case. Semantic
@@ -693,7 +696,11 @@ diagnosis under `acceptance/repair-responses`.
 
 Checkpoints bind exact proposal, findings, request prompt, helper digests and
 explicit retry epoch. Started requests are saved before dispatch, so crashes cannot
-silently replenish budgets. Received responses are reused after interruption.
+silently replenish budgets. The scope ledger records the pending repair kind,
+charged attempt and findings. Resume finishes that same attempt before charging
+another, even at the final attempt. Explicit renewal clears the pending marker
+and advances the retry epoch; it cannot silently reuse an exhausted request.
+Received responses are reused after interruption.
 Independent syntax and behavioural reviews still follow; no reply cache approves
 checks or changes application code.
 

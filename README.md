@@ -477,20 +477,23 @@ Successful scope reviews, findings and repair counts are retained in
 `acceptance/review-progress.json`; checkpoints are archived in
 `acceptance/review-history/`. Unchanged scopes reuse their review when source and
 task fingerprints still match. Ordinary resume cannot reset a depleted repair budget.
-If one executable check exhausts its budget, use `harness checks repair` (or
+If one executable check is interrupted or exhausts its budget, use `harness checks repair` (or
 **Repair a blocked check** in setup). Choose the failed behaviour; no probe code
 or correction text is needed. This explicitly grants a new bounded attempt for
 that case, archives the previous budget and findings, and preserves all other
 cases and review receipts. It repairs and independently reviews only that case;
-then `harness checks review` continues the remaining suite. Targeted code replies
-are saved under `acceptance/repair-responses` before validation. A malformed
+then `harness checks review` continues the remaining suite. Ordinary review and
+explicit repair use the same saved-response path: the model returns corrected code
+for selected steps rather than fragile exact-text patches. Code replies are saved under `acceptance/repair-responses` before validation. A malformed
 replacement gets one format-only correction request; commands, expectations and
 other cases remain fixed and code still needs independent review. Resuming reuses
 saved replies, including responses received just before an interruption. Request
 budgets are recorded before dispatch; an exhausted response budget needs an explicit
 fresh targeted attempt. Response caches bind the proposal, findings, helper bytes
 and retry epoch. They never constitute an approval. A provider interruption
-preserves the renewed attempt's spent budget. Contract changes still require a
+preserves the attempt's spent budget. A pending repair resumes before another
+attempt is charged, including when its final response was saved just before a crash.
+A request that never returned needs an explicit retry. Contract changes still require a
 revised outline. Repair does not approve checks or execute the application.
 For supported routine behaviours the harness now owns the check implementation.
 The initial recipe, **node-web-sqlite v1**, accepts a small configuration: server

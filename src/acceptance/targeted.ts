@@ -13,12 +13,12 @@ function staleRuntime(p:Proposal,scope:string):boolean {
  try {assertServerRuntimes({version:1,cases:p.manifest.cases.filter(c=>c.id===scope)});return false;}catch{return true;}
 }
 export function blockedScopes(task:Feature,p:Proposal,ledger:ReviewLedger):string[]{
- return ledger.entries.filter(e=>e.scope!=='$contract' && e.digest===scopeDigest(task,p,e.scope) && ((e.review?.verdict!=='pass' && (e.repairs>=2||e.syntaxRepairs>=2)) || staleRuntime(p,e.scope))).map(e=>e.scope);
+ return ledger.entries.filter(e=>e.scope!=='$contract' && e.digest===scopeDigest(task,p,e.scope) && ((e.review?.verdict!=='pass' && (e.repairs>=2||e.syntaxRepairs>=2||e.pendingRepair!==undefined)) || staleRuntime(p,e.scope))).map(e=>e.scope);
 }
 export function renewScope(task:Feature,p:Proposal,ledger:ReviewLedger,scope:string):ReviewLedger{
- if(!blockedScopes(task,p,ledger).includes(scope))throw new OperatorError('Select a blocked executable check whose repair budget is exhausted.');
+ if(!blockedScopes(task,p,ledger).includes(scope))throw new OperatorError('Select a blocked executable check with an interrupted or exhausted repair.');
  const next=structuredClone(ledger);const entry=next.entries.find(e=>e.scope===scope)!;
- entry.retryCount=(entry.retryCount??0)+1;entry.repairs=0;entry.syntaxRepairs=0;
+ entry.retryCount=(entry.retryCount??0)+1;entry.repairs=0;entry.syntaxRepairs=0;delete entry.pendingRepair;
  if(staleRuntime(p,scope))entry.review={verdict:'repair',issues:[...(entry.review?.issues??[]),RUNTIME_FINDING],limitations:entry.review?.limitations??[]};
  return next;
 }
@@ -40,7 +40,7 @@ export async function repairCaseCode(project:string,task:Feature,p:Proposal,scop
 }
 export async function repairScopeInIsolation(project:string,task:Feature,p:Proposal,scope:string,ledger:ReviewLedger,save:(p:Proposal,l:ReviewLedger)=>Promise<void>,progress:(text:string)=>void){
  return reviewScopes(task,p,{
-  syntax:syntaxIssues,save,progress,
+  durableRepairs:true,syntax:syntaxIssues,save,progress,
   review:(s,proposal,previous)=>requestScopedReview(project,task,proposal,s,previous,progress),
   repair:(s,proposal,issues)=>repairCaseCode(project,task,proposal,s,issues,{epoch:ledger.entries.find(e=>e.scope===s)?.retryCount??0,progress}),
  },ledger,scope);

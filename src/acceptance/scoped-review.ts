@@ -1,17 +1,17 @@
 import {recipePrompt,recipeDescription} from './recipes/catalog.ts';
-import {serverRuntimeReview, serverRuntimePrompt} from './server-runtime.ts';
+import {serverRuntimeReview} from './server-runtime.ts';
+import type {RepairResponseOptions} from './repair-response.ts';
 /** Reviews bind to exact scope bytes. Only changed scopes consume another model review. */
 import {createHash} from 'node:crypto';
 import type {Feature} from '../features.ts';
 import {parseProposal, taskDigest, requestCheckJson, type Proposal} from './draft.ts';
-import {parseDraftReview, syntaxIssues, repairProbeSyntax, proposalDigest, type DraftReview, type DraftValidation} from './repair.ts';
-import {applyCheckEdits, checkEditPrompt} from './edits.ts';
+import {parseDraftReview, syntaxIssues, proposalDigest, type DraftReview, type DraftValidation} from './repair.ts';
 import {OperatorError, clip} from '../verbs/io.ts';
 import {mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import {harnessDirectory} from '../record/record.ts';
 import {atomicWrite} from '../planning/store.ts';
-export interface ScopeEntry {scope:string;digest:string;repairs:number;syntaxRepairs:number;review?:DraftReview;previousIssues?:string[];retryCount?:number;}
+export interface ScopeEntry {scope:string;digest:string;repairs:number;syntaxRepairs:number;review?:DraftReview;previousIssues?:string[];retryCount?:number;pendingRepair?:{syntax:boolean;attempt:number;issues:string[]};}
 export interface ReviewLedger {version:1;entries:ScopeEntry[];previousIssues?:string[];}
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const metadata=(p:Proposal)=>({contract:p.contract,coverage:p.coverage,cases:p.manifest.cases.map(c=>({id:c.id,tasks:c.tasks,description:c.description}))});
@@ -79,6 +79,7 @@ export function scopedPrompt(task:Feature,p:Proposal,scope:string,previous:reado
  ].join('\n\n');
 }
 interface Services{
+ durableRepairs?:boolean;
  syntax:(p:Proposal)=>Promise<string[]>;
  review:(scope:string,p:Proposal,previous:readonly string[])=>Promise<DraftReview>;
  repair:(scope:string,p:Proposal,issues:string[],syntax:boolean)=>Promise<Proposal>;
@@ -98,16 +99,19 @@ export async function reviewScopes(task:Feature,original:Proposal,services:Servi
   if(old&&(!Number.isInteger(old.repairs)||old.repairs<0||old.repairs>2||!Number.isInteger(old.syntaxRepairs)||old.syntaxRepairs<0||old.syntaxRepairs>2))throw new OperatorError('Invalid saved review budget.');
   const entry:ScopeEntry=old??{scope,digest:fingerprint,repairs:0,syntaxRepairs:0};
   if(entry.review)entry.review=parseDraftReview(entry.review);
+  if(entry.pendingRepair){const pending=entry.pendingRepair;if(!services.durableRepairs||scope==='$contract'||entry.review?.verdict==='pass'||typeof pending.syntax!=='boolean'||!Number.isInteger(pending.attempt)||pending.attempt<1||pending.attempt>2||pending.attempt!==(pending.syntax?entry.syntaxRepairs:entry.repairs)||!Array.isArray(pending.issues)||!pending.issues.length||pending.issues.some(s=>typeof s!=='string'||!s.trim())||(!pending.syntax&&JSON.stringify(pending.issues)!==JSON.stringify(entry.review?.issues)))throw new OperatorError('Invalid saved pending repair.');}
   if(!old)ledger.entries.push(entry);
   const label=scope==='$contract'?'Interface and behaviour outline':p.manifest.cases.find(c=>c.id===scope)!.description!;
   if(entry.review?.verdict==='pass'){services.progress?.(`Already reviewed: ${label}`);continue;}
   for(;;){
    await services.save(p,ledger);
+   if(entry.pendingRepair){services.progress?.(`Resuming saved repair: ${label}`);p=await repair(scope,entry.pendingRepair.issues,entry.pendingRepair.syntax);continue;}
    const syntax=scope==='$contract'?[]:await services.syntax(scopeProposal(p,scope));
    if(syntax.length){
     if(p.manifest.cases.find(c=>c.id===scope)?.steps.some(s=>s.recipe))throw new OperatorError(`Recipe validation failed: ${syntax.join("; ")}`,"Use harness checks use-recipe to correct settings. No code-repair loop was started.");
     if(entry.syntaxRepairs>=2)throw new OperatorError(`${label}: two syntax repairs were insufficient.`,remedy);
     entry.syntaxRepairs++;
+    if(services.durableRepairs)entry.pendingRepair={syntax:true,attempt:entry.syntaxRepairs,issues:[...syntax]};
     await services.save(p,ledger);
     services.progress?.(`Repairing syntax only: ${label} (${entry.syntaxRepairs}/2)`);
     p=await repair(scope,syntax,true);
@@ -124,6 +128,7 @@ export async function reviewScopes(task:Feature,original:Proposal,services:Servi
    if(scope==='$contract')throw new OperatorError('The interface or behaviour outline needs revision before probe repairs.',remedy);
    if(entry.repairs>=2)throw new OperatorError(`${label}: unresolved after two repair attempts.`,remedy);
    entry.repairs++;
+   if(services.durableRepairs)entry.pendingRepair={syntax:false,attempt:entry.repairs,issues:[...entry.review.issues]};
    await services.save(p,ledger);
    services.progress?.(`Repairing only: ${label} (${entry.repairs}/2)`);
    p=await repair(scope,entry.review.issues,false);
@@ -134,7 +139,7 @@ export async function reviewScopes(task:Feature,original:Proposal,services:Servi
    if(hash(next.manifest.cases.filter(c=>c.id!==scope))!==hash(p.manifest.cases.filter(c=>c.id!==scope)))throw new OperatorError('A repair tried to change unrelated behaviours.',remedy);
    const updated=scopeDigest(task,next,scope);
    if(updated===fingerprint)throw new OperatorError(`${label}: repair made no change.`,remedy);
-   fingerprint=updated;entry.digest=updated;entry.previousIssues=[...new Set([...(entry.previousIssues??[]),...issues])];delete entry.review;
+   fingerprint=updated;entry.digest=updated;entry.previousIssues=[...new Set([...(entry.previousIssues??[]),...issues])];delete entry.review;delete entry.pendingRepair;
    await services.save(next,ledger);return next;
   }
  }
@@ -146,16 +151,10 @@ export async function scopedReview(task:Feature,original:Proposal,services:Servi
  const {proposal:p,ledger}=await reviewScopes(task,original,services,saved);
  return {proposal:p,validation:{version:1,status:'reviewed',digest:proposalDigest(p),rounds:Math.max(1,...ledger.entries.map(e=>e.repairs+1)),limitations:[...new Set(ledger.entries.flatMap(e=>e.review?.limitations??[]))],at:new Date().toISOString()}};
 }
-export async function validateInScopes(project:string,task:Feature,p:Proposal,progress:(text:string)=>void,save:Services['save'],saved?:ReviewLedger){
+export async function validateInScopes(project:string,task:Feature,p:Proposal,progress:(text:string)=>void,save:Services['save'],saved?:ReviewLedger,overrides:{requestRepair?:RepairResponseOptions['request'];review?:Services['review']}={}){
  return scopedReview(task,p,{
-  syntax:syntaxIssues,progress,save,
-  review:(scope,proposal,previous)=>requestScopedReview(project,task,proposal,scope,previous,progress),
-  repair:async(scope,proposal,issues,syntax)=>{
-   const selected=scopeProposal(proposal,scope);
-   if(saved?.entries.some(e=>e.scope===scope&&e.retryCount))return (await import('./targeted.ts')).repairCaseCode(project,task,proposal,scope,issues,{epoch:saved.entries.find(e=>e.scope===scope)?.retryCount??0,progress});
-   if(syntax){const fixed=await repairProbeSyntax(project,selected,issues);return {...proposal,manifest:{...proposal.manifest,cases:proposal.manifest.cases.map(c=>c.id===scope?fixed.manifest.cases[0]!:c)}};}
-   const raw=await requestCheckJson(project,checkEditPrompt(task,selected,issues)+'\n\n'+serverRuntimePrompt()+'\n\nThe contract, coverage, descriptions and all other cases are FROZEN. Only code and existing output expectations in the selected case may change. Do not add evidence limitations to coverage: the independent reviewer can report them separately.');
-   return applyCheckEdits(proposal,raw,issues,task);
-  },
+  durableRepairs:true,syntax:syntaxIssues,progress,save,
+  review:overrides.review??((scope,proposal,previous)=>requestScopedReview(project,task,proposal,scope,previous,progress)),
+  repair:async(scope,proposal,issues)=> (await import('./targeted.ts')).repairCaseCode(project,task,proposal,scope,issues,{epoch:saved?.entries.find(e=>e.scope===scope)?.retryCount??0,progress,...(overrides.requestRepair?{request:overrides.requestRepair}:{})}),
  },saved);
 }
