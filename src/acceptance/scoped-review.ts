@@ -42,8 +42,7 @@ export function repairReviewReferences(original:unknown,corrected:unknown,task:F
  }
  return parseScopedReview(corrected,task,p,scope);
 }
-export async function requestScopedReview(project:string,task:Feature,p:Proposal,scope:string,previous:readonly string[],progress:(text:string)=>void):Promise<DraftReview>{
- const prompt=scopedPrompt(task,p,scope,previous);
+export async function requestScopedReview(project:string,task:Feature,p:Proposal,scope:string,previous:readonly string[],progress:(text:string)=>void,prompt=scopedPrompt(task,p,scope,previous)):Promise<DraftReview>{
  const raw=await requestCheckJson(project,prompt);
  const directory=path.join(harnessDirectory(project),'acceptance','review-responses');
  await mkdir(directory,{recursive:true,mode:0o700});
@@ -86,7 +85,7 @@ export async function reviewScopes(task:Feature,original:Proposal,services:Servi
  const scopes=['$contract',...p.manifest.cases.map(c=>c.id)];
  const ledger:ReviewLedger={version:1,entries:saved.version===1?structuredClone(saved.entries.filter(e=>e&&scopes.includes(e.scope)&&e.digest===scopeDigest(task,p,e.scope))):[],...(saved.previousIssues?{previousIssues:[...saved.previousIssues]}:{})};
  if(onlyScope && (onlyScope==='$contract'||!scopes.includes(onlyScope)))throw new OperatorError('Select an existing executable check to repair.');
- const remedy='Nothing was approved. Completed reviews and remaining findings are saved. Use harness checks repair to repair only a blocked check, or checks setup to revise the outline; no probe code needs pasting.';
+ const remedy='Nothing was approved. Completed reviews and remaining findings are saved. Use harness checks repair for a code fix, or harness checks simplify to split a complex blocked design. Use checks setup to revise the full outline; no probe code needs pasting.';
  for(const scope of onlyScope?[onlyScope]:scopes){
   let fingerprint=scopeDigest(task,p,scope);
   const old=ledger.entries.find(e=>e.scope===scope&&e.digest===fingerprint);
@@ -103,6 +102,7 @@ export async function reviewScopes(task:Feature,original:Proposal,services:Servi
     if(entry.syntaxRepairs>=2)throw new OperatorError(`${label}: two syntax repairs were insufficient.`,remedy);
     entry.syntaxRepairs++;
     await services.save(p,ledger);
+    services.progress?.(`Repairing syntax only: ${label} (${entry.syntaxRepairs}/2)`);
     p=await repair(scope,syntax,true);
     continue;
    }

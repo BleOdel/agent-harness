@@ -1,4 +1,4 @@
-import { guidedSetup, readGuidedDraft, reviewGuidedDraft, resumePreparation, repairSavedCheck } from "../acceptance/guided.ts";
+import { guidedSetup, readGuidedDraft, reviewGuidedDraft, resumePreparation, repairSavedCheck, simplifySavedCheck } from "../acceptance/guided.ts";
 import { randomUUID } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
@@ -68,6 +68,7 @@ export async function checks(project: string, args: readonly string[]): Promise<
   if (args.length === 1 && args[0] === "setup") return setupChecks(project, terminalDialogue());
   if (args.length === 2 && args[0] === "setup" && args[1] === "--manual") return setupChecks(project, terminalDialogue(), true);
   if ((args.length===1||args.length===2) && args[0]==="repair") return repairSavedCheck(project,terminalDialogue(),args[1]);
+  if ((args.length===1||args.length===2) && args[0]==="simplify") return simplifySavedCheck(project,terminalDialogue(),args[1]);
   if (args.length === 1 && args[0] === "review") {
     const io = terminalDialogue();
     if (await readGuidedDraft(project)) return reviewGuidedDraft(project, io);
@@ -90,6 +91,6 @@ export async function checks(project: string, args: readonly string[]): Promise<
     say("Next: harness checks setup (draft from your plan), or harness checks approve <file> (JSON document).");
     say("Use application behaviour, not a test runner's claim that tests passed. The host checks expectations outside the candidate process."); return;
   }
-  if (args.length !== 2 || args[0] !== "approve") throw new OperatorError("Use: harness checks [setup [--manual] | review | repair [case-id] | approve <file>]");
+  if (args.length !== 2 || args[0] !== "approve") throw new OperatorError("Use: harness checks [setup [--manual] | review | repair [case-id] | simplify [case-id] | approve <file>]");
   await withWriter(project, "checks", async () => { const approval = await approveChecks(project, path.resolve(args[1]!)); say(`Approved ${approval.manifest.cases.length} acceptance cases. These exact expectations will be checked before application.`); });
 }

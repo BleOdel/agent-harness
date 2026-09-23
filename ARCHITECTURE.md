@@ -136,6 +136,11 @@ flowchart LR
   F -->|budget exhausted| B["Saved blocked case"]
   B -->|operator selects targeted retry| T["Archive budget; repair selected code with shared helper"]
   T --> S
+  B -->|operator chooses simplify| X["Stage 2–3 smaller behaviours and explicit evidence limits"]
+  X --> XR["Independent outline review; freeze contract and peer checks"]
+  XR --> XC["Generate and review bounded replacements; save each stage"]
+  XC -->|all replacements reviewed| XS["Archive old case; retain peer reviews; no approval"]
+  XS --> S
   S -->|all scopes reviewed| U["Operator reviews behaviours and limitations"]
   U -->|approved| A["Existing offline candidate acceptance gate"]
 ```
@@ -164,6 +169,21 @@ budget before a provider request. The host accepts inline code replacements only
 case identity, command prefix, expected output, coverage, contract and unrelated
 cases stay fixed. Independent review still gates the selected code; a partial
 review cannot create a suite approval receipt. Existing approvals are unchanged.
+
+Design simplification (`checks simplify [case-id]`) uses a separate checkpoint,
+bound to the original proposal, task, source and approval digest. It can replace
+only a blocked case's outline with two or three new IDs and append evidence
+limitations only to affected criteria. An independent outline review checks
+the proposed replacement (not unrelated frozen design choices). Matching
+Node/SQLite web cases use a reusable entry/database outline; other cases ask the
+model for the smaller design. Neither path skips independent review of
+required protections and compatibility with unchanged peer code before existing
+peer receipts are rebound to the new outline. Contract and task scope cannot be
+changed. Each replacement is limited to 8 KiB and independently reviewed. The old
+review draft remains active until every replacement passes; the final writer-locked
+checkpoint archives the old state and invalidates a complete guided draft. A saved
+completion digest permits recovery if the process stops after that checkpoint.
+Neither simplification nor the retained receipts grant operator approval.
 
 The server helper is bundled outside project source. Acceptance snapshots its
 bytes into a read-only `/harness-checks` mount without model credentials or host

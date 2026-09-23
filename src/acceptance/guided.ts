@@ -1,4 +1,5 @@
 import {blockedScopes, renewScope, repairScopeInIsolation} from './targeted.ts';
+import {simplifyInParts, simplificationServices, type SimplificationState} from './simplification.ts';
 import {assertServerRuntimes} from './server-runtime.ts';
 import { validateProposal, proposalDigest, type DraftValidation } from "./repair.ts";
 import { createHash, randomUUID } from 'node:crypto';
@@ -71,6 +72,7 @@ export function describeProposal(io: Dialogue, proposal: Proposal, task: Feature
  io.write('Approval replaces previous cases scoped only to this task; checks for other tasks are retained.');
 }
 export async function reviewGuidedDraft(project: string, io: Dialogue, draft?: SavedDraft, validator: Validator = validateProposal): Promise<void> {
+ if(await readArtifact(directory(project),'simplification.json',8*1024*1024))return simplifySavedCheck(project,io);
  const saved = draft ?? await readGuidedDraft(project);
  if (!saved && await resumePreparation(project, io)) return;
  if (!saved) throw new OperatorError('No generated check draft is saved.', 'Run harness checks setup.');
@@ -101,6 +103,7 @@ export async function reviewGuidedDraft(project: string, io: Dialogue, draft?: S
  }
 }
 export async function guidedSetup(project: string, task: Feature, io: Dialogue, drafter: Drafter = generateProposal, validator: Validator = validateProposal, automatic?: Proposal, resume = false): Promise<void> {
+ if(resume&&await readArtifact(directory(project),'simplification.json',8*1024*1024))return simplifySavedCheck(project,io);
  const existing = await readGuidedDraft(project).catch((error: Error) => { io.write(`Saved draft cannot be reused: ${error.message}`); return undefined; });
  let freshPreparation = false;
  if (!automatic && !resume && existing?.taskId === task.id) {
@@ -114,10 +117,11 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
   if (incomplete && JSON.parse(incomplete).taskId === task.id) {
    const record=JSON.parse(incomplete);
    const repairable=record.ledger && blockedScopes(task,parseProposal(record.proposal,task),record.ledger).length;
-   const option=await choose(io,'Preparation is saved for this task',['Resume saved preparation (reuse completed reviews)','Prepare again with changes',...(repairable?['Repair a blocked check (keep the other checks)']:[])]);
+   const option=await choose(io,'Preparation is saved for this task',['Resume saved preparation (reuse completed reviews)','Prepare again with changes',...(repairable?['Repair a blocked check (keep the other checks)','Simplify a blocked check into smaller checks']:[])]);
    if(option<0)return;
    if(option===0)return guidedSetup(project,task,io,drafter,validator,undefined,true);
    if(option===2)return repairSavedCheck(project,io);
+   if(option===3)return simplifySavedCheck(project,io);
    freshPreparation=true;
   }
  }
@@ -151,7 +155,7 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
    }
   }
   if (freshPreparation || feedback) {
-   for (const name of ['review-progress.json', 'preparation.json', 'guided-draft.json']) {
+   for (const name of ['review-progress.json', 'preparation.json', 'guided-draft.json', 'simplification.json']) {
     const old = await readArtifact(directory(project), name, 8 * 1024 * 1024);
     if (old) {const history = path.join(directory(project), 'review-history');await mkdir(history,{recursive:true,mode:0o700});await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}.json`),old);}
     await rm(path.join(directory(project),name),{force:true});
@@ -224,6 +228,7 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
 
 /** Resume a first preparation even if no complete guided draft has been produced yet. */
 export async function resumePreparation(project:string,io:Dialogue):Promise<boolean>{
+ if(await readArtifact(directory(project),'simplification.json',8*1024*1024)){await simplifySavedCheck(project,io);return true;}
  for(const name of ['review-progress.json','preparation.json']){
   const raw=await readArtifact(directory(project),name,8*1024*1024);if(!raw)continue;
   const record=JSON.parse(raw);const task=await currentTask(project,record.taskId);
@@ -233,8 +238,68 @@ export async function resumePreparation(project:string,io:Dialogue):Promise<bool
  return false;
 }
 
+/** Stage an explicit design revision separately; commit it only after its new checks pass review. */
+export async function simplifySavedCheck(project:string,io:Dialogue,caseId?:string,servicesFactory=simplificationServices):Promise<void>{
+ const raw=await readArtifact(directory(project),'review-progress.json',8*1024*1024);
+ if(!raw)throw new OperatorError('No saved check review to simplify.','Use harness checks setup.');
+ const record=JSON.parse(raw), task=await currentTask(project,record.taskId), p=parseProposal(record.proposal,task);
+ const pendingRaw=await readArtifact(directory(project),'simplification.json',8*1024*1024);
+ const pending=pendingRaw?JSON.parse(pendingRaw):undefined;
+ const current=async()=>{
+  if(record.taskDigest!==taskDigest(await currentTask(project,task.id))||record.sourceDigest!==await sourceDigest(project))throw new OperatorError('Saved checks describe older source or requirements.','Use harness checks setup.');
+ };
+ await current();
+ if(pending&&(pending.taskDigest!==record.taskDigest||pending.sourceDigest!==record.sourceDigest))throw new OperatorError('Saved simplification describes older source or requirements.');
+ const ledger=record.ledger as ReviewLedger;
+ if(ledger?.version!==1||!Array.isArray(ledger.entries))throw new OperatorError('No scoped review history to simplify.');
+ const ids=blockedScopes(task,p,ledger);
+ let scope=caseId??pending?.scope;
+ if(pending&&caseId&&caseId!==pending.scope)throw new OperatorError('Another check simplification is pending.','Resume harness checks simplify before selecting another check.');
+ if(!scope){
+  if(!ids.length)throw new OperatorError('No blocked check to simplify.','Use harness checks review.');
+  const index=await choose(io,'Which blocked check should be simplified?',ids.map(id=>p.manifest.cases.find(c=>c.id===id)!.description!));
+  if(index<0)return;scope=ids[index]!;
+ }
+ if(!pending&&!ids.includes(scope))throw new OperatorError('Select a blocked check.');
+ const selected:string=scope;
+ await withWriter(project,'checks simplify',async()=>{
+  await current();
+  if(await readArtifact(directory(project),'review-progress.json',8*1024*1024)!==raw||await readArtifact(directory(project),'simplification.json',8*1024*1024)!==pendingRaw)throw new OperatorError('Saved checks changed during selection. Run checks simplify again.');
+  const approval=(await readApproval(project))?.digest??null;
+  if(pending&&pending.approvalDigest!==approval)throw new OperatorError('Approvals changed during simplification.');
+  if(pending?.completedDigest===proposalDigest(p)){
+   await rm(path.join(directory(project),'simplification.json'),{force:true});return;
+  }
+  if(pending&&pending.baseDigest!==proposalDigest(p))throw new OperatorError('The original check draft changed during simplification.');
+  const history=path.join(directory(project),'review-history');await mkdir(history,{recursive:true,mode:0o700});
+  if(!pending)await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}-before-simplification.json`),raw);
+  const header={version:1,taskId:task.id,taskDigest:record.taskDigest,sourceDigest:record.sourceDigest,baseDigest:proposalDigest(p),approvalDigest:approval,scope:selected};
+  const save=async(state:SimplificationState)=>{await current();if(((await readApproval(project))?.digest??null)!==approval)throw new OperatorError('Approvals changed during simplification.');await atomicWrite(path.join(directory(project),'simplification.json'),JSON.stringify({...header,state},null,2)+'\n');};
+  const findings=ledger.entries.find(e=>e.scope===selected)?.review?.issues??ledger.entries.find(e=>e.scope===selected)?.previousIssues??[];
+  io.write(pending?'Resuming saved simplification; completed stages are reused.':'Simplifying one blocked design. Other checks and approvals remain unchanged.');
+  let result:Awaited<ReturnType<typeof simplifyInParts>>;
+  try{result=await simplifyInParts(task,p,selected,ledger,servicesFactory(project,task,p,selected,findings,save,io.write),pending?.state);}
+  catch(error){
+   const e=error as Error&{remedy?:string};
+   throw new OperatorError(e.message,[e.remedy,'Simplification progress is saved; the original draft and approvals are unchanged. After a provider interruption, resume with harness checks simplify. If the design or its budget is exhausted, use checks setup and Prepare again with changes.'].filter(Boolean).join('\n'));
+  }
+  await current();
+  if(((await readApproval(project))?.digest??null)!==approval||await readArtifact(directory(project),'review-progress.json',8*1024*1024)!==raw)throw new OperatorError('Checks or approvals changed during simplification.');
+  const checkpoint=JSON.parse((await readArtifact(directory(project),'simplification.json',8*1024*1024))!);
+  await atomicWrite(path.join(directory(project),'simplification.json'),JSON.stringify({...checkpoint,completedDigest:proposalDigest(result.proposal)},null,2)+'\n');
+  const oldDraft=await readArtifact(directory(project),'guided-draft.json',8*1024*1024);
+  if(oldDraft&&JSON.parse(oldDraft).taskId===task.id){await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}-guided-draft.json`),oldDraft);await rm(path.join(directory(project),'guided-draft.json'));}
+  const updated={...record,proposal:result.proposal,ledger:result.ledger,issues:[...(result.ledger.previousIssues??[]),...result.ledger.entries.flatMap(e=>e.review?.issues??[])],simplified:{scope:selected,at:new Date().toISOString()}};
+  const text=JSON.stringify(updated,null,2)+'\n';await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}-simplified.json`),text);
+  await atomicWrite(path.join(directory(project),'review-progress.json'),text);await rm(path.join(directory(project),'simplification.json'),{force:true});
+ });
+ io.write('The smaller checks passed design review. No application work or approval was performed.');
+ io.write('Next: harness checks review. Review all stated evidence limits before approving.');
+}
+
 /** The operator chooses a fresh bounded attempt; ordinary resume never resets budgets. */
 export async function repairSavedCheck(project:string,io:Dialogue,caseId?:string,repair=repairScopeInIsolation):Promise<void>{
+ if(await readArtifact(directory(project),'simplification.json',8*1024*1024))throw new OperatorError('A design simplification is pending.','Resume harness checks simplify, or use checks setup to prepare again with changes.');
  const file=path.join(directory(project),'review-progress.json');
  const raw=await readArtifact(directory(project),'review-progress.json',8*1024*1024);
  if(!raw)throw new OperatorError('No saved check review to repair.','Run harness checks setup.');

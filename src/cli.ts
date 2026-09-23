@@ -68,7 +68,7 @@ const USAGE = [
   "  harness plan --from <path>    start from an existing PLAN.md",
   "  harness add <id> --title \"...\" --criterion \"...\" [--priority must]",
   "  harness add --from latest     import the items a plan proposed",
-  "  harness checks [setup | review | repair [case-id] | approve <file>]  review and approve application acceptance checks",
+  "  harness checks [setup | review | repair [case-id] | simplify [case-id] | approve <file>]  review and approve application acceptance checks",
   "  harness work [<item-id or goal>]",
   "  harness team run             stage accepted assignments, up to two builders",
   "  harness team steer <attempt> \"message\"  send live builder guidance",

@@ -326,6 +326,7 @@ Run them inside your project.
 | `harness checks setup` | draft checks from the saved plan and approve plain-language behaviours |
 | `harness checks review` | resume preparation, review and approve a saved check draft |
 | `harness checks repair [case-id]` | repair one blocked check, retaining the other checks |
+| `harness checks simplify [case-id]` | replace a complex blocked design with smaller independently reviewed checks |
 | `harness checks approve <file>` | explicitly approve a JSON acceptance specification |
 | `harness ml setup` | approve data and thresholds through short prompts |
 | `harness ml train/resume <id>` | train the saved numeric recipe and evaluate its model |
@@ -482,6 +483,33 @@ cases and review receipts. It repairs and independently reviews only that case;
 then `harness checks review` continues the remaining suite. A provider interruption
 preserves the renewed attempt's spent budget. Contract changes still require a
 revised outline. Repair does not approve checks or execute the application.
+If the blocked check is trying to do too much, use `harness checks simplify`
+(or **Simplify a blocked check** in setup). It stages two or three smaller
+behaviours separately in `acceptance/simplification.json`. The application
+contract, task criteria and unrelated executable checks remain fixed. Evidence
+limits can be appended only to affected criteria; existing limits are retained.
+An independent outline review must confirm required observable protections and
+compatibility with retained checks before their review receipts are rebound.
+Matching Node/SQLite web checks start from a reusable two-part outline rather than
+another model-generated parser design. It specifies real database paths, actual
+and standard hyphenated sidecar names, bounded public-path samples, and snapshot
+containment scans. This template is still independently reviewed for the task.
+Browser asset discovery is a separate evidence obligation when no reliable
+browser/parser is available; a Node probe must not pretend to implement one.
+
+Each smaller check is limited to 8 KiB of JSON-encoded steps. Outline attempts,
+outline-review operations and generation requests for each part have separate
+two-request budgets that survive interruption; executable reviews retain the
+usual bounded repair policy. Resume with `checks simplify` or `checks review`.
+Completed stages and raw generated responses are reused. Until all replacement
+checks pass design review, the original review draft stays unchanged. A successful
+replacement archives the old draft, retains unchanged peer checks and matching
+review receipts, and invalidates any prior complete guided draft for that task.
+It never approves checks or runs the application. The operator still reviews the
+changed descriptions and outstanding evidence limits before approval. To abandon
+a simplification and revise the whole design, choose **Prepare again with changes**
+in setup; the pending state is archived with the previous preparation.
+
 Use **Draft again with changes** in setup to deliberately start a new preparation;
 old state is archived. The latest repaired proposal and findings inform the new
 preparation. Explain changes in ordinary language, not probe code.
