@@ -1,3 +1,5 @@
+import {checkRequestBudget,ensureCheckBudget} from './budget.ts';
+import {CheckResponse} from './response.ts';
 import {serverRuntimePrompt} from './server-runtime.ts';
 import { assertModelEffort, modelLabel } from "../model-settings.ts";
 /** Drafts are proposals, never evidence. Only the operator can approve expectations. */
@@ -63,6 +65,7 @@ export function draftPrompt(task: Feature, feedback = '', previous?: Proposal): 
  ].join('\n\n');
 }
 export async function requestCheckJson(project: string, prompt: string): Promise<unknown> {
+ ensureCheckBudget();
  const config = loadConfig({ ...process.env, HARNESS_PROJECT: project });
  await assertModelEffort(config.piPackageDirectory, config);
  process.stdout.write(`Model: ${modelLabel(config)}\n`);
@@ -79,12 +82,18 @@ export async function requestCheckJson(project: string, prompt: string): Promise
   const runtime = '\n\nVerification runner context: Linux Docker with --network none. Non-loopback interfaces may be absent; do not rely on their presence to prove loopback binding. A non-vacuous observation of Linux /proc/net/tcp and /proc/net/tcp6 LISTEN records at the chosen server port is valid. Require an observed listener and check all matching addresses. Each step gets a separate offline container; no GUI, emulator or GPU. Project requirements (not installed toolchain evidence):\n' + JSON.stringify({ adapter: profile.adapter, runner: profile.runner, requirements: profile.requirements }) + `\nEach verification command also has a host-enforced wall-clock timeout of ${config.gateTimeoutMs} ms.`;
   const constraints = await existingContracts(baseline.directory, Object.keys(baseline.files));
   const requestArguments = await writeCheckRequest(baseline.directory, prompt + runtime + constraints);
-  const command = ['node', `${CONTAINER_PI_PACKAGE}/dist/cli.js`, '--print', '--approve', '--tools', 'read,grep', '--no-session', ...resourceArguments(false), ...(config.provider ? ['--provider', config.provider] : []), ...(config.model ? ['--model', config.model] : []), '--thinking', config.effort ?? 'medium', ...requestArguments];
-  const result = await withContainmentSignal(controller.signal, () => runContained(layout, buildRunArguments(layout, 'bridge', command), { timeoutMs: config.agentTimeoutMs, maxOutputBytes: 2 * 1024 * 1024 }));
-  if (result.code !== 0 || result.timedOut || result.outputLimited) throw new OperatorError(`Check drafting did not complete${result.timedOut ? ` within ${Math.round(config.agentTimeoutMs/1000)} seconds` : ` (exit ${result.code})`}. ${result.stderr.slice(-1500)}`, 'This model request returned no usable result. Earlier checkpoints are retained. Resume with harness checks review; repeated complex-check failures can use harness checks simplify.');
+  const command = ['node', `${CONTAINER_PI_PACKAGE}/dist/cli.js`, '--print', '--mode', 'json', '--approve', '--tools', 'read,grep', '--no-session', ...resourceArguments(false), ...(config.provider ? ['--provider', config.provider] : []), ...(config.model ? ['--model', config.model] : []), '--thinking', config.effort ?? 'medium', ...requestArguments];
+  const allowance=await checkRequestBudget(config.agentTimeoutMs),response=new CheckResponse();
+  let result;
+  try {result = await withContainmentSignal(controller.signal, () => runContained(layout, buildRunArguments(layout, 'bridge', command), { timeoutMs: allowance.timeoutMs, maxOutputBytes: 8 * 1024 * 1024,onOutput:chunk=>response.push(chunk) }));}
+  finally {response.finish();await allowance.record(response.usage,response.complete&&result?.code===0&&!result.timedOut&&!result.outputLimited);}
+  if(response.complete)process.stdout.write(`Provider reported: ${response.usage.totalTokens.toLocaleString('en-GB')} tokens · $${response.usage.costUsd.toFixed(4)} estimate\n`);
+  else process.stdout.write('Provider usage reporting incomplete or unavailable.\n');
+  if(response.failure)throw new OperatorError(response.failure,'Provider request failed. Saved preparation is retained.');
+  if (result.code !== 0 || result.timedOut || result.outputLimited) throw new OperatorError(`Check drafting did not complete${result.timedOut ? ` within ${Math.round(allowance.timeoutMs/1000)} seconds` : ` (exit ${result.code})`}. ${result.stderr.slice(-1500)}`, 'This model request returned no usable result. Earlier checkpoints are retained. Resume with harness checks review; repeated complex-check failures can use harness checks simplify.');
   await assertLiveBaseline(project, baseline);
   let raw: unknown;
-  try { raw = JSON.parse(result.stdout.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, '')); }
+  try { raw = JSON.parse(response.text.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, '')); }
   catch {
    const directory=path.join(harnessDirectory(project),'acceptance','model-errors');
    await mkdir(directory,{recursive:true,mode:0o700});

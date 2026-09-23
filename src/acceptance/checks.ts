@@ -21,7 +21,7 @@ import { taskDigest } from "./draft.ts";
 import { OperatorError } from "../verbs/io.ts";
 
 export interface ExpectFile { path:string; text?:string; sha256?:string; }
-export interface CheckStep { recipe?:WebRecipe; recipeRuntime?:string; serverRuntime?:string; assetRuntime?:string; command:string[]; exitCode:number; stdout?:string; stdoutIncludes?:string; files?:ExpectFile[]; }
+export interface CheckStep { recipe?:WebRecipe; recipeRuntime?:string; serverRuntime?:string; assetRuntime?:string; httpRuntime?:string; command:string[]; exitCode:number; stdout?:string; stdoutIncludes?:string; files?:ExpectFile[]; }
 export interface AcceptanceCase { id:string; tasks:string[]; steps:CheckStep[]; description?:string; contract?:string; taskDigest?:string; }
 export interface CheckManifest { version:1; cases:AcceptanceCase[]; }
 export interface Approval { version:1; digest:string; approvedAt:string; manifest:CheckManifest; }
@@ -52,6 +52,7 @@ function parseManifest(raw:unknown,allowStaleRecipePin:boolean):CheckManifest{
    try {assertRecipeStep(step as unknown as CheckStep,{allowStalePin:allowStaleRecipePin});}
    catch(error){throw new OperatorError(`${entry.id}: ${(error as Error).message}`,`Use harness checks use-recipe ${entry.id} to refresh the saved recipe and review it before approval.`);}
    if(step.serverRuntime!==undefined && (typeof step.serverRuntime!=="string" || !/^[a-f0-9]{64}$/u.test(step.serverRuntime)))throw new OperatorError(`${entry.id}: invalid server runtime digest.`);
+   if(step.httpRuntime!==undefined && (typeof step.httpRuntime!=="string" || !/^[a-f0-9]{64}$/u.test(step.httpRuntime)))throw new OperatorError(`${entry.id}: invalid HTTP runtime digest.`);
    if(step.assetRuntime!==undefined && (typeof step.assetRuntime!=="string" || !/^[a-f0-9]{64}$/u.test(step.assetRuntime)))throw new OperatorError(`${entry.id}: invalid asset runtime digest.`);
    if(step.stdout!==undefined&&typeof step.stdout!=="string")throw new OperatorError(`${entry.id}: stdout must be exact text.`);
    if(step.stdoutIncludes!==undefined&&(typeof step.stdoutIncludes!=="string"||!step.stdoutIncludes))throw new OperatorError(`${entry.id}: stdoutIncludes must be nonempty text.`);
@@ -173,7 +174,7 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
       if(needsRecipe&&!recipeHelpers){recipeHelpers=path.join(root,'recipe-runtime');await writeRecipeRuntime(recipeHelpers);}
       const needsAssets=check.steps.some(s=>s.assetRuntime);
       if(needsAssets&&!assetHelpers){assetHelpers=path.join(root,'asset-runtime');await writeServerRuntime(assetHelpers,true);}
-      const layout = { ...base, workDirectory: work, ...(needsRecipe ? {checksDirectory:recipeHelpers!} : needsAssets ? {checksDirectory:assetHelpers!} : check.steps.some(s=>s.serverRuntime) ? {checksDirectory:helpers} : {}) };
+      const layout = { ...base, workDirectory: work, ...(needsRecipe ? {checksDirectory:recipeHelpers!} : needsAssets ? {checksDirectory:assetHelpers!} : check.steps.some(s=>s.serverRuntime||s.httpRuntime) ? {checksDirectory:helpers} : {}) };
       for (const [number, step] of check.steps.entries()) {
         const label = `acceptance ${check.id}, step ${number + 1}`;
         const result = await runContained(layout, buildVerificationArguments(layout, "none", step.command), { timeoutMs: config.gateTimeoutMs, maxOutputBytes: 2 * 1024 * 1024 });

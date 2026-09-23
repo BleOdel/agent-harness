@@ -66,3 +66,13 @@ test('a helper-version-only retry refreshes the pin without a generation request
  assert.equal(updated.manifest.cases[0]!.steps[0]!.serverRuntime,SERVER_DIGEST);assert.deepEqual(updated.manifest.cases[0]!.steps[0]!.command,step.command);
  assert.equal(updated.manifest.cases[0]!.steps[0]!.stdout,step.stdout);
 });
+
+test('ordinary review refreshes helper pins without spending code-repair attempts or regenerating code',async()=>{
+ const p=proposal();p.manifest.cases[0]!.steps[0]!.serverRuntime='0'.repeat(64);
+ const l=ledger();l.entries[1]={...l.entries[1]!,digest:scopeDigest(task,p,'first'),repairs:0,review:pass};
+ let reviews=0,repairs=0;
+ const result=await reviewScopes(task,p,{syntax:async()=>[],review:async(_scope,current)=>{reviews++;assert.equal(current.manifest.cases[0]!.steps[0]!.serverRuntime,SERVER_DIGEST);return pass;},repair:async()=>{repairs++;return p;},save:async()=>{}},l,'first');
+ assert.equal(reviews,1);assert.equal(repairs,0);assert.equal(result.ledger.entries.find(e=>e.scope==='first')!.repairs,0);
+ assert.deepEqual(result.proposal.manifest.cases[0]!.steps[0]!.command,p.manifest.cases[0]!.steps[0]!.command);
+ assert.deepEqual(result.ledger.entries.find(e=>e.scope==='second'),l.entries.find(e=>e.scope==='second'));
+});

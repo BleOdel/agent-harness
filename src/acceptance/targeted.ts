@@ -1,3 +1,4 @@
+import {HTTP_MODULE} from './http-runtime.ts';
 import {applyCodeRepair,requestCodeRepair,type RepairResponseOptions} from './repair-response.ts';
 export {applyCodeRepair} from './repair-response.ts';
 import {ASSET_MODULE} from './asset-runtime.ts';
@@ -27,7 +28,7 @@ export async function repairCaseCode(project:string,task:Feature,p:Proposal,scop
  // A version refresh changes host-owned metadata only; code still receives independent review.
  if(issues.length===1 && issues[0]===RUNTIME_FINDING){
   const selected=p.manifest.cases.find(c=>c.id===scope)!;
-  const codes=selected.steps.flatMap((s,i)=>s.command.some(arg=>arg.includes(SERVER_MODULE)||arg.includes(ASSET_MODULE))?[{step:i+1,code:s.command.at(-1)!}]:[]);
+  const codes=selected.steps.flatMap((s,i)=>s.command.some(arg=>arg.includes(SERVER_MODULE)||arg.includes(ASSET_MODULE)||arg.includes(HTTP_MODULE))?[{step:i+1,code:s.command.at(-1)!}]:[]);
   if(codes.length)return applyCodeRepair(task,p,scope,{codes});
  }
  const prompt=[

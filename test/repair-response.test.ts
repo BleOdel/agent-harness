@@ -48,3 +48,11 @@ test('disk checkpoints survive process-level retries without modifying approval 
  assert.equal(await readFile(path.join(sidecar,'approved.json'),'utf8'),'original approval');assert.equal(await readFile(path.join(project,'source.js'),'utf8'),'original source');
  }finally{await rm(root,{recursive:true,force:true});}
 });
+import {CheckBudgetExceeded,withCheckBudget,checkRequestBudget} from '../src/acceptance/budget.ts';
+test('a budget pause before format correction preserves the raw reply and resumes only its correction',async()=>{
+ let saved:CodeRepairState|undefined,calls=0;const services={request:async()=>{await checkRequestBudget(1000);calls++;return calls===1?{codes:[{step:1,code:'console.log(2-1)',extra:true}]}:valid;},save:async(s:CodeRepairState)=>{saved=structuredClone(s);}};
+ const bounded=(action:()=>Promise<unknown>)=>withCheckBudget({maxRequests:1,maxSeconds:10,requestSeconds:1},{requests:0},async()=>{},()=>{},action);
+ await assert.rejects(bounded(()=>recoverCodeRepair(task,proposal(),'page',['syntax'],services,undefined,0,'request')),CheckBudgetExceeded);
+ assert.ok(saved!.generated);assert.equal(saved!.correctionStarted,false);
+ await bounded(()=>recoverCodeRepair(task,proposal(),'page',['syntax'],services,saved,0,'request'));assert.equal(calls,2);assert.deepEqual(saved!.corrected,valid);
+});

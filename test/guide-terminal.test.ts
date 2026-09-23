@@ -33,11 +33,12 @@ test("PTY and Docker: a guided project reaches applied output without repeated s
  const check={id:'greeting',tasks:['hello'],description:blueprint.cases[0]!.description,steps:[{command:['node','--input-type=module','-e',"import {execFileSync} from 'node:child_process';process.stdout.write(execFileSync(process.execPath,['src/cli.js','Ada'],{timeout:5000}));"],exitCode:0,stdout:'Hello, Ada!\n'}]};
  await writeFile(path.join(pi,"dist/cli.js"),`const fs=require('node:fs');const args=process.argv.slice(2);
  if(args.includes('read,grep')){
+ const emit=text=>{if(!args.includes('--mode')){console.log(text);return;}const message={role:'assistant',content:[{type:'text',text}],usage:{totalTokens:10,cost:{total:0.001}}};console.log(JSON.stringify({type:'message_end',message}));console.log(JSON.stringify({type:'turn_end',message}));console.log(JSON.stringify({type:'agent_end',messages:[message]}));};
  const attachment=args.find(a=>a.startsWith('@/work/'));const request=attachment?fs.readFileSync(attachment.slice(1),'utf8'):args.at(-1);
- if(request.includes('ONLY the behaviour outline'))console.log(${JSON.stringify(JSON.stringify(blueprint))});
- else if(request.includes('Generate ONLY the selected behaviour'))console.log(${JSON.stringify(JSON.stringify(check))});
- else if(request.includes('Independently review acceptance CHECK DESIGN'))console.log(JSON.stringify({verdict:'pass',findings:[],limitations:[]}));
- else console.log(JSON.stringify({verdict:'pass',unmet:[],unaccounted:[],notes:[]}));
+ if(request.includes('ONLY the behaviour outline'))emit(${JSON.stringify(JSON.stringify(blueprint))});
+ else if(request.includes('Generate ONLY the selected behaviour'))emit(${JSON.stringify(JSON.stringify(check))});
+ else if(request.includes('Independently review acceptance CHECK DESIGN'))emit(JSON.stringify({verdict:'pass',findings:[],limitations:[]}));
+ else emit(JSON.stringify({verdict:'pass',unmet:[],unaccounted:[],notes:[]}));
  }
  else if(args.includes('--mode')){
  fs.mkdirSync('src',{recursive:true});fs.writeFileSync('src/cli.js','console.log(\x60Hello, \x24{process.argv[2]}!\x60);\\n');
@@ -63,6 +64,8 @@ test("PTY and Docker: a guided project reaches applied output without repeated s
     answer('Choose a number (0 to leave):', '2')
     answer('Choose a number (0 to leave):', '1')
     answer('Anything to add or change? (Enter to use the saved plan and criteria):', '')
+    expect('Checks are ready for your approval.')
+    answer('Choose a number (0 to leave):', '3')
     expect('Review proposed checks: Greet a reader')
     answer('Choose a number (0 to leave):', '1')
     answer('Approve this draft, including the stated limitations? [y/N]', 'y')

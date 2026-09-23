@@ -126,3 +126,11 @@ test('writer-locked simplification preserves original draft on failure, resumes,
   assert.match(lines.join('\n'),/Resuming saved simplification/);
  }finally{await rm(root,{recursive:true,force:true});}
 });
+import {withCheckBudget,checkRequestBudget,CheckBudgetExceeded} from '../src/acceptance/budget.ts';
+test('bounded preparation does not charge simplification review or generation when dispatch is paused',async()=>{
+ let saved:SimplificationState|undefined;
+ const services={plan:async()=>{await checkRequestBudget(1000);return plan;},reviewOutline:async()=>{await checkRequestBudget(1000);return pass;},generate:async()=>{throw Error('must pause before generation');},syntax:async()=>[],review:async()=>pass,repair:async()=>{throw Error('unexpected repair');},save:async(s:SimplificationState)=>{saved=structuredClone(s);}};
+ const run=()=>withCheckBudget({maxRequests:1,maxSeconds:10,requestSeconds:1},{requests:0},async()=>{},()=>{},()=>simplifyInParts(task,original(),'giant',ledger(),services,saved));
+ await assert.rejects(run(),CheckBudgetExceeded);assert.equal(saved!.outlineReviewAttempts??0,0);
+ await assert.rejects(run(),CheckBudgetExceeded);assert.deepEqual(saved!.generationAttempts,{});assert.equal(saved!.outlineReview?.review.verdict,'pass');
+});

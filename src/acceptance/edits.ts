@@ -1,3 +1,4 @@
+import {pinHttpRuntime} from './http-runtime.ts';
 import {pinAssetRuntime} from './asset-runtime.ts';
 import {SERVER_MODULE,SERVER_DIGEST} from './server-runtime.ts';
 /** Repairs change exact fragments of a saved draft; they cannot rebuild its task/case graph. */
@@ -35,7 +36,7 @@ export function applyCheckEdits(proposal: Proposal, raw: unknown, issues: readon
     if (edit.target === 'code') {
      const index = step.command.findIndex(arg => arg === '-e' || arg === '-c');
      if (index < 0 || index + 2 !== step.command.length) throw new OperatorError('Only inline probe code can receive code edits.');
-     value = step.command[index + 1]!; put = text => { step.command[index + 1] = text; if(text.includes(SERVER_MODULE))step.serverRuntime=SERVER_DIGEST;else delete step.serverRuntime;pinAssetRuntime(step); };
+     value = step.command[index + 1]!; put = text => { step.command[index + 1] = text; if(text.includes(SERVER_MODULE))step.serverRuntime=SERVER_DIGEST;else delete step.serverRuntime;pinAssetRuntime(step);pinHttpRuntime(step); };
     } else if (edit.target === 'stdout' || edit.target === 'stdoutIncludes') {
      const field = edit.target;
      if (step[field] === undefined) throw new OperatorError('Check edit cannot add a new expectation type.');

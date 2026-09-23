@@ -16,7 +16,8 @@ see the [documentation index](#documentation-index) for current guidance.
 
 ```
 npm run add  -- feed --title "RSS feed" --criterion "feed.xml is generated from site data"
-harness checks setup       # approve expected application behaviour for this item
+harness checks prepare     # prepare/resume with request and time limits
+harness checks review      # inspect and approve expected behaviour
 npm run work
 ```
 
@@ -324,6 +325,8 @@ Run them inside your project.
 | `harness project show` | display saved project configuration |
 | `harness model` | show effective provider, model and reasoning effort with their sources |
 | `harness model setup` | choose supported reasoning strength and save model settings for this project |
+| `harness checks prepare` | bounded preparation/resume with automatic helper refresh and scoped repair |
+| `harness checks status` | saved progress, request count and provider-reported usage |
 | `harness checks setup` | draft checks from the saved plan and approve plain-language behaviours |
 | `harness checks review` | resume preparation, review and approve a saved check draft |
 | `harness checks use-recipe [case-id]` | replace a generated web/SQLite boundary probe with reviewed settings for a tested runner |
@@ -432,11 +435,42 @@ run requires a new run (older pins with no effort mean Medium).
 
 ### Required acceptance checks
 
-`harness checks setup` asks you to choose a task and optionally describe changes
-in plain language. Your configured model reads the source in a read-only copy,
-plus the task criteria and saved approved plan, and proposes executable checks.
-It cannot edit the application. Drafting uses provider access; the eventual
-acceptance checks run offline.
+Start with `harness checks prepare`. Choose a task on the first run; subsequent
+runs reuse saved plans, criteria, source fingerprints and review checkpoints.
+The command carries out drafting, independent review, helper refreshes and bounded
+repairs, then saves a complete draft **without approval**. Use
+`harness checks review` to inspect the behaviours, interface and limitations and
+explicitly approve them. `checks setup` remains available for choosing another
+task or revising the outline in plain language.
+
+```sh
+harness checks prepare
+harness checks status
+harness checks review
+# Optional allowance for a larger preparation run:
+harness checks prepare --max-requests 20 --max-seconds 1200 --request-seconds 300
+```
+
+Each preparation invocation defaults to at most **12 model requests**, **600 seconds**
+of elapsed preparation time, and **180 seconds per request**. The configured agent
+timeout also applies if shorter. The allowance covers drafting, reviews, code
+repairs and response-format corrections. It counts agent dispatches, not provider
+turns: a dispatch can use several turns. Limits pause preparation before another
+request and bound an in-flight request; container cleanup can take additional time.
+These are spending controls, not a promised completion time or an exact token/cost cap.
+Rerunning `checks prepare` grants a fresh command allowance and retains completed work.
+
+`checks status` shows the saved run and provider-reported usage. Pi's structured
+turn events supply token counts and cost estimates; absent or interrupted reporting
+is explicitly incomplete, never assumed to be free. Subscription billing may differ
+from these estimates. No paid model requests are needed to run the regression tests.
+
+The model reads application source in a read-only copy, plus the accepted criteria
+and saved plan. It cannot implement the application during preparation. New outlines
+are instructed to use the fewest focused behaviours that cover the approved criteria,
+with separate ownership, privacy and irreversible-change checks where needed. This
+guidance does not remove requirements or replace human assessment of coverage.
+Actual application acceptance checks run later, offline.
 
 Preparation has two stages. First the model proposes a small behaviour outline,
 criterion coverage and one interface contract. An independent review checks that
@@ -467,7 +501,7 @@ waive any requirement.
 
 Inline Node/Python syntax is parsed without executing the probe on the host.
 A case can receive at most two semantic repairs and two syntax repairs. Repairs
-use exact text edits and cannot change the interface contract, coverage outline,
+accept only bounded edits or complete selected-step code replacements and cannot change the interface contract, coverage outline,
 case descriptions or another case. A repaired case is independently reviewed
 again. A repair that changes nothing stops immediately. Once code generation starts,
 an interface contradiction stops for a revised outline rather than silently moving
@@ -476,7 +510,10 @@ the builder's target.
 Successful scope reviews, findings and repair counts are retained in
 `acceptance/review-progress.json`; checkpoints are archived in
 `acceptance/review-history/`. Unchanged scopes reuse their review when source and
-task fingerprints still match. Ordinary resume cannot reset a depleted repair budget.
+task fingerprints still match. Ordinary review does not reset a depleted repair budget. The bounded `prepare`
+controller may grant one additional scoped retry per task/source/scope, recorded
+in `acceptance/workflow.json` across invocations; it never renews that retry endlessly.
+Persistent defects, interface conflicts and provider failures stop with saved findings.
 If one executable check is interrupted or exhausts its budget, use `harness checks repair` (or
 **Repair a blocked check** in setup). Choose the failed behaviour; no probe code
 or correction text is needed. This explicitly grants a new bounded attempt for
@@ -581,6 +618,18 @@ updates the pin or reuses its review for new bytes. Use `harness checks use-reci
 <case-id>` to refresh a recipe and independently review it. Existing independent probes remain
 supported; targeted repair can migrate a blocked probe without changing its
 contract or expected results.
+
+Helper-version changes are handled by ordinary scoped review and `checks prepare`.
+The host refreshes only the affected unapproved pins and independently reviews those
+checks; it does not spend code-repair attempts merely changing a pin. Approval and
+execution still refuse stale helpers. Unchanged checks keep their completed reviews.
+
+New Node HTTP probes can use `/harness-checks/http.mjs`, with its own `httpRuntime`
+pin. The tested helper uses manual redirects, keeps headers and response text, and
+bounds request duration and body size. Positive JSON requests supply their content
+type and Origin; negative tests use the raw helper so invalid headers remain invalid.
+Probes must still assert application-specific status, content, ownership and privacy.
+Adding this optional helper does not change existing server, asset or recipe pins.
 
 Reviewers receive exact executable source, existing shared contracts and offline
 Linux runner constraints. Requests use temporary read-only file attachments to

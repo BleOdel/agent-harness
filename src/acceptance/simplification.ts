@@ -1,3 +1,4 @@
+import {ensureCheckBudget} from './budget.ts';
 /** A blocked design may be replaced, but never silently treated as verified. */
 import {assetRuntimePrompt} from './asset-runtime.ts';
 import type {Feature} from '../features.ts';
@@ -91,7 +92,7 @@ export async function simplifyInParts(task:Feature,original:Proposal,scope:strin
  await services.save(state);
  if(!state.outline){
   if(state.outlineAttempts>=2)throw new OperatorError('Simplification outline request budget exhausted.','The original checks are retained. Use checks setup to revise the design.');
-  state.outlineAttempts++;await services.save(state);
+  ensureCheckBudget();state.outlineAttempts++;await services.save(state);
   services.progress?.('Designing two or three smaller checks; the application contract stays fixed…');
   state.outline=simplifyOutline(task,p,scope,await services.plan());await services.save(state);
  }
@@ -102,13 +103,13 @@ export async function simplifyInParts(task:Feature,original:Proposal,scope:strin
   if(state.outlineReview)state.outlineReview.review=parseDraftReview(state.outlineReview.review);
   if(!state.outlineReview){
    if((state.outlineReviewAttempts??0)>=2)throw new OperatorError('Simplification outline review budget exhausted.');
-   state.outlineReviewAttempts=(state.outlineReviewAttempts??0)+1;await services.save(state);
+   ensureCheckBudget();state.outlineReviewAttempts=(state.outlineReviewAttempts??0)+1;await services.save(state);
    services.progress?.('Independently reviewing the revised coverage and evidence limits before generating code…');
    state.outlineReview={digest:fingerprint,review:parseDraftReview(await services.reviewOutline(state.outline))};await services.save(state);
   }
   if(state.outlineReview.review.verdict==='pass')break;
   if(state.outlineAttempts>=2||(state.outlineReviewAttempts??0)>=2||state.cases.length)throw new OperatorError('Simplified outline needs revision.',state.outlineReview.review.issues.join('\n')+'\nThe original checks are retained; no approval changed. Use checks setup to revise the design.');
-  state.outlineAttempts++;await services.save(state);
+  ensureCheckBudget();state.outlineAttempts++;await services.save(state);
   services.progress?.('Correcting the smaller outline once; required protections and the contract remain fixed…');
   const next=simplifyOutline(task,p,scope,await services.plan(state.outline,state.outlineReview.review.issues));
   if(same(next,state.outline))throw new OperatorError('Simplified outline correction made no change.');
@@ -123,7 +124,7 @@ export async function simplifyInParts(task:Feature,original:Proposal,scope:strin
    if(!state.lastGenerated){
     const attempts=state.generationAttempts[selected.id]??0;
     if(attempts>=2)throw new OperatorError(`${selected.id}: generation request budget exhausted.`,state.generationErrors?.[selected.id]??'The saved simplification and original checks are retained.');
-    state.generationAttempts[selected.id]=attempts+1;await services.save(state);
+    ensureCheckBudget();state.generationAttempts[selected.id]=attempts+1;await services.save(state);
     services.progress?.(`Preparing smaller check ${state.cases.length+1}/${parts.length}: ${selected.description}`);
     state.lastGenerated={id:selected.id,raw:await services.generate(selected.id,state.outline,state.generationErrors?.[selected.id])};await services.save(state);
    }

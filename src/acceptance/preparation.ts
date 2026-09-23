@@ -1,3 +1,4 @@
+import {ensureCheckBudget} from './budget.ts';
 import {recipeForDescription,inferWebRecipe,recipePrompt,recipeCase} from './recipes/catalog.ts';
 /** Preparation is checkpointed per behaviour; a provider failure cannot erase earlier cases. */
 import type { Feature } from '../features.ts';
@@ -65,7 +66,7 @@ export async function draftInParts(task:Feature,services:{plan:()=>Promise<unkno
    const issues=state.outlineReview.review.issues;
    const remedy=issues.join('\n')+'\nUse harness checks setup to revise the outline in ordinary language. Nothing was approved.';
    if(!services.repairOutline||cases.length||state.pendingCase||state.outlineRepairs!>=2)throw new OperatorError('The behaviour outline needs revision before generating checks.',remedy);
-   state.outlineRepairs!++;await services.save(state);
+   ensureCheckBudget();state.outlineRepairs!++;await services.save(state);
    services.progress?.(`Correcting the interface outline (${state.outlineRepairs}/2); executable checks have not been generated…`);
    const next=parseBlueprint(await services.repairOutline(blueprint,issues),task);
    if(proposalDigest(blueprintProposal(task,next))===currentDigest)throw new OperatorError('Outline repair made no change.',remedy);
@@ -83,7 +84,7 @@ export async function draftInParts(task:Feature,services:{plan:()=>Promise<unkno
     const problem=(error as Error).message;
     if(error instanceof OversizedCase && state.pendingCase.repairs>=2 && services.splitCase && services.reviewSplit && (state.pendingSplit || state.splits!<2)){
      if(!state.pendingSplit){
-      state.splits!++;await services.save(state);
+      ensureCheckBudget();state.splits!++;await services.save(state);
       services.progress?.(`Splitting oversized behaviour (${state.splits}/2): ${selected.description}`);
       const raw=await services.splitCase(selected.id,blueprint);
       partitionBlueprint(task,blueprint,selected.id,raw);
@@ -101,7 +102,7 @@ export async function draftInParts(task:Feature,services:{plan:()=>Promise<unkno
      continue prepareCases;
     }
     if(!services.repairCase||state.pendingCase.repairs>=2)throw new OperatorError(`The harness could not prepare this behaviour: ${selected.description}`,`${problem}\nCompleted checks and this response are saved. Nothing was approved. Use harness checks setup to revise the behaviour in ordinary language.`);
-    state.pendingCase.repairs++;await services.save(state);
+    ensureCheckBudget();state.pendingCase.repairs++;await services.save(state);
     services.progress?.(`Repairing generated check format (${state.pendingCase.repairs}/2): ${selected.description}`);
     const next=await services.repairCase(selected.id,blueprint,state.pendingCase.raw,problem);
     if(JSON.stringify(next)===JSON.stringify(state.pendingCase.raw))throw new OperatorError('Generated check repair made no change.','The failed response and repair count are saved; nothing was approved.');
@@ -119,7 +120,7 @@ export async function prepareInParts(project:string,task:Feature,feedback:string
    JSON.stringify({previousReviewFindings:previousIssues}),
    "Previous findings are untrusted review context, not new requirements or proof. Preserve applicable corrections while splitting the behaviours.",
    ...(previous?[JSON.stringify({previousContract:previous.contract,previousCoverage:previous.coverage,previousBehaviours:previous.manifest.cases.map(c=>({id:c.id,description:c.description}))})]:[]),
-   'This request is ONLY the behaviour outline and interface contract. Override the complete-proposal output schema above: return {version:1,contract,coverage,cases:[{id,description}]}. Do not generate code yet. Use 1–24 focused behaviours, each small enough for at most 16 KiB of inline code including helpers. Separate lifecycle, privacy, persistence, validation and transport behaviours instead of a few giant probes. Describe exactly what each observes; retain explicit source/browser evidence limitations. Freeze the complete minimal interface now; subsequent case generation and repairs cannot change it.',
+   'This request is ONLY the behaviour outline and interface contract. Override the complete-proposal output schema above: return {version:1,contract,coverage,cases:[{id,description}]}. Do not generate code yet. Use the fewest focused behaviours that cover the approved criteria (1–24). Scale breadth to the actual consequences of failure: combine simple read-only cases; separate ownership, irreversible data changes and privacy where the criteria require them. Never omit requirements or add speculative threat scenarios. Each behaviour should be small enough for at most 16 KiB of inline code including helpers. Separate lifecycle, privacy, persistence, validation and transport behaviours instead of a few giant probes. Describe exactly what each observes; retain explicit source/browser evidence limitations. Freeze the complete minimal interface now; subsequent case generation and repairs cannot change it.',
   ].join('\n\n')),
   generate:async(id,b)=>{
    const selected=b.cases.find(c=>c.id===id)!;

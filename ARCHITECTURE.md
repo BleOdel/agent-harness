@@ -122,7 +122,8 @@ See [Python policy and migration](PYTHON.md) and [adapter](src/adapters/python-p
 
 ```mermaid
 flowchart LR
-  P["Saved plan, criteria and source"] --> O["Behaviour outline and interface"]
+  W["checks prepare: saved request/time allowance"] --> P["Saved plan, criteria and source"]
+  P --> O["Behaviour outline and interface"]
   O --> R["Independent outline review"]
   R -->|conflict| O2["Correct outline; at most two attempts"]
   O2 --> R
@@ -130,12 +131,14 @@ flowchart LR
   C -->|still oversized| P2["Partition unfinished behaviour; at most twice"]
   P2 --> R2["Review partition; retain interface and completed checks"]
   R2 --> C
-  C --> S["Syntax check and independent case review"]
+  C --> H["Refresh changed helper pins; invalidate affected receipts"]
+  H --> S["Syntax check and independent case review"]
   S -->|concrete defect| F["Repair only that case; bounded budget"]
   F --> CP["Save reply and resume the same charged attempt"]
   CP --> S
   F -->|budget exhausted| B["Saved blocked case"]
-  B -->|operator selects targeted retry| T["Archive budget; repair selected code with shared helper"]
+  B -->|one recorded workflow retry or explicit operator retry| T["Archive budget; repair selected code with shared helper"]
+  W -->|allowance reached| Pause["Save progress; resume with checks prepare"]
   T --> S
   B -->|operator chooses simplify| X["Stage 2–3 smaller behaviours and explicit evidence limits"]
   X --> XR["Independent outline review; freeze contract and peer checks"]
@@ -145,6 +148,17 @@ flowchart LR
   S -->|all scopes reviewed| U["Operator reviews behaviours and limitations"]
   U -->|approved| A["Existing offline candidate acceptance gate"]
 ```
+
+The writer-locked controller (`acceptance/workflow.ts`) retains command allowances,
+reported spend and retries outside source in `acceptance/workflow.json`. An async-local
+budget surrounds all request paths, including format corrections. It reserves a request
+before dispatch and bounds its timeout by both the remaining wall time and per-request
+limit. Pi JSON events provide final response text separately from usage; only turn-end
+usage is counted. Missing or interrupted reporting is marked incomplete. A pause before
+dispatch must not consume a response repair attempt. Saved raw/corrected review replies
+are reused. Readiness of the complete draft is checked before spending a new request;
+the controller never calls approval. Defaults are 12 requests, 600 seconds elapsed,
+180 seconds per request; these are dispatch/time limits, not exact provider-token caps.
 
 The contract and coverage outline stay fixed during case repairs. Each review
 receipt binds task requirements, outline and selected case bytes; the outer saved
@@ -163,8 +177,10 @@ while archiving the old attempt. Legacy complete drafts can enter scoped review
 without retyping requirements. Provider calls remain independent of application
 execution; a reviewed check design is not an observed application pass.
 
-Targeted retry is an explicit operator action (`checks repair [case-id]`), separate
-from resume. The writer-locked transaction checks source/task fingerprints and the
+Targeted retry is an explicit operator action (`checks repair [case-id]`). The
+`checks prepare` controller may also grant one durable retry per task/source/scope
+when a case exhausts its repair budget. Repeated invocation does not renew that
+automatic retry. The writer-locked transaction checks source/task fingerprints and the
 selected case receipt, archives the old state, and records a renewed per-case
 budget before a provider request. The host accepts inline code replacements only:
 case identity, command prefix, expected output, coverage, contract and unrelated
@@ -191,7 +207,8 @@ bytes into a read-only `/harness-checks` mount without model credentials or host
 expectations. A `serverRuntime` digest in each importing step binds those bytes to
 the proposal and approval. A different helper digest fails closed. Unapproved
 drafts may retain a well-formed stale recipe digest while preserving canonical
-commands, settings and expectations. This permits isolated repair of peer checks;
+commands, settings and expectations. Scoped review refreshes affected unapproved pins automatically without consuming
+code-repair attempts, then invalidates their receipts. Peer checks remain intact;
 recipe refresh still requires independent review, and approval/execution parsing
 remains strict. Cached review passes cannot hide changed runtime pins. The helper
 bounds readiness and termination waits, checks both exit and signal states,
@@ -201,6 +218,13 @@ verification rather than silently omitting shutdown logs. It removes isolated da
 failure, and retains data across intentional restarts. Linux process-group
 signalling complements container teardown. The helper supplies lifecycle mechanics;
 application observations and their host comparisons remain separate.
+
+The optional HTTP helper has an independent `httpRuntime` pin and uses the same
+read-only mount. It retains response headers/text, refuses automatic redirect
+following and limits response time/size. Positive JSON convenience defaults are
+separate from raw negative probes. Application-specific assertions stay in the
+reviewed check; this transport helper cannot establish privacy or coverage itself.
+It does not change the identities of existing server, asset or recipe runtimes.
 
 ## Execution and acceptance
 

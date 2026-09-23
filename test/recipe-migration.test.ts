@@ -74,8 +74,6 @@ test('a prior pass cannot hide a stale recipe pin during ordinary review',async(
  p.manifest.cases[0]!.steps[0]!.recipeRuntime='0'.repeat(64);p=parseProposal(p,task);
  const ledger={version:1 as const,entries:[{scope:'boundary',digest:scopeDigest(task,p,'boundary'),repairs:0,syntaxRepairs:0,review:pass}]};
  let requests=0;
- await assert.rejects(reviewScopes(task,p,{syntax:async()=>[],review:async()=>{requests++;return pass;},repair:async()=>{requests++;return p;},save:async()=>{}},ledger,'boundary'),(error:any)=>{
-  assert.equal(error.name,'OperatorError');assert.match(error.remedy,/harness checks use-recipe boundary/);return true;
- });
- assert.equal(requests,0);
+ const result=await reviewScopes(task,p,{syntax:async()=>[],review:async()=>{requests++;return pass;},repair:async()=>{throw Error('Pin refresh must not generate code');},save:async()=>{}},ledger,'boundary');
+ assert.equal(requests,1);assert.notEqual(result.proposal.manifest.cases[0]!.steps[0]!.recipeRuntime,'0'.repeat(64));assert.equal(result.ledger.entries[0]!.repairs,0);
 });
