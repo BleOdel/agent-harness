@@ -20,7 +20,7 @@ import { taskDigest } from "./draft.ts";
 import { OperatorError } from "../verbs/io.ts";
 
 export interface ExpectFile { path:string; text?:string; sha256?:string; }
-export interface CheckStep { serverRuntime?:string; command:string[]; exitCode:number; stdout?:string; stdoutIncludes?:string; files?:ExpectFile[]; }
+export interface CheckStep { serverRuntime?:string; assetRuntime?:string; command:string[]; exitCode:number; stdout?:string; stdoutIncludes?:string; files?:ExpectFile[]; }
 export interface AcceptanceCase { id:string; tasks:string[]; steps:CheckStep[]; description?:string; contract?:string; taskDigest?:string; }
 export interface CheckManifest { version:1; cases:AcceptanceCase[]; }
 export interface Approval { version:1; digest:string; approvedAt:string; manifest:CheckManifest; }
@@ -42,6 +42,7 @@ export function parseChecks(raw:unknown):CheckManifest{
   for(const step of entry.steps){
    if(!object(step)||!Array.isArray(step.command)||!step.command.length||typeof step.command[0]!=="string"||!step.command[0].trim()||step.command.some(v=>typeof v!=="string"||v.includes("\0"))||!Number.isInteger(step.exitCode)||(step.exitCode as number)<0||(step.exitCode as number)>255)throw new OperatorError(`${entry.id}: each step needs a command array and exitCode.`);
    if(step.serverRuntime!==undefined && (typeof step.serverRuntime!=="string" || !/^[a-f0-9]{64}$/u.test(step.serverRuntime)))throw new OperatorError(`${entry.id}: invalid server runtime digest.`);
+   if(step.assetRuntime!==undefined && (typeof step.assetRuntime!=="string" || !/^[a-f0-9]{64}$/u.test(step.assetRuntime)))throw new OperatorError(`${entry.id}: invalid asset runtime digest.`);
    if(step.stdout!==undefined&&typeof step.stdout!=="string")throw new OperatorError(`${entry.id}: stdout must be exact text.`);
    if(step.stdoutIncludes!==undefined&&(typeof step.stdoutIncludes!=="string"||!step.stdoutIncludes))throw new OperatorError(`${entry.id}: stdoutIncludes must be nonempty text.`);
    if(step.files!==undefined&&(!Array.isArray(step.files)||!step.files.length))throw new OperatorError(`${entry.id}: files must be a nonempty list.`);
@@ -150,6 +151,7 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
   try {
     const helpers = path.join(root, "runtime");
     await writeServerRuntime(helpers);
+    let assetHelpers:string|undefined;
     const environment = await adapter.prepare(candidate.directory, path.join(root, "environment"), base, config.gateTimeoutMs, config.installPolicy);
     environmentKey = environment.key;
     const selected = approved.manifest.cases.filter(c => c.tasks.includes("*") || tasks.some(t => c.tasks.includes(t)));
@@ -157,7 +159,9 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
     for (const [index, check] of selected.entries()) {
       const work = path.join(root, `case-${index}`);
       await adapter.install(candidate.directory, work, environment, base, config.gateTimeoutMs);
-      const layout = { ...base, workDirectory: work, ...(check.steps.some(s=>s.serverRuntime) ? {checksDirectory:helpers} : {}) };
+      const needsAssets=check.steps.some(s=>s.assetRuntime);
+      if(needsAssets&&!assetHelpers){assetHelpers=path.join(root,'asset-runtime');await writeServerRuntime(assetHelpers,true);}
+      const layout = { ...base, workDirectory: work, ...(needsAssets ? {checksDirectory:assetHelpers!} : check.steps.some(s=>s.serverRuntime) ? {checksDirectory:helpers} : {}) };
       for (const [number, step] of check.steps.entries()) {
         const label = `acceptance ${check.id}, step ${number + 1}`;
         const result = await runContained(layout, buildVerificationArguments(layout, "none", step.command), { timeoutMs: config.gateTimeoutMs, maxOutputBytes: 2 * 1024 * 1024 });

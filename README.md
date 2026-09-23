@@ -98,7 +98,8 @@ reversal; team undo journals a batch reversal and refuses edits to batch files.
 ## Requirements
 
 - **Node ≥ 26** — the harness runs TypeScript directly by type-stripping;
-  there is no build step and no runtime dependency.
+  there is no compilation step. Run `npm ci` to install the pinned parser
+  dependencies used by acceptance checks.
 - **Docker**, with a Linux daemon.
 - **[Pi](https://github.com/earendil-works/pi)**, installed
   and authenticated with a provider. **Team execution requires Pi 0.80.6**;
@@ -494,8 +495,9 @@ Matching Node/SQLite web checks start from a reusable two-part outline rather th
 another model-generated parser design. It specifies real database paths, actual
 and standard hyphenated sidecar names, bounded public-path samples, and snapshot
 containment scans. This template is still independently reviewed for the task.
-Browser asset discovery is a separate evidence obligation when no reliable
-browser/parser is available; a Node probe must not pretend to implement one.
+Static asset discovery uses the pinned harness helper backed by parse5, Acorn
+and CSS Tree. Entry and asset bytes are retained for database-disclosure scans;
+computed runtime requests and visual behaviour still need browser/source evidence.
 
 Each smaller check is limited to 8 KiB of JSON-encoded steps. Outline attempts,
 outline-review operations and generation requests for each part have separate
@@ -509,6 +511,16 @@ It never approves checks or runs the application. The operator still reviews the
 changed descriptions and outstanding evidence limits before approval. To abandon
 a simplification and revise the whole design, choose **Prepare again with changes**
 in setup; the pending state is archived with the previous preparation.
+
+The asset helper resolves the first HTML base URL, ignores inert templates and
+comments, follows same-origin static HTML/CSS/module references, and fails on
+missing assets, redirects, parse errors or resource limits. Checks must explicitly
+handle reported unresolved references; a static scan cannot prove runtime-generated
+requests or rendering. No external asset is fetched. The helper and the installed
+parser dependency files are hashed together in `assetRuntime`, copied outside the
+candidate and mounted read-only in the offline runner. The app needs no parser
+dependencies. Existing server-only pins stay valid; changes to parser bytes require
+repair, independent review and explicit reapproval of affected asset checks.
 
 Use **Draft again with changes** in setup to deliberately start a new preparation;
 old state is archived. The latest repaired proposal and findings inform the new

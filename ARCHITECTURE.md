@@ -655,3 +655,29 @@ and missing ownership cause a refusal. The receipt is the completion boundary,
 not directory creation. A copied release artifact remains retained independently
 of its producing job/workflow until retirement. No external release backend or
 credential path exists. See [RELEASES.md](RELEASES.md) for local filesystem limits.
+
+### Maintained static asset evidence
+
+Acceptance probes can import `/harness-checks/assets.mjs`. parse5 handles HTML,
+Acorn handles JavaScript and CSS Tree handles CSS. Static same-origin references
+are traversed with bounded requests and retained raw response bodies, including
+binary assets. Database and sidecar snapshots can be compared by containment
+against all responses before and after reads. Dynamic browser behaviour is an
+explicit evidence limit, not a static-parser claim.
+
+```mermaid
+flowchart LR
+  Installed[Installed helper and locked parser packages] --> Pin[Hash paths and file bytes]
+  Pin --> Review[Independent check review and operator approval]
+  Review --> Mount[Read-only helper snapshot in offline runner]
+  Mount --> Assets[Bounded static asset traversal]
+  Assets --> Bytes[Retained response bytes and observed statuses]
+  Bytes --> Host[Host compares approved expectations]
+```
+
+`assetRuntime` is separate from `serverRuntime`, preserving old server-only
+receipts. The runtime snapshot includes transitive dependencies and licenses.
+It never resolves against candidate node_modules. Stale or missing pins fail
+before approval or execution. Dependency upgrades need a fresh review and approval
+for affected checks. The helper does not execute browser scripts or replace
+operator-approved application assertions.

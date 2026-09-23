@@ -41,8 +41,10 @@ and leave the rest.
 ## Conventions
 
 - TypeScript, ESM, Node ≥26, `exactOptionalPropertyTypes`.
-- **No runtime dependencies.** Dev dependencies for types and the
-  typechecker only.
+- **Runtime dependencies require operator approval.** The approved exceptions
+  are parse5, acorn and css-tree for the acceptance asset helper, with exact
+  versions and their transitive packages retained in package-lock.json.
+  Do not add further dependencies without asking.
 - Node runs these files by stripping types, so stay inside strip-only
   syntax: no parameter properties, no enums, no namespaces.
 - Comments explain *why*, and are written for someone deciding whether to

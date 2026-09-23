@@ -47,5 +47,10 @@
     ".env.example",
     "profiles",
     "containers/desktop"
-  ]
+  ],
+  "dependencies": {
+    "acorn": "8.18.0",
+    "css-tree": "3.2.1",
+    "parse5": "8.0.1"
+  }
 }
