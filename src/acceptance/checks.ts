@@ -1,3 +1,4 @@
+import {assertRecipeStep,assertRecipeEvidence,writeRecipeRuntime,type WebRecipe} from './recipes/catalog.ts';
 import {assertServerRuntimes, writeServerRuntime} from './server-runtime.ts';
 /** Approved expectations are evaluated by the host and never mounted into candidate processes. */
 import { createHash, randomUUID } from "node:crypto";
@@ -20,7 +21,7 @@ import { taskDigest } from "./draft.ts";
 import { OperatorError } from "../verbs/io.ts";
 
 export interface ExpectFile { path:string; text?:string; sha256?:string; }
-export interface CheckStep { serverRuntime?:string; assetRuntime?:string; command:string[]; exitCode:number; stdout?:string; stdoutIncludes?:string; files?:ExpectFile[]; }
+export interface CheckStep { recipe?:WebRecipe; recipeRuntime?:string; serverRuntime?:string; assetRuntime?:string; command:string[]; exitCode:number; stdout?:string; stdoutIncludes?:string; files?:ExpectFile[]; }
 export interface AcceptanceCase { id:string; tasks:string[]; steps:CheckStep[]; description?:string; contract?:string; taskDigest?:string; }
 export interface CheckManifest { version:1; cases:AcceptanceCase[]; }
 export interface Approval { version:1; digest:string; approvedAt:string; manifest:CheckManifest; }
@@ -41,6 +42,7 @@ export function parseChecks(raw:unknown):CheckManifest{
   if (entry.taskDigest !== undefined && (!/^[a-f0-9]{64}$/u.test(entry.taskDigest as string) || entry.tasks.length !== 1 || entry.tasks[0] === "*")) throw new OperatorError(`${entry.id}: task fingerprint requires exactly one named task.`);
   for(const step of entry.steps){
    if(!object(step)||!Array.isArray(step.command)||!step.command.length||typeof step.command[0]!=="string"||!step.command[0].trim()||step.command.some(v=>typeof v!=="string"||v.includes("\0"))||!Number.isInteger(step.exitCode)||(step.exitCode as number)<0||(step.exitCode as number)>255)throw new OperatorError(`${entry.id}: each step needs a command array and exitCode.`);
+   assertRecipeStep(step as unknown as CheckStep);
    if(step.serverRuntime!==undefined && (typeof step.serverRuntime!=="string" || !/^[a-f0-9]{64}$/u.test(step.serverRuntime)))throw new OperatorError(`${entry.id}: invalid server runtime digest.`);
    if(step.assetRuntime!==undefined && (typeof step.assetRuntime!=="string" || !/^[a-f0-9]{64}$/u.test(step.assetRuntime)))throw new OperatorError(`${entry.id}: invalid asset runtime digest.`);
    if(step.stdout!==undefined&&typeof step.stdout!=="string")throw new OperatorError(`${entry.id}: stdout must be exact text.`);
@@ -51,7 +53,7 @@ export function parseChecks(raw:unknown):CheckManifest{
      ||(file.text===undefined&&file.sha256===undefined)||(file.text!==undefined&&typeof file.text!=="string")
      ||(file.sha256!==undefined&&(typeof file.sha256!=="string"||! /^[a-f0-9]{64}$/u.test(file.sha256))))throw new OperatorError(`${entry.id}: expected files need a safe relative path and exact text or sha256.`);
    }
-   if(!step.stdout&&!step.stdoutIncludes&&!(step.files as unknown[]|undefined)?.length)throw new OperatorError(`${entry.id}: exit code alone is not acceptance evidence; specify expected application output or file content.`);
+   if(!step.recipe&&!step.stdout&&!step.stdoutIncludes&&!(step.files as unknown[]|undefined)?.length)throw new OperatorError(`${entry.id}: exit code alone is not acceptance evidence; specify expected application output or file content.`);
   }
  }
  return raw as unknown as CheckManifest;
@@ -151,7 +153,7 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
   try {
     const helpers = path.join(root, "runtime");
     await writeServerRuntime(helpers);
-    let assetHelpers:string|undefined;
+    let assetHelpers:string|undefined,recipeHelpers:string|undefined;
     const environment = await adapter.prepare(candidate.directory, path.join(root, "environment"), base, config.gateTimeoutMs, config.installPolicy);
     environmentKey = environment.key;
     const selected = approved.manifest.cases.filter(c => c.tasks.includes("*") || tasks.some(t => c.tasks.includes(t)));
@@ -159,9 +161,11 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
     for (const [index, check] of selected.entries()) {
       const work = path.join(root, `case-${index}`);
       await adapter.install(candidate.directory, work, environment, base, config.gateTimeoutMs);
+      const needsRecipe=check.steps.some(s=>s.recipe);
+      if(needsRecipe&&!recipeHelpers){recipeHelpers=path.join(root,'recipe-runtime');await writeRecipeRuntime(recipeHelpers);}
       const needsAssets=check.steps.some(s=>s.assetRuntime);
       if(needsAssets&&!assetHelpers){assetHelpers=path.join(root,'asset-runtime');await writeServerRuntime(assetHelpers,true);}
-      const layout = { ...base, workDirectory: work, ...(needsAssets ? {checksDirectory:assetHelpers!} : check.steps.some(s=>s.serverRuntime) ? {checksDirectory:helpers} : {}) };
+      const layout = { ...base, workDirectory: work, ...(needsRecipe ? {checksDirectory:recipeHelpers!} : needsAssets ? {checksDirectory:assetHelpers!} : check.steps.some(s=>s.serverRuntime) ? {checksDirectory:helpers} : {}) };
       for (const [number, step] of check.steps.entries()) {
         const label = `acceptance ${check.id}, step ${number + 1}`;
         const result = await runContained(layout, buildVerificationArguments(layout, "none", step.command), { timeoutMs: config.gateTimeoutMs, maxOutputBytes: 2 * 1024 * 1024 });
@@ -169,6 +173,7 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
         observations.push(observation);
         if (result.outputLimited) throw new OperatorError(`${label}: application output exceeded 2 MiB.`);
         if (result.timedOut || result.code !== step.exitCode) throw new OperatorError(`${label}: ${result.timedOut ? "timed out" : `expected exit ${step.exitCode}, got ${result.code}`}.`);
+        if(step.recipe)assertRecipeEvidence(step.recipe,result.stdout);
         if (step.stdout !== undefined && result.stdout !== step.stdout) throw new OperatorError(`${label}: application output did not match approved text.`);
         if (step.stdoutIncludes !== undefined && !result.stdout.includes(step.stdoutIncludes)) throw new OperatorError(`${label}: application output is missing approved text.`);
         for (const expected of step.files ?? []) {

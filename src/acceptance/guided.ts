@@ -1,3 +1,4 @@
+import {recipeForDescription,inferWebRecipe,recipeDescription} from './recipes/catalog.ts';
 import {blockedScopes, renewScope, repairScopeInIsolation} from './targeted.ts';
 import {simplifyInParts, simplificationServices, type SimplificationState} from './simplification.ts';
 import {assertServerRuntimes} from './server-runtime.ts';
@@ -60,7 +61,7 @@ export async function readGuidedDraft(project: string): Promise<SavedDraft | und
 export function describeProposal(io: Dialogue, proposal: Proposal, task: Feature): void {
  io.write(`Review proposed checks: ${task.title}`);
  io.write('These are proposed checks, not successful verification results.');
- for (const c of proposal.manifest.cases) io.write(`  • ${c.description}`);
+ for (const c of proposal.manifest.cases){io.write(`  • ${c.description}`);for(const s of c.steps)if(s.recipe)io.write('    '+recipeDescription(s.recipe));}
  io.write('An interface contract is saved with these behaviours. View the interface contract for exact routes, fields and startup choices.');
  io.write('Coverage against the approved requirements:');
  for (const coverage of proposal.coverage) {
@@ -72,6 +73,7 @@ export function describeProposal(io: Dialogue, proposal: Proposal, task: Feature
  io.write('Approval replaces previous cases scoped only to this task; checks for other tasks are retained.');
 }
 export async function reviewGuidedDraft(project: string, io: Dialogue, draft?: SavedDraft, validator: Validator = validateProposal): Promise<void> {
+ if(await readArtifact(directory(project),'recipe-change.json',8*1024*1024))return useRecipeSavedCheck(project,io,undefined,{resume:true});
  if(await readArtifact(directory(project),'simplification.json',8*1024*1024))return simplifySavedCheck(project,io);
  const saved = draft ?? await readGuidedDraft(project);
  if (!saved && await resumePreparation(project, io)) return;
@@ -103,6 +105,7 @@ export async function reviewGuidedDraft(project: string, io: Dialogue, draft?: S
  }
 }
 export async function guidedSetup(project: string, task: Feature, io: Dialogue, drafter: Drafter = generateProposal, validator: Validator = validateProposal, automatic?: Proposal, resume = false): Promise<void> {
+ if(resume&&await readArtifact(directory(project),'recipe-change.json',8*1024*1024))return useRecipeSavedCheck(project,io,undefined,{resume:true});
  if(resume&&await readArtifact(directory(project),'simplification.json',8*1024*1024))return simplifySavedCheck(project,io);
  const existing = await readGuidedDraft(project).catch((error: Error) => { io.write(`Saved draft cannot be reused: ${error.message}`); return undefined; });
  let freshPreparation = false;
@@ -155,7 +158,7 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
    }
   }
   if (freshPreparation || feedback) {
-   for (const name of ['review-progress.json', 'preparation.json', 'guided-draft.json', 'simplification.json']) {
+   for (const name of ['review-progress.json', 'preparation.json', 'guided-draft.json', 'simplification.json','recipe-change.json']) {
     const old = await readArtifact(directory(project), name, 8 * 1024 * 1024);
     if (old) {const history = path.join(directory(project), 'review-history');await mkdir(history,{recursive:true,mode:0o700});await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}.json`),old);}
     await rm(path.join(directory(project),name),{force:true});
@@ -228,11 +231,13 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
 
 /** Resume a first preparation even if no complete guided draft has been produced yet. */
 export async function resumePreparation(project:string,io:Dialogue):Promise<boolean>{
+ if(await readArtifact(directory(project),'recipe-change.json',8*1024*1024)){await useRecipeSavedCheck(project,io,undefined,{resume:true});return true;}
  if(await readArtifact(directory(project),'simplification.json',8*1024*1024)){await simplifySavedCheck(project,io);return true;}
  for(const name of ['review-progress.json','preparation.json']){
   const raw=await readArtifact(directory(project),name,8*1024*1024);if(!raw)continue;
   const record=JSON.parse(raw);const task=await currentTask(project,record.taskId);
   if(record.taskDigest!==taskDigest(task)||record.sourceDigest!==await sourceDigest(project))throw new OperatorError('Saved preparation describes older source or requirements.','Run harness checks setup to prepare checks for the current task.');
+  if(record.proposal&&record.ledger){const p=parseProposal(record.proposal,task);const suitable=p.manifest.cases.find(c=>!c.steps.some(s=>s.recipe)&&recipeForDescription(c.description??'')&&!record.ledger.entries.some((e:{scope:string;review?:{verdict:string}})=>e.scope===c.id&&e.review?.verdict==='pass'));if(suitable){io.write('A tested recipe can replace this generated parser check.');await useRecipeSavedCheck(project,io,suitable.id);return true;}}
   await guidedSetup(project,task,io,generateProposal,validateProposal,undefined,true);return true;
  }
  return false;
@@ -240,6 +245,7 @@ export async function resumePreparation(project:string,io:Dialogue):Promise<bool
 
 /** Stage an explicit design revision separately; commit it only after its new checks pass review. */
 export async function simplifySavedCheck(project:string,io:Dialogue,caseId?:string,servicesFactory=simplificationServices):Promise<void>{
+ if(await readArtifact(directory(project),'recipe-change.json',8*1024*1024))throw new OperatorError('A recipe migration is pending.','Resume checks use-recipe before changing another check.');
  const raw=await readArtifact(directory(project),'review-progress.json',8*1024*1024);
  if(!raw)throw new OperatorError('No saved check review to simplify.','Use harness checks setup.');
  const record=JSON.parse(raw), task=await currentTask(project,record.taskId), p=parseProposal(record.proposal,task);
@@ -299,6 +305,7 @@ export async function simplifySavedCheck(project:string,io:Dialogue,caseId?:stri
 
 /** The operator chooses a fresh bounded attempt; ordinary resume never resets budgets. */
 export async function repairSavedCheck(project:string,io:Dialogue,caseId?:string,repair=repairScopeInIsolation):Promise<void>{
+ if(caseId&&repair===repairScopeInIsolation){const raw=await readArtifact(directory(project),'review-progress.json',8*1024*1024);const c=raw?JSON.parse(raw).proposal?.manifest?.cases?.find((c:{id:string})=>c.id===caseId):undefined;if(c&&(c.steps.some((s:{recipe?:unknown})=>s.recipe)||recipeForDescription(c.description??'')))return useRecipeSavedCheck(project,io,caseId);}
  if(await readArtifact(directory(project),'simplification.json',8*1024*1024))throw new OperatorError('A design simplification is pending.','Resume harness checks simplify, or use checks setup to prepare again with changes.');
  const file=path.join(directory(project),'review-progress.json');
  const raw=await readArtifact(directory(project),'review-progress.json',8*1024*1024);
@@ -318,6 +325,7 @@ export async function repairSavedCheck(project:string,io:Dialogue,caseId?:string
  if(!selected){const index=await choose(io,'Which blocked check should be repaired?',ids.map(id=>proposal.manifest.cases.find(c=>c.id===id)!.description!));if(index<0)return;selected=ids[index]!;}
  if(!ids.includes(selected))throw new OperatorError('Select one of the blocked checks.');
  const scope=selected;
+ if(repair===repairScopeInIsolation){const c=proposal.manifest.cases.find(c=>c.id===scope)!;if(c.steps.some(s=>s.recipe)||recipeForDescription(c.description??''))return useRecipeSavedCheck(project,io,scope);}
  await withWriter(project,'checks repair',async()=>{
   await checkCurrent();
   if(await readArtifact(directory(project),'review-progress.json',8*1024*1024)!==raw)throw new OperatorError('Saved checks changed during selection. Run harness checks repair again.');
@@ -340,4 +348,61 @@ export async function repairSavedCheck(project:string,io:Dialogue,caseId?:string
  });
  io.write('The selected check passed design review. Other generated checks are retained; the application has not been tested or changed.');
  io.write('Next: harness checks review. Nothing was approved.');
+}
+
+/** Replace a generated implementation with settings for tested infrastructure; approval stays separate. */
+export async function useRecipeSavedCheck(project:string,io:Dialogue,caseId?:string,options:{settings?:unknown;resume?:boolean;reviewer?:(project:string,task:Feature,p:Proposal,scope:string)=>Promise<import('./repair.ts').DraftReview>}={}):Promise<void>{
+ if(await readArtifact(directory(project),'simplification.json',8*1024*1024))throw new OperatorError('A simplification is pending.','Resume checks simplify or archive it through checks setup before switching paths.');
+ const {recipeForDescription,inferWebRecipe,recipeCase,recipeDescription,compileRecipe}=await import('./recipes/catalog.ts');
+ const {requestScopedReview}=await import('./scoped-review.ts');
+ const {parseDraftReview}=await import('./repair.ts');
+ const raw=await readArtifact(directory(project),'review-progress.json',8*1024*1024);
+ if(!raw)throw new OperatorError('No saved check to convert.','Use harness checks setup. Supported new behaviours use recipes automatically.');
+ const record=JSON.parse(raw),task=await currentTask(project,record.taskId),p=parseProposal(record.proposal,task);
+ const pendingRaw=await readArtifact(directory(project),'recipe-change.json',8*1024*1024),pending=pendingRaw?JSON.parse(pendingRaw):undefined;
+ const current=async()=>{if(record.taskDigest!==taskDigest(await currentTask(project,task.id))||record.sourceDigest!==await sourceDigest(project))throw new OperatorError('Saved recipe inputs changed.','Use checks setup to prepare from current source and requirements.');};
+ await current();
+ if(pending?.committedDigest===digest(raw)){await withWriter(project,'checks recipe',()=>rm(path.join(directory(project),'recipe-change.json')));io.write('The recipe migration was already saved. Next: harness checks review.');return;}
+ const candidates=p.manifest.cases.filter(c=>c.steps.some(s=>s.recipe)||recipeForDescription(c.description??''));
+ let scope=caseId??pending?.scope;
+ if(!scope){const index=await choose(io,'Use a tested recipe for which check?',candidates.map(c=>c.description??c.id));if(index<0)return;scope=candidates[index]!.id;}
+ const selected=candidates.find(c=>c.id===scope);if(!selected)throw new OperatorError('No supported recipe matches this selected behaviour.','This release supports Node web assets and SQLite database boundaries; other behaviours keep their existing review path.');
+ const existing=selected.steps.find(s=>s.recipe)?.recipe;
+ let settings=options.settings??pending?.settings??existing??inferWebRecipe(p.contract);
+ if(options.settings===undefined&&!options.resume){
+  if(settings){io.write(recipeDescription(compileRecipe(settings).recipe!));const action=await choose(io,'Recipe settings',['Use settings from the saved contract','Edit the project settings']);if(action<0)return;if(action===1)settings=undefined;}
+  if(!settings){const old=pending?.settings??existing??inferWebRecipe(p.contract);const ask=async(label:string,value:string)=>((await io.ask(`${label}${value?' ['+value+']':''}:`)).trim()||value);
+   settings={kind:'node-web-sqlite',version:1,entry:await ask('Node entry file',old?.entry??''),databaseEnv:await ask('Database environment variable',old?.databaseEnv??''),portEnv:await ask('Port environment variable',old?.portEnv??'PORT'),readinessPrefix:(await io.ask(`Literal text before the ready URL, including trailing spaces [${JSON.stringify(old?.readinessPrefix??'Listening at ')}]:`))||(old?.readinessPrefix??'Listening at '),entryPath:await ask('Application path',old?.entryPath??'/'),publicPaths:(await ask('Public read paths, comma-separated',old?.publicPaths.join(',')??'')).split(',').map(x=>x.trim()),rejectHost:Number(await ask('Wrong Host response status',String(old?.rejectHost??403))),rejectOrigin:Number(await ask('Wrong Origin response status',String(old?.rejectOrigin??403)))};
+  }
+ }
+ if(!settings)throw new OperatorError('The saved contract does not unambiguously specify recipe settings.','Use harness checks use-recipe to enter the short project settings; no probe code is needed.');
+ const replacement=recipeCase({id:selected.id,description:selected.description!},task.id,settings);settings=replacement.steps[0]!.recipe;
+ const candidate=parseProposal({...p,manifest:{...p.manifest,cases:p.manifest.cases.map(c=>c.id===scope?replacement:c)}},task);
+ const changed=!!pending&&JSON.stringify(pending.settings)!==JSON.stringify(settings);
+ if(pending&&!changed&&pending.candidateDigest!==proposalDigest(candidate))throw new OperatorError('Recipe implementation changed during preparation.','Use checks setup to prepare with the current recipe version.');
+ if(pending&&(pending.baseDigest!==digest(raw)||pending.taskDigest!==record.taskDigest||pending.sourceDigest!==record.sourceDigest||pending.scope!==scope))throw new OperatorError('Pending recipe settings describe different inputs.','Use checks setup and Prepare again with changes to archive stale preparation.');
+ io.write(recipeDescription(replacement.steps[0]!.recipe!));
+ await withWriter(project,'checks recipe',async()=>{
+  await current();if(await readArtifact(directory(project),'review-progress.json',8*1024*1024)!==raw)throw new OperatorError('Saved checks changed during recipe selection.');
+  const approval=(await readApproval(project))?.digest??null;
+  if(changed){const history=path.join(directory(project),'review-history');await mkdir(history,{recursive:true,mode:0o700});await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}-recipe-settings.json`),pendingRaw!);}
+  const state=(!changed?pending:undefined)??{version:1,candidateDigest:proposalDigest(candidate),baseDigest:digest(raw),taskDigest:record.taskDigest,sourceDigest:record.sourceDigest,scope,settings,approvalDigest:approval,reviewStarted:false};
+  if(state.approvalDigest!==approval)throw new OperatorError('Approvals changed during recipe preparation.');
+  const save=()=>atomicWrite(path.join(directory(project),'recipe-change.json'),JSON.stringify(state,null,2)+'\n');await save();
+  if(!state.review){
+   if(state.reviewStarted&&options.resume)throw new OperatorError('The recipe settings review was interrupted.','Use harness checks use-recipe for one explicit retry. The candidate and previous checks are saved.');
+   state.reviewStarted=true;await save();io.write('Reviewing only recipe settings and requirement coverage; no probe generation or code repair.');
+   state.review=parseDraftReview(await (options.reviewer??((project,task,p,scope)=>requestScopedReview(project,task,p,scope,[],io.write)))(project,task,candidate,scope!));await save();
+  }
+  const review=parseDraftReview(state.review);
+  if(review.verdict!=='pass')throw new OperatorError('Recipe settings need attention.',review.issues.join('\n')+'\nNo code-repair loop was started. Use harness checks use-recipe to edit the settings. The original draft and approval remain unchanged.');
+  await current();if((await readApproval(project))?.digest!== (approval??undefined))throw new OperatorError('Approvals changed during recipe review.');
+  const ledger:ReviewLedger=record.ledger??{version:1,entries:[]};
+  const updated={...record,proposal:candidate,ledger:{...ledger,entries:[...ledger.entries.filter(e=>e.scope!==scope),{scope:scope!,digest:scopeDigest(task,candidate,scope!),repairs:0,syntaxRepairs:0,review}]},recipeMigration:{scope,kind:'node-web-sqlite',at:new Date().toISOString()}};
+  const text=JSON.stringify(updated,null,2)+'\n';state.committedDigest=digest(text);await save();
+  const history=path.join(directory(project),'review-history');await mkdir(history,{recursive:true,mode:0o700});await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}-before-recipe.json`),raw);
+  const draft=await readArtifact(directory(project),'guided-draft.json',8*1024*1024);if(draft&&JSON.parse(draft).taskId===task.id){await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}-guided-draft.json`),draft);await rm(path.join(directory(project),'guided-draft.json'));}
+  await atomicWrite(path.join(directory(project),'review-progress.json'),text);await rm(path.join(directory(project),'recipe-change.json'));
+ });
+ io.write('The generated check is replaced by a reviewed recipe configuration. Other checks are retained.');io.write('Next: harness checks review. Nothing was approved; application behaviour still needs verification after implementation.');
 }

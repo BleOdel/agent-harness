@@ -1,3 +1,4 @@
+import {assertRecipeStep} from './recipes/catalog.ts';
 /** Check quality is reviewed separately from application verification and user approval. */
 import { createHash } from 'node:crypto';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
@@ -24,6 +25,7 @@ export async function syntaxIssues(proposal: Proposal): Promise<string[]> {
   let i=0;
   for (const c of proposal.manifest.cases) for (const [stepIndex, step] of c.steps.entries()) {
    const label = `${c.id}, step ${stepIndex + 1}`;
+   if(step.recipe){try{assertRecipeStep(step);}catch(error){issues.push(`${label}: ${(error as Error).message}`);}continue;}
    const [executable,...args]=step.command;
    // Parse only: never execute a generated command on the operator's host.
    if (executable==='node' && args.includes('-e')) {

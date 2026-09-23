@@ -681,3 +681,56 @@ It never resolves against candidate node_modules. Stale or missing pins fail
 before approval or execution. Dependency upgrades need a fresh review and approval
 for affected checks. The helper does not execute browser scripts or replace
 operator-approved application assertions.
+
+### Targeted repair-response recovery
+
+A host checkpoint saves each model code-repair reply before interpreting it.
+The strict replacement schema still permits only a one-based step and complete
+inline source. A malformed reply receives at most one separate format correction;
+it cannot change commands, expectations, the contract or another case. Semantic
+no-op failures do not spend a format request. Both responses remain available for
+diagnosis under `acceptance/repair-responses`.
+
+Checkpoints bind exact proposal, findings, request prompt, helper digests and
+explicit retry epoch. Started requests are saved before dispatch, so crashes cannot
+silently replenish budgets. Received responses are reused after interruption.
+Independent syntax and behavioural reviews still follow; no reply cache approves
+checks or changes application code.
+
+### Data-only acceptance recipes
+
+The first recipe catalog entry is `node-web-sqlite@1`. Routine check logic is
+maintained in the harness, not generated separately for each project. The catalog
+strictly validates settings, compiles a fixed runner command and pins the recipe,
+shared server/asset helpers and parser dependency bytes. `recipeRuntime` identifies
+that implementation. The host validates typed observations returned by the runner;
+commands, pins or extra model-authored expectations cannot override the recipe.
+
+```mermaid
+flowchart TD
+    Plan[Saved contract and behaviour] --> Match{Supported recipe?}
+    Match -->|yes| Settings[Infer or request data-only settings]
+    Settings --> Schema[Local schema validation and deterministic compilation]
+    Schema --> Mapping[Independent settings and coverage review]
+    Mapping -->|needs changes| Edit[Correct project settings]
+    Edit --> Schema
+    Mapping -->|pass| Approve[Explicit operator approval]
+    Approve --> Run[Pinned offline runner]
+    Run --> Observe[Actual typed observations]
+    Observe --> Host[Host checks fixed recipe expectations]
+    Fixtures[Healthy and independently broken regression fixtures] --> Run
+    Match -->|no| Custom[Existing bounded custom-check path]
+```
+
+Settings reviews do not generate or repair executable source. A reported mismatch
+stops before a code-repair request. Saved mappings are reused only for their exact
+candidate, runtime pin, task/source fingerprints and unchanged base approval. A
+migration archives the original check, replaces only its selected scope and preserves
+unrelated review receipts. Operator approval and application execution remain separate.
+
+The runner samples same-origin static assets, configured public APIs, actual and
+standard SQLite-family paths, and wrong Host/Origin requests. It retains raw bodies
+for containment comparisons against snapshots before and after reads. Bounds and
+unsupported static references fail explicitly. This does not prove browser rendering,
+all possible routes/encodings, cryptographic properties, or application lifecycle
+behaviour; those requirements still need their own checks or source/browser evidence.

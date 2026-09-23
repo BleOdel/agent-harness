@@ -326,6 +326,7 @@ Run them inside your project.
 | `harness model setup` | choose supported reasoning strength and save model settings for this project |
 | `harness checks setup` | draft checks from the saved plan and approve plain-language behaviours |
 | `harness checks review` | resume preparation, review and approve a saved check draft |
+| `harness checks use-recipe [case-id]` | replace a generated web/SQLite boundary probe with reviewed settings for a tested runner |
 | `harness checks repair [case-id]` | repair one blocked check, retaining the other checks |
 | `harness checks simplify [case-id]` | replace a complex blocked design with smaller independently reviewed checks |
 | `harness checks approve <file>` | explicitly approve a JSON acceptance specification |
@@ -481,9 +482,45 @@ If one executable check exhausts its budget, use `harness checks repair` (or
 or correction text is needed. This explicitly grants a new bounded attempt for
 that case, archives the previous budget and findings, and preserves all other
 cases and review receipts. It repairs and independently reviews only that case;
-then `harness checks review` continues the remaining suite. A provider interruption
+then `harness checks review` continues the remaining suite. Targeted code replies
+are saved under `acceptance/repair-responses` before validation. A malformed
+replacement gets one format-only correction request; commands, expectations and
+other cases remain fixed and code still needs independent review. Resuming reuses
+saved replies, including responses received just before an interruption. Request
+budgets are recorded before dispatch; an exhausted response budget needs an explicit
+fresh targeted attempt. Response caches bind the proposal, findings, helper bytes
+and retry epoch. They never constitute an approval. A provider interruption
 preserves the renewed attempt's spent budget. Contract changes still require a
 revised outline. Repair does not approve checks or execute the application.
+For supported routine behaviours the harness now owns the check implementation.
+The initial recipe, **node-web-sqlite v1**, accepts a small configuration: server
+entry file, database/port environment names, literal readiness prefix, application
+and public-read paths, and expected Host/Origin rejection statuses. New preparation
+uses this recipe automatically for matching web-asset/SQLite boundary behaviours.
+Settings are read from an unambiguous saved contract where possible; otherwise the
+model returns settings only. It cannot supply code or weaken the recipe assertions.
+
+`harness checks use-recipe [case-id]` migrates a saved generated check. Review/repair
+also guides matching blocked checks to this path. You can accept inferred settings
+or edit short fields; no probe code is requested. The candidate and settings-review
+result are checkpointed. A mismatch stops with an actionable settings finding;
+it never launches a generated-code repair loop. Changing settings reviews only that
+mapping. Received reviews survive interruption, and a provider interruption requires
+an explicit retry. Peers, the frozen contract, task criteria and existing approvals
+are preserved; the old check is archived. Nothing is approved automatically.
+
+The recipe runs as a pinned, read-only program in offline verification. It records
+entry/asset observations, SQLite location and integrity, sampled raw-byte exposure,
+Host/Origin response codes and cleanup. The **host** checks those typed observations;
+a printed success message cannot substitute for them. The recipe was regression-tested
+against a working server and independently broken asset, storage, disclosure and
+transport variants. These fixture results establish the checker, not the unbuilt
+application. Mapping review checks project-specific settings and coverage once;
+application verification still runs after implementation. Custom business workflows
+and other runtimes retain the existing custom-check path until supported recipes
+are added. Dynamic browser behaviour and exhaustive data-exposure proof remain
+separate evidence obligations.
+
 If the blocked check is trying to do too much, use `harness checks simplify`
 (or **Simplify a blocked check** in setup). It stages two or three smaller
 behaviours separately in `acceptance/simplification.json`. The application

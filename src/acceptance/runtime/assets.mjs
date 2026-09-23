@@ -85,16 +85,16 @@ export function discoverAssets(source,documentURL,kind='html'){
 }
 function positive(value,max,label){if(!Number.isInteger(value)||value<1||value>max)throw Error(`Invalid ${label} bound.`);return value;}
 /** Fetch only same-origin static references; retain every raw body for later disclosure checks. */
-export async function collectAssets(entry,{timeoutMs=5000,maxResources=128,maxBytes=8*1024*1024,maxTotalBytes=32*1024*1024,headers={}}={}){
+export async function collectAssets(entry,{timeoutMs=5000,maxResources=128,maxBytes=8*1024*1024,maxTotalBytes=32*1024*1024,headers={},signal}={}){
  positive(timeoutMs,60000,'timeout');positive(maxResources,1024,'resource');positive(maxBytes,32*1024*1024,'byte');positive(maxTotalBytes,128*1024*1024,'total byte');
  const initial=new URL(entry);if(!['http:','https:'].includes(initial.protocol)||initial.username||initial.password)throw Error('Expected an HTTP entry URL without credentials.');initial.hash='';
  const pending=[{url:initial.href,kind:'html'}],responses=new Map(),parsed=new Set(),external=[],unresolved=[];let total=0;
- while(pending.length){const {url,kind}=pending.shift();let response=responses.get(url);
+ while(pending.length){signal?.throwIfAborted();const {url,kind}=pending.shift();let response=responses.get(url);
   if(!response){
    if(responses.size>=maxResources)throw Error('Asset resource limit exceeded.');
    const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),timeoutMs);let reader;
    try{
-    const res=await fetch(url,{redirect:'manual',signal:controller.signal,headers});
+    const res=await fetch(url,{redirect:'manual',signal:signal?AbortSignal.any([signal,controller.signal]):controller.signal,headers});
     if(res.status!==200){await res.body?.cancel();throw Error(`Asset HTTP ${res.status} at ${new URL(url).pathname}`);}
     reader=res.body?.getReader();const chunks=[];let bytes=0;
     if(reader)while(true){const next=await reader.read();if(next.done)break;bytes+=next.value.byteLength;total+=next.value.byteLength;if(bytes>maxBytes||total>maxTotalBytes)throw Error('Asset byte limit exceeded.');chunks.push(next.value);}
