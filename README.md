@@ -347,7 +347,9 @@ Run them inside your project.
 | `harness plan --from <path>` | start from an existing plan document |
 | `harness add <id> …` | put an item on the feature list |
 | `harness add --from latest` | import the items a plan proposed |
-| `harness work [<id>]` | build the highest-priority eligible item, or a named item |
+| `harness work [<id>]` | build or resume the highest-priority eligible item, or a named item |
+| `harness work --resume <run-id>` | continue a timed-out builder from saved unverified source |
+| `harness work --fresh [<id>]` | start from live source; retain older checkpoints for inspection |
 | `harness team run [options]` | run assigned builders and retain verified staging |
 | `harness team inspect <id>` | read durable acceptance state |
 | `harness team steer <attempt-id> "message"` | guide an active builder |
@@ -872,8 +874,56 @@ journal for explicit team batch application and batch undo.
    Recovery snapshots and append-only records carry the resulting change.
    Host-owned attempt manifests live under `<project>-harness/candidates/`.
 6. **Clean up.** Normal and handled-error paths remove owned containers and
-   disposable workspaces. Abrupt process death can leave resources requiring
+   disposable workspaces. Builder timeouts first retain an unverified source checkpoint. Abrupt process death can leave resources requiring
    explicit recovery; retained evidence is separate from disposable inputs.
+
+## Resuming a timed-out implementation
+
+When an ordinary `harness work` builder reaches its time limit, the harness stops
+its container and saves unverified partial source outside the project before
+removing the temporary workspace. Nothing is applied. Continue with:
+
+```bash
+harness work                       # resume if the next item has saved partial work
+harness work local-story-service   # resume this item's saved work
+harness work --resume r3           # choose a particular available checkpoint
+```
+
+`harness look` lists available checkpoints. `harness show r3` displays the saved
+source path and next command. Source and controller metadata live under
+`<project>-harness/implementation/r3/`. Claims, generated dependencies, caches,
+and the usual excluded control/secret paths are not retained. The source snapshot
+is bounded to 10,000 files, 8 MiB per file and 64 MiB total; links and special files
+are rejected. These are storage ceilings, not relaxed application ceilings.
+
+Resume restores additions, edits and deletions into a fresh sandbox with clean
+dependencies. **Pi starts a fresh conversation**, with the original task and any
+current repair diagnosis, and is instructed to inspect interrupted edits or mutation
+tests before continuing. The original attempt number is retained. Source gates,
+independent review and approved acceptance checks still have to pass before apply;
+a saved checkpoint is not evidence of correctness. A repeated timeout saves a new
+checkpoint and supersedes the old one. Each run records only its own reported usage.
+
+The project source and requirements, approved checks, limits, environment, model,
+reasoning setting and selected skills must still match. A stale checkpoint stops
+before another model request. Restore its inputs, or deliberately start again:
+
+```bash
+harness work --fresh local-story-service
+```
+
+This retires the item's older available checkpoints without deleting their files.
+To allow longer model calls while retaining a checkpoint, set the timeout in seconds:
+
+```bash
+HARNESS_AGENT_TIMEOUT=1800 harness work local-story-service
+```
+
+This first implementation saves **handled builder timeouts**, not arbitrary process
+kills, machine crashes, provider failures or reviewer timeouts. Existing checkpoints
+remain available after unsuccessful resume attempts. A run that timed out before
+this feature and already deleted its temporary directory cannot be recovered.
+No provider conversation or credential directory is saved with the source.
 
 ## Running unattended
 

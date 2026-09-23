@@ -10,6 +10,7 @@ export async function executeAndSubmit(layout: SandboxLayout, request: AgentRequ
   const agent = await runAgent(layout, request, onOutput, onTurn);
   // runAgent confirms container removal before returning. Worker-owned IDs
   // remain ordinary submission data and cannot select a controller attempt.
+  if (agent.timedOut) return { agent, submission: {ok:false as const, reason:"Builder timed out"}, claim: {ok:false as const, reason:"Builder timed out"} };
   return { agent, submission: await readSubmission(layout.workDirectory), claim: await readClaim(layout.workDirectory) };
 }
 

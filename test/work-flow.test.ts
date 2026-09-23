@@ -25,7 +25,7 @@ async function fixture(features: Feature[], mode = "blocked") {
   await mkdir(path.join(project, "test"), { recursive: true });
   await writeFile(path.join(project, "features.json"), JSON.stringify(features));
   await writeFile(path.join(project, "app.js"), "export const value = 1;\n");
-  await writeFile(path.join(project, "test/app.test.js"), 'import assert from "node:assert/strict"; assert.equal(1, 1);\n');
+  await writeFile(path.join(project, "test/app.test.js"), 'import assert from "node:assert/strict"; import {value} from "../app.js"; assert.ok(value >= 1);\n');
   await writeFile(path.join(project, "package.json"), JSON.stringify({ type: "module", scripts: { test: "node --test test/*.test.js" } }));
   const checkFile = path.join(root, "checks.json");
   await writeFile(checkFile, JSON.stringify({ version: 1, cases: [{ id: "value", tasks: ["*"], steps: [{ command: ["node", "--input-type=module", "-e", "import {value} from './app.js'; console.log(value)"], exitCode: 0, stdout: ['changed','verifier-writes','live-edit'].includes(mode) ? "2\n" : "1\n" }] }] }));
@@ -49,6 +49,22 @@ const mode = process.env.FLOW_MODE;
 const kind = args.includes('--mode') ? 'builder' : args.includes('read,grep') ? 'reviewer' : args.some(a=>a.startsWith('--env=NODE_OPTIONS')) ? 'gate' : 'acceptance';
 fs.appendFileSync(process.env.FLOW_LOG, JSON.stringify({kind, work}) + '\\n');
 if (kind === 'builder') {
+  if (mode.startsWith('timeout') || (mode === 'gate-then-timeout' && fs.readFileSync(process.env.FLOW_LOG,'utf8').split('\\n').filter(l=>l && JSON.parse(l).kind==='builder').length > 1)) {
+    fs.writeFileSync(path.join(work,'app.js'),'export const value = 2;\\n');
+    fs.writeFileSync(path.join(work,'.harness-claim.json'),'{unfinished');
+    console.log(JSON.stringify({type:'turn_end',message:{role:'assistant',provider:'fixture',model:'fixture',usage:{input:8,output:2,totalTokens:10,cost:{total:0.01}}}}));
+    setInterval(()=>{},1000); return;
+  }
+  if (mode.startsWith('resume')) {
+    if (mode !== 'resume-bad' && fs.readFileSync(path.join(work,'app.js'),'utf8') !== 'export const value = 2;\\n') throw Error('partial work missing');
+    if (mode !== 'resume-bad' && fs.existsSync(path.join(work,'.harness-claim.json'))) throw Error('old claim retained');
+    fs.writeFileSync(path.join(work,'.harness-claim.json'), JSON.stringify({files:['app.js'],deletions:[],criteria:[{criterion:'works',verifiedBy:'test/app.test.js'}]}));
+    console.log(JSON.stringify({type:'turn_end',message:{role:'assistant',provider:'fixture',model:'fixture',usage:{input:16,output:4,totalTokens:20,cost:{total:0.02}}}}));
+    if (mode === 'resume-wrong') fs.writeFileSync(path.join(work,'app.js'),'export const value = 3;\\n');
+    if (mode === 'resume-bad') fs.writeFileSync(path.join(work,'app.js'),'broken source');
+    return;
+  }
+
   const blocked = mode === 'blocked' || mode === 'invalid';
   const claim = blocked
     ? {outcome:'blocked', reason:'A decision is missing', requestedInput: mode === 'invalid' ? '' : 'Choose <region>'}
@@ -85,7 +101,7 @@ if (kind === 'builder') {
     FLOW_MODE: mode, FLOW_LOG: path.join(root, "calls")
   };
   return {
-    root, project,
+    root, project, env,
     async run(...args: string[]) {
       try { const r = await execute(process.execPath, [cli, ...args], { cwd: project, env }); return { code: 0, text: r.stdout + r.stderr }; }
       catch (e) { const r = e as Error & { code: number; stdout: string; stderr: string }; return { code: r.code, text: r.stdout + r.stderr }; }
@@ -282,4 +298,111 @@ test("missing approval stops before dispatch; failing approved behaviour records
     assert.equal(evidence.outcome, "failed"); assert.match(evidence.error, /did not match/);
     assert.equal(await readFile(path.join(f.project, "app.js"), "utf8"), "export const value = 1;\n");
   } finally { await f.close(); }
+});
+
+
+test("a timed-out builder is saved and automatically resumes in a fresh sandbox through all verification", async () => {
+  const f = await fixture([item("api")], "changed");
+  try {
+    f.env.FLOW_MODE = "timeout"; f.env.HARNESS_AGENT_TIMEOUT = "1";
+    const stopped = await f.run("work", "api");
+    assert.notEqual(stopped.code, 0); assert.match(stopped.text, /harness work --resume r1/);
+    assert.equal(await readFile(path.join(f.project,"app.js"),"utf8"), "export const value = 1;\n");
+    const first = (await f.calls())[0]!;
+    await assert.rejects(readFile(path.join(first.work,"app.js")), {code:"ENOENT"});
+    assert.match((await f.run("look")).text, /unverified.*r1|r1.*unverified/i);
+    f.env.FLOW_MODE = "resume"; f.env.HARNESS_AGENT_TIMEOUT = "5";
+    const resumed = await f.run("work");
+    assert.equal(resumed.code,0,resumed.text); assert.match(resumed.text,/Resuming.*r1/);
+    const calls = await f.calls();
+    assert.notEqual(calls.filter(c=>c.kind === "builder")[1]!.work,first.work);
+    for (const kind of ["gate","reviewer","acceptance"]) assert.ok(calls.some(c=>c.kind===kind),kind);
+    assert.equal(await readFile(path.join(f.project,"app.js"),"utf8"), "export const value = 2;\n");
+    const runs = (await readRecord(f.project)).runs;
+    assert.equal(runs[0]!.outcome,"error"); assert.equal(runs[1]!.outcome,"applied");
+    assert.equal(runs[0]!.usage?.totalTokens,10);assert.equal(runs[1]!.usage?.totalTokens,20);
+    assert.equal(runs[1]!.resumedFrom,"r1"); assert.equal(runs[0]!.baselineDigest,runs[1]!.baselineDigest);
+    assert.equal(JSON.parse(await readFile(path.join(harnessDirectory(f.project),"implementation/r1/state.json"),"utf8")).status,"completed");
+  } finally {await f.close();}
+});
+
+test("stale checkpoint refuses dispatch, explicit fresh starts from live source and retains the snapshot", async () => {
+  const f = await fixture([item("api")],"completed");
+  try {
+    f.env.FLOW_MODE="timeout"; f.env.HARNESS_AGENT_TIMEOUT="1";
+    await f.run("work","api");
+    await writeFile(path.join(f.project,"new.txt"),"operator change");
+    f.env.FLOW_MODE="completed";
+    const stale=await f.run("work","--resume","r1");
+    assert.notEqual(stale.code,0); assert.match(stale.text,/changed/);
+    assert.equal((await f.calls()).filter(c=>c.kind==="builder").length,1);
+    const fresh=await f.run("work","--fresh","api");
+    assert.equal(fresh.code,0,fresh.text);
+    assert.equal(await readFile(path.join(f.project,"app.js"),"utf8"),"export const value = 1;\n");
+    const state=JSON.parse(await readFile(path.join(harnessDirectory(f.project),"implementation/r1/state.json"),"utf8"));
+    assert.equal(state.status,"discarded");
+    assert.equal(await readFile(path.join(harnessDirectory(f.project),"implementation/r1/source/app.js"),"utf8"),"export const value = 2;\n");
+  } finally {await f.close();}
+});
+
+test("resumed broken implementation still fails gates and applies nothing", async () => {
+ const f=await fixture([item("api")],"changed");
+ try {
+  f.env.FLOW_MODE="timeout";f.env.HARNESS_AGENT_TIMEOUT="1";await f.run("work","api");
+  // Make project assertions exercise the restored code through the candidate; this test belongs in the original baseline.
+  f.env.FLOW_MODE="resume-bad";f.env.HARNESS_AGENT_TIMEOUT="5";
+  const result=await f.run("work","--resume","r1");
+  assert.notEqual(result.code,0,result.text);
+  assert.equal(await readFile(path.join(f.project,"app.js"),"utf8"),"export const value = 1;\n");
+  assert.match(result.text,/Resuming.*r1/);
+  assert.equal((await readRecord(f.project)).runs.at(-1)?.outcome,"gate-failed");
+ }finally{await f.close();}
+});
+
+
+test("a second-attempt timeout retains its diagnosis and attempt budget; another timeout supersedes only after saving", async()=>{
+ const f=await fixture([item("api")],"changed");
+ try {
+  f.env.FLOW_MODE="gate-then-timeout";f.env.HARNESS_AGENT_TIMEOUT="1";
+  // The fixture claims no changes on its first attempt, so make that claim invalid without changing source.
+  const docker=await readFile(f.env.HARNESS_DOCKER!,"utf8");
+  await writeFile(f.env.HARNESS_DOCKER!,docker.replace("const blocked = mode", "if(mode === 'gate-then-timeout'){fs.writeFileSync(path.join(work,'.harness-claim.json'),'{}');return;}\n  const blocked = mode"));
+  const first=await f.run("work","api");assert.match(first.text,/partial work saved/);
+  const checkpointPath=path.join(harnessDirectory(f.project),"implementation/r1/state.json");
+  const saved=JSON.parse(await readFile(checkpointPath,"utf8"));assert.equal(saved.attempt,2);assert.match(saved.instruction,/original goal/i);
+  f.env.FLOW_MODE="timeout";
+  const second=await f.run("work","--resume","r1");assert.match(second.text,/harness work --resume r2/);
+  assert.equal(JSON.parse(await readFile(checkpointPath,"utf8")).status,"superseded");
+  const newest=JSON.parse(await readFile(path.join(harnessDirectory(f.project),"implementation/r2/state.json"),"utf8"));
+  assert.equal(newest.attempt,2);assert.equal(newest.instruction,saved.instruction);
+  f.env.FLOW_MODE="resume-bad";f.env.HARNESS_AGENT_TIMEOUT="5";
+  const before=(await f.calls()).filter(c=>c.kind==="builder").length;
+  const result=await f.run("work","api");assert.notEqual(result.code,0);
+  assert.equal((await f.calls()).filter(c=>c.kind==="builder").length,before+1);
+  assert.equal((await readRecord(f.project)).runs.at(-1)?.outcome,"gate-failed");
+ }finally{await f.close();}
+});
+
+for (const changed of ["approval","model"] as const) test(`resume refuses changed ${changed} before a model request`,async()=>{
+ const f=await fixture([item("api")],"changed");
+ try {
+  f.env.FLOW_MODE="timeout";f.env.HARNESS_AGENT_TIMEOUT="1";await f.run("work","api");
+  if(changed==="approval"){
+   const file=path.join(f.root,"checks.json");const draft=JSON.parse(await readFile(file,"utf8"));draft.cases[0].steps[0].stdout="99\n";await writeFile(file,JSON.stringify(draft));await approveChecks(f.project,file);
+  }else {f.env.HARNESS_MODEL="other";const catalog=path.join(f.root,"node_modules/@earendil-works/pi-ai/dist/compat.js");await writeFile(catalog,(await readFile(catalog,"utf8")).replace("id === 'fixture'","['fixture','other'].includes(id)"));}
+  const result=await f.run("work","api");assert.notEqual(result.code,0);assert.match(result.text,/changed/);
+  assert.equal((await f.calls()).filter(c=>c.kind==="builder").length,1);
+ }finally{await f.close();}
+});
+
+
+test("resumed code passing project tests and review still needs approved acceptance",async()=>{
+ const f=await fixture([item("api")],"changed");
+ try {
+  f.env.FLOW_MODE="timeout";f.env.HARNESS_AGENT_TIMEOUT="1";await f.run("work","api");
+  f.env.FLOW_MODE="resume-wrong";f.env.HARNESS_AGENT_TIMEOUT="5";
+  const result=await f.run("work","--resume","r1");assert.notEqual(result.code,0);assert.match(result.text,/acceptance.*did not match/);
+  const run=(await readRecord(f.project)).runs.at(-1)!;assert.equal(run.outcome,"gate-failed");assert.ok(run.acceptance);assert.equal(run.resumedFrom,"r1");
+  assert.equal(await readFile(path.join(f.project,"app.js"),"utf8"),"export const value = 1;\n");
+ }finally{await f.close();}
 });

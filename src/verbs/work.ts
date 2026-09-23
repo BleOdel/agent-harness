@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { assertCheckpointInputs, findWorkCheckpoint, listWorkCheckpoints, restoreWorkCheckpoint, retireWorkCheckpoint, saveWorkCheckpoint } from "../workspace/work-checkpoints.ts";
 import { modelLabel } from "../model-settings.ts";
 import { contractContext } from "../acceptance/draft.ts";
 import { getAdapter } from "../adapters/registry.ts";
@@ -25,7 +27,7 @@ import { requireChecks, verifyAcceptance, assertAcceptanceProof, AcceptanceFailu
 
 import { withWriter } from "../workspace/writer-lock.ts";
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { type AgentUsage, describeUsage, emptyUsage } from "../agent/events.ts";
 import { executeAndSubmit, briefing } from "../agent/execute.ts";
@@ -149,7 +151,14 @@ function limitsFrom(environment: NodeJS.ProcessEnv): Limits {
 }
 
 async function workUnlocked(argv: readonly string[]): Promise<void> {
-  const goal = argv.join(" ").trim();
+  const args = [...argv];
+  const fresh = args[0] === "--fresh";
+  const resumeId = args[0] === "--resume" ? args[1] : undefined;
+  if (args[0] === "--resume" && (args.length !== 2 || !/^r[1-9][0-9]*$/.test(resumeId ?? "")))
+    throw new OperatorError("Use harness work --resume <run-id>.");
+  if (fresh) args.shift();
+  if (!resumeId && args.some(arg => arg.startsWith("--"))) throw new OperatorError("Use harness work [item], work --resume <run-id>, or work --fresh [item].");
+  let goal = resumeId ? "" : args.join(" ").trim();
 
   let config;
   try {
@@ -159,11 +168,16 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
     throw error;
   }
 
-  const project = path.resolve(setting(process.env, "HARNESS_PROJECT") ?? process.cwd());
+  const project = await realpath(path.resolve(setting(process.env, "HARNESS_PROJECT") ?? process.cwd()));
   const testCommand = await projectTestCommand(project, setting(process.env, "HARNESS_TEST_COMMAND"));
   const counterSource = await readFile(counterPath(), "utf8");
 
+  let checkpoint = resumeId ? await findWorkCheckpoint(project, undefined, resumeId) : undefined;
+  if (checkpoint) goal = checkpoint.goal;
   const work = await resolveWork(project, goal);
+  const task = work.feature?.id ?? goal;
+  checkpoint ??= fresh ? undefined : await findWorkCheckpoint(project, task);
+  const workDigest = createHash("sha256").update(JSON.stringify({title:work.title, criteria:work.criteria, feature:work.feature, limits:limitsFrom(process.env)})).digest("hex");
   if (work.feature !== undefined) say(`item: ${work.title}`);
 
   const acceptanceTasks = [work.feature?.id ?? goal];
@@ -218,6 +232,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       goal: work.feature?.id ?? goal,
       attempts,
       outcome,
+      ...(checkpoint ? { resumedFrom: checkpoint.runId } : {}),
       ...(execution ? { execution, observedSkillReads: [...observedReads] } : {}),
       baselineDigest: baseline.digest,
       ...(candidateDigest === undefined ? {} : { candidateDigest }),
@@ -309,9 +324,24 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       if (work.feature !== undefined) await markStatus(project, work.feature.id, "blocked");
       throw await stop("environment-blocked", "environment-blocked: clean dependencies are unavailable", error.message, { requestedInput: error.message });
     }
+    const checkpointInputs = {goal:task, workDigest, approvalDigest:approvedChecks.digest, executionDigest:execution!.digest, baseline};
+    if (checkpoint) {
+      try {
+        assertCheckpointInputs(checkpoint, checkpointInputs);
+        await restoreWorkCheckpoint(checkpoint, sandbox.workDirectory);
+      } catch (error) {
+        throw await stop("error", (error as Error).message, error instanceof OperatorError ? error.remedy : "Saved work was retained. Inspect the checkpoint before retrying.");
+      }
+      say(`Resuming unverified work from ${checkpoint.runId}, attempt ${checkpoint.attempt}, in a fresh sandbox.`);
+      say("Pi starts a fresh session with the saved files and task instructions. All verification will run again.");
+    } else if (fresh) {
+      for (const previous of await listWorkCheckpoints(project)) if (previous.goal === task) await retireWorkCheckpoint(previous, "discarded", runId);
+      say("Starting from current project source. Older partial snapshots are retained for inspection.");
+    }
     say(`Model: ${modelLabel(config)}`);
     let instruction = (briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs", work.feature?.planContext) + contractContext(approvedChecks, acceptanceTasks));
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
+    if (checkpoint) instruction = checkpoint.instruction;
+    for (let attempt = checkpoint?.attempt ?? 1; attempt <= 2; attempt += 1) {
       attempts = attempt;
       if (attempt > 1) say(`\nattempt ${String(attempt)}, with a diagnosis`);
       await mark("building");
@@ -320,7 +350,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       const built = await executeAndSubmit(
         layout,
         {
-          goal: instruction,
+          goal: checkpoint ? "Continue the saved, unverified partial implementation already in this directory. Inspect it before changing it: a timeout may have interrupted an edit or a deliberate mutation test. Finish the task, rerun validation and write a fresh claim.\n\n" + instruction : instruction,
           provider: config.provider,
           model: config.model,
           effort: config.effort ?? "medium",
@@ -351,7 +381,16 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       say(describeUsage(spent));
 
       if (agent.timedOut) {
-        throw await stop("error", `agent: timed out after ${String(Math.round(config.agentTimeoutMs / 1000))}s`, "");
+        let saved;
+        try {
+          saved = await saveWorkCheckpoint(project, runId, sandbox.workDirectory, {...checkpointInputs, attempt, instruction});
+        } catch (error) {
+          throw await stop("error", "agent: timed out; partial work could not be checkpointed", `Nothing was applied. ${(error as Error).message}`);
+        }
+        if (checkpoint) await retireWorkCheckpoint(checkpoint, "superseded", runId);
+        throw await stop("error", `agent: timed out after ${String(Math.round(config.agentTimeoutMs / 1000))}s; unverified partial work saved`,
+          `Saved source: ${path.join(saved.directory, "source")}\nContinue with: harness work --resume ${runId}\nRunning harness work for this item also resumes it. Use harness work --fresh <item-id> to start again. Nothing was applied.`,
+          {implementationCheckpoint:runId});
       }
       if (agent.providerError) throw await stop("error", `agent: ${agent.providerError}`, "Restore provider authentication or resolve the provider error before retrying.");
       if (agent.code !== 0) throw await stop("error", `agent: exited ${String(agent.code)}`, agent.stderr);
@@ -433,6 +472,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
           goal: work.feature?.id ?? goal,
           attempts: attempt,
           outcome: "no-changes",
+          ...(checkpoint ? { resumedFrom:checkpoint.runId } : {}),
           execution: execution!, observedSkillReads: [...observedReads], baselineDigest: baseline.digest, candidateDigest: candidate.digest, ...(environmentKey ? { environmentKey } : {}),
           gates: gateSummaries,
           changes: [],
@@ -451,6 +491,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
             }
           }),
         });
+        if (checkpoint) await retireWorkCheckpoint(checkpoint, "completed", runId);
         say("no changes. nothing was applied.");
         return;
       }
@@ -554,6 +595,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
         goal: work.feature?.id ?? goal,
         attempts: attempt,
         outcome: "applied",
+        ...(checkpoint ? { resumedFrom:checkpoint.runId } : {}),
         ...(execution ? { execution, observedSkillReads: [...observedReads] } : {}),
         baselineDigest: baseline.digest,
         candidateDigest: candidate.digest,
@@ -577,6 +619,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
           }
         }),
       });
+      if (checkpoint) await retireWorkCheckpoint(checkpoint, "completed", runId);
       // node_modules is never applied, so a run that added a package
       // brings back the declaration without the package. Every gate
       // passed inside the sandbox, where it was installed; on this

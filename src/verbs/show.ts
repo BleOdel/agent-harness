@@ -1,3 +1,4 @@
+import { listWorkCheckpoints } from "../workspace/work-checkpoints.ts";
 /**
  *   show <run-id>
  *
@@ -35,6 +36,9 @@ export async function show(project: string, argv: readonly string[]): Promise<vo
 
   say(`${run.id}  ${localTime(run.at)}  ${run.outcome}`);
   say(`goal: ${run.goal}`);
+  if (run.resumedFrom) say(`resumed from: ${run.resumedFrom}; this run records only its own usage`);
+  const saved = (await listWorkCheckpoints(project)).find(c => c.runId === wanted);
+  if (saved) {say(`Unverified partial source: ${path.join(saved.directory,"source")}`);say(`Continue with: harness work --resume ${saved.runId}`);}
   if (run.attempts > 1) say(`attempts: ${String(run.attempts)}`);
   say();
   for (const gate of run.gates) say(`  ${gate}`);
@@ -47,7 +51,7 @@ export async function show(project: string, argv: readonly string[]): Promise<vo
   say();
 
   if (run.changes.length === 0) {
-    say("(no files changed)");
+    say("(no files applied)");
     return;
   }
 

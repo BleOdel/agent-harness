@@ -1,3 +1,4 @@
+import { listWorkCheckpoints } from "../workspace/work-checkpoints.ts";
 import { listReleases } from '../releases/store.ts';
 /**
  *   look
@@ -50,6 +51,7 @@ export async function look(project: string): Promise<void> {
   if (artifacts.length) say(`${artifacts.length} retained artifacts. Inspect with harness artifacts list; nothing published.`);
   const teams = await readTeams(project);
   if (teams.length) { say("TEAMS"); say(formatTeams(teams)); say(); }
+  for (const saved of await listWorkCheckpoints(project)) say(`SAVED IMPLEMENTATION ${saved.runId} · ${saved.goal} · unverified · resume: harness work --resume ${saved.runId}`);
   const { runs, malformed } = await readRecord(project);
   const list = await readFeatures(project);
 

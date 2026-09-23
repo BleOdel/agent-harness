@@ -13,7 +13,7 @@
  */
 
 import { atomicBytes } from "../workspace/atomic.ts";
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { Change } from "../workspace/changes.ts";
 
@@ -68,6 +68,8 @@ export interface RunRecord {
   /** Set on an undo run, naming the run it reversed. */
   readonly reverses?: string;
   readonly teamRunId?: string;
+  readonly resumedFrom?: string;
+  readonly implementationCheckpoint?: string;
   readonly taskIds?: readonly string[];
   readonly transactionId?: string;
 }
@@ -105,7 +107,10 @@ export async function nextRunId(project: string): Promise<string> {
   const { runs, malformed } = await readRecord(project);
   // Counts malformed lines too. Reusing an id because a line could not be
   // parsed would make two different runs share one recovery directory.
-  return `r${String(runs.length + malformed.length + 1)}`;
+  // A timeout checkpoint can be published immediately before an interrupted record append.
+  const checkpoints = await readdir(path.join(harnessDirectory(project), "implementation")).catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return []; throw error; });
+  const highest = [...runs.map(r => r.id), ...checkpoints].filter(id => /^r[1-9][0-9]*$/.test(id)).reduce((n,id) => Math.max(n,Number(id.slice(1))),0);
+  return `r${String(Math.max(highest, runs.length + malformed.length) + 1)}`;
 }
 
 export async function appendRun(project: string, run: RunRecord): Promise<void> {

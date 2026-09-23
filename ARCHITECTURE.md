@@ -278,6 +278,40 @@ without the team's serial merge, staging or batch journal.
 Implementation: [controller](src/team/controller.ts), [worker](src/team/worker.ts),
 [scheduler](src/team/scheduler.ts), [integration](src/team/integrate.ts).
 
+## Ordinary implementation checkpoints
+
+```mermaid
+flowchart TD
+  B["Builder in disposable sandbox"] --> T{"Builder timed out?"}
+  T -->|Yes: confirm container cleanup| S["Bounded regular source snapshot; original baseline, task, approval and execution identities"]
+  S --> P["Flush source and metadata; atomically publish implementation/rN"]
+  P --> X["Record timeout; remove disposable workspace; live source unchanged"]
+  X -->|Operator: work or work --resume rN| C{"Inputs and saved source still match?"}
+  C -->|No| R["Refuse dispatch; retain checkpoint for inspection"]
+  C -->|Yes| F["Fresh sandbox and dependencies; restore partial source and current diagnosis"]
+  F --> B
+  T -->|No: completed normally| V["Freeze candidate against original live baseline"]
+  V --> G["All gates, independent review, approved acceptance and identity checks"]
+  G -->|Pass| A["Apply; record current usage and resumedFrom; retire checkpoint"]
+```
+
+A checkpoint is not a candidate or an acceptance proof. Publication is host-owned,
+after the worker is stopped, and the saved source is never directly applied.
+Restoration preserves source additions/deletions while excluding prior claims and
+generated dependencies. The fresh Pi session receives the original instruction,
+including the latest repair diagnosis; its original attempt number is retained.
+Timeout changes are permitted, while changed inputs require restoration or an
+explicit `work --fresh`. Repeated timeouts publish a new checkpoint before retiring
+the parent. Run IDs account for published checkpoints even if record append was
+interrupted. Incomplete `.pending-*` directories are not resumable.
+
+Only handled builder timeouts create this checkpoint. Arbitrary controller death,
+reviewer/provider errors and old deleted workspaces are not recovered by it.
+
+Implementation: [checkpoint store](src/workspace/work-checkpoints.ts),
+[ordinary work](src/verbs/work.ts). `test/work-resume-docker.test.ts` exercises a real
+Docker timeout and continuation using a deterministic fake Pi with no provider calls.
+
 ## Acceptance evidence boundary
 
 ```mermaid

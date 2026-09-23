@@ -98,7 +98,7 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
           if (list?.features.length) {
             const history = await readRecord(project);
             const next = chooseNext(list.features, id => history.runs.filter(r => r.goal === id).at(-1)?.outcome).next;
-            if (next) actions.push({ label: `Build next: ${next.title}`, async run() {
+            if (next) actions.push({ label: `Build or resume next: ${next.title}`, async run() {
               io.write(`${next.title}: ${next.criteria.join("; ")}`);
               const status = await readiness(project);
               if (!status.ready) { for (const c of status.checks.filter(c => c.status === "missing" || c.status === "blocked")) io.write(c.message); io.write(`Next: ${status.next}`); return; }
