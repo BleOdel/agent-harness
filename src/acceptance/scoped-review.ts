@@ -1,5 +1,5 @@
-import {recipePrompt,recipeDescription} from './recipes/catalog.ts';
-import {serverRuntimeReview} from './server-runtime.ts';
+import {recipePrompt,recipeDescription,assertRecipeStep} from './recipes/catalog.ts';
+import {serverRuntimeReview,assertServerRuntimes} from './server-runtime.ts';
 import type {RepairResponseOptions} from './repair-response.ts';
 /** Reviews bind to exact scope bytes. Only changed scopes consume another model review. */
 import {createHash} from 'node:crypto';
@@ -102,7 +102,15 @@ export async function reviewScopes(task:Feature,original:Proposal,services:Servi
   if(entry.pendingRepair){const pending=entry.pendingRepair;if(!services.durableRepairs||scope==='$contract'||entry.review?.verdict==='pass'||typeof pending.syntax!=='boolean'||!Number.isInteger(pending.attempt)||pending.attempt<1||pending.attempt>2||pending.attempt!==(pending.syntax?entry.syntaxRepairs:entry.repairs)||!Array.isArray(pending.issues)||!pending.issues.length||pending.issues.some(s=>typeof s!=='string'||!s.trim())||(!pending.syntax&&JSON.stringify(pending.issues)!==JSON.stringify(entry.review?.issues)))throw new OperatorError('Invalid saved pending repair.');}
   if(!old)ledger.entries.push(entry);
   const label=scope==='$contract'?'Interface and behaviour outline':p.manifest.cases.find(c=>c.id===scope)!.description!;
-  if(entry.review?.verdict==='pass'){services.progress?.(`Already reviewed: ${label}`);continue;}
+  const selected=p.manifest.cases.find(c=>c.id===scope);
+  for(const step of selected?.steps??[]) {
+   try {assertRecipeStep(step);}
+   catch(error){throw new OperatorError(`${scope}: ${(error as Error).message}`,`Run harness checks use-recipe ${scope} to refresh and independently review this recipe. Other saved checks are retained.`);}
+  }
+  if(entry.review?.verdict==='pass'){
+   if(selected)assertServerRuntimes({version:1,cases:[selected]});
+   services.progress?.(`Already reviewed: ${label}`);continue;
+  }
   for(;;){
    await services.save(p,ledger);
    if(entry.pendingRepair){services.progress?.(`Resuming saved repair: ${label}`);p=await repair(scope,entry.pendingRepair.issues,entry.pendingRepair.syntax);continue;}

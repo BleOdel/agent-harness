@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { type Feature } from '../features.ts';
-import { parseChecks, type Approval, type CheckManifest } from './checks.ts';
+import { parseCheckDraft, type Approval, type CheckManifest } from './checks.ts';
 import { loadConfig } from '../config.ts';
 import { captureBaseline, assertLiveBaseline } from '../workspace/candidate.ts';
 import { privateAgentDirectory } from '../team/inputs.ts';
@@ -24,7 +24,7 @@ export const taskDigest = (task: Feature): string => createHash('sha256').update
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 export function parseProposal(raw: unknown, task: Feature): Proposal {
  if (!object(raw) || raw.version !== 1 || typeof raw.contract !== 'string' || !raw.contract.trim() || !Array.isArray(raw.coverage)) throw new OperatorError('Check draft needs a contract and criterion coverage.');
- const manifest = parseChecks(raw.manifest);
+ const manifest = parseCheckDraft(raw.manifest);
  for (const c of manifest.cases) {
   if (c.tasks.length !== 1 || c.tasks[0] !== task.id) throw new OperatorError('Draft checks must cover only the selected task.');
   if (!c.description?.trim()) throw new OperatorError('Each draft case needs a plain-language description.');

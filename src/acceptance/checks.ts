@@ -33,6 +33,13 @@ const json = (text: string, name: string): unknown => {
 };
 const strings=(v:unknown):v is string[]=>Array.isArray(v)&&v.length>0&&v.every(s=>typeof s==="string"&&s.trim());
 export function parseChecks(raw:unknown):CheckManifest{
+ return parseManifest(raw,false);
+}
+/** Retain old pins only in unapproved drafts so an explicit repair can refresh them. */
+export function parseCheckDraft(raw:unknown):CheckManifest{
+ return parseManifest(raw,true);
+}
+function parseManifest(raw:unknown,allowStaleRecipePin:boolean):CheckManifest{
  if(!object(raw)||raw.version!==1||!Array.isArray(raw.cases)||!raw.cases.length)throw new OperatorError("Acceptance checks need version: 1 and at least one case.");
  const ids=new Set<string>();
  for(const entry of raw.cases){
@@ -42,7 +49,8 @@ export function parseChecks(raw:unknown):CheckManifest{
   if (entry.taskDigest !== undefined && (!/^[a-f0-9]{64}$/u.test(entry.taskDigest as string) || entry.tasks.length !== 1 || entry.tasks[0] === "*")) throw new OperatorError(`${entry.id}: task fingerprint requires exactly one named task.`);
   for(const step of entry.steps){
    if(!object(step)||!Array.isArray(step.command)||!step.command.length||typeof step.command[0]!=="string"||!step.command[0].trim()||step.command.some(v=>typeof v!=="string"||v.includes("\0"))||!Number.isInteger(step.exitCode)||(step.exitCode as number)<0||(step.exitCode as number)>255)throw new OperatorError(`${entry.id}: each step needs a command array and exitCode.`);
-   assertRecipeStep(step as unknown as CheckStep);
+   try {assertRecipeStep(step as unknown as CheckStep,{allowStalePin:allowStaleRecipePin});}
+   catch(error){throw new OperatorError(`${entry.id}: ${(error as Error).message}`,`Use harness checks use-recipe ${entry.id} to refresh the saved recipe and review it before approval.`);}
    if(step.serverRuntime!==undefined && (typeof step.serverRuntime!=="string" || !/^[a-f0-9]{64}$/u.test(step.serverRuntime)))throw new OperatorError(`${entry.id}: invalid server runtime digest.`);
    if(step.assetRuntime!==undefined && (typeof step.assetRuntime!=="string" || !/^[a-f0-9]{64}$/u.test(step.assetRuntime)))throw new OperatorError(`${entry.id}: invalid asset runtime digest.`);
    if(step.stdout!==undefined&&typeof step.stdout!=="string")throw new OperatorError(`${entry.id}: stdout must be exact text.`);

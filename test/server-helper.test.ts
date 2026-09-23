@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import {spawn} from 'node:child_process';
 import {once, EventEmitter} from 'node:events';
+import {PassThrough} from 'node:stream';
 import {withServer, stopProcess} from '../src/acceptance/runtime/server.mjs';
 
 const ready = /^Listening at (http:\/\/127\.0\.0\.1:\d+)$/;
@@ -57,4 +58,42 @@ test('output overflow is a failure rather than silent truncation',async()=>{
 });
 test('output limits also apply during shutdown after application observations finish',async()=>{
  await assert.rejects(withServer({...options,maxOutputBytes:256,command:[process.execPath,'--input-type=module','-e',`process.on('SIGTERM',()=>{process.stdout.write('x'.repeat(1024));});${script}`]},async()=>{}),/output limit/);
+});
+test('shutdown drains stdout and stderr after exit, including an already-exited child',async()=>{
+ for(const alreadyExited of [false,true]){
+  const child=new EventEmitter() as any;
+  child.exitCode=alreadyExited?0:null;child.signalCode=null;
+  child.stdout=new PassThrough();child.stderr=new PassThrough();
+  let out='',err='';child.stdout.on('data',(chunk:Buffer)=>{out+=chunk;});child.stderr.on('data',(chunk:Buffer)=>{err+=chunk;});
+  child.unref=()=>{};
+  child.kill=()=>{child.signalCode='SIGTERM';child.emit('exit',null,'SIGTERM');return true;};
+  const late=setTimeout(()=>{child.stdout.end('shutdown-private-key');child.stderr.end('shutdown-private-note');},20);
+  try{
+   await stopProcess(child,{timeoutMs:300});
+   assert.equal(out,'shutdown-private-key');assert.equal(err,'shutdown-private-note');
+   assert.equal(child.stdout.readableEnded,true);assert.equal(child.stderr.readableEnded,true);
+   await stopProcess(child,{timeoutMs:300});
+  }finally{clearTimeout(late);child.stdout.destroy();child.stderr.destroy();}
+ }
+});
+test('shutdown rejects undrained or prematurely closed logs and releases their handles',async()=>{
+ for(const prematurelyClosed of [false,true]){
+  const child=new EventEmitter() as any;child.exitCode=0;child.signalCode=null;
+  child.stdout=new PassThrough();child.stderr=new PassThrough();child.stdout.resume();child.stderr.resume();child.unref=()=>{};
+  if(prematurelyClosed){child.stdout.destroy();child.stderr.destroy();}
+  const start=Date.now();
+  await assert.rejects(stopProcess(child,{timeoutMs:25}),/output.*not.*drained/i);
+  assert.ok(Date.now()-start<1000);assert.equal(child.stdout.destroyed,true);assert.equal(child.stderr.destroyed,true);
+  assert.equal(child.stdout.listenerCount('end'),0);assert.equal(child.stderr.listenerCount('end'),0);
+ }
+});
+test('stop retains complete shutdown output on both pipes across restarts',async()=>{
+ const tail='x'.repeat(96*1024)+'PRIVATE-SHUTDOWN-MARKER';
+ const code=`const tail='x'.repeat(96*1024)+'PRIVATE-SHUTDOWN-MARKER';process.on('SIGTERM',()=>{let pending=2;const done=()=>{if(--pending===0)process.exit(0);};process.stdout.write(tail,done);process.stderr.write(tail,done);});console.log('Listening at http://127.0.0.1:1234');setInterval(()=>{},1000);`;
+ await withServer({...options,command:[process.execPath,'-e',code],stopTimeoutMs:1000},async app=>{
+  await app.stop();assert.equal(app.stdout,'Listening at http://127.0.0.1:1234\n'+tail);assert.equal(app.stderr,tail);
+  await app.stop();assert.equal(app.stderr,tail);
+  await app.restart();await app.stop();
+  assert.equal(app.stdout,('Listening at http://127.0.0.1:1234\n'+tail).repeat(2));assert.equal(app.stderr,tail.repeat(2));
+ });
 });

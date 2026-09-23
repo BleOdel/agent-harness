@@ -11,10 +11,13 @@ export const RECIPE_DIGEST=createHash('sha256').update(runner).update(schema).up
 export function compileRecipe(raw:unknown):CheckStep{
  const recipe=parseWebRecipe(raw);return {command:['node','--no-warnings',RECIPE_MODULE,JSON.stringify(recipe)],exitCode:0,recipeRuntime:RECIPE_DIGEST,recipe};
 }
-export function assertRecipeStep(step:CheckStep):void {
+export function assertRecipeStep(step:CheckStep,options:{allowStalePin?:boolean}={}):void {
  if(!step.recipe&&step.recipeRuntime===undefined&&!step.command.some(a=>a.includes(RECIPE_MODULE)))return;
  if(!step.recipe)throw Error('Recipe settings are missing.');
  const canonical=compileRecipe(step.recipe);
+ // Draft recovery may retain an old fingerprint, but cannot alter executable
+ // arguments, recipe settings or host expectations. Approval remains strict.
+ if(options.allowStalePin && typeof step.recipeRuntime==='string' && /^[a-f0-9]{64}$/u.test(step.recipeRuntime))canonical.recipeRuntime=step.recipeRuntime;
  if(JSON.stringify(step)!==JSON.stringify(canonical)){
   const sorted=(s:unknown)=>JSON.stringify(Object.entries(s as object).sort(([a],[b])=>a.localeCompare(b)));
   if(sorted(step)!==sorted(canonical))throw Error('Recipe command, pin or host expectations changed. Reconfigure and review this recipe.');

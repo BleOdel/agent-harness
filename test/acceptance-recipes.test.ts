@@ -33,3 +33,14 @@ test('a reviewed routine outline compiles from saved settings with zero model ge
  const p=await prepareInParts('/no-such-project',task,'',undefined,async()=>{},()=>{},saved);
  assert.equal(p.manifest.cases[0]!.steps[0]!.recipe?.kind,'node-web-sqlite');assert.deepEqual(p.manifest.cases[0]!.steps[0]!.recipe?.publicPaths,['/api/feed']);assert.equal('validation' in p,false);
 });
+
+test('draft recovery preserves a well-formed stale pin without accepting altered commands or expectations',async()=>{
+ const {parseProposal}=await import('../src/acceptance/draft.ts');
+ const task={id:'app',title:'App',status:'todo' as const,priority:'must' as const,dependsOn:[],criteria:['Inspect web assets.']};
+ const wrap=(step:unknown)=>({version:1,contract:'Saved contract.',coverage:[{criterion:1,cases:['web']}],manifest:{version:1,cases:[{id:'web',description:'Inspect web assets.',tasks:['app'],steps:[step]}]}});
+ const step={...compileRecipe(spec),recipeRuntime:'0'.repeat(64)};
+ const draft=parseProposal(wrap(step),task);assert.deepEqual(draft.manifest.cases[0]!.steps[0],step);
+ assert.throws(()=>parseChecks(draft.manifest));
+ assert.ok((await syntaxIssues(draft)).length>0);
+ for(const bad of [{...step,recipeRuntime:undefined},{...step,recipeRuntime:'invalid'},{...step,command:['node','-e','console.log("pass")']},{...step,exitCode:1},{...step,stdout:'fake'},{...step,recipe:{...spec,entry:'other.js'}},{...step,serverRuntime:'0'.repeat(64)}])assert.throws(()=>parseProposal(wrap(bad),task));
+});

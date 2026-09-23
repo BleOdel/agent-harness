@@ -189,9 +189,15 @@ Neither simplification nor the retained receipts grant operator approval.
 The server helper is bundled outside project source. Acceptance snapshots its
 bytes into a read-only `/harness-checks` mount without model credentials or host
 expectations. A `serverRuntime` digest in each importing step binds those bytes to
-the proposal and approval. A different helper digest fails closed. The helper
+the proposal and approval. A different helper digest fails closed. Unapproved
+drafts may retain a well-formed stale recipe digest while preserving canonical
+commands, settings and expectations. This permits isolated repair of peer checks;
+recipe refresh still requires independent review, and approval/execution parsing
+remains strict. Cached review passes cannot hide changed runtime pins. The helper
 bounds readiness and termination waits, checks both exit and signal states,
-escalates termination, releases pipe handles, removes isolated data even on
+escalates termination, drains stdout and stderr through natural end within a bounded
+wait, then releases pipe handles. Undrained or prematurely closed output fails
+verification rather than silently omitting shutdown logs. It removes isolated data even on
 failure, and retains data across intentional restarts. Linux process-group
 signalling complements container teardown. The helper supplies lifecycle mechanics;
 application observations and their host comparisons remain separate.

@@ -1,6 +1,7 @@
 import {applyCodeRepair,requestCodeRepair,type RepairResponseOptions} from './repair-response.ts';
 export {applyCodeRepair} from './repair-response.ts';
 import {ASSET_MODULE} from './asset-runtime.ts';
+import {assertRecipeStep} from './recipes/catalog.ts';
 /** Explicit retry changes one failed executable scope; it never approves or regenerates a suite. */
 import type {Feature} from '../features.ts';
 import {type Proposal} from './draft.ts';
@@ -10,7 +11,7 @@ import {SERVER_MODULE, serverRuntimePrompt, assertServerRuntimes} from './server
 import {OperatorError} from '../verbs/io.ts';
 const RUNTIME_FINDING='The harness acceptance helper has changed or lacks a pin. Migrate to the current helper without changing application observations.';
 function staleRuntime(p:Proposal,scope:string):boolean {
- try {assertServerRuntimes({version:1,cases:p.manifest.cases.filter(c=>c.id===scope)});return false;}catch{return true;}
+ try {const cases=p.manifest.cases.filter(c=>c.id===scope);for(const c of cases)for(const s of c.steps)assertRecipeStep(s);assertServerRuntimes({version:1,cases});return false;}catch{return true;}
 }
 export function blockedScopes(task:Feature,p:Proposal,ledger:ReviewLedger):string[]{
  return ledger.entries.filter(e=>e.scope!=='$contract' && e.digest===scopeDigest(task,p,e.scope) && ((e.review?.verdict!=='pass' && (e.repairs>=2||e.syntaxRepairs>=2||e.pendingRepair!==undefined)) || staleRuntime(p,e.scope))).map(e=>e.scope);

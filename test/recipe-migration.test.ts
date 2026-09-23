@@ -35,3 +35,47 @@ test('recipe cases skip generated-code repair even when the mapping reviewer ide
  const selected={id:'boundary',description:'Inspect assets and SQLite privacy.'};const compiled=parsePreparedCase({...selected,tasks:[task.id],recipe:webSpec},task,selected);assert.equal(compiled.steps[0]!.command.includes('-e'),false);
  assert.throws(()=>parsePreparedCase({...selected,tasks:[task.id],recipe:{...webSpec,code:'unsafe'}},task,selected));
 });
+
+test('stale recipe pin does not block repair of another scope, and its refresh requires an independent review',async()=>{
+ await fixture(async(project,dir,_raw,approval)=>{
+  const {repairSavedCheck}=await import('../src/acceptance/guided.ts');
+  const {applyCodeRepair}=await import('../src/acceptance/repair-response.ts');
+  const record=JSON.parse(await readFile(path.join(dir,'review-progress.json'),'utf8'));
+  record.proposal.manifest.cases[0]=recipeCase({id:'boundary',description:'Inspect assets and SQLite privacy.'},task.id,webSpec);
+  record.proposal.manifest.cases[0].steps[0].recipeRuntime='0'.repeat(64);
+  record.proposal=parseProposal(record.proposal,task);
+  record.ledger.entries=[
+   {scope:'boundary',digest:scopeDigest(task,record.proposal,'boundary'),repairs:0,syntaxRepairs:0,review:pass},
+   {scope:'other',digest:scopeDigest(task,record.proposal,'other'),repairs:2,syntaxRepairs:0,review:{verdict:'repair',issues:['Fix probe'],limitations:[]}},
+  ];
+  await writeFile(path.join(dir,'review-progress.json'),JSON.stringify(record));
+  let reviewed=0;
+  await repairSavedCheck(project,io,'other',async(_project,t,p,scope,ledger,save)=>{
+   return reviewScopes(t,p,{syntax:async()=>[],review:async s=>{assert.equal(s,'other');reviewed++;return pass;},repair:async()=>applyCodeRepair(t,p,scope,{codes:[{step:1,code:'console.log(2-1)'}]}),save},ledger,scope);
+  });
+  assert.equal(reviewed,1);
+  const updated=JSON.parse(await readFile(path.join(dir,'review-progress.json'),'utf8'));
+  assert.deepEqual(updated.proposal.manifest.cases[0],record.proposal.manifest.cases[0]);
+  assert.deepEqual(updated.ledger.entries.find((e:any)=>e.scope==='boundary'),record.ledger.entries[0]);
+  assert.deepEqual(await readApproval(project),approval);
+  let refreshed=0;
+  await useRecipeSavedCheck(project,io,'boundary',{settings:webSpec,reviewer:async(_project,_task,p)=>{
+   refreshed++;assert.notEqual(p.manifest.cases[0]!.steps[0]!.recipeRuntime,'0'.repeat(64));return pass;
+  }});
+  const final=JSON.parse(await readFile(path.join(dir,'review-progress.json'),'utf8'));
+  assert.equal(refreshed,1);assert.deepEqual(final.proposal.manifest.cases[1],updated.proposal.manifest.cases[1]);
+  assert.deepEqual(final.ledger.entries.find((e:any)=>e.scope==='other'),updated.ledger.entries.find((e:any)=>e.scope==='other'));
+  assert.notEqual(final.ledger.entries.find((e:any)=>e.scope==='boundary').digest,record.ledger.entries[0].digest);
+  assert.deepEqual(await readApproval(project),approval);
+ });
+});
+test('a prior pass cannot hide a stale recipe pin during ordinary review',async()=>{
+ let p=original();p.manifest.cases[0]=recipeCase({id:'boundary',description:'Inspect assets and SQLite privacy.'},task.id,webSpec);
+ p.manifest.cases[0]!.steps[0]!.recipeRuntime='0'.repeat(64);p=parseProposal(p,task);
+ const ledger={version:1 as const,entries:[{scope:'boundary',digest:scopeDigest(task,p,'boundary'),repairs:0,syntaxRepairs:0,review:pass}]};
+ let requests=0;
+ await assert.rejects(reviewScopes(task,p,{syntax:async()=>[],review:async()=>{requests++;return pass;},repair:async()=>{requests++;return p;},save:async()=>{}},ledger,'boundary'),(error:any)=>{
+  assert.equal(error.name,'OperatorError');assert.match(error.remedy,/harness checks use-recipe boundary/);return true;
+ });
+ assert.equal(requests,0);
+});

@@ -27,6 +27,24 @@ function signal(child, name, group) {
     else if (!stopped(child)) child.kill(name);
   } catch (error) {if (error.code !== 'ESRCH') throw error;}
 }
+function waitForOutput(stream, timeoutMs) {
+  if (!stream || stream.readableEnded) return Promise.resolve(true);
+  if (stream.destroyed) return Promise.resolve(false);
+  return new Promise(resolve => {
+    let timer;
+    const finish = value => {
+      clearTimeout(timer);
+      stream.removeListener('end', end);stream.removeListener('close', close);stream.removeListener('error', error);
+      resolve(value);
+    };
+    const end = () => finish(true);
+    const close = () => finish(stream.readableEnded === true);
+    const error = () => finish(false);
+    stream.once('end', end);stream.once('close', close);stream.once('error', error);
+    timer = setTimeout(() => finish(stream.readableEnded === true), timeoutMs);
+    if (stream.readableEnded || stream.destroyed) close();
+  });
+}
 export async function stopProcess(child, {timeoutMs = 1000, group = false} = {}) {
   duration(timeoutMs);
   try {
@@ -36,6 +54,11 @@ export async function stopProcess(child, {timeoutMs = 1000, group = false} = {})
       signal(child, 'SIGKILL', group);
       if (!await waitForExit(child, timeoutMs)) throw Error('Server exit was not observed after SIGKILL.');
     }
+    // Exit can precede buffered log delivery. End inherited writers, then let both
+    // readable streams finish naturally before releasing their handles.
+    if (group) signal(child, 'SIGKILL', true);
+    const drained = await Promise.all([child.stdout,child.stderr].map(stream => waitForOutput(stream, timeoutMs)));
+    if (drained.some(done => !done)) throw Error('Server output was not fully drained before the shutdown deadline.');
   } finally {
     try {if (group) signal(child, 'SIGKILL', true);}
     finally {child.stdout?.destroy();child.stderr?.destroy();child.unref();}
@@ -99,6 +122,10 @@ export async function withServer(options, observe) {
               url = match[1];finish();break;
             }
           }
+        });
+        stream.once('end', () => {
+          const tail = decoder.end();
+          if (name === 'stderr') stderr += tail;else stdout += tail;
         });
       }
     });

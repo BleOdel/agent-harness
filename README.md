@@ -569,11 +569,16 @@ preparation. Explain changes in ordinary language, not probe code.
 Node server probes use a harness-owned `withServer` helper mounted read-only at
 `/harness-checks/server.mjs` during acceptance. It owns isolated temporary data,
 startup readiness waits, restarts with the same database, bounded TERM/KILL waits,
-output limits and cleanup after failures. Application assertions, request timeouts,
+output limits and cleanup after failures. Shutdown waits for stdout and stderr to
+finish naturally before returning; incomplete log drainage fails within a bounded
+timeout rather than reporting clean logs. Application assertions, request timeouts,
 HTTP statuses and database-readiness observations remain in each probe. The outer
 container remains the final process boundary. Each importing step carries a
 `serverRuntime` SHA-256 pin; changed or unpinned helper bytes block approval and
-execution until reviewed and approved again. Existing independent probes remain
+execution until reviewed and approved again. Draft recovery retains well-formed old
+recipe pins so they do not prevent repair of another check; it never silently
+updates the pin or reuses its review for new bytes. Use `harness checks use-recipe
+<case-id>` to refresh a recipe and independently review it. Existing independent probes remain
 supported; targeted repair can migrate a blocked probe without changing its
 contract or expected results.
 
