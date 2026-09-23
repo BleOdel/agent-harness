@@ -87,6 +87,17 @@ operational limits and can be adjusted on resume. Team role skill versions remai
 in the accepted inputs and dispatch events. Dependency environment keys additionally
 identify candidate manifests/lockfiles and actual runtime versions.
 
+Ordinary work review consumes candidate-bound pipeline evidence after all gates pass.
+The host checks source digest, executed test command, adapter/runner and pinned image
+before persisting `candidates/<run-id>/review-attempt-<n>.json`. The report binds the
+baseline, candidate, execution and environment identities; it carries capabilities,
+gate outcomes, skipped gates and at most 12,000 characters of diagnostic output
+(8,000 for tests, 1,000 per other gate, with truncation flags). The report travels in
+the read-only review prompt; private acceptance commands do not. Findings must
+reconcile observed results with source reasoning and label runtime uncertainty.
+Passing project tests never overrides reviewer findings or acceptance requirements.
+Each resumed implementation reruns gates and produces fresh evidence.
+
 Implementation: [adapter contract](src/adapters/contract.ts),
 [Node adapter](src/adapters/node-npm.ts), [runner contract](src/runners/contract.ts),
 [Docker runner](src/runners/docker.ts), [execution identity](src/project/execution.ts).

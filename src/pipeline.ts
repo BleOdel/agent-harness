@@ -33,6 +33,8 @@ export interface PipelineInputs {
 export interface PipelineResult {
   readonly run: GateRun;
   readonly changes: readonly Change[];
+  readonly sourceDigest?: string;
+  readonly testCommand?: readonly string[];
   readonly environmentKey?: string;
   readonly identity?: { adapter: Reference; runner: Reference; image: string; runtime: unknown };
 }
@@ -101,7 +103,7 @@ export async function runPipeline(inputs: PipelineInputs): Promise<PipelineResul
       },
     ];
     const result = await runGates(gates);
-    return { run: result, changes, environmentKey: prepared.key, identity: { adapter: adapter.reference, runner: { id: "docker", version: 1 }, image: layout.imageId, runtime: prepared.runtime } };
+    return { run: result, changes, sourceDigest: source.digest, testCommand: [...recipe.testCommand], environmentKey: prepared.key, identity: { adapter: adapter.reference, runner: { id: "docker", version: 1 }, image: layout.imageId, runtime: prepared.runtime } };
   } catch (error) {
     if (!(error instanceof EnvironmentBlocked)) throw error;
     const verdict = { ...failed("environment-blocked", "environment-blocked: clean verification inputs are unavailable", error.message), name: "environment" };

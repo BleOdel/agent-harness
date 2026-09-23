@@ -448,8 +448,16 @@ test("final review failure retains source and findings for a successful continua
   const docker=f.env.HARNESS_DOCKER!;await writeFile(docker,(await readFile(docker,"utf8")).replaceAll("mode === 'reject'","mode === 'changed'"));
   const first=await f.run("work","api");assert.notEqual(first.code,0);assert.match(first.text,/harness work --resume r1/);
   const saved=JSON.parse(await readFile(path.join(harnessDirectory(f.project),"implementation/r1/state.json"),"utf8"));assert.equal(saved.attempt,2);assert.match(saved.instruction,/works/);
+  const failed=(await readRecord(f.project)).runs.at(-1)!;
+  assert.equal(failed.outcome,"escalated");assert.ok(failed.review?.evidencePath);
+  const oldEvidence=await readFile(failed.review.evidencePath,"utf8");
+  const before=(await f.calls()).filter(c=>c.kind==="gate").length;
   f.env.FLOW_MODE="resume";const second=await f.run("work","api");assert.equal(second.code,0,second.text);
-  assert.equal((await readRecord(f.project)).runs.at(-1)?.resumedFrom,"r1");
+  const resumed=(await readRecord(f.project)).runs.at(-1)!;assert.equal(resumed.resumedFrom,"r1");assert.ok(resumed.review?.evidencePath);
+  assert.notEqual(resumed.review.evidencePath,failed.review.evidencePath);
+  assert.ok((await f.calls()).filter(c=>c.kind==="gate").length>before);
+  assert.equal(await readFile(failed.review.evidencePath,"utf8"),oldEvidence);
+  assert.equal(JSON.parse(await readFile(resumed.review.evidencePath,"utf8")).sourceDigest,resumed.candidateDigest);
  }finally{await f.close();}
 });
 
@@ -503,5 +511,24 @@ test("claim-only correction has one shared allowance across both implementation 
   f.env.FLOW_MODE="claim-only";const docker=f.env.HARNESS_DOCKER!;await writeFile(docker,(await readFile(docker,"utf8")).replaceAll("mode === 'reject'","mode === 'claim-only'"));
   const result=await f.run("work","api");assert.notEqual(result.code,0);assert.match(result.text,/harness work --resume r1/);
   const kinds=(await f.calls()).map(c=>c.kind);assert.equal(kinds.filter(k=>k==="builder").length,2);assert.equal(kinds.filter(k=>k==="claim-correction").length,1);
+ }finally{await f.close();}
+});
+
+test("review receives fresh candidate-bound runtime evidence, retains it, and cannot see private acceptance probes",async()=>{
+ const f=await fixture([item("api")],"changed");
+ try {
+  const docker=f.env.HARNESS_DOCKER!;
+  await writeFile(docker,(await readFile(docker,"utf8")).replace("} else if (kind === 'reviewer') {", `} else if (kind === 'reviewer') {
+    const prompt=args.at(-1);const raw=prompt.split('BEGIN HOST VERIFICATION EVIDENCE\\n')[1]?.split('\\nEND HOST VERIFICATION EVIDENCE')[0];
+    if(!raw)throw Error('missing verification evidence');const e=JSON.parse(raw);
+    if(e.runtime.toolchains.node!==process.version||e.runtime.image!==process.env.HARNESS_IMAGE_ID||e.runtime.network!=='none'||!e.sourceDigest||e.acceptance!=='not-run')throw Error('incorrect evidence identity');
+    const observed=e.gates.find(g=>g.name==='tests');if(!observed?.passed||!observed.output.includes('app.test.js'))throw Error('missing executed test output');
+    if(prompt.includes("console.log(value)"))throw Error('private acceptance probe leaked');
+  `));
+  const result=await f.run("work","api");assert.equal(result.code,0,result.text);
+  const record=(await readRecord(f.project)).runs.at(-1)!;assert.ok(record.review?.evidencePath);
+  const evidence=JSON.parse(await readFile(record.review.evidencePath,"utf8"));
+  assert.equal(evidence.sourceDigest,record.candidateDigest);assert.equal(evidence.baselineDigest,record.baselineDigest);assert.equal(evidence.executionDigest,record.execution?.digest);
+  assert.equal(evidence.acceptance,"not-run");assert.deepEqual(evidence.testCommand,["npm","test"]);
  }finally{await f.close();}
 });

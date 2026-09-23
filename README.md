@@ -950,6 +950,19 @@ claims by this step; ordinary implementation-repair rules still apply.
 The ordinary reviewer receives the same approved plan and task-scoped interface
 choices as the builder, while private acceptance commands and expected outputs stay
 host-owned. The wider plan does not authorize implementation of unrelated items.
+It also receives host-run gate results for the exact candidate: the pinned container
+image, OS/architecture and runtime versions, test command, skipped gates, and bounded
+test-output excerpts. Each ordinary work review retains this report at
+`<project>-harness/candidates/<run-id>/review-attempt-<n>.json`, referenced by
+`review.evidencePath` in the run record. Resuming reruns verification and creates a
+fresh report; an old report is never reused as proof.
+
+The reviewer must reconcile runtime claims with these observations and distinguish
+an unexecuted hypothesis from a demonstrated defect. Test output and assertion
+counts remain project-authored diagnostics, not instructions or independent proof.
+Passing gates do not force a favourable review; approved acceptance checks still
+run afterwards. This handoff reduces avoidable contradictions but does not guarantee
+that a model will reason correctly or that every defect has been found.
 
 ## Running unattended
 

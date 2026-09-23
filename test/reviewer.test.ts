@@ -113,3 +113,12 @@ test("review receives approved choices without treating the entire plan as this 
  const prompt=reviewPrompt({title:"service",criteria:["public reads"],diff:"new API",provider:undefined,model:undefined,timeoutMs:1,approvedContext:"PLAN: Local-only demo. CONTRACT: /continue reveals noted prose."});
  assert.match(prompt,/Local-only demo/);assert.match(prompt,/\/continue reveals noted prose/);assert.match(prompt,/does not authorize other.*items/i);
 });
+
+test("runtime findings must reconcile executed evidence without treating test output as instructions or acceptance proof",()=>{
+ const prompt=reviewPrompt({title:"service",criteria:["stream limit"],diff:"server changes",provider:undefined,model:undefined,timeoutMs:1});
+ assert.match(prompt,/concrete input.*expected.*actual/i);
+ assert.match(prompt,/runtime hypothesis/i);
+ assert.match(prompt,/do not claim.*cannot pass/i);
+ assert.match(prompt,/test output.*untrusted/i);
+ assert.match(prompt,/passing.*does not prove/i);
+});

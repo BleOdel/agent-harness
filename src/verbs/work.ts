@@ -48,6 +48,7 @@ import { EnvironmentBlocked } from "../workspace/dependencies.ts";
 import { runPipeline } from "../pipeline.ts";
 import { appendRun, harnessDirectory, nextRunId, type Outcome, readRecord, recoveryPath, type RunRecord } from "../record/record.ts";
 import { renderDiff } from "../review/diff.ts";
+import { verificationEvidence } from "../review/evidence.ts";
 import { review } from "../review/reviewer.ts";
 import {
   assertChangesAreApplicable,
@@ -555,6 +556,11 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       }
       say(`boundary: ${String(changes.length)} files, all inside the project`);
 
+      await assertSnapshot(candidate);
+      await assertExecutionCompatible(execution!, project, config, testCommand);
+      const evidence = verificationEvidence(proof, candidate.digest, baseline.digest, execution!, testCommand);
+      const evidencePath = path.join(manifests, `review-attempt-${attempt}.json`);
+      await atomicBytes(evidencePath, Buffer.from(JSON.stringify(evidence, null, 2) + "\n"));
       await mark("reviewing");
       // The last gate, and the only one about intent. Everything before
       // it asks whether the code is sound; this asks whether it is the
@@ -562,6 +568,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       const verdict = await review({ ...layout, workDirectory: candidate.directory, purpose: "review" }, {
         title: work.title,
         approvedContext,
+        verificationEvidence: evidence,
         criteria: work.criteria.length > 0
           ? work.criteria
           // Without a feature list there is nothing exact to check
@@ -579,7 +586,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
           "escalated",
           `review: ${verdict.failure}`,
           "nothing was applied. A reviewer that cannot answer is never a pass.",
-          { review: { verdict: "escalate", findings: [verdict.failure] } },
+          { review: { evidencePath, verdict: "escalate", findings: [verdict.failure] } },
         );
       }
       if (verdict.verdict === "escalate") {
@@ -608,7 +615,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
             ...(verdict.notes.length === 0 ? [] : ["Notes:", ...verdict.notes.map((entry) => `  - ${entry}`), ""]),
             "Nothing was applied. Repair the saved implementation or narrow the item.",
           ].join("\n"),
-          { review: { verdict: "escalate", findings: [...verdict.unmet, ...verdict.unaccounted] } },
+          { review: { evidencePath, verdict: "escalate", findings: [...verdict.unmet, ...verdict.unaccounted] } },
         );
       }
       say(`review: passed, ${String(work.criteria.length)} criteria accounted for`);
@@ -627,7 +634,8 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       } catch (error) {
         throw await stop("gate-failed", (error as Error).message,
           error instanceof OperatorError ? error.remedy : "Nothing applied. Inspect the failure and retry.",
-          error instanceof AcceptanceFailure ? { acceptance: error.proof } : {});
+          { review: { evidencePath, verdict: verdict.verdict, findings: [...verdict.unmet, ...verdict.unaccounted] },
+            ...(error instanceof AcceptanceFailure ? { acceptance: error.proof } : {}) });
       }
       await assertExecutionCompatible(execution!, project, config, testCommand);
       await mark("applying");
@@ -653,7 +661,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
         ...(environmentKey === undefined ? {} : { environmentKey }),
         acceptance,
         gates: [...run.verdicts.map((entry) => entry.summary), ...acceptance.summaries],
-        review: { verdict: verdict.verdict, findings: [...verdict.unmet, ...verdict.unaccounted] },
+        review: { evidencePath, verdict: verdict.verdict, findings: [...verdict.unmet, ...verdict.unaccounted] },
         changes,
         ...(spent.turns === 0 ? {} : {
           usage: {

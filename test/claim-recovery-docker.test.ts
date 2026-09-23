@@ -21,7 +21,12 @@ if(args.at(-1).includes('Correct only the completion claim')){
  if(${invalid})claim.files=[];
  const message={role:'assistant',content:[{type:'text',text:JSON.stringify(claim)}],usage:{totalTokens:10,cost:{total:0.01}}};
  for(const type of ['message_end','turn_end'])console.log(JSON.stringify({type,message}));console.log(JSON.stringify({type:'agent_end',messages:[message]}));
-}else if(args.includes('read,grep')){console.log(JSON.stringify({verdict:'pass',unmet:[],unaccounted:[],notes:[]}));}
+}else if(args.includes('read,grep')){
+ const raw=args.at(-1).split('BEGIN HOST VERIFICATION EVIDENCE\\n')[1]?.split('\\nEND HOST VERIFICATION EVIDENCE')[0];
+ if(!raw)throw Error('missing host evidence');const evidence=JSON.parse(raw);
+ if(evidence.runtime.toolchains.node!==process.version||evidence.runtime.network!=='none'||evidence.acceptance!=='not-run')throw Error('wrong runtime evidence');
+ if(!evidence.gates.some(g=>g.name==='tests'&&g.passed&&g.output.includes('app.test.js')))throw Error('missing host test observations');
+ console.log(JSON.stringify({verdict:'pass',unmet:[],unaccounted:[],notes:[]}));}
 else {if(fs.readFileSync('app.js','utf8').includes('value=1')){fs.writeFileSync('app.js','export const value=2;\\n');claim.files=[];}
 else if(fs.existsSync('.harness-claim.json'))throw Error('old claim restored');fs.writeFileSync('.harness-claim.json',JSON.stringify(claim));}`);
   const {NODE_TEST_CONTEXT:_test,NODE_OPTIONS:_options,...inherited}=process.env;
