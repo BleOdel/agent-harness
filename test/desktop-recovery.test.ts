@@ -1,7 +1,8 @@
+import {tmpdir} from 'node:os';
 import {scaffoldDesktop} from './desktop-fixture.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,cp,writeFile,readFile,rm} from 'node:fs/promises';
+import {mkdtemp,cp,writeFile,readFile,rm,realpath} from 'node:fs/promises';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
 import {setTimeout as delay} from 'node:timers/promises';
@@ -15,7 +16,7 @@ import {run} from '../src/run.ts';
 const configured=!!process.env.HARNESS_DESKTOP_IMAGE_ID;
 async function until<T>(f:()=>Promise<T|undefined>):Promise<T>{const end=Date.now()+45000;while(Date.now()<end){const value=await f();if(value)return value;await delay(100);}throw Error('Timed out waiting for desktop state');}
 for(const signal of ['SIGINT','SIGKILL'] as const)test(`desktop ${signal}: preserve approval, stop only owned resources and guide recovery`,{skip:!configured,timeout:90000},async t=>{
- const root=await mkdtemp('/private/tmp/desktop-recover-'),project=root+'/app';await scaffoldDesktop(project);
+ const root=await mkdtemp(path.join(await realpath(tmpdir()),'desktop-recover-')),project=root+'/app';await scaffoldDesktop(project);
  const a=await saveApproval(project,{...notesJourney,timeoutSeconds:60,steps:[{action:'text',selector:'#does-not-exist',expected:'never'}]},await inspectDesktop());
  const {NODE_TEST_CONTEXT:_,...env}=process.env;
  const child=spawn(process.execPath,[path.resolve('src/cli.ts'),'desktop','verify',a.id],{env:{...env,HARNESS_PROJECT:project},stdio:['ignore','pipe','pipe']});let log='';child.stdout.on('data',s=>{log+=s;});child.stderr.on('data',s=>{log+=s;});const closed=new Promise<void>(resolve=>child.once('close',()=>resolve()));

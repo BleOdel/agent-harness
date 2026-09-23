@@ -1,10 +1,12 @@
+import path from 'node:path';
+import {tmpdir} from 'node:os';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,rm,readFile,writeFile,symlink,readdir} from 'node:fs/promises';
+import {mkdtemp,mkdir,rm,readFile,writeFile,symlink,readdir,realpath} from 'node:fs/promises';
 import {putArtifact,releaseArtifacts,collectArtifacts,artifactBytes} from '../src/artifacts/store.ts';
 import {prepareRelease,approveRelease,dryRunRelease,stageRelease,retireRelease} from '../src/releases/controller.ts';
 import {readRelease,releaseRoot,saveRelease} from '../src/releases/store.ts';
-async function fixture(t: test.TestContext){const root=await mkdtemp('/private/tmp/release-test-'),project=root+'/project',destination=root+'/out';await mkdir(project);await mkdir(destination);t.after(()=>rm(root,{recursive:true,force:true}));const artifact=await putArtifact(project,'app.zip',Buffer.from('inert package bytes'),{producer:'fixture',input:'a'.repeat(64),environment:'b'.repeat(64),verification:'diagnostics-passed'});return {root,project,destination,artifact};}
+async function fixture(t: test.TestContext){const root=await mkdtemp(path.join(await realpath(tmpdir()),'release-test-')),project=root+'/project',destination=root+'/out';await mkdir(project);await mkdir(destination);t.after(()=>rm(root,{recursive:true,force:true}));const artifact=await putArtifact(project,'app.zip',Buffer.from('inert package bytes'),{producer:'fixture',input:'a'.repeat(64),environment:'b'.repeat(64),verification:'diagnostics-passed'});return {root,project,destination,artifact};}
 test('draft pins bytes independently, dry run writes nothing, approval binds the exact manifest, staging is idempotent',async t=>{
  const f=await fixture(t),draft=await prepareRelease(f.project,{artifact:f.artifact.id,name:'notes',version:'1.2.3',destination:f.destination});
  await releaseArtifacts(f.project,'fixture',new Set());await collectArtifacts(f.project);assert.equal((await artifactBytes(f.project,draft.manifest.snapshot.id)).toString(),'inert package bytes');

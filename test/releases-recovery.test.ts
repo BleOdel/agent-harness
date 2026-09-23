@@ -1,6 +1,8 @@
+import path from 'node:path';
+import {tmpdir} from 'node:os';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,rm,readFile} from 'node:fs/promises';
+import {mkdtemp,mkdir,rm,readFile,realpath} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
 import {putArtifact} from '../src/artifacts/store.ts';
 import {prepareRelease,approveRelease,stageRelease} from '../src/releases/controller.ts';
@@ -8,7 +10,7 @@ import {readRelease} from '../src/releases/store.ts';
 import {inspectWriter} from '../src/guide/readiness.ts';
 import {recoverWriter} from '../src/workspace/writer-lock.ts';
 for(const checkpoint of ['reserved','payload','manifest','receipt'])test(`release controller SIGKILL after ${checkpoint}: recover and stage exactly once`,{timeout:15000},async t=>{
- const root=await mkdtemp('/private/tmp/release-crash-'),project=root+'/project',out=root+'/out';await mkdir(project);await mkdir(out);
+ const root=await mkdtemp(path.join(await realpath(tmpdir()),'release-crash-')),project=root+'/project',out=root+'/out';await mkdir(project);await mkdir(out);
  const a=await putArtifact(project,'model.json',Buffer.from('{"model":"fixture"}'),{producer:'fixture',input:'a'.repeat(64),environment:'b'.repeat(64),verification:'diagnostics-passed'});
  const d=await prepareRelease(project,{artifact:a.id,name:'model',version:'1.0.0',destination:out});await approveRelease(project,d.id,d.digest);
  const script=`import {stageRelease} from ${JSON.stringify(new URL('../src/releases/controller.ts',import.meta.url).href)}; await stageRelease(process.argv[1],process.argv[2],async step=>{if(step===process.argv[3]){console.log('checkpoint');await new Promise(()=>setInterval(()=>{},1000));}});`;

@@ -1,12 +1,14 @@
+import path from 'node:path';
+import {tmpdir} from 'node:os';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,rm,readFile} from 'node:fs/promises';
+import {mkdtemp,mkdir,rm,readFile,realpath} from 'node:fs/promises';
 import {ptyRun} from './terminal-fixture.ts';
 import {init} from '../src/verbs/init.ts';
 import {putArtifact} from '../src/artifacts/store.ts';
 import {listReleases} from '../src/releases/store.ts';
 test('PTY release journey: select artifact, prepare, decline/approve, dry run, stage and inspect without copied IDs',{timeout:120000},async t=>{
- const root=await mkdtemp('/private/tmp/release-terminal-'),project=root+'/app',out=root+'/out';await mkdir(project);await mkdir(out);t.after(()=>rm(root,{recursive:true,force:true}));await init(project);
+ const root=await mkdtemp(path.join(await realpath(tmpdir()),'release-terminal-')),project=root+'/app',out=root+'/out';await mkdir(project);await mkdir(out);t.after(()=>rm(root,{recursive:true,force:true}));await init(project);
  await putArtifact(project,'app.zip',Buffer.from('terminal staging fixture'),{producer:'fixture',input:'a'.repeat(64),environment:'b'.repeat(64),verification:'diagnostics-passed'});
  const {NODE_TEST_CONTEXT:_,NODE_OPTIONS:__,...env}=process.env;
  const result=await ptyRun(root,{...env,HARNESS_PROJECT:project},`    answer('Project path (Enter to use the configured project):', '')

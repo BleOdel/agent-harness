@@ -1,11 +1,13 @@
+import path from 'node:path';
+import {tmpdir} from 'node:os';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,rm,readFile,writeFile} from 'node:fs/promises';
+import {mkdtemp,mkdir,rm,readFile,writeFile,realpath} from 'node:fs/promises';
 import {ptyRun} from './terminal-fixture.ts';
 import {listDesktopRuns} from '../src/desktop/store.ts';
 import {init} from '../src/verbs/init.ts';
 test('PTY: create desktop source, approve journey, verify, inspect and export by title',{skip:!process.env.HARNESS_DESKTOP_IMAGE_ID,timeout:180000},async t=>{
- const root=await mkdtemp('/private/tmp/desktop-terminal-'),project=root+'/notes',destination=root+'/export';await mkdir(project);t.after(()=>rm(root,{recursive:true,force:true}));
+ const root=await mkdtemp(path.join(await realpath(tmpdir()),'desktop-terminal-')),project=root+'/notes',destination=root+'/export';await mkdir(project);t.after(()=>rm(root,{recursive:true,force:true}));
  const {NODE_TEST_CONTEXT:_context,NODE_OPTIONS:_options,...env}=process.env;
  const result=await ptyRun(root,{...env,HARNESS_PROJECT:project},`    answer('Project path (Enter to use the configured project):', '')
     answer('Choose a number (0 to leave):', '3')
