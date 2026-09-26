@@ -1,5 +1,5 @@
 import {CheckRequestInterrupted} from './request-failure.ts';
-import {pinHttpRuntime} from './http-runtime.ts';
+import {pinHttpRuntime,HTTP_DIGEST,HTTP_BYTES_DIGEST} from './http-runtime.ts';
 import {CheckBudgetExceeded,ensureCheckBudget} from './budget.ts';
 /** Preserve rejected repair replies; a format correction cannot widen the host-owned edit boundary. */
 import {createHash} from 'node:crypto';
@@ -13,11 +13,17 @@ import {harnessDirectory} from '../record/record.ts';
 import {atomicWrite,readArtifact} from '../planning/store.ts';
 import {OperatorError} from '../verbs/io.ts';
 class CodeRepairFormatError extends OperatorError {}
+class ReportedRepairBlocker extends OperatorError {}
+function rejectReportedBlocker(raw:unknown):void{
+ if(!object(raw)||!Object.hasOwn(raw,'blocker'))return;
+ if(Object.keys(raw).some(k=>!['blocker','requiredResolution','codes'].includes(k))||typeof raw.blocker!=='string'||!raw.blocker.trim()||raw.blocker.length>8000||typeof raw.requiredResolution!=='string'||!raw.requiredResolution.trim()||raw.requiredResolution.length>8000||(Object.hasOwn(raw,'codes')&&(!Array.isArray(raw.codes)||raw.codes.length)))throw new OperatorError('A repair blocker must describe the issue and required resolution without executable code.');
+ throw new ReportedRepairBlocker('The repair model reported a capability or contract blocker: '+raw.blocker,'Inspect the reported harness capability or contract conflict before retrying. The model proposes: '+raw.requiredResolution+'\nNo code was applied or approved. The original response is retained; no format-correction request is needed.');
+}
 const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 export interface CodeRepairState {version:1;inputDigest:string;generationStarted:boolean;correctionStarted:boolean;generated?:unknown;corrected?:unknown;problem?:string;}
 export interface RepairResponseOptions {epoch?:number;progress?:(message:string)=>void;request?:(project:string,prompt:string)=>Promise<unknown>;}
 interface Services {request:(prompt:string)=>Promise<unknown>;save:(state:CodeRepairState)=>Promise<void>;progress?:(message:string)=>void;}
-export function repairInputDigest(task:Feature,p:Proposal,scope:string,issues:string[],epoch:number,prompt:string):string{return createHash('sha256').update(JSON.stringify({task,proposal:p,scope,issues,epoch,prompt,server:SERVER_DIGEST,assets:ASSET_DIGEST})).digest('hex');}
+export function repairInputDigest(task:Feature,p:Proposal,scope:string,issues:string[],epoch:number,prompt:string):string{return createHash('sha256').update(JSON.stringify({task,proposal:p,scope,issues,epoch,prompt,server:SERVER_DIGEST,assets:ASSET_DIGEST,http:[HTTP_DIGEST,HTTP_BYTES_DIGEST]})).digest('hex');}
 export async function recoverCodeRepair(task:Feature,p:Proposal,scope:string,issues:string[],services:Services,saved:CodeRepairState|undefined,epoch:number,prompt:string):Promise<Proposal>{
  const digest=repairInputDigest(task,p,scope,issues,epoch,prompt);
  const state:CodeRepairState=saved?structuredClone(saved):{version:1,inputDigest:digest,generationStarted:false,correctionStarted:false};
@@ -29,7 +35,7 @@ export async function recoverCodeRepair(task:Feature,p:Proposal,scope:string,iss
   try {state.generated=await services.request(prompt);}catch(error){if(error instanceof CheckBudgetExceeded||error instanceof CheckRequestInterrupted){state.generationStarted=false;await services.save(state);}throw error;}await services.save(state);
  }else services.progress?.('Reusing the saved code-repair response; no regeneration request.');
  try{return applyCodeRepair(task,p,scope,state.generated);}
- catch(error){state.problem=(error as Error).message;await services.save(state);if(!(error instanceof CodeRepairFormatError))throw new OperatorError(state.problem,remedy);}
+ catch(error){state.problem=(error as Error).message;await services.save(state);if(error instanceof ReportedRepairBlocker)throw error;if(!(error instanceof CodeRepairFormatError))throw new OperatorError(state.problem,remedy);}
  if(!Object.hasOwn(state,'corrected')){
   if(state.correctionStarted)throw new OperatorError('The one repair-response format correction was already attempted.',remedy);
   ensureCheckBudget();state.correctionStarted=true;await services.save(state);
@@ -40,7 +46,7 @@ export async function recoverCodeRepair(task:Feature,p:Proposal,scope:string,iss
   ].join('\n\n'));}catch(error){if(error instanceof CheckBudgetExceeded||error instanceof CheckRequestInterrupted){state.correctionStarted=false;await services.save(state);}throw error;}await services.save(state);
  }
  try{return applyCodeRepair(task,p,scope,state.corrected);}
- catch(error){state.problem=(error as Error).message;await services.save(state);throw new OperatorError(`Repair-response format correction was invalid: ${state.problem}`,remedy);}
+ catch(error){state.problem=(error as Error).message;await services.save(state);if(error instanceof ReportedRepairBlocker)throw error;throw new OperatorError(`Repair-response format correction was invalid: ${state.problem}`,remedy);}
 }
 export async function requestCodeRepair(project:string,task:Feature,p:Proposal,scope:string,issues:string[],prompt:string,options:RepairResponseOptions={}):Promise<Proposal>{
  const epoch=options.epoch??0;const digest=repairInputDigest(task,p,scope,issues,epoch,prompt);
@@ -51,6 +57,7 @@ export async function requestCodeRepair(project:string,task:Feature,p:Proposal,s
  catch(error){if(error instanceof CheckBudgetExceeded||error instanceof CheckRequestInterrupted)throw error;if(error instanceof OperatorError)throw new OperatorError(error.message,`${error.remedy??''}\nSaved code-repair response: ${file}`.trim());throw error;}
 }
 export function applyCodeRepair(task:Feature,p:Proposal,scope:string,raw:unknown):Proposal{
+ rejectReportedBlocker(raw);
  const response=raw as {codes?:{step:number;code:string}[]};
  if(!object(response)||Object.keys(response).some(k=>k!=='codes')||!Array.isArray(response.codes)||!response.codes.length)throw new CodeRepairFormatError('Targeted repair needs code replacements only.');
  const next=structuredClone(p), selected=next.manifest.cases.find(c=>c.id===scope);

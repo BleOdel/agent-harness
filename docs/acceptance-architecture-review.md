@@ -115,3 +115,37 @@ replays are not model reviews or evidence that the application passed acceptance
   it is not an independent model review or application acceptance pass.
 - No provider calls were made. Live blog drafts, review records and approvals were
   byte-for-byte unchanged by the replay.
+
+## Follow-up: byte-preserving HTTP evidence
+
+The final reader disclosure check exposed a capability mismatch: the legacy HTTP
+observer retains UTF-8 text, which cannot reconstruct arbitrary response bytes.
+The byte-preserving observer is versioned separately as
+`/harness-checks/http-bytes.mjs`. Its `bytes` Buffer contains fetch's response body
+before text decoding (after any HTTP content decompression). Binary disclosure
+scans and byte counts must use this Buffer directly. JSON helpers retain it too.
+
+The original `/harness-checks/http.mjs` bytes and digest remain unchanged. Adding
+this capability does not force a pin refresh or erase passing receipts for legacy
+checks. However, the same lossy reconstruction was found in two previously reviewed
+reader checks. Reviews combining legacy HTTP observation with database-byte scans and
+`Buffer.from(response.text)` reconstruction must be revisited under the lossless-evidence policy; unrelated receipts stay valid.
+This is selective review invalidation, not an automatic code change or claim of
+static-analysis completeness. A selected check may migrate under independent review;
+its expected outputs and application contract remain frozen, and final approval is
+still required. Legacy text-only checks cannot claim lossless binary evidence.
+
+A code-repair model can now return a capability/contract blocker instead of code.
+The host saves and displays that unverified report without trying to turn it into
+executable code through a format-correction request. Mixed blocker/code responses
+are rejected. Any proposed resolution must be inspected, not automatically executed.
+
+Follow-up validation: TypeScript passed; the final suite reported 643 tests,
+600 passed and 43 environment-dependent skips. Binary-response tests include
+invalid UTF-8 split across chunks and demonstrate the disclosure missed by text
+reconstruction. Deliberate byte-loss and blocker-handling mutations fail the tests.
+A read-only replay confirmed that the existing approved helper pins remain valid,
+three simplified check receipts remain reusable, and two previously passing
+binary-disclosure checks require fresh review. The final blocked check needs the
+same correction. No provider requests, application edits or approval changes were
+made during this investigation.

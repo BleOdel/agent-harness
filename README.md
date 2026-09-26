@@ -545,6 +545,10 @@ preserves the attempt's spent budget. A pending repair resumes before another
 attempt is charged, including when its final response was saved just before a crash.
 A request that never returned needs an explicit retry. Contract changes still require a
 revised outline. Repair does not approve checks or execute the application.
+A repair may instead report a missing helper capability or contract conflict. The
+host retains and surfaces that unverified blocker without spending a format request
+to turn it into code. Mixed blocker/code responses are rejected; the proposed
+resolution must be inspected rather than automatically executed.
 For supported routine behaviours the harness now owns the check implementation.
 The initial recipe, **node-web-sqlite v1**, accepts a small configuration: server
 entry file, database/port environment names, literal readiness prefix, application
@@ -681,12 +685,18 @@ The host refreshes only the affected unapproved pins and independently reviews t
 checks; it does not spend code-repair attempts merely changing a pin. Approval and
 execution still refuse stale helpers. Unchanged checks keep their completed reviews.
 
-New Node HTTP probes can use `/harness-checks/http.mjs`, with its own `httpRuntime`
-pin. The tested helper uses manual redirects, keeps headers and response text, and
-bounds request duration and body size. Positive JSON requests supply their content
-type and Origin; negative tests use the raw helper so invalid headers remain invalid.
+New Node HTTP probes use `/harness-checks/http-bytes.mjs`, with its own `httpRuntime`
+pin. It retains headers, a `bytes` Buffer and decoded text, uses manual redirects,
+and bounds request duration and body size. Binary disclosure scans use `bytes`,
+not `Buffer.from(text)`, which loses invalid UTF-8. These are fetch response-body
+bytes after any content decompression, not wire bytes. Positive JSON requests
+supply content type and Origin; negative tests keep explicit invalid headers.
+The legacy `/harness-checks/http.mjs` remains available with its original pin and
+text-only interface. Unrelated reviews remain reusable. Older reviews combining
+that helper with database-byte scans and text-to-buffer reconstruction require
+fresh review for lossless evidence;
+this policy does not itself approve or reject application behaviour.
 Probes must still assert application-specific status, content, ownership and privacy.
-Adding this optional helper does not change existing server, asset or recipe pins.
 
 Reviewers receive exact executable source, existing shared contracts and offline
 Linux runner constraints. Requests use temporary read-only file attachments to

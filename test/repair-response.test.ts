@@ -64,3 +64,17 @@ test('a classified provider interruption resumes the same repair stage without d
  await assert.rejects(recoverCodeRepair(task,proposal(),'page',['syntax'],services,undefined,0,'request'),CheckRequestInterrupted);assert.ok(saved!.generated);assert.equal(saved!.correctionStarted,false);
  const result=await recoverCodeRepair(task,proposal(),'page',['syntax'],services,saved,0,'request');assert.equal(calls,3);assert.equal(result.manifest.cases[0]!.steps[0]!.command.at(-1),'console.log(2-1)');
 });
+
+const blocked={codes:[],blocker:'The HTTP helper discards the response bytes.',requiredResolution:'Provide a host-owned byte-preserving observation.'};
+test('a reported capability blocker stops without a format request and is retained across resume',async()=>{
+ let saved:CodeRepairState|undefined,calls=0;const original=proposal();const services={request:async()=>{calls++;return blocked;},save:async(s:CodeRepairState)=>{saved=structuredClone(s);}};
+ for(let i=0;i<2;i++)await assert.rejects(recoverCodeRepair(task,original,'page',['bytes'],services,saved,0,'request'),error=>{assert.match((error as Error).message,/reported.*blocker/);assert.match((error as Error).message,/discards the response bytes/);assert.match((error as {remedy:string}).remedy,/Inspect.*harness|harness.*inspect/i);return true;});
+ assert.equal(calls,1);assert.equal(saved!.correctionStarted,false);assert.deepEqual(saved!.generated,blocked);assert.equal(saved!.corrected,undefined);assert.deepEqual(proposal(),original);
+});
+test('a retained blocker is not converted into empty code by a legacy format correction',async()=>{
+ let saved:CodeRepairState|undefined;await assert.rejects(recoverCodeRepair(task,proposal(),'page',['bytes'],{request:async()=>blocked,save:async s=>{saved=structuredClone(s);}},undefined,0,'request'));
+ saved!.correctionStarted=true;saved!.corrected={codes:[]};let calls=0;await assert.rejects(recoverCodeRepair(task,proposal(),'page',['bytes'],{request:async()=>{calls++;return valid;},save:async()=>{}},saved,0,'request'),/reported.*blocker/);assert.equal(calls,0);
+});
+test('mixed blocked and executable replies are rejected without applying code or asking to drop the blocker',async()=>{
+ let calls=0;await assert.rejects(recoverCodeRepair(task,proposal(),'page',['bytes'],{request:async()=>{calls++;return {...blocked,codes:valid.codes};},save:async()=>{}},undefined,0,'request'),/blocker.*code|code.*blocker/i);assert.equal(calls,1);
+});

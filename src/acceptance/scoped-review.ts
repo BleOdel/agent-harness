@@ -1,3 +1,4 @@
+import {httpEvidenceReviewPolicy} from './http-runtime.ts';
 import {CheckRequestInterrupted} from './request-failure.ts';
 import {dependencyContext} from './dependency-context.ts';
 import {getAdapter} from '../adapters/registry.ts';
@@ -23,7 +24,7 @@ export interface ScopeEntry {scope:string;digest:string;repairs:number;syntaxRep
 export interface ReviewLedger {version:1;entries:ScopeEntry[];previousIssues?:string[];}
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const metadata=(p:Proposal)=>({contract:p.contract,coverage:p.coverage,cases:p.manifest.cases.map(c=>({id:c.id,tasks:c.tasks,description:c.description}))});
-export function scopeDigest(task:Feature,p:Proposal,scope:string):string{return hash({policy:1,task:taskDigest(task),metadata:metadata(p),case:scope==='$contract'?null:p.manifest.cases.find(c=>c.id===scope)});}
+export function scopeDigest(task:Feature,p:Proposal,scope:string):string{const selected=scope==='$contract'?null:p.manifest.cases.find(c=>c.id===scope),httpEvidencePolicy=httpEvidenceReviewPolicy(selected?.steps??[]);return hash({policy:1,task:taskDigest(task),metadata:metadata(p),case:selected,...(httpEvidencePolicy?{httpEvidencePolicy}:{})});}
 export function scopeProposal(p:Proposal,scope:string):Proposal{return {...p,manifest:{...p.manifest,cases:scope==='$contract'?[]:p.manifest.cases.filter(c=>c.id===scope)}};}
 const unbox=(raw:unknown):unknown=>raw&&typeof raw==='object'&&'review' in raw&&Object.keys(raw).every(k=>k==='review'||k==='error')&&(!('error' in raw)||typeof raw.error==='string')?(raw as {review:unknown}).review:raw;
 export function parseScopedReview(raw:unknown,task:Feature,p:Proposal,scope:string):DraftReview{

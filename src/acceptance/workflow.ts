@@ -103,7 +103,8 @@ export async function checkWorkflowStatus(project:string,write:(s:string)=>void)
  const pendingRaw=await readArtifact(directory(project),'simplification.json',8*1024*1024);
  if(pendingRaw){
   const pending=JSON.parse(pendingRaw),saved=pending.state;
-  const reviewed=saved.proposal?(saved.cases??[]).filter((c:{id:string})=>saved.ledger?.entries?.some((e:{scope:string;digest:string;review?:{verdict:string}})=>e.scope===c.id&&e.review?.verdict==='pass')).length:0;
+  const features=await readFeatures(project),task=features?.ok?features.features.find(t=>t.id===pending.taskId):undefined;
+  const reviewed=saved.proposal&&task?(saved.cases??[]).filter((c:{id:string})=>saved.ledger?.entries?.some((e:{scope:string;digest:string;review?:{verdict:string}})=>e.scope===c.id&&e.digest===scopeDigest(task,saved.proposal,c.id)&&e.review?.verdict==='pass')).length:0;
   write(`Simplification: ${pending.scope}; ${saved.cases?.length??0} generated checks saved; ${reviewed} independently reviewed; ${saved.generationResponses?.length??0} generated replies retained.`);
   if(saved.interruptions?.length)write(`Provider/allowance interruptions: ${saved.interruptions.length}; request spend remains recorded separately from check-defect attempts.`);
   if(saved.pendingRefinement)write(`Subdividing: ${saved.pendingRefinement.scope}. Completed stages are reused.`);
