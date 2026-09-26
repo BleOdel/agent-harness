@@ -332,7 +332,7 @@ Run them inside your project.
 | `harness checks regenerate <case-id>` | regenerate one unsuitable check and independently review it, preserving completed peers |
 | `harness checks use-recipe [case-id]` | replace a generated web/SQLite boundary probe with reviewed settings for a tested runner |
 | `harness checks repair [case-id]` | repair one blocked check, retaining the other checks |
-| `harness checks simplify [case-id]` | replace a complex blocked design with smaller independently reviewed checks |
+| `harness checks simplify [case-id]` | split a rejected or blocked design into smaller reviewed checks; no exhausted repair quota is required |
 | `harness checks approve <file>` | explicitly approve a JSON acceptance specification |
 | `harness ml setup` | approve data and thresholds through short prompts |
 | `harness ml train/resume <id>` | train the saved numeric recipe and evaluate its model |

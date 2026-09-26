@@ -8,7 +8,7 @@ import {parsePreparedCase} from './preparation.ts';
 import type {AcceptanceCase} from './checks.ts';
 import {parseDraftReview, proposalDigest, syntaxIssues, type DraftReview} from './repair.ts';
 import {scopeDigest, requestScopedReview, reviewScopes, type ReviewLedger} from './scoped-review.ts';
-import {repairCaseCode} from './targeted.ts';
+import {blockedScopes,repairCaseCode} from './targeted.ts';
 import {assertServerRuntimes} from './server-runtime.ts';
 import {OperatorError} from '../verbs/io.ts';
 
@@ -21,6 +21,14 @@ export interface SimplificationState {
  outline?:Proposal; outlineReview?:{digest:string;review:DraftReview};
  cases:AcceptanceCase[]; generationAttempts:Record<string,number>; generationErrors?:Record<string,string>;
  lastGenerated?:{id:string;raw:unknown}; proposal?:Proposal; ledger?:ReviewLedger;
+}
+
+/** An explicit design split can follow a rejected review before code repairs are exhausted. */
+export function simplifiableScopes(task:Feature,p:Proposal,ledger:ReviewLedger):string[]{
+ const blocked=new Set(blockedScopes(task,p,ledger));
+ return p.manifest.cases.filter(c=>blocked.has(c.id)||ledger.entries.some(e=>
+  e.scope===c.id&&e.digest===scopeDigest(task,p,c.id)&&e.review?.verdict==='repair',
+ )).map(c=>c.id);
 }
 
 /** Reuse known SQLite mechanics; independent review still decides whether this fits the task. */

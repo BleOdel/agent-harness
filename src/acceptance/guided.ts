@@ -1,7 +1,7 @@
 import {ensureCheckBudget,CheckBudgetExceeded} from './budget.ts';
 import {recipeForDescription,inferWebRecipe,recipeDescription} from './recipes/catalog.ts';
 import {blockedScopes, renewScope, repairScopeInIsolation} from './targeted.ts';
-import {simplifyInParts, simplificationServices, type SimplificationState} from './simplification.ts';
+import {simplifiableScopes, simplifyInParts, simplificationServices, type SimplificationState} from './simplification.ts';
 import {assertServerRuntimes} from './server-runtime.ts';
 import { validateProposal, proposalDigest, type DraftValidation } from "./repair.ts";
 import { createHash, randomUUID } from 'node:crypto';
@@ -266,7 +266,7 @@ export async function simplifySavedCheck(project:string,io:Dialogue,caseId?:stri
  if(pending&&(pending.taskDigest!==record.taskDigest||pending.sourceDigest!==record.sourceDigest))throw new OperatorError('Saved simplification describes older source or requirements.');
  const ledger=record.ledger as ReviewLedger;
  if(ledger?.version!==1||!Array.isArray(ledger.entries))throw new OperatorError('No scoped review history to simplify.');
- const ids=blockedScopes(task,p,ledger);
+ const ids=simplifiableScopes(task,p,ledger);
  let scope=caseId??pending?.scope;
  if(pending&&caseId&&caseId!==pending.scope)throw new OperatorError('Another check simplification is pending.','Resume harness checks simplify before selecting another check.');
  if(!scope){

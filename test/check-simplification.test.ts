@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {compileRecipe} from '../src/acceptance/recipes/catalog.ts';
+import {webSpec} from './recipe-fixtures.ts';
 import {parseProposal} from '../src/acceptance/draft.ts';
 import {scopeDigest, type ReviewLedger} from '../src/acceptance/scoped-review.ts';
-import {simplifyOutline, simplifyInParts, sqliteWebOutline, type SimplificationState} from '../src/acceptance/simplification.ts';
+import {simplifiableScopes, simplifyOutline, simplifyInParts, sqliteWebOutline, type SimplificationState} from '../src/acceptance/simplification.ts';
 import {mkdtemp,mkdir,readFile,writeFile,rm} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -101,7 +103,7 @@ test('no correction request is spent when the outline review budget cannot revie
  assert.equal(saved!.outlineAttempts,1);assert.equal(saved!.outlineReviewAttempts,2);
 });
 
-test('writer-locked simplification preserves original draft on failure, resumes, and never approves',async()=>{
+for(const kind of ['exhausted-code','rejected-recipe'] as const)test(`writer-locked simplification preserves original draft, resumes and never approves (${kind})`,async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'simplification-flow-')), project=path.join(root,'app'), dir=project+'-harness/acceptance';
  try{
   await mkdir(project);await mkdir(dir,{recursive:true});await writeFile(path.join(project,'package.json'),'{"type":"module"}');
@@ -110,7 +112,9 @@ test('writer-locked simplification preserves original draft on failure, resumes,
   const file=path.join(root,'checks.json');await writeFile(file,JSON.stringify(manifest));await approveChecks(project,file);const approved=await readApproval(project);
   const adapter=getAdapter((await readProfile(project,true)).adapter);
   const sourceDigest=createHash('sha256').update(JSON.stringify(Object.entries(await sourceFiles(project,'',adapter.source.generatedDirectories)).sort(([a],[b])=>a.localeCompare(b)))).digest('hex');
-  const record={version:1,taskId:task.id,taskDigest:taskDigest(task),sourceDigest,proposal:original(),ledger:ledger(),round:0,issues:[]};
+  const proposal=original();if(kind==='rejected-recipe')proposal.manifest.cases[1]!.steps=[compileRecipe(webSpec)];
+  const savedLedger=ledger(proposal);if(kind==='rejected-recipe'){const entry=savedLedger.entries.find(e=>e.scope==='giant')!;entry.repairs=0;entry.syntaxRepairs=0;}
+  const record={version:1,taskId:task.id,taskDigest:taskDigest(task),sourceDigest,proposal,ledger:savedLedger,round:0,issues:[]};
   const raw=JSON.stringify(record);await writeFile(path.join(dir,'review-progress.json'),raw);
   const lines:string[]=[];const io={write:(s:string)=>lines.push(s),ask:async()=>{throw Error('explicit scope should not prompt');}};
   const factory:Parameters<typeof simplifySavedCheck>[3]=(_project,_task,_p,_scope,_findings,save)=>({plan:async()=>plan,reviewOutline:async()=>pass,generate:async()=>{throw Error('provider timeout');},syntax:async()=>[],review:async()=>pass,repair:async()=>original(),save});
@@ -143,4 +147,16 @@ test('compound reader privacy checks bypass the SQLite simplification template',
   p.manifest.cases[1]!.description='Inspect static assets and SQLite boundaries.'+extra;
   assert.equal(sqliteWebOutline(p,'giant'),undefined);
  }
+});
+
+test('simplification accepts current failed designs without spending repair attempts, but rejects stale or passed reviews',()=>{
+ const p=original(),l=ledger(p),entry=l.entries.find(e=>e.scope==='giant')!;
+ entry.repairs=0;entry.syntaxRepairs=0;
+ assert.deepEqual(simplifiableScopes(task,p,l),['giant']);
+ entry.review=pass;assert.deepEqual(simplifiableScopes(task,p,l),[]);
+ entry.review={verdict:'repair',issues:['Missing observations'],limitations:[]};
+ entry.digest='stale';assert.deepEqual(simplifiableScopes(task,p,l),[]);
+ entry.digest=scopeDigest(task,p,'giant');delete entry.review;
+ assert.deepEqual(simplifiableScopes(task,p,l),[]);
+ entry.repairs=2;assert.deepEqual(simplifiableScopes(task,p,l),['giant']);
 });
