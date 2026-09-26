@@ -541,7 +541,9 @@ entry file, database/port environment names, literal readiness prefix, applicati
 and public-read paths, and expected Host/Origin rejection statuses. New preparation
 uses this recipe automatically only for complete catalogue descriptions, such as
 “Inspect static assets and SQLite boundaries.” Mentioning assets and SQLite in a
-broader privacy or lifecycle check does not select the recipe.
+broader privacy or lifecycle check does not select the recipe. The same restriction
+applies to the routine SQLite simplification template: compound checks receive a
+tailored split that must preserve their application-specific observations.
 Settings are read from an unambiguous saved contract where possible; otherwise the
 model returns settings only. It cannot supply code or weaken the recipe assertions.
 

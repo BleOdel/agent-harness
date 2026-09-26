@@ -1,4 +1,5 @@
 import {ensureCheckBudget} from './budget.ts';
+import {recipeForDescription} from './recipes/catalog.ts';
 /** A blocked design may be replaced, but never silently treated as verified. */
 import {assetRuntimePrompt} from './asset-runtime.ts';
 import type {Feature} from '../features.ts';
@@ -25,7 +26,8 @@ export interface SimplificationState {
 /** Reuse known SQLite mechanics; independent review still decides whether this fits the task. */
 export function sqliteWebOutline(p:Proposal,scope:string):unknown|undefined {
  const selected=p.manifest.cases.find(c=>c.id===scope)?.description??'';
- if(!p.contract.includes('node:sqlite')||!/\bassets?\b/iu.test(selected)||!/\bsqlite\b/iu.test(selected))return undefined;
+ // Compound privacy/lifecycle cases need a tailored partition, not a routine template.
+ if(!p.contract.includes('node:sqlite')||!recipeForDescription(selected))return undefined;
  const ids=new Set(p.manifest.cases.map(c=>c.id));
  const id=(suffix:string)=>{let name=scope.slice(0,55)+'-'+suffix;while(ids.has(name))name+='x';ids.add(name);return name;};
  return {cases:[

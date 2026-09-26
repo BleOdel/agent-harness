@@ -29,7 +29,7 @@ test('simplification changes only the selected outline and affected coverage; it
 test('the SQLite design template is limited to the matching runtime and remains an unreviewed outline',()=>{
  const p=original();assert.equal(sqliteWebOutline(p,'giant'),undefined);
  p.contract+=' Use node:sqlite.';assert.equal(sqliteWebOutline(p,'giant'),undefined);
- p.manifest.cases[1]!.description='Read assets and check SQLite files are not public.';
+ p.manifest.cases[1]!.description='Inspect static assets and SQLite boundaries.';
  const next=simplifyOutline(task,p,'giant',sqliteWebOutline(p,'giant'));
  assert.equal(next.manifest.cases.length,4);assert.equal(next.contract,p.contract);assert.deepEqual(next.manifest.cases[0],p.manifest.cases[0]);
  assert.equal('validation' in next,false);assert.equal(next.manifest.cases[1]!.steps[0]!.command.at(-1),'');
@@ -133,4 +133,14 @@ test('bounded preparation does not charge simplification review or generation wh
  const run=()=>withCheckBudget({maxRequests:1,maxSeconds:10,requestSeconds:1},{requests:0},async()=>{},()=>{},()=>simplifyInParts(task,original(),'giant',ledger(),services,saved));
  await assert.rejects(run(),CheckBudgetExceeded);assert.equal(saved!.outlineReviewAttempts??0,0);
  await assert.rejects(run(),CheckBudgetExceeded);assert.deepEqual(saved!.generationAttempts,{});assert.equal(saved!.outlineReview?.review.verdict,'pass');
+});
+
+test('compound reader privacy checks bypass the SQLite simplification template',()=>{
+ const p=original();p.contract+=' Use node:sqlite.';
+ p.manifest.cases[1]!.description="Build a compact fixture set containing an unreviewed edit, sensitive approved prose, private rejection/removal explanations, internal moderation notes, a report note and management keys. Obtain corresponding key hashes through read-only inspection of the actual isolated SQLite database without writing fixtures directly. Across public feed, initial details, unavailable responses, report responses and collected static assets, scan headers and raw/decoded response bodies for applicable private markers; exclude only the deliberately disclosed approved body from its own explicit-continue response. Confirm nonempty database evidence, capture actual database and existing sidecar snapshots before and after requests, and apply the pinned byte-disclosure helper to all retained bodies. Probe the frozen database-looking URL list with exact neutral 404 assertions and scan those responses too. Print observed resource, snapshot and response counts, not sensitive values. This is bounded public-surface evidence, not a claim that the intentionally unsecured moderator API is private or that every possible URL/browser request has been examined.";
+ assert.equal(sqliteWebOutline(p,'giant'),undefined);
+ for(const extra of [' Check management key hashes.', ' Submit reports and inspect private notes.', ' Verify pending revision privacy.']){
+  p.manifest.cases[1]!.description='Inspect static assets and SQLite boundaries.'+extra;
+  assert.equal(sqliteWebOutline(p,'giant'),undefined);
+ }
 });
