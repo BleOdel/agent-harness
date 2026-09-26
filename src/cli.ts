@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --experimental-strip-types
+import {evidenceCommand} from "./verbs/evidence.ts";
 import { modelCommand } from "./verbs/model.ts";
 /**
  * The operator surface: five verbs.
@@ -72,6 +73,7 @@ const USAGE = [
   "  harness checks prepare       prepare or resume checks with request/time limits",
   "  harness checks status        saved preparation status and reported usage",
   "  harness checks [setup | review | repair [case-id] | use-recipe [case-id] | simplify [case-id] [budget flags] | approve <file>]  review and approve application acceptance checks",
+  "  harness evidence [setup | show] <run-id> record or inspect browser observations for saved source",
   "  harness work [<item-id or goal>]  build or resume saved partial work",
   "  harness work --resume <run-id>   resume saved implementation",
   "    --refresh-checks              explicitly use corrected approved checks; rerun all verification",
@@ -106,6 +108,7 @@ async function main(): Promise<void> {
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
 
   switch (verb) {
+    case "evidence": return evidenceCommand(project, rest);
     case "model": return modelCommand(project, rest);
     case "release": return releaseCommand(project, rest);
     case "desktop": return desktopCommand(project, rest);

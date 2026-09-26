@@ -349,6 +349,8 @@ Run them inside your project.
 | `harness add <id> …` | put an item on the feature list |
 | `harness add --from latest` | import the items a plan proposed |
 | `harness work [<id>]` | build or resume the highest-priority eligible item, or a named item |
+| `harness evidence setup <run-id>` | record browser observations for exact saved source, with limitations |
+| `harness evidence show <run-id>` | inspect matching operator browser observations |
 | `harness work --resume <run-id>` | continue saved unverified implementation |
 | `harness work --fresh [<id>]` | start from live source; retain older checkpoints for inspection |
 | `harness team run [options]` | run assigned builders and retain verified staging |
@@ -989,13 +991,47 @@ HARNESS_AGENT_TIMEOUT=1800 harness work local-story-service
 ```
 
 Checkpoints cover handled builder timeouts, terminal gate failures (including
-acceptance), reviewer escalation, and reviewer process failure or timeout. An
+acceptance), explicit blocked builder submissions, shared-input blocks, reviewer escalation, and reviewer process failure or timeout. The host's own blocked-status transition is retained in the checkpoint identity so it does not prevent resume. An
 unexpected verification exception also preserves source when builder cleanup was
 confirmed. Arbitrary process kills, machine crashes, builder/provider failures and
 partial application failures are not covered. Existing checkpoints remain available
 when an unsuccessful resume cannot publish a replacement. A run that timed out before
 this feature and already deleted its temporary directory cannot be recovered.
 No provider conversation or credential directory is saved with the source.
+
+## Browser evidence for a saved implementation
+
+A container without a browser cannot prove rendered layout, keyboard focus or
+assistive-technology behavior. Repeating a build cannot supply that evidence.
+Inspect a disposable copy of the retained source in a real browser, using isolated
+test data, then run:
+
+```bash
+harness evidence setup r12
+harness evidence show r12
+harness work --resume r12
+```
+
+Use your available checkpoint ID (shown by `harness look`). Setup asks for the
+source copy actually tested, browser/version and viewport sizes, observed actions
+and results (including failures), and explicit untested aspects. It verifies the
+entire source copy against the checkpoint before and after your confirmation.
+Do not edit the saved checkpoint or put the database/generated files into the
+source copy. This command records observations; it does not launch a browser,
+make a model request, or approve the implementation.
+
+Receipts are host-owned under `<project>-harness/browser-evidence/`, outside the
+builder mount. Previous receipts are archived. They bind to the exact source,
+base source, task definition, approved checks and execution settings. The builder
+is informed of matching observations on resume; the independent reviewer receives
+them only if the final candidate still matches. Any source change, even a test or
+document edit, makes them inapplicable. Tests and independent acceptance still run.
+These are **operator-reported observations**, not automatic proof or a complete
+accessibility audit. Limitations remain visible to the reviewer and cannot waive
+criteria. Do not attest to checks you have not performed.
+
+This does not recover deleted historical workspaces or silently approve earlier
+partial browser reports. Team runs do not consume these ordinary-work receipts.
 
 ## Correcting an incomplete claim
 

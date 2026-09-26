@@ -1,3 +1,5 @@
+import {saveBrowserEvidence} from "../src/review/browser-evidence.ts";
+import {findWorkCheckpoint} from "../src/workspace/work-checkpoints.ts";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
@@ -47,7 +49,7 @@ const mount = args.find(a => a.startsWith('type=bind,src=') && a.includes(',dst=
 const work = mount.split(',src=')[1].split(',dst=')[0];
 const mode = process.env.FLOW_MODE;
 const kind = args.at(-1)?.includes('Correct only the completion claim') ? 'claim-correction' : args.includes('--mode') ? 'builder' : args.includes('read,grep') ? 'reviewer' : args.some(a=>a.startsWith('--env=NODE_OPTIONS')) ? 'gate' : 'acceptance';
-fs.appendFileSync(process.env.FLOW_LOG, JSON.stringify({kind, work}) + '\\n');
+fs.appendFileSync(process.env.FLOW_LOG, JSON.stringify({kind, work, browserEvidence:kind==='reviewer' && args.at(-1).includes('BEGIN OPERATOR BROWSER OBSERVATIONS')}) + '\\n');
 if(kind === 'claim-correction') {
   if(mode==='claim-timeout'){setInterval(()=>{},1000);return;}
   if(mode==='claim-source-write')fs.writeFileSync(path.join(work,'app.js'),'untrusted repair edit');
@@ -115,7 +117,7 @@ if (kind === 'builder') {
       try { const r = await execute(process.execPath, [cli, ...args], { cwd: project, env }); return { code: 0, text: r.stdout + r.stderr }; }
       catch (e) { const r = e as Error & { code: number; stdout: string; stderr: string }; return { code: r.code, text: r.stdout + r.stderr }; }
     },
-    async calls(): Promise<{ kind: string; work: string }[]> {
+    async calls(): Promise<{ kind: string; work: string; browserEvidence:boolean }[]> {
       return (await readFile(path.join(root, "calls"), "utf8").catch(() => "")).trim().split("\n").filter(Boolean).map(line => JSON.parse(line));
     },
     async close() { await rm(root, { recursive: true, force: true }); },
@@ -147,6 +149,8 @@ test("automatic work selects the eligible prerequisite; a blocked submission app
     assert.equal(run.outcome, "blocked");
     assert.equal(run.reason, "blocked: A decision is missing");
     assert.equal(run.requestedInput, "Choose <region>");
+    assert.equal(run.implementationCheckpoint, run.id);
+    assert.equal(await readFile(path.join(harnessDirectory(f.project), `implementation/${run.id}/source/app.js`), "utf8"), "export const value = 2;\n");
     assert.equal(run.review, undefined);
     assert.deepEqual(run.changes, []);
     assert.deepEqual(run.gates, []);
@@ -559,5 +563,37 @@ test("check refresh cannot authorize changed interface choices",async()=>{
   const file=path.join(f.root,"checks.json"),draft=JSON.parse(await readFile(file,"utf8"));draft.cases[0].contract="New API required";await writeFile(file,JSON.stringify(draft));await approveChecks(f.project,file);
   const result=await f.run("work","--resume","r1","--refresh-checks");assert.notEqual(result.code,0);assert.match(result.text,/interface|scope|metadata/i);
   assert.equal((await f.calls()).filter(c=>c.kind==="builder").length,1);
+ }finally{await f.close();}
+});
+
+test("blocked edits resume after the host status update without bypassing gates", async () => {
+ const f = await fixture([item("api")],"blocked");
+ try {
+  await f.run("work","api");
+  f.env.FLOW_MODE="resume";
+  const result=await f.run("work","--resume","r1");
+  assert.match(result.text,/Resuming unverified work from r1/);
+  assert.doesNotMatch(result.text,/workDigest changed|requirements changed/);
+  assert.ok((await f.calls()).some(c=>c.kind==="gate"));
+  assert.ok((await f.calls()).some(c=>c.kind==="reviewer"));
+  // The saved approval expects 1, while retained source returns 2.
+  assert.notEqual(result.code,0);
+  assert.equal(await readFile(path.join(f.project,"app.js"),"utf8"),"export const value = 1;\n");
+ } finally {await f.close();}
+});
+
+for (const mode of ["resume", "resume-wrong"]) test(`browser evidence reaches review only for unchanged checkpoint source (${mode})`, async()=>{
+ const f=await fixture([item("api")],"changed");
+ try {
+  f.env.FLOW_MODE="blocked";await f.run("work","api");
+  const c=(await findWorkCheckpoint(f.project,undefined,"r1"))!;
+  await saveBrowserEvidence(c,path.join(c.directory,"source"),{environment:"Chrome 320x800",observations:"Keyboard focus observed.",limitations:"Only one route inspected."});
+  f.env.FLOW_MODE=mode;
+  const result=await f.run("work","--resume","r1");
+  const reviews=(await f.calls()).filter(c=>c.kind==="reviewer");
+  assert.ok(reviews.length>0,result.text);
+  assert.ok(reviews.every(c=>c.browserEvidence===(mode==="resume")));
+  if(mode==="resume")assert.equal(result.code,0,result.text);
+  else {assert.notEqual(result.code,0);assert.match(result.text,/acceptance/);}
  }finally{await f.close();}
 });

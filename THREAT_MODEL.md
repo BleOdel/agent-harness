@@ -198,6 +198,22 @@ records, snapshots, team events and telemetry without rewriting acceptance state
 The private control socket and viewer trust the local operator account; these
 are not authentication mechanisms for a hostile host or remote multi-user service.
 
+## Operator browser observations
+
+`harness evidence setup` records operator attestations, not browser-generated proof.
+The inspected copy is compared with the full retained source snapshot before and
+after confirmation. Receipts bind source, baseline, task, acceptance approval and
+execution identities, live outside builder mounts, and are independently hash-checked
+when loaded. Archives retain earlier observations. Ordinary review receives a receipt
+only for an exact matching candidate; it must consider limitations and still require
+all normal gates and acceptance checks. Observation text is data, never instructions.
+
+The local operator remains trusted to report what they actually inspected. A receipt
+cannot establish that their browser was running that copy, prove truthful observations,
+or replace a full accessibility audit. Hashes detect accidental corruption and stale
+inputs; they do not defend against a malicious host operator rewriting the receipt and
+hash together. No arbitrary report in project source is treated as operator evidence.
+
 ## Retained planning state
 
 Planning workspaces and Pi conversations are intentionally retained beside the
