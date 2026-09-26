@@ -71,7 +71,7 @@ const USAGE = [
   "  harness checks regenerate <case-id>  replace one unsuitable check; keep peer reviews",
   "  harness checks prepare       prepare or resume checks with request/time limits",
   "  harness checks status        saved preparation status and reported usage",
-  "  harness checks [setup | review | repair [case-id] | use-recipe [case-id] | simplify [case-id] | approve <file>]  review and approve application acceptance checks",
+  "  harness checks [setup | review | repair [case-id] | use-recipe [case-id] | simplify [case-id] [budget flags] | approve <file>]  review and approve application acceptance checks",
   "  harness work [<item-id or goal>]  build or resume saved partial work",
   "  harness work --resume <run-id>   resume saved implementation",
   "    --refresh-checks              explicitly use corrected approved checks; rerun all verification",

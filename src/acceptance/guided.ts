@@ -1,4 +1,4 @@
-import {ensureCheckBudget,CheckBudgetExceeded} from './budget.ts';
+import {ensureCheckBudget,CheckBudgetExceeded,hasCheckBudget,withCheckBudget,defaultCheckLimits,validateCheckLimits,type CheckLimits,type CheckSpend} from './budget.ts';
 import {recipeForDescription,inferWebRecipe,recipeDescription} from './recipes/catalog.ts';
 import {blockedScopes, renewScope, repairScopeInIsolation} from './targeted.ts';
 import {simplifiableScopes, simplifyInParts, simplificationServices, type SimplificationState} from './simplification.ts';
@@ -54,6 +54,9 @@ export async function readGuidedDraft(project: string, recovering = false): Prom
  const raw = await readArtifact(directory(project), 'guided-draft.json', 8 * 1024 * 1024);
  if (!raw) return undefined;
  const saved = JSON.parse(raw) as SavedDraft;
+ // A completed draft for an earlier task must not hide the current saved preparation.
+ const active=await readArtifact(directory(project),'review-progress.json',8*1024*1024)??await readArtifact(directory(project),'preparation.json',8*1024*1024);
+ if(active){const pending=JSON.parse(active);if(pending.taskId!==saved.taskId){const task=await currentTask(project,pending.taskId).catch(()=>undefined);if(task&&pending.taskDigest===taskDigest(task)&&pending.sourceDigest===await sourceDigest(project))return undefined;}}
  if (saved.version !== 1 || typeof saved.taskId !== 'string' || typeof saved.inputDigest !== 'string' || typeof saved.sourceDigest !== 'string') throw new OperatorError('Invalid saved check draft.');
  saved.proposal = parseProposal(saved.proposal, await currentTask(project, saved.taskId));
  saved.manifest = recovering ? parseCheckDraft(saved.manifest) : parseChecks(saved.manifest);
@@ -252,7 +255,21 @@ export async function resumePreparation(project:string,io:Dialogue,deferApproval
 }
 
 /** Stage an explicit design revision separately; commit it only after its new checks pass review. */
-export async function simplifySavedCheck(project:string,io:Dialogue,caseId?:string,servicesFactory=simplificationServices):Promise<void>{
+export async function simplifySavedCheck(project:string,io:Dialogue,caseId?:string,servicesFactory=simplificationServices,limits:CheckLimits=defaultCheckLimits):Promise<void>{
+ validateCheckLimits(limits);
+ if(hasCheckBudget())return simplifySavedCheckWithinBudget(project,io,caseId,servicesFactory);
+ await withWriter(project,'checks simplify',async()=>{
+  const runs=path.join(directory(project),'simplification-runs');await mkdir(runs,{recursive:true,mode:0o700});
+  const file=path.join(runs,`${Date.now()}-${randomUUID()}.json`),spend:CheckSpend={requests:0};
+  const run={version:1,started:new Date().toISOString(),limits,spend,status:'running'};
+  const save=()=>atomicWrite(file,JSON.stringify(run,null,2)+'\n');await save();
+  io.write(`Simplification allowance: ${limits.maxRequests} model requests, ${limits.maxSeconds}s total, ${limits.requestSeconds}s per request. Completed stages are reused.`);
+  try{await withCheckBudget(limits,spend,save,io.write,()=>simplifySavedCheckWithinBudget(project,io,caseId,servicesFactory));run.status='complete';}
+  catch(error){run.status=error instanceof CheckBudgetExceeded?'paused':'blocked';if(error instanceof CheckBudgetExceeded)throw new OperatorError(error.message,`Progress is saved. Resume with harness checks simplify${caseId?' '+caseId:''}. No checks were approved.`);throw error;}
+  finally{await save();}
+ });
+}
+async function simplifySavedCheckWithinBudget(project:string,io:Dialogue,caseId:string|undefined,servicesFactory:typeof simplificationServices):Promise<void>{
  if(await readArtifact(directory(project),'recipe-change.json',8*1024*1024))throw new OperatorError('A recipe migration is pending.','Resume checks use-recipe before changing another check.');
  const raw=await readArtifact(directory(project),'review-progress.json',8*1024*1024);
  if(!raw)throw new OperatorError('No saved check review to simplify.','Use harness checks setup.');
@@ -296,7 +313,7 @@ export async function simplifySavedCheck(project:string,io:Dialogue,caseId?:stri
   catch(error){
    if(error instanceof CheckBudgetExceeded)throw error;
    const e=error as Error&{remedy?:string};
-   throw new OperatorError(e.message,[e.remedy,'Simplification progress is saved; the original draft and approvals are unchanged. After a provider interruption, resume with harness checks simplify. If the design or its budget is exhausted, use checks setup and Prepare again with changes.'].filter(Boolean).join('\n'));
+   throw new OperatorError(e.message,[e.remedy,'Simplification progress is saved; the original draft and approvals are unchanged. Resume with harness checks simplify to reuse completed stages. Oversized children are subdivided automatically within saved limits; do not restart the whole task to recover a single check.'].filter(Boolean).join('\n'));
   }
   await current();
   if(((await readApproval(project))?.digest??null)!==approval||await readArtifact(directory(project),'review-progress.json',8*1024*1024)!==raw)throw new OperatorError('Checks or approvals changed during simplification.');

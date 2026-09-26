@@ -1,5 +1,5 @@
 /** One resumable controller; checkpoints and writer locks remain owned by existing check operations. */
-import path from 'node:path';import {mkdir} from 'node:fs/promises';
+import path from 'node:path';import {mkdir,readdir} from 'node:fs/promises';
 import {CheckBudgetExceeded,withCheckBudget,ensureCheckBudget,defaultCheckLimits,validateCheckLimits,describeCheckSpend,type CheckLimits,type CheckSpend} from './budget.ts';
 import {parseProposal} from './draft.ts';
 import {assertServerRuntimes} from './server-runtime.ts';
@@ -99,6 +99,21 @@ async function describeCheckProgress(project:string,write:(s:string)=>void):Prom
 }
 export async function checkWorkflowStatus(project:string,write:(s:string)=>void):Promise<void>{
  project=await canonicalProject(project);await describeCheckProgress(project,write);const state=await loadState(project),last=state.runs.at(-1);
+ const pendingRaw=await readArtifact(directory(project),'simplification.json',8*1024*1024);
+ if(pendingRaw){
+  const pending=JSON.parse(pendingRaw),saved=pending.state;
+  write(`Simplification: ${pending.scope}; ${saved.cases?.length??0} generated checks saved; ${saved.generationResponses?.length??0} generated replies retained.`);
+  if(saved.pendingRefinement)write(`Subdividing: ${saved.pendingRefinement.scope}. Completed stages are reused.`);
+  const active=new Set((saved.outline?.manifest?.cases??[]).map((c:{id:string})=>c.id));
+  for(const [id,error] of Object.entries(saved.generationErrors??{}))if(active.has(id))write(`${id}: ${String(error)}`);
+  const runs=path.join(directory(project),'simplification-runs');
+  const files=await readdir(runs).catch((error:NodeJS.ErrnoException)=>{if(error.code==='ENOENT')return [];throw error;});
+  const name=files.filter(f=>f.endsWith('.json')).sort().at(-1),raw=name?await readArtifact(runs,name,65536):undefined;
+  const recent=raw?JSON.parse(raw) as WorkflowRun:undefined;
+  const latest=recent&&(!last||recent.started>last.started)?recent:last;
+  if(latest){write(`Last allowance: ${latest.status}; ${latest.spend.requests}/${latest.limits.maxRequests} requests.`);write(describeCheckSpend(latest.spend));}
+  write(`Continue: harness checks simplify ${pending.scope}. Existing approvals are unchanged.`);return;
+ }
  if(!last){write('No bounded preparation run is recorded. Start or resume with harness checks prepare.');return;}
  write(`Last recorded preparation: ${last.status}; ${last.spend.requests}/${last.limits.maxRequests} requests.`);
  write(describeCheckSpend(last.spend));

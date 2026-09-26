@@ -6,6 +6,7 @@ export interface CheckLimits {maxRequests:number;maxSeconds:number;requestSecond
 export interface CheckSpend {requests:number;reportedTokens?:number;reportedCostUsd?:number;unreported?:number;recorded?:number;}
 interface Context {limits:CheckLimits;state:CheckSpend;deadline:number;now:()=>number;save:()=>Promise<void>;write:(s:string)=>void;}
 const context=new AsyncLocalStorage<Context>();
+export const hasCheckBudget=():boolean=>context.getStore()!==undefined;
 export class CheckBudgetExceeded extends OperatorError {
  constructor(){super('Check preparation paused at its request or time limit.','Progress is saved. Run harness checks prepare to continue with a new bounded allowance. Nothing was approved.');this.name='CheckBudgetExceeded';}
 }
@@ -41,8 +42,8 @@ export function describeCheckSpend(spend:CheckSpend):string{
  const cost=spend.reportedCostUsd===undefined?'cost unavailable':`$${spend.reportedCostUsd.toFixed(4)} cost estimate`;
  return `Provider-reported usage: ${tokens}; ${cost}${spend.unreported||(spend.recorded??0)<spend.requests?'; incomplete reporting':''}.`;
 }
-export function parseCheckLimits(args:readonly string[]):CheckLimits{
+export function parseCheckLimits(args:readonly string[],command="prepare"):CheckLimits{
  const limits={...defaultCheckLimits},names={'--max-requests':'maxRequests','--max-seconds':'maxSeconds','--request-seconds':'requestSeconds'} as const,seen=new Set<string>();
- for(let i=0;i<args.length;i+=2){const flag=args[i]!;if(!Object.hasOwn(names,flag)||seen.has(flag)||!/^\d+$/.test(args[i+1]??''))throw new OperatorError('Use: harness checks prepare [--max-requests N] [--max-seconds N] [--request-seconds N]');seen.add(flag);limits[names[flag as keyof typeof names]]=Number(args[i+1]);}
+ for(let i=0;i<args.length;i+=2){const flag=args[i]!;if(!Object.hasOwn(names,flag)||seen.has(flag)||!/^\d+$/.test(args[i+1]??''))throw new OperatorError(`Use: harness checks ${command} [--max-requests N] [--max-seconds N] [--request-seconds N]`);seen.add(flag);limits[names[flag as keyof typeof names]]=Number(args[i+1]);}
  validateCheckLimits(limits);return limits;
 }

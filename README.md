@@ -604,7 +604,24 @@ computed runtime requests and visual behaviour still need browser/source evidenc
 Each smaller check is limited to 8 KiB of JSON-encoded steps. Outline attempts,
 outline-review operations and generation requests for each part have separate
 two-request budgets that survive interruption; executable reviews retain the
-usual bounded repair policy. Resume with `checks simplify` or `checks review`.
+usual bounded repair policy. An oversized reply is saved with its measured size.
+The harness subdivides only that child into two or three independently reviewed
+behaviours, preserving completed peers and spent requests. This also recovers old
+checkpoints that exhausted generation on an oversized child. Subdivision is bounded
+to two levels, four operations per original check and 32 total cases; the 8 KiB
+limit and required observations are not relaxed.
+
+A standalone simplification has a command-wide allowance of 12 model requests,
+600 seconds total and 180 seconds per request. It shares an enclosing preparation
+allowance when called by `checks prepare`. For a smaller allowance, run:
+
+```sh
+harness checks simplify <case-id> --max-requests 6 --max-seconds 600 --request-seconds 180
+```
+
+Each invocation records spend in `acceptance/simplification-runs/`. `checks status`
+shows pending subdivision, saved generation errors and the latest allowance.
+Resume with `checks simplify` or `checks review`.
 Completed stages and raw generated responses are reused. Until all replacement
 checks pass design review, the original review draft stays unchanged. A successful
 replacement archives the old draft, retains unchanged peer checks and matching

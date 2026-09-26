@@ -159,6 +159,8 @@ flowchart LR
   B -->|operator chooses simplify| X["Stage 2–3 smaller behaviours and explicit evidence limits"]
   X --> XR["Independent outline review; freeze contract and peer checks"]
   XR --> XC["Generate and review bounded replacements; save each stage"]
+  XC -->|oversized reply| XO["Save raw reply and size; subdivide only this child within depth/operation limits"]
+  XO --> XR
   XC -->|all replacements reviewed| XS["Archive old case; retain peer reviews; no approval"]
   XS --> S
   S -->|all scopes reviewed| U["Operator reviews behaviours and limitations"]
@@ -223,7 +225,17 @@ feedback within the same two-outline-request allowance. Pending replies are boun
 to the original or corrected outline digest; resumption parses a saved reply before
 charging another request. Rejected and accepted replies remain in checkpoint history.
 Legacy checkpoints with a spent request but no reply retain that spent allowance.
-Neither simplification nor the retained receipts grant operator approval.
+Oversized generated replies retain their raw content, measured step size and error.
+Only the oversized child is repartitioned; its independent outline review is saved
+before generation resumes. Nested checkpoints bind to the immediate outline and
+retain prior review receipts. Depth two, four subdivisions and 32 total cases bound
+this recovery; exhausted legacy size failures enter it without regenerating the
+same oversized child. The 8 KiB cap remains enforced. A standalone invocation uses
+the shared request/time budget infrastructure and writes a spend audit; nested
+invocations reuse their parent's allowance. An earlier task's guided draft cannot
+mask fresh preparation for the current task. Status identifies pending subdivision
+and the next recovery command. Neither simplification nor retained receipts grant
+operator approval.
 
 The server helper is bundled outside project source. Acceptance snapshots its
 bytes into a read-only `/harness-checks` mount without model credentials or host

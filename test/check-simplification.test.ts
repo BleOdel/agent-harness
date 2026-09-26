@@ -82,8 +82,8 @@ test('an outline correction is reviewed independently before any executable gene
 test('oversized or malformed new checks never replace saved original checks',async()=>{
  const p=original();let state:SimplificationState|undefined;let calls=0;
  const services={plan:async()=>plan,reviewOutline:async()=>pass,generate:async(id:string)=>{calls++;const c=part(id,plan.cases.find(c=>c.id===id)!.description);c.steps[0]!.command[2]='x'.repeat(9000);return c;},syntax:async()=>[],review:async()=>pass,repair:async()=>p,save:async(s:SimplificationState)=>{state=structuredClone(s);}};
- await assert.rejects(simplifyInParts(task,p,'giant',ledger(),services),/generation.*budget/i);
- assert.equal(calls,2);assert.equal(state!.cases.length,0);assert.deepEqual(p,original());
+ await assert.rejects(simplifyInParts(task,p,'giant',ledger(),services),/8192/);
+ assert.equal(calls,1);assert.equal(state!.cases.length,0);assert.deepEqual(p,original());
 });
 
 test('a crash after generation reuses the saved raw response without another model request',async()=>{
@@ -212,4 +212,79 @@ test('a saved correction reply resumes even when both outline requests were alre
  assert.equal(state!.outlineAttempts,2);assert.deepEqual(state!.pendingOutline!.raw,fixed);
  await simplifyInParts(task,p,'giant',ledger(),{...services,save:async s=>{state=structuredClone(s);}},state);
  assert.equal(plans,2);assert.equal(reviews,2);assert.equal(state!.outlineResponses!.length,2);
+});
+
+test('legacy exhausted oversized child is subdivided without repeating its spent generation requests',async()=>{
+ const p=original(),outline=simplifyOutline(task,p,'giant',plan);let state:SimplificationState|undefined,split=0;const generated:string[]=[];
+ const saved:SimplificationState={version:1,baseDigest:proposalDigest(p),taskDigest:taskDigest(task),scope:'giant',outlineAttempts:2,outlineReviewAttempts:1,outline,outlineReview:{digest:proposalDigest(outline),review:pass},cases:[part('entry',plan.cases[0]!.description)],generationAttempts:{entry:1,boundary:2},generationErrors:{boundary:'Simplified check exceeds 8 KiB; remove generic parser code and disclose browser-only evidence.'}};
+ const result=await simplifyInParts(task,p,'giant',ledger(),{
+  plan:async()=>{throw Error('root outline already reviewed');},reviewOutline:async()=>{throw Error('root outline already reviewed');},
+  generate:async(id,current)=>{generated.push(id);return part(id,current.manifest.cases.find(c=>c.id===id)!.description!);},syntax:async()=>[],review:async()=>pass,repair:async()=>p,save:async s=>{state=structuredClone(s);},
+  subdivide:(_base,id,_findings,save)=>{split++;assert.equal(id,'boundary');return {plan:async()=>({cases:[{id:'private-fields',description:'Inspect private fields.'},{id:'database-files',description:'Inspect database files.'}],limitations:[]}),reviewOutline:async()=>pass,generate:async()=>{throw Error('generation belongs to parent');},syntax:async()=>[],review:async()=>pass,repair:async()=>p,save};},
+ },saved);
+ assert.equal(split,1);assert.deepEqual(generated,['private-fields','database-files']);
+ assert.deepEqual(result.proposal.manifest.cases.map(c=>c.id),['startup','entry','private-fields','database-files','persistence']);
+ assert.equal(state!.generationAttempts.boundary,2);assert.equal(result.ledger.entries.find(e=>e.scope==='startup')!.review!.verdict,'pass');
+});
+
+test('oversized generated replies are retained with exact sizes before any subdivision',async()=>{
+ const p=original();let state:SimplificationState|undefined,calls=0;
+ const large=part('entry',plan.cases[0]!.description);large.steps[0]!.command[2]='x'.repeat(9000);
+ await assert.rejects(simplifyInParts(task,p,'giant',ledger(),{plan:async()=>plan,reviewOutline:async()=>pass,generate:async()=>{calls++;return large;},syntax:async()=>[],review:async()=>pass,repair:async()=>p,save:async s=>{state=structuredClone(s);}}),/8192|8 KiB/);
+ assert.equal(calls,1);assert.deepEqual(state!.generationResponses![0]!.raw,large);
+ assert.equal(state!.generationResponses![0]!.bytes,Buffer.byteLength(JSON.stringify(large.steps)));
+ assert.match(state!.generationErrors!.entry!,/8192/);
+});
+
+function exhaustedChild():SimplificationState{
+ const p=original(),outline=simplifyOutline(task,p,'giant',plan);
+ return {version:1,baseDigest:proposalDigest(p),taskDigest:taskDigest(task),scope:'giant',outlineAttempts:2,outline,outlineReview:{digest:proposalDigest(outline),review:pass},cases:[part('entry',plan.cases[0]!.description)],generationAttempts:{entry:1,boundary:2},generationErrors:{boundary:'Simplified check exceeds 8 KiB'}};
+}
+test('interrupted child subdivision resumes its reviewed outline without repeating its requests',async()=>{
+ let state:SimplificationState|undefined,plans=0,reviews=0,interrupt=true;
+ const services:import('../src/acceptance/simplification.ts').SimplificationServices={
+  plan:async()=>{throw Error('root must be reused');},reviewOutline:async()=>{throw Error('root review must be reused');},
+  generate:async(id,p)=>part(id,p.manifest.cases.find(c=>c.id===id)!.description!),syntax:async()=>[],review:async()=>pass,repair:async()=>original(),
+  save:async s=>{state=structuredClone(s);if(interrupt&&s.pendingRefinement?.state.outlineReview?.review.verdict==='pass'){interrupt=false;throw Error('crash after child review');}},
+  subdivide:(_p,_id,_findings,save)=>({...services,save,plan:async()=>{plans++;return {cases:[{description:'Observe one field.'},{description:'Observe another field.'}],limitations:[]};},reviewOutline:async()=>{reviews++;return pass;}}),
+ };
+ await assert.rejects(simplifyInParts(task,original(),'giant',ledger(),services,exhaustedChild()),/crash after child review/);
+ await simplifyInParts(task,original(),'giant',ledger(),services,state);
+ assert.equal(plans,1);assert.equal(reviews,1);assert.equal(state!.refinements!.length,1);assert.equal(state!.generationAttempts.boundary,2);
+});
+test('child subdivision shares the enclosing allowance and saves progress before pausing',async()=>{
+ let state:SimplificationState|undefined,plans=0,reviews=0;
+ const services:import('../src/acceptance/simplification.ts').SimplificationServices={
+  plan:async()=>{throw Error('root must be reused');},reviewOutline:async()=>{throw Error('root must be reused');},generate:async(id,p)=>part(id,p.manifest.cases.find(c=>c.id===id)!.description!),syntax:async()=>[],review:async()=>pass,repair:async()=>original(),save:async s=>{state=structuredClone(s);},
+  subdivide:(_p,_id,_findings,save)=>({...services,save,plan:async()=>{await checkRequestBudget(1000);plans++;return {cases:[{description:'Observe one field.'},{description:'Observe another field.'}],limitations:[]};},reviewOutline:async()=>{await checkRequestBudget(1000);reviews++;return pass;}}),
+ };
+ const run=()=>withCheckBudget({maxRequests:1,maxSeconds:10,requestSeconds:1},{requests:0},async()=>{},()=>{},()=>simplifyInParts(task,original(),'giant',ledger(),services,state??exhaustedChild()));
+ await assert.rejects(run(),CheckBudgetExceeded);
+ assert.equal(state!.pendingRefinement!.state.outlineReviewAttempts??0,0);
+ await assert.rejects(run(),CheckBudgetExceeded);
+ assert.equal(plans,1);assert.equal(reviews,1);
+ await withCheckBudget({maxRequests:10,maxSeconds:10,requestSeconds:1},{requests:0},async()=>{},()=>{},()=>simplifyInParts(task,original(),'giant',ledger(),services,state));
+ assert.equal(plans,1);assert.equal(reviews,1);
+});
+test('repeated oversized children stop at a saved subdivision depth limit',async()=>{
+ let state:SimplificationState|undefined,generated=0,subdivisions=0;
+ const services:import('../src/acceptance/simplification.ts').SimplificationServices={
+  plan:async()=>plan,reviewOutline:async()=>pass,generate:async(id,p)=>{generated++;const c=part(id,p.manifest.cases.find(c=>c.id===id)!.description!);c.steps[0]!.command[2]='x'.repeat(9000);return c;},syntax:async()=>[],review:async()=>pass,repair:async()=>original(),save:async s=>{state=structuredClone(s);},
+  subdivide:(_p,_id,_findings,save)=>({...services,save,plan:async()=>{subdivisions++;return {cases:[{description:'One observation.'},{description:'Another observation.'}],limitations:[]};}}),
+ };
+ await assert.rejects(simplifyInParts(task,original(),'giant',ledger(),services),/subdivision limit reached/);
+ assert.equal(subdivisions,2);assert.equal(generated,3);assert.equal(state!.generationResponses!.length,3);assert.equal(state!.refinements!.length,2);
+});
+
+test('rejected child outline cannot replace peers or generate code, and a mismatched pending subdivision cannot dispatch',async()=>{
+ let state:SimplificationState|undefined,generated=0,dispatched=0;
+ const services:import('../src/acceptance/simplification.ts').SimplificationServices={
+  plan:async()=>{throw Error('root reused');},reviewOutline:async()=>{throw Error('root reused');},generate:async()=>{generated++;throw Error('unreviewed generation');},syntax:async()=>[],review:async()=>pass,repair:async()=>original(),save:async s=>{state=structuredClone(s);},
+  subdivide:(_p,_id,_findings,save)=>{dispatched++;return {...services,save,plan:async()=>({cases:[{description:'First partition.'},{description:'Second partition.'}],limitations:[]}),reviewOutline:async()=>({verdict:'repair',issues:['Missing required observation.'],limitations:[]})};},
+ };
+ const initial=exhaustedChild();
+ await assert.rejects(simplifyInParts(task,original(),'giant',ledger(),services,initial),/correction made no change/);
+ assert.equal(generated,0);assert.deepEqual(state!.outline,initial.outline);assert.deepEqual(state!.cases,initial.cases);assert.equal(state!.refinements,undefined);
+ const changed=structuredClone(state!);changed.pendingRefinement!.baseDigest='wrong';const before=dispatched;
+ await assert.rejects(simplifyInParts(task,original(),'giant',ledger(),services,changed),/different outline/);assert.equal(dispatched,before);
 });

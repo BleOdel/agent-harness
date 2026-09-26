@@ -75,7 +75,10 @@ export async function checks(project: string, args: readonly string[]): Promise<
   if (args.length === 2 && args[0] === "setup" && args[1] === "--manual") return setupChecks(project, terminalDialogue(), true);
   if ((args.length===1||args.length===2) && args[0]==="use-recipe") return useRecipeSavedCheck(project,terminalDialogue(),args[1]);
   if ((args.length===1||args.length===2) && args[0]==="repair") return repairSavedCheck(project,terminalDialogue(),args[1]);
-  if ((args.length===1||args.length===2) && args[0]==="simplify") return simplifySavedCheck(project,terminalDialogue(),args[1]);
+  if(args[0]==='simplify'){
+    const options=args.slice(1),scope=options[0]&&!options[0].startsWith('--')?options.shift():undefined;
+    return simplifySavedCheck(project,terminalDialogue(),scope,undefined,parseCheckLimits(options,'simplify [case-id]'));
+  }
   if (args.length === 1 && args[0] === "review") {
     const io = terminalDialogue();
     if (await readGuidedDraft(project,true)) return reviewGuidedDraft(project, io);
@@ -98,6 +101,6 @@ export async function checks(project: string, args: readonly string[]): Promise<
     say("Next: harness checks prepare (bounded preparation from your plan), or harness checks approve <file> (JSON document).");
     say("Use application behaviour, not a test runner's claim that tests passed. The host checks expectations outside the candidate process."); return;
   }
-  if (args.length !== 2 || args[0] !== "approve") throw new OperatorError("Use: harness checks [prepare [--max-requests N] [--max-seconds N] [--request-seconds N] | regenerate <case-id> | status | setup [--manual] | review | repair [case-id] | use-recipe [case-id] | simplify [case-id] | approve <file>]");
+  if (args.length !== 2 || args[0] !== "approve") throw new OperatorError("Use: harness checks [prepare [--max-requests N] [--max-seconds N] [--request-seconds N] | regenerate <case-id> | status | setup [--manual] | review | repair [case-id] | use-recipe [case-id] | simplify [case-id] [--max-requests N] [--max-seconds N] [--request-seconds N] | approve <file>]");
   await withWriter(project, "checks", async () => { const approval = await approveChecks(project, path.resolve(args[1]!)); say(`Approved ${approval.manifest.cases.length} acceptance cases. These exact expectations will be checked before application.`); });
 }
