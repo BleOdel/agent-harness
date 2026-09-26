@@ -96,7 +96,12 @@ gate outcomes, skipped gates and at most 12,000 characters of diagnostic output
 the read-only review prompt; private acceptance commands do not. Findings must
 reconcile observed results with source reasoning and label runtime uncertainty.
 Passing project tests never overrides reviewer findings or acceptance requirements.
-Each resumed implementation reruns gates and produces fresh evidence.
+Each resumed implementation reruns gates and produces fresh evidence. Explicit
+`work --resume <id> --refresh-checks` can adopt corrected, already approved probe
+steps after comparing the archived approval with the current one. Only the resumed
+task's executable steps may differ; case metadata, contracts and other tasks stay
+fixed. All other checkpoint identity guards remain active, and both approval
+digests are recorded without rewriting the original checkpoint.
 
 Implementation: [adapter contract](src/adapters/contract.ts),
 [Node adapter](src/adapters/node-npm.ts), [runner contract](src/runners/contract.ts),

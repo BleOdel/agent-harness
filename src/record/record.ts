@@ -31,6 +31,7 @@ export const recoveryPath = (project: string, runId: string): string =>
 export type Outcome = "applied" | "gate-failed" | "escalated" | "no-changes" | "error" | "blocked" | "environment-blocked";
 
 export interface RunRecord {
+  readonly checkRefresh?: {readonly previousApprovalDigest:string;readonly currentApprovalDigest:string};
   readonly id: string;
   readonly at: string;
   readonly project: string;

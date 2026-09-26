@@ -888,6 +888,7 @@ Worker cleanup is confirmed before snapshotting its source. Nothing is applied. 
 harness work                       # resume if the next item has saved partial work
 harness work local-story-service   # resume this item's saved work
 harness work --resume r3           # choose a particular available checkpoint
+harness work --resume r3 --refresh-checks  # opt in after approving corrected probes
 ```
 
 `harness look` lists available checkpoints. `harness show r3` displays the saved
@@ -946,6 +947,15 @@ accepted from the correction response. Reported correction usage is included in 
 current run. Failed, timed-out or invalid correction stops and retains the implementation
 for explicit resume. Malformed or blocked submissions are not converted into completion
 claims by this step; ordinary implementation-repair rules still apply.
+
+When an approved acceptance probe was incorrect, review and approve its correction
+first, then explicitly resume with `--refresh-checks`. This accepts only executable
+check changes scoped exclusively to that task. Case identity, scope, interface
+contracts, other tasks' checks, project source, requirements and execution settings
+must still match. The original approval archive must be intact. The original
+checkpoint stays unchanged; the new run records both approval digests and reruns
+all gates, independent review and acceptance. Normal resume still refuses changed
+approvals. This option does not approve a draft or reuse a previous pass.
 
 The ordinary reviewer receives the same approved plan and task-scoped interface
 choices as the builder, while private acceptance commands and expected outputs stay

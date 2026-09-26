@@ -532,3 +532,32 @@ test("review receives fresh candidate-bound runtime evidence, retains it, and ca
   assert.equal(evidence.acceptance,"not-run");assert.deepEqual(evidence.testCommand,["npm","test"]);
  }finally{await f.close();}
 });
+
+
+test("explicit check refresh resumes source with fresh verification under corrected expectations",async()=>{
+ const f=await fixture([item("api")],"changed");
+ try {
+  const scopedFile=path.join(f.root,"checks.json"),scoped=JSON.parse(await readFile(scopedFile,"utf8"));scoped.cases[0].tasks=['api'];await writeFile(scopedFile,JSON.stringify(scoped));await approveChecks(f.project,scopedFile);
+  f.env.FLOW_MODE="timeout";f.env.HARNESS_AGENT_TIMEOUT="1";await f.run("work","api");
+  const file=path.join(f.root,"checks.json"),draft=JSON.parse(await readFile(file,"utf8"));
+  draft.cases[0].steps[0].command[3]+="; // corrected probe";await writeFile(file,JSON.stringify(draft));const approval=await approveChecks(f.project,file);
+  const previous=await readFile(path.join(harnessDirectory(f.project),"implementation/r1/state.json"),"utf8");
+  f.env.FLOW_MODE="resume";f.env.HARNESS_AGENT_TIMEOUT="5";
+  const result=await f.run("work","--resume","r1","--refresh-checks");assert.equal(result.code,0,result.text);
+  const record=(await readRecord(f.project)).runs.at(-1)!;assert.equal(record.resumedFrom,"r1");assert.ok(record.acceptance);assert.equal(record.acceptance.approvalDigest,approval.digest);
+  assert.equal(record.checkRefresh?.previousApprovalDigest,JSON.parse(previous).approvalDigest);assert.equal(record.checkRefresh?.currentApprovalDigest,approval.digest);
+  const state=JSON.parse(await readFile(path.join(harnessDirectory(f.project),"implementation/r1/state.json"),"utf8"));assert.equal(state.approvalDigest,JSON.parse(previous).approvalDigest);
+  assert.ok((await f.calls()).some(c=>c.kind==="gate"));assert.ok((await f.calls()).some(c=>c.kind==="reviewer"));assert.ok((await f.calls()).some(c=>c.kind==="acceptance"));
+ }finally{await f.close();}
+});
+
+test("check refresh cannot authorize changed interface choices",async()=>{
+ const f=await fixture([item("api")],"changed");
+ try {
+  const scopedFile=path.join(f.root,"checks.json"),scoped=JSON.parse(await readFile(scopedFile,"utf8"));scoped.cases[0].tasks=['api'];await writeFile(scopedFile,JSON.stringify(scoped));await approveChecks(f.project,scopedFile);
+  f.env.FLOW_MODE="timeout";f.env.HARNESS_AGENT_TIMEOUT="1";await f.run("work","api");
+  const file=path.join(f.root,"checks.json"),draft=JSON.parse(await readFile(file,"utf8"));draft.cases[0].contract="New API required";await writeFile(file,JSON.stringify(draft));await approveChecks(f.project,file);
+  const result=await f.run("work","--resume","r1","--refresh-checks");assert.notEqual(result.code,0);assert.match(result.text,/interface|scope|metadata/i);
+  assert.equal((await f.calls()).filter(c=>c.kind==="builder").length,1);
+ }finally{await f.close();}
+});

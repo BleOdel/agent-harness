@@ -1,3 +1,4 @@
+import {checkRefresh, type CheckRefresh} from "../workspace/check-refresh.ts";
 import { repairClaim } from "../agent/claim-repair.ts";
 import { atomicBytes } from "../workspace/atomic.ts";
 import { createHash } from "node:crypto";
@@ -157,8 +158,9 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
   const args = [...argv];
   const fresh = args[0] === "--fresh";
   const resumeId = args[0] === "--resume" ? args[1] : undefined;
-  if (args[0] === "--resume" && (args.length !== 2 || !/^r[1-9][0-9]*$/.test(resumeId ?? "")))
-    throw new OperatorError("Use harness work --resume <run-id>.");
+  const refreshChecks = args[0] === "--resume" && args[2] === "--refresh-checks";
+  if (args[0] === "--resume" && ((args.length !== 2 && !(args.length === 3 && refreshChecks)) || !/^r[1-9][0-9]*$/.test(resumeId ?? "")))
+    throw new OperatorError("Use harness work --resume <run-id> [--refresh-checks].");
   if (fresh) args.shift();
   if (!resumeId && args.some(arg => arg.startsWith("--"))) throw new OperatorError("Use harness work [item], work --resume <run-id>, or work --fresh [item].");
   let goal = resumeId ? "" : args.join(" ").trim();
@@ -189,6 +191,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
   const originalInstruction = briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs", work.feature?.planContext) + contractContext(approvedChecks, acceptanceTasks);
   let instruction = originalInstruction;
   let claimCorrectionUsed = false;
+  let refreshedChecks: CheckRefresh | undefined;
   const adapter = getAdapter((await readProfile(project)).adapter);
   const workspace = await createRunWorkspace(project, adapter.source.generatedDirectories);
   const { sandbox } = workspace;
@@ -253,6 +256,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       attempts,
       outcome,
       ...(checkpoint ? { resumedFrom: checkpoint.runId } : {}),
+      ...(refreshedChecks ? { checkRefresh: refreshedChecks } : {}),
       ...(execution ? { execution, observedSkillReads: [...observedReads] } : {}),
       baselineDigest: baseline.digest,
       ...(candidateDigest === undefined ? {} : { candidateDigest }),
@@ -351,7 +355,10 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
     const checkpointInputs = {goal:task, workDigest, approvalDigest:approvedChecks.digest, executionDigest:execution!.digest, baseline};
     if (checkpoint) {
       try {
-        assertCheckpointInputs(checkpoint, checkpointInputs);
+        if (refreshChecks) refreshedChecks = await checkRefresh(project, checkpoint.approvalDigest, approvedChecks, task);
+        // The opt-in covers only the checked approval delta. Every other identity
+        // is still compared, and the original checkpoint remains unmodified.
+        assertCheckpointInputs(refreshedChecks ? { ...checkpoint, approvalDigest: approvedChecks.digest } : checkpoint, checkpointInputs);
         await restoreWorkCheckpoint(checkpoint, sandbox.workDirectory);
       } catch (error) {
         throw await stop("error", (error as Error).message, error instanceof OperatorError ? error.remedy : "Saved work was retained. Inspect the checkpoint before retrying.");
@@ -364,7 +371,10 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
     }
     say(`Model: ${modelLabel(config)}`);
 
-    if (checkpoint) instruction = checkpoint.instruction;
+    if (checkpoint) instruction = refreshedChecks
+      ? `Resume the retained unverified implementation under corrected, operator-approved executable checks. Previous check expectations have been replaced; do not repeat an obsolete check diagnosis. Inspect the retained files and rerun all validation.\n\n${originalInstruction}`
+      : checkpoint.instruction;
+    if (refreshedChecks) say("Using revised operator-approved checks. Previous verification is not reused; the original checkpoint and approval archive are retained.");
     for (let attempt = checkpoint?.attempt ?? 1; attempt <= 2; attempt += 1) {
       attempts = attempt;
       if (attempt > 1) say(`\nattempt ${String(attempt)}, with a diagnosis`);
@@ -524,6 +534,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
           attempts: attempt,
           outcome: "no-changes",
           ...(checkpoint ? { resumedFrom:checkpoint.runId } : {}),
+          ...(refreshedChecks ? { checkRefresh: refreshedChecks } : {}),
           execution: execution!, observedSkillReads: [...observedReads], baselineDigest: baseline.digest, candidateDigest: candidate.digest, ...(environmentKey ? { environmentKey } : {}),
           gates: gateSummaries,
           changes: [],
@@ -655,6 +666,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
         attempts: attempt,
         outcome: "applied",
         ...(checkpoint ? { resumedFrom:checkpoint.runId } : {}),
+          ...(refreshedChecks ? { checkRefresh: refreshedChecks } : {}),
         ...(execution ? { execution, observedSkillReads: [...observedReads] } : {}),
         baselineDigest: baseline.digest,
         candidateDigest: candidate.digest,
