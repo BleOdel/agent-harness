@@ -1,3 +1,4 @@
+import {CheckRequestInterrupted} from './request-failure.ts';
 import {ensureCheckBudget,CheckBudgetExceeded,hasCheckBudget,withCheckBudget,defaultCheckLimits,validateCheckLimits,type CheckLimits,type CheckSpend} from './budget.ts';
 import {recipeForDescription,inferWebRecipe,recipeDescription} from './recipes/catalog.ts';
 import {blockedScopes, renewScope, repairScopeInIsolation} from './targeted.ts';
@@ -220,7 +221,7 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
    const completed=completedRaw?JSON.parse(completedRaw):undefined;
    if(completed?.taskId===fresh.id && completed.taskDigest===taskDigest(fresh) && completed.sourceDigest===source && completed.state?.outlineReview?.review?.verdict==='pass'){
     const b=completed.state.blueprint;
-    if(JSON.stringify({contract:b.contract,coverage:b.coverage,cases:b.cases})===JSON.stringify({contract:initial.contract,coverage:initial.coverage,cases:initial.manifest.cases.map(c=>({id:c.id,description:c.description}))}))ledger={version:1,entries:[{scope:'$contract',digest:scopeDigest(fresh,initial,'$contract'),repairs:0,syntaxRepairs:0,review:completed.state.outlineReview.review}]};
+    if(JSON.stringify({contract:b.contract,coverage:b.coverage,cases:b.cases})===JSON.stringify({contract:initial.contract,coverage:initial.coverage,cases:initial.manifest.cases.map(c=>({id:c.id,description:c.description}))}))ledger={version:1,entries:[...(completed.state.reviewLedger?.entries??[]).filter((e:{scope:string;digest:string})=>e.scope!=='$contract'&&e.digest===scopeDigest(fresh,initial,e.scope)),{scope:'$contract',digest:scopeDigest(fresh,initial,'$contract'),repairs:0,syntaxRepairs:0,review:completed.state.outlineReview.review}]};
    }
   }
   if(previousIssues.length)ledger={...(ledger??{version:1,entries:[]}),previousIssues:[...new Set([...(ledger?.previousIssues??[]),...previousIssues])]};
@@ -265,7 +266,7 @@ export async function simplifySavedCheck(project:string,io:Dialogue,caseId?:stri
   const save=()=>atomicWrite(file,JSON.stringify(run,null,2)+'\n');await save();
   io.write(`Simplification allowance: ${limits.maxRequests} model requests, ${limits.maxSeconds}s total, ${limits.requestSeconds}s per request. Completed stages are reused.`);
   try{await withCheckBudget(limits,spend,save,io.write,()=>simplifySavedCheckWithinBudget(project,io,caseId,servicesFactory));run.status='complete';}
-  catch(error){run.status=error instanceof CheckBudgetExceeded?'paused':'blocked';if(error instanceof CheckBudgetExceeded)throw new OperatorError(error.message,`Progress is saved. Resume with harness checks simplify${caseId?' '+caseId:''}. No checks were approved.`);throw error;}
+  catch(error){run.status=error instanceof CheckBudgetExceeded||error instanceof CheckRequestInterrupted?'paused':'blocked';if(error instanceof CheckBudgetExceeded)throw new OperatorError(error.message,`Progress is saved. Resume with harness checks simplify${caseId?' '+caseId:''}. No checks were approved.`);throw error;}
   finally{await save();}
  });
 }
@@ -311,7 +312,7 @@ async function simplifySavedCheckWithinBudget(project:string,io:Dialogue,caseId:
   let result:Awaited<ReturnType<typeof simplifyInParts>>;
   try{result=await simplifyInParts(task,p,selected,ledger,servicesFactory(project,task,p,selected,findings,save,io.write),pending?.state);}
   catch(error){
-   if(error instanceof CheckBudgetExceeded)throw error;
+   if(error instanceof CheckBudgetExceeded||error instanceof CheckRequestInterrupted)throw error;
    const e=error as Error&{remedy?:string};
    throw new OperatorError(e.message,[e.remedy,'Simplification progress is saved; the original draft and approvals are unchanged. Resume with harness checks simplify to reuse completed stages. Oversized children are subdivided automatically within saved limits; do not restart the whole task to recover a single check.'].filter(Boolean).join('\n'));
   }
@@ -418,7 +419,7 @@ export async function useRecipeSavedCheck(project:string,io:Dialogue,caseId?:str
   if(!state.review){
    if(state.reviewStarted&&options.resume)throw new OperatorError('The recipe settings review was interrupted.','Use harness checks use-recipe for one explicit retry. The candidate and previous checks are saved.');
    ensureCheckBudget();state.reviewStarted=true;await save();io.write('Reviewing only recipe settings and requirement coverage; no probe generation or code repair.');
-   try {state.review=parseDraftReview(await (options.reviewer??((project,task,p,scope)=>requestScopedReview(project,task,p,scope,[],io.write)))(project,task,candidate,scope!));}catch(error){if(error instanceof CheckBudgetExceeded){state.reviewStarted=false;await save();}throw error;}await save();
+   try {state.review=parseDraftReview(await (options.reviewer??((project,task,p,scope)=>requestScopedReview(project,task,p,scope,[],io.write)))(project,task,candidate,scope!));}catch(error){if(error instanceof CheckBudgetExceeded||error instanceof CheckRequestInterrupted){state.reviewStarted=false;await save();}throw error;}await save();
   }
   const review=parseDraftReview(state.review);
   if(review.verdict!=='pass')throw new OperatorError('Recipe settings need attention.',review.issues.join('\n')+'\nNo code-repair loop was started. Use harness checks use-recipe to edit the settings. The original draft and approval remain unchanged.');

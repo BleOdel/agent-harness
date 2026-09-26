@@ -175,3 +175,30 @@ test('exhausted partition budget cannot trigger another model call on resume',as
  const b=proposal();const saved:Preparation={version:1,blueprint:{version:1,contract:b.contract,coverage:b.coverage,cases:b.manifest.cases.map(c=>({id:c.id,description:c.description!}))},cases:[entry('privacy')],pendingCase:{id:'delete',raw:{...entry('delete'),steps:[{command:['node','-e','x'.repeat(18000)],exitCode:0,stdout:'x'}]},repairs:2},splits:2};
  await assert.rejects(draftInParts(task,{plan:async()=>{throw Error('must reuse');},generate:async()=>{throw Error('must not generate');},repairCase:async()=>{throw Error('budget exhausted');},splitCase:async()=>{throw Error('must not split again');},reviewSplit:async()=>pass,save:async()=>{}},saved),/could not prepare this behaviour/);
 });
+
+import {scopeDigest} from '../src/acceptance/scoped-review.ts';
+test('ordinary preparation finishes one check before generating the next and reuses its receipt',async()=>{
+ let state:Preparation|undefined,interrupt=true;const events:string[]=[];
+ const services:Parameters<typeof draftInParts>[1]={plan:async()=>blueprint,generate:async id=>{events.push('generate:'+id);return entry(id);},save:async s=>{state=structuredClone(s);},reviewCase:async(p,id,ledger,save)=>{events.push('review:'+id);if(id==='delete'&&interrupt){interrupt=false;throw Error('interrupted review');}await save(p,{version:1,entries:[...ledger.entries,{scope:id,digest:scopeDigest(task,p,id),repairs:0,syntaxRepairs:0,review:pass}]});}};
+ await assert.rejects(draftInParts(task,services),/interrupted review/);assert.deepEqual(events,['generate:privacy','review:privacy','generate:delete','review:delete']);
+ await draftInParts(task,services,state);assert.deepEqual(events,['generate:privacy','review:privacy','generate:delete','review:delete','review:delete']);assert.equal(state!.reviewLedger!.entries.length,2);
+});
+test('incremental review cannot rewrite other checks or hand back an unreviewed case',async()=>{
+ const base:Parameters<typeof draftInParts>[1]={plan:async()=>blueprint,generate:async id=>entry(id),save:async()=>{}};
+ await assert.rejects(draftInParts(task,{...base,reviewCase:async()=>{}}),/passing receipt/);
+ await assert.rejects(draftInParts(task,{...base,reviewCase:async(p,_id,l,save)=>{const n=structuredClone(p);n.contract='weaken';await save(n,l);}}),/another behaviour|frozen contract/);
+});
+
+import {CheckRequestInterrupted} from '../src/acceptance/request-failure.ts';
+test('classified outline provider interruptions do not consume usable repair attempts',async()=>{
+ let saved:Preparation|undefined,calls=0;
+ const services={plan:async()=>blueprint,reviewOutline:async(b:Blueprint)=>b.contract.includes('corrected')?pass:{verdict:'repair' as const,issues:['Ambiguous interface'],limitations:[]},repairOutline:async(b:Blueprint)=>{if(++calls===1)throw new CheckRequestInterrupted('timeout','provider timeout');return {...b,contract:b.contract+' corrected'};},generate:async(id:string)=>entry(id),save:async(s:Preparation)=>{saved=structuredClone(s);}};
+ await assert.rejects(draftInParts(task,services),/provider timeout/);assert.equal(saved!.outlineRepairs,0);
+ await draftInParts(task,services,saved);assert.equal(saved!.outlineRepairs,1);assert.equal(calls,2);
+});
+test('classified split provider interruptions retain the original case and partition allowance',async()=>{
+ let saved:Preparation={version:1,blueprint:{...blueprint,version:1},cases:[entry('privacy')],pendingCase:{id:'delete',raw:{...entry('delete'),steps:[{command:['node','-e','x'.repeat(18000)],exitCode:0,stdout:'x'}]},repairs:2},splits:0};let calls=0;
+ const services={plan:async()=>blueprint,generate:async(id:string,b:Blueprint)=>({...entry(id),description:b.cases.find(c=>c.id===id)!.description}),splitCase:async()=>{if(++calls===1)throw new CheckRequestInterrupted('provider','provider unavailable');return {cases:[{id:'delete-a',description:'First deletion observation'},{id:'delete-b',description:'Second deletion observation'}]};},reviewSplit:async()=>pass,save:async(s:Preparation)=>{saved=structuredClone(s);}};
+ await assert.rejects(draftInParts(task,services,saved),/provider unavailable/);assert.equal(saved.splits,0);assert.equal(saved.pendingCase!.id,'delete');
+ await draftInParts(task,services,saved);assert.equal(saved.splits,1);assert.equal(calls,2);
+});

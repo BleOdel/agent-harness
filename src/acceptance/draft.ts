@@ -1,3 +1,4 @@
+import {CheckRequestInterrupted} from './request-failure.ts';
 import {checkRequestBudget,ensureCheckBudget} from './budget.ts';
 import {CheckResponse} from './response.ts';
 import {serverRuntimePrompt} from './server-runtime.ts';
@@ -59,7 +60,7 @@ export function draftPrompt(task: Feature, feedback = '', previous?: Proposal): 
   serverRuntimePrompt(),
   'Return schema: {"version":1,"contract":"plain-language interface contract, including exact paths/fields when needed","coverage":[{"criterion":1,"cases":["case-id"],"limitation":"optional: aspects this check cannot establish"}],"manifest":{"version":1,"cases":[{"id":"case-id","tasks":["' + task.id + '"],"description":"user-facing behaviour checked","steps":[{"command":["node","--input-type=module","-e","probe source"],"exitCode":0,"stdout":"actual expected output\\n"}]}]}}.',
   'Assert the contracted success status for every positive read and mutation, including requests whose response body is otherwise ignored. Body shape or later state alone cannot establish a successful HTTP result. Keep intentional negative probes explicitly paired with their expected error status.',
-  'Account for EVERY numbered criterion exactly once in coverage. cases may be empty only with a limitation. Map every case. Use stdout, stdoutIncludes or files:[{path,text}] for observable host checks. Do not substitute a runtime-only check for lifecycle/privacy/persistence criteria. Browser UX and cryptographic quality need explicit limitations where these commands cannot verify them.',
+  'Account for EVERY numbered criterion exactly once in coverage. cases may be empty only with a limitation. Map every case. Use stdout (exact string), stdoutIncludes (a nonempty string or a nonempty list of nonempty strings, ALL required), or files:[{path,text}] for observable host checks. Do not substitute a runtime-only check for lifecycle/privacy/persistence criteria. Browser UX and cryptographic quality need explicit limitations where these commands cannot verify them.',
   'Keep evidence promises within the configured runner capabilities. For Node-only web checks, separate entry delivery, private database exposure, and browser asset correctness. Do not promise universal asset discovery or generate an HTML/CSS/JavaScript parser or browser emulator. Use the pinned collectAssets helper for static same-origin asset discovery, retain all response bytes for disclosure checks, and require unresolved references to be empty unless separately approved evidence covers them. Full browser execution still requires separate browser/source evidence. Such limits do not waive the application requirements or readily observable privacy checks.',
   JSON.stringify({ task: { id: task.id, title: task.title, criteria: task.criteria.map((text, i) => ({ number: i + 1, text })), plan: task.planContext ?? 'No saved plan; use task criteria and source.' }, feedback, previous }),
  ].join('\n\n');
@@ -89,8 +90,8 @@ export async function requestCheckJson(project: string, prompt: string): Promise
   finally {response.finish();await allowance.record(response.usage,response.complete&&result?.code===0&&!result.timedOut&&!result.outputLimited);}
   if(response.complete)process.stdout.write(`Provider reported: ${response.usage.totalTokens.toLocaleString('en-GB')} tokens · $${response.usage.costUsd.toFixed(4)} estimate\n`);
   else process.stdout.write('Provider usage reporting incomplete or unavailable.\n');
-  if(response.failure)throw new OperatorError(response.failure,'Provider request failed. Saved preparation is retained.');
-  if (result.code !== 0 || result.timedOut || result.outputLimited) throw new OperatorError(`Check drafting did not complete${result.timedOut ? ` within ${Math.round(allowance.timeoutMs/1000)} seconds` : ` (exit ${result.code})`}. ${result.stderr.slice(-1500)}`, 'This model request returned no usable result. Earlier checkpoints are retained. Resume with harness checks review; repeated complex-check failures can use harness checks simplify.');
+  if(response.failure)throw new CheckRequestInterrupted('provider',response.failure);
+  if(result.code!==0||result.timedOut||result.outputLimited)throw new CheckRequestInterrupted(result.timedOut?'timeout':result.outputLimited?'output-limit':'provider',`Check drafting did not complete${result.timedOut?` within ${Math.round(allowance.timeoutMs/1000)} seconds`:` (exit ${result.code})`}. ${result.stderr.slice(-1500)}`);
   await assertLiveBaseline(project, baseline);
   let raw: unknown;
   try { raw = JSON.parse(response.text.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, '')); }

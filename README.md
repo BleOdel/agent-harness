@@ -454,9 +454,19 @@ harness checks review
 harness checks prepare --max-requests 20 --max-seconds 1200 --request-seconds 300
 ```
 
+Preparation completes one check at a time: generation, host validation, independent
+review and a saved receipt before the next check is generated. Older saved batches
+are reviewed first. Approved checks for completed prerequisites are reused by
+rerunning them on the new candidate; new outlines receive their descriptions so
+backend checks need not be reinvented for each interface task. Stale prerequisite
+approvals block application. Browser/source evidence remains separate.
+
 Each preparation invocation defaults to at most **12 model requests**, **600 seconds**
 of elapsed preparation time, and **180 seconds per request**. The configured agent
-timeout also applies if shorter. The allowance covers drafting, reviews, code
+timeout also applies if shorter. The scheduler pauses before dispatch if too little
+of the configured request window remains, instead of starting a doomed short turn.
+Classified provider interruptions record spend but do not consume a check-defect
+attempt; the saved stage resumes within a new command allowance. The allowance covers drafting, reviews, code
 repairs and response-format corrections. It counts agent dispatches, not provider
 turns: a dispatch can use several turns. Limits pause preparation before another
 request and bound an in-flight request; container cleanup can take additional time.
@@ -612,7 +622,7 @@ The harness subdivides only that child into two or three independently reviewed
 behaviours, preserving completed peers and spent requests. This also recovers old
 checkpoints that exhausted generation on an oversized child. Subdivision is bounded
 to two levels, four operations per original check and 32 total cases. Required
-observations remain unchanged. Saved replies rejected by the former 8 KiB rule
+observations remain unchanged. Saved replies rejected by the former single-string expectation schema or 8 KiB rule
 are recovered once if they fit the standard ceiling, without another generation
 request; schema, helper pins, syntax and independent review must still pass.
 
@@ -731,8 +741,10 @@ For automation, review a document like this and run `harness checks approve /pat
 
 Use task IDs, or `"*"` only for a check that is appropriate to every covered task.
 Each pending task needs at least one applicable approved case before ordinary
-work or team dispatch/resume. `stdout` matches exactly; `stdoutIncludes` requires
-nonempty text. `files` can contain `{ "path": "result.json", "text": "..." }` or
+work or team dispatch/resume. `stdout` matches exactly; `stdoutIncludes` accepts nonempty text or a nonempty list of nonempty strings.
+Every listed fragment must occur in the output; order is unrestricted. The host
+never joins the fragments or treats the list as alternatives. Both constraints
+apply when exact `stdout` and `stdoutIncludes` are supplied. `files` can contain `{ "path": "result.json", "text": "..." }` or
 a lowercase SHA-256 digest in `sha256`. Exit code alone is insufficient. Check
 actual application behaviour rather than a script printing “tests passed”.
 
@@ -1686,3 +1698,6 @@ envelope can pass component tests while failing the combined contract check.
 The `M*_RESULTS.md` series records the original sequential harness. The
 `TEAM_M*_RESULTS.md` series records the later team milestones. Their measurements
 remain as recorded; a historical limitation is not necessarily a current one.
+
+For the findings, design decisions and remaining scenario-runner work, see
+[the acceptance architecture review](docs/acceptance-architecture-review.md).

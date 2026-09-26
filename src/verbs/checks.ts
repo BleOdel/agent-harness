@@ -51,7 +51,7 @@ export async function setupChecks(project: string, io: Dialogue, manual = false)
   for (const [index, step] of steps.entries()) {
     io.write(`  ${index + 1}. ${step.command[2]} -> exit ${step.exitCode}`);
     if (step.stdout !== undefined) io.write(`     Output exactly: ${JSON.stringify(step.stdout)}`);
-    if (step.stdoutIncludes !== undefined) io.write(`     Output includes: ${JSON.stringify(step.stdoutIncludes)}`);
+    if (step.stdoutIncludes !== undefined) io.write(`     Output includes${Array.isArray(step.stdoutIncludes)?" every fragment":""}: ${JSON.stringify(step.stdoutIncludes)}`);
     for (const file of step.files ?? []) io.write(`     ${file.path}: ${JSON.stringify(file.text)}`);
   }
   const approve = await confirmed(io, "Approve these checks before building this task?");

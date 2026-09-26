@@ -25,12 +25,14 @@ test('saved interface can supply web settings without asking for probe code; amb
  assert.equal(inferWebRecipe(contract+' Also `node other.js`.'),undefined);
 });
 
-test('a reviewed routine outline compiles from saved settings with zero model generation requests',async()=>{
+test('a reviewed routine outline compiles without model generation and still receives case review',async()=>{
  const task={id:'app',title:'App',status:'todo' as const,priority:'must' as const,dependsOn:[],criteria:['Inspect static assets and SQLite boundaries.']};
  const blueprint={version:1 as const,contract:'Start with `node src/server.js`, `PORT=0`, and `APP_DB` set to an absolute path. Readiness: Listening at http://127.0.0.1:<port>. GET /api/feed succeeds with 200. Host and Origin failures return 403.',coverage:[{criterion:1,cases:['web']}],cases:[{id:'web',description:'Inspect static assets and SQLite boundaries.'}]};
  const saved={version:1 as const,blueprint,cases:[],outlineReview:{digest:proposalDigest(blueprintProposal(task,blueprint)),review:{verdict:'pass' as const,issues:[],limitations:[]}}};
- // This path cannot make a provider request: there is no project/config at this path.
- const p=await prepareInParts('/no-such-project',task,'',undefined,async()=>{},()=>{},saved);
+ // Compilation must remain deterministic; inject the separate independent review.
+ let reviews=0;
+ const p=await prepareInParts('/no-such-project',task,'',undefined,async()=>{},()=>{},saved,[],{review:async(_project,_task,proposal,scope)=>{reviews++;assert.equal(scope,'web');assert.ok(proposal.manifest.cases[0]!.steps[0]!.recipe);return {verdict:'pass',issues:[],limitations:[]};}});
+ assert.equal(reviews,1);
  assert.equal(p.manifest.cases[0]!.steps[0]!.recipe?.kind,'node-web-sqlite');assert.deepEqual(p.manifest.cases[0]!.steps[0]!.recipe?.publicPaths,['/api/feed']);assert.equal('validation' in p,false);
 });
 

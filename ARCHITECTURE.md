@@ -158,7 +158,7 @@ flowchart LR
   T --> S
   B -->|operator chooses simplify| X["Stage 2–3 smaller behaviours and explicit evidence limits"]
   X --> XR["Independent outline review; freeze contract and peer checks"]
-  XR --> XC["Generate and review bounded replacements; save each stage"]
+  XR --> XC["Generate one replacement, validate and review it; save its receipt before the next"]
   XC -->|oversized reply| XO["Save raw reply and size; subdivide only this child within depth/operation limits"]
   XO --> XR
   XC -->|all replacements reviewed| XS["Archive old case; retain peer reviews; no approval"]
@@ -230,7 +230,8 @@ Only the oversized child is repartitioned; its independent outline review is sav
 before generation resumes. Nested checkpoints bind to the immediate outline and
 retain prior review receipts. Depth two, four subdivisions and 32 total cases bound
 this recovery. Before subdivision, a saved reply rejected under the former 8 KiB
-rule is retried once under the standard 16 KiB ceiling, retaining its spent attempt
+rule, or the former single-string output expectation schema, is retried once
+under the current schema and standard 16 KiB ceiling, retaining its spent attempt
 and original response. Schema, pins, syntax and independent review remain required.
 Failures above the hard ceiling still subdivide within the saved limits. A standalone invocation uses
 the shared request/time budget infrastructure and writes a spend audit; nested
@@ -872,3 +873,27 @@ interrupted generation leaves the original draft intact, and a saved candidate i
 reused after review interruption. Each explicit invocation is bounded to two provider
 requests and 360 seconds, with a 180-second per-request cap. Rejected candidates are
 archived on retry; model format corrections share the same allowance.
+
+Output inclusion expectations accept one string or a list of strings. The host
+requires every fragment independently, in addition to any exact output constraint.
+Approval fingerprints include the full list. Targeted repairs must match exactly
+once within one fragment and preserve all others; malformed or empty lists fail
+schema validation before approval or execution.
+
+
+### Acceptance dependency and preparation ownership
+
+Preparation and simplification finish one executable case through independent review
+before generating another. Their durable ledgers survive provider interruptions;
+only changed scopes are reviewed again. Request admission reserves a useful configured
+window before spending another request. Provider/timeout failures remain recorded
+spend but are separate from generated-response and format-defect budgets.
+
+`acceptance/regression.ts` resolves approved completed transitive prerequisites.
+`requireChecks`, candidate verification and proof validation use that expanded scope.
+New outlining receives prerequisite descriptions through `dependency-context.ts`;
+actual fresh execution is required before application, so reuse does not mean trusting
+an old pass. Builder contract context includes those prerequisite contracts.
+
+See [the architecture review](docs/acceptance-architecture-review.md) for evidence,
+tradeoffs, the updated flow and the remaining typed-scenario/browser boundaries.

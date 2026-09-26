@@ -8,13 +8,18 @@ interface Context {limits:CheckLimits;state:CheckSpend;deadline:number;now:()=>n
 const context=new AsyncLocalStorage<Context>();
 export const hasCheckBudget=():boolean=>context.getStore()!==undefined;
 export class CheckBudgetExceeded extends OperatorError {
- constructor(){super('Check preparation paused at its request or time limit.','Progress is saved. Run harness checks prepare to continue with a new bounded allowance. Nothing was approved.');this.name='CheckBudgetExceeded';}
+ constructor(){super('Check preparation paused at its request or time limit (not enough time for another configured model turn).','Progress is saved. Run harness checks prepare to continue with a new bounded allowance. Nothing was approved.');this.name='CheckBudgetExceeded';}
 }
 export const defaultCheckLimits:CheckLimits={maxRequests:12,maxSeconds:600,requestSeconds:180};
 export function validateCheckLimits(limits:CheckLimits):void{
  for(const [key,max] of [['maxRequests',100],['maxSeconds',7200],['requestSeconds',900]] as const)if(!Number.isInteger(limits[key])||limits[key]<1||limits[key]>max)throw new OperatorError(`${key} must be an integer from 1 to ${max}.`);
 }
-export function ensureCheckBudget():void {const c=context.getStore();if(c&&(c.state.requests>=c.limits.maxRequests||c.now()>=c.deadline))throw new CheckBudgetExceeded();}
+function minimumWindow(c:Context,configTimeout=Infinity):number {
+ const window=Math.min(configTimeout,c.limits.requestSeconds*1000,c.limits.maxSeconds*1000);
+ // Permit a small amount of dispatch bookkeeping, not a near-expired model turn.
+ return window-Math.min(1000,window/100);
+}
+export function ensureCheckBudget():void {const c=context.getStore();if(c&&(c.state.requests>=c.limits.maxRequests||c.deadline-c.now()<minimumWindow(c)))throw new CheckBudgetExceeded();}
 export async function withCheckBudget<T>(limits:CheckLimits,state:CheckSpend,save:()=>Promise<void>,write:(s:string)=>void,action:()=>Promise<T>,now=Date.now):Promise<T>{
  validateCheckLimits(limits);return context.run({limits,state,save,write,now,deadline:now()+limits.maxSeconds*1000},action);
 }
@@ -22,7 +27,7 @@ export async function checkRequestBudget(configTimeout:number):Promise<{timeoutM
  ensureCheckBudget();const c=context.getStore();
  if(!c)return {timeoutMs:configTimeout,record:async()=>{}};
  c.state.requests++;await c.save();
- if(c.now()>=c.deadline)throw new CheckBudgetExceeded();
+ if(c.deadline-c.now()<minimumWindow(c,configTimeout)){c.state.requests--;await c.save();throw new CheckBudgetExceeded();}
  c.write(`Model request ${c.state.requests}/${c.limits.maxRequests}; ${Math.max(0,Math.ceil((c.deadline-c.now())/1000))}s remaining in this allowance.`);
  let recorded=false;
  return {timeoutMs:Math.max(1,Math.min(configTimeout,c.limits.requestSeconds*1000,c.deadline-c.now())),record:async(usage,complete)=>{

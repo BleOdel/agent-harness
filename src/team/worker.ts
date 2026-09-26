@@ -1,3 +1,4 @@
+import {regressionTasks} from '../acceptance/regression.ts';
 import { contractContext } from "../acceptance/draft.ts";
 import type { Approval } from "../acceptance/checks.ts";
 import { getAdapter } from "../adapters/registry.ts";
@@ -65,7 +66,7 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
           await assertSnapshot(attempt.repairCandidate);
           repairDiff = "Rejected candidate diff, provided only as repair context:\n" + await renderDiff(origin.baseline.directory, attempt.repairCandidate.directory, await collectChanges(origin.baseline.directory, attempt.repairCandidate.directory));
         }
-        const goal = [role.instructions, repairDiff, ...(attempt.feedback ? [`Previous attempt diagnosis: ${attempt.feedback}`] : []), briefing(task.title, task.criteria, task.kind === "shared-inputs", task.planContext), contractContext(approval, [task.id]),
+        const goal = [role.instructions, repairDiff, ...(attempt.feedback ? [`Previous attempt diagnosis: ${attempt.feedback}`] : []), briefing(task.title, task.criteria, task.kind === "shared-inputs", task.planContext), contractContext(approval, approval?regressionTasks(state.plan.tasks,[task.id],approval.manifest):[task.id]),
           `Allowed change scope: ${task.changeScope.join(", ")}.`,
           `Contract versions: ${JSON.stringify(attempt.contracts)}.`,
           ...attempt.skills.map(skill => `Read /opt/skills/${skill.id}/SKILL.md before using that workflow.`),

@@ -301,7 +301,48 @@ test('saved 8 KiB rejection reuses the same reply under the standard ceiling wit
 test('a recovered size rejection still fails syntax and is not replayed indefinitely',async()=>{
  const saved=exhaustedChild(),c=part('boundary',plan.cases[1]!.description);c.steps[0]!.command[2]=' '.repeat(10000)+'invalid {';
  saved.generationResponses=[{id:'boundary',attempt:2,raw:c,bytes:Buffer.byteLength(JSON.stringify(c.steps)),error:'Simplified check exceeds 8 KiB'}];let state:SimplificationState|undefined,syntax=0;
- const services:import('../src/acceptance/simplification.ts').SimplificationServices={plan:async()=>{throw Error('root reused');},reviewOutline:async()=>{throw Error('root reused');},generate:async()=>{throw Error('spent requests remain spent');},syntax:async()=>{syntax++;return ['Invalid probe syntax'];},review:async()=>{throw Error('syntax must pass first');},repair:async()=>original(),save:async s=>{state=structuredClone(s);}};
+ const services:import('../src/acceptance/simplification.ts').SimplificationServices={plan:async()=>{throw Error('root reused');},reviewOutline:async()=>{throw Error('root reused');},generate:async()=>{throw Error('spent requests remain spent');},syntax:async p=>{if(p.manifest.cases[0]?.id!=='boundary')return [];syntax++;return ['Invalid probe syntax'];},review:async id=>{if(id==='entry')return pass;throw Error('syntax must pass first');},repair:async()=>original(),save:async s=>{state=structuredClone(s);}};
  await assert.rejects(simplifyInParts(task,original(),'giant',ledger(),services,saved),/generation request budget exhausted/);
  await assert.rejects(simplifyInParts(task,original(),'giant',ledger(),services,state),/generation request budget exhausted/);assert.equal(syntax,1);assert.equal(state!.cases.length,1);
+});
+
+test('legacy fragment-list rejection resumes retained code with all expectations and spent attempts preserved',async()=>{
+ const saved=exhaustedChild(),c={...part('boundary',plan.cases[1]!.description),steps:[{command:['node','-e','console.log("first second")'],exitCode:0,stdoutIncludes:['first','second']}]};
+ saved.generationErrors!.boundary='boundary: stdoutIncludes must be nonempty text.';saved.generationResponses=[{id:'boundary',attempt:2,raw:c,bytes:Buffer.byteLength(JSON.stringify(c.steps)),error:saved.generationErrors!.boundary}];
+ let state:SimplificationState|undefined,reviews=0;
+ const result=await simplifyInParts(task,original(),'giant',ledger(),{plan:async()=>{throw Error('saved outline');},reviewOutline:async()=>{throw Error('saved review');},generate:async()=>{throw Error('do not regenerate');},syntax:async()=>[],review:async()=>{reviews++;return pass;},repair:async()=>original(),save:async s=>{state=structuredClone(s);}},saved);
+ assert.deepEqual(result.proposal.manifest.cases.find(v=>v.id==='boundary'),c);assert.equal(state!.generationAttempts.boundary,2);assert.ok(reviews>0);
+});
+
+test('each generated check is reviewed and checkpointed before the next generation',async()=>{
+ const events:string[]=[];let saved:SimplificationState|undefined;
+ const result=await simplifyInParts(task,original(),'giant',ledger(),{plan:async()=>plan,reviewOutline:async()=>pass,generate:async(id,p)=>{events.push('generate:'+id);if(id==='boundary')assert.equal(saved!.ledger!.entries.find(e=>e.scope==='entry')!.review!.verdict,'pass');return part(id,p.manifest.cases.find(c=>c.id===id)!.description!);},syntax:async()=>[],review:async id=>{events.push('review:'+id);return pass;},repair:async()=>{throw Error('unexpected repair');},save:async s=>{saved=structuredClone(s);}});
+ assert.deepEqual(events,['generate:entry','review:entry','generate:boundary','review:boundary']);assert.equal(result.ledger.entries.find(e=>e.scope==='boundary')!.review!.verdict,'pass');
+});
+test('a review interruption retains the first check and never generates later work',async()=>{
+ let saved:SimplificationState|undefined,generated=0;
+ const services:import('../src/acceptance/simplification.ts').SimplificationServices={plan:async()=>plan,reviewOutline:async()=>pass,generate:async(id,p)=>{generated++;return part(id,p.manifest.cases.find(c=>c.id===id)!.description!);},syntax:async()=>[],review:async()=>{throw Error('provider interrupted review');},repair:async()=>original(),save:async s=>{saved=structuredClone(s);}};
+ await assert.rejects(simplifyInParts(task,original(),'giant',ledger(),services),/interrupted review/);assert.equal(generated,1);assert.equal(saved!.cases.length,1);
+ await simplifyInParts(task,original(),'giant',ledger(),{...services,review:async()=>pass},saved);assert.equal(generated,2);
+});
+test('legacy generated batches are reviewed before any remaining code is requested',async()=>{
+ const saved=exhaustedChild(),events:string[]=[];
+ await simplifyInParts(task,original(),'giant',ledger(),{plan:async()=>{throw Error('root reused');},reviewOutline:async()=>pass,generate:async(id,p)=>{events.push('generate:'+id);return part(id,p.manifest.cases.find(c=>c.id===id)!.description!);},syntax:async()=>[],review:async id=>{events.push('review:'+id);return pass;},repair:async()=>original(),save:async()=>{},subdivide:(_p,_id,_findings,save)=>({plan:async()=>({cases:[{description:'One observation.'},{description:'Two observations.'}],limitations:[]}),reviewOutline:async()=>pass,generate:async()=>{throw Error('parent generates');},syntax:async()=>[],review:async()=>pass,repair:async()=>original(),save})},saved);
+ assert.equal(events[0],'review:entry');assert.equal(events.filter(e=>e==='review:entry').length,1);
+});
+
+import {CheckRequestInterrupted} from '../src/acceptance/request-failure.ts';
+test('provider interruption counts spend but does not consume a generated-response defect attempt',async()=>{
+ let state:SimplificationState|undefined,fail=true;const spend={requests:0};
+ const services:import('../src/acceptance/simplification.ts').SimplificationServices={plan:async()=>plan,reviewOutline:async()=>pass,generate:async(id,p)=>{await checkRequestBudget(1000);if(fail){fail=false;throw new CheckRequestInterrupted('timeout','provider timed out');}return part(id,p.manifest.cases.find(c=>c.id===id)!.description!);},syntax:async()=>[],review:async()=>pass,repair:async()=>original(),save:async s=>{state=structuredClone(s);}};
+ await assert.rejects(withCheckBudget({maxRequests:6,maxSeconds:10,requestSeconds:1},spend,async()=>{},()=>{},()=>simplifyInParts(task,original(),'giant',ledger(),services)),CheckRequestInterrupted);
+ assert.equal(spend.requests,1);assert.equal(state!.generationAttempts.entry,0);assert.equal(state!.interruptions![0]!.kind,'timeout');
+ await withCheckBudget({maxRequests:6,maxSeconds:10,requestSeconds:1},spend,async()=>{},()=>{},()=>simplifyInParts(task,original(),'giant',ledger(),services,state));
+ assert.equal(spend.requests,3);assert.equal(state!.generationAttempts.entry,1);
+});
+test('durable per-check repair resumes the charged attempt before requesting later checks',async()=>{
+ let state:SimplificationState|undefined,fail=true,repairs=0;const generated:string[]=[];
+ const services:import('../src/acceptance/simplification.ts').SimplificationServices={durableRepairs:true,plan:async()=>plan,reviewOutline:async()=>pass,generate:async(id,p)=>{generated.push(id);return part(id,p.manifest.cases.find(c=>c.id===id)!.description!);},syntax:async()=>[],review:async(id,p)=>id==='entry'&&!p.manifest.cases.find(c=>c.id===id)!.steps[0]!.command[2]!.includes('repaired')?{verdict:'repair',issues:['Observe the required value'],limitations:[]}:pass,repair:async(id,p)=>{repairs++;if(fail){fail=false;throw new CheckRequestInterrupted('timeout','repair transport timeout');}const next=structuredClone(p);next.manifest.cases.find(c=>c.id===id)!.steps[0]!.command[2]+='; // repaired';return next;},save:async s=>{state=structuredClone(s);}};
+ await assert.rejects(simplifyInParts(task,original(),'giant',ledger(),services),CheckRequestInterrupted);assert.deepEqual(generated,['entry']);assert.equal(state!.ledger!.entries.find(e=>e.scope==='entry')!.pendingRepair!.attempt,1);
+ const result=await simplifyInParts(task,original(),'giant',ledger(),services,state);assert.deepEqual(generated,['entry','boundary']);assert.equal(repairs,2);assert.equal(result.ledger.entries.find(e=>e.scope==='entry')!.repairs,1);
 });

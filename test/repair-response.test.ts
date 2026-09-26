@@ -56,3 +56,11 @@ test('a budget pause before format correction preserves the raw reply and resume
  assert.ok(saved!.generated);assert.equal(saved!.correctionStarted,false);
  await bounded(()=>recoverCodeRepair(task,proposal(),'page',['syntax'],services,saved,0,'request'));assert.equal(calls,2);assert.deepEqual(saved!.corrected,valid);
 });
+
+import {CheckRequestInterrupted} from '../src/acceptance/request-failure.ts';
+test('a classified provider interruption resumes the same repair stage without discarding saved code',async()=>{
+ let saved:CodeRepairState|undefined,calls=0;
+ const services={request:async()=>{calls++;if(calls===1)return {codes:[{step:1,code:'console.log(2-1)',extra:'bad schema'}]};if(calls===2)throw new CheckRequestInterrupted('timeout','provider timed out');return valid;},save:async(s:CodeRepairState)=>{saved=structuredClone(s);}};
+ await assert.rejects(recoverCodeRepair(task,proposal(),'page',['syntax'],services,undefined,0,'request'),CheckRequestInterrupted);assert.ok(saved!.generated);assert.equal(saved!.correctionStarted,false);
+ const result=await recoverCodeRepair(task,proposal(),'page',['syntax'],services,saved,0,'request');assert.equal(calls,3);assert.equal(result.manifest.cases[0]!.steps[0]!.command.at(-1),'console.log(2-1)');
+});

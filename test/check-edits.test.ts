@@ -26,3 +26,15 @@ test('an explicit limitation can be added without removing a mapped check or wai
  assert.match(result.coverage[0]!.limitation!,/Browser/);
  assert.deepEqual(result.manifest,original().manifest);
 });
+
+test('fragment-list repairs change one unique fragment while retaining every other expectation',()=>{
+ const p=original();p.manifest.cases[0]!.steps[0]!.stdoutIncludes=['"saved":1','"private":0'];
+ const e={target:'stdoutIncludes',caseId:'privacy',step:1,before:'"saved":1',after:'"saved":2',issues:[1],reason:'Correct the required count.'};
+ const next=applyCheckEdits(p,{edits:[e]},['Count should be two'],task);
+ assert.deepEqual(next.manifest.cases[0]!.steps[0]!.stdoutIncludes,['"saved":2','"private":0']);assert.equal(next.manifest.cases[0]!.steps[0]!.stdout,'false\n');
+ assert.deepEqual(p.manifest.cases[0]!.steps[0]!.stdoutIncludes,['"saved":1','"private":0']);
+ p.manifest.cases[0]!.steps[0]!.stdoutIncludes=['repeat','repeat'];
+ assert.throws(()=>applyCheckEdits(p,{edits:[{...e,before:'repeat',after:'changed'}]},['Count'],task),/exactly once/);
+ p.manifest.cases[0]!.steps[0]!.stdoutIncludes=['repeat repeat','other'];
+ assert.throws(()=>applyCheckEdits(p,{edits:[{...e,before:'repeat',after:'changed'}]},['Count'],task),/exactly once/);
+});

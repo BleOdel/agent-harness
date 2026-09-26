@@ -37,3 +37,19 @@ test("Docker: fabricated project counters cannot satisfy approved behaviour; cor
  await writeFile(path.join(project,"app.js"),'console.log(`Hello, ${process.argv[2]}!`);');const good=await captureBaseline(project,path.join(root,"good"));
  const result=await verifyAcceptance(project,good,["greeting"],config,approval);assert.match(result.summaries.join("\n"),/greet passed/);
 }));
+
+test('output fragment lists require every fragment and preserve exact output constraints',async()=>{
+ const {assertOutputExpectations}=await import('../src/acceptance/checks.ts');
+ const step={command:['node','app.js'],exitCode:0,stdoutIncludes:['"saved":1','"private":0']};
+ assert.doesNotThrow(()=>parseChecks({version:1,cases:[{id:'fragments',tasks:['greeting'],steps:[step]}]}));
+ assert.doesNotThrow(()=>assertOutputExpectations(step,'{"private":0,"saved":1}','probe'));
+ for(const output of ['{"saved":1}','{"private":0}','"saved":1,"private":1',''])assert.throws(()=>assertOutputExpectations(step,output,'probe'),/missing approved text/);
+ assert.throws(()=>assertOutputExpectations({...step,stdout:'exact'},'{"saved":1,"private":0}','probe'),/did not match/);
+ assert.doesNotThrow(()=>assertOutputExpectations({...step,stdoutIncludes:'saved'},'saved','probe'));
+ for(const bad of [[],[''],['valid',''],['valid',3],{},3,''])assert.throws(()=>parseChecks({version:1,cases:[{id:'bad',tasks:['greeting'],steps:[{...step,stdoutIncludes:bad}]}]}),/stdoutIncludes.*nonempty string/);
+});
+test('approval retains all output fragments and detects fragment tampering',()=>fixture(async(root,project)=>{
+ const source=path.join(root,'list-check.json'),m={version:1,cases:[{id:'list',tasks:['greeting'],steps:[{command:['node','app.js'],exitCode:0,stdoutIncludes:['first','second']}]}]};
+ await writeFile(source,JSON.stringify(m));await approveChecks(project,source);assert.deepEqual((await readApproval(project))!.manifest,m);
+ const file=project+'-harness/acceptance/approved.json',saved=JSON.parse(await readFile(file,'utf8'));saved.manifest.cases[0].steps[0].stdoutIncludes.pop();await writeFile(file,JSON.stringify(saved));await assert.rejects(readApproval(project),/changed/);
+}));

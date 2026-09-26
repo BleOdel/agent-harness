@@ -4,10 +4,10 @@ test('budget reserves before dispatch, bounds in-flight timeout and keeps failur
  const state={requests:0};let now=1000,updates=0;
  await withCheckBudget({maxRequests:2,maxSeconds:10,requestSeconds:3},state,async()=>{updates++;},()=>{},async()=>{
   const a=await checkRequestBudget(900000);assert.equal(a.timeoutMs,3000);assert.equal(state.requests,1);
-  now=9500;const b=await checkRequestBudget(900000);assert.equal(b.timeoutMs,1500);assert.equal(state.requests,2);
+  now=9500;await assert.rejects(checkRequestBudget(900000),CheckBudgetExceeded);assert.equal(state.requests,1);
   await assert.rejects(checkRequestBudget(900000),CheckBudgetExceeded);
  },()=>now);
- assert.equal(updates,2);
+ assert.equal(updates,1);
 });
 test('elapsed limit prevents a provider call and absent budget preserves caller timeout',async()=>{
  let now=0;await withCheckBudget({maxRequests:2,maxSeconds:1,requestSeconds:1},{requests:0},async()=>{},()=>{},async()=>{
@@ -26,4 +26,11 @@ test('usage is incomplete after an interrupted dispatch and never reports missin
 test('limits reject unknown, duplicate, missing and out-of-range values before any dispatch',()=>{
  assert.deepEqual(parseCheckLimits(['--max-requests','3','--max-seconds','60']),{maxRequests:3,maxSeconds:60,requestSeconds:180});
  for(const args of [['--max-requests'],['--max-requests','0'],['--max-seconds','9000'],['--max-requests','2','--max-requests','2'],['--unsafe','1']])assert.throws(()=>parseCheckLimits(args));
+});
+
+test('a nearly spent allowance pauses before reserving another full model turn',async()=>{
+ let now=0;const spend={requests:0};
+ await withCheckBudget({maxRequests:6,maxSeconds:600,requestSeconds:180},spend,async()=>{},()=>{},async()=>{
+  now=578000;await assert.rejects(checkRequestBudget(900000),CheckBudgetExceeded);assert.equal(spend.requests,0);
+ },()=>now);
 });

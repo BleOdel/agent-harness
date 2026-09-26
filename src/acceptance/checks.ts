@@ -1,3 +1,4 @@
+import {regressionTasks} from './regression.ts';
 import {assertRecipeStep,assertRecipeEvidence,writeRecipeRuntime,type WebRecipe} from './recipes/catalog.ts';
 import {assertServerRuntimes, writeServerRuntime} from './server-runtime.ts';
 /** Approved expectations are evaluated by the host and never mounted into candidate processes. */
@@ -21,7 +22,7 @@ import { taskDigest } from "./draft.ts";
 import { OperatorError } from "../verbs/io.ts";
 
 export interface ExpectFile { path:string; text?:string; sha256?:string; }
-export interface CheckStep { recipe?:WebRecipe; recipeRuntime?:string; serverRuntime?:string; assetRuntime?:string; httpRuntime?:string; command:string[]; exitCode:number; stdout?:string; stdoutIncludes?:string; files?:ExpectFile[]; }
+export interface CheckStep { recipe?:WebRecipe; recipeRuntime?:string; serverRuntime?:string; assetRuntime?:string; httpRuntime?:string; command:string[]; exitCode:number; stdout?:string; stdoutIncludes?:string|string[]; files?:ExpectFile[]; }
 export interface AcceptanceCase { id:string; tasks:string[]; steps:CheckStep[]; description?:string; contract?:string; taskDigest?:string; }
 export interface CheckManifest { version:1; cases:AcceptanceCase[]; }
 export interface Approval { version:1; digest:string; approvedAt:string; manifest:CheckManifest; }
@@ -55,7 +56,7 @@ function parseManifest(raw:unknown,allowStaleRecipePin:boolean):CheckManifest{
    if(step.httpRuntime!==undefined && (typeof step.httpRuntime!=="string" || !/^[a-f0-9]{64}$/u.test(step.httpRuntime)))throw new OperatorError(`${entry.id}: invalid HTTP runtime digest.`);
    if(step.assetRuntime!==undefined && (typeof step.assetRuntime!=="string" || !/^[a-f0-9]{64}$/u.test(step.assetRuntime)))throw new OperatorError(`${entry.id}: invalid asset runtime digest.`);
    if(step.stdout!==undefined&&typeof step.stdout!=="string")throw new OperatorError(`${entry.id}: stdout must be exact text.`);
-   if(step.stdoutIncludes!==undefined&&(typeof step.stdoutIncludes!=="string"||!step.stdoutIncludes))throw new OperatorError(`${entry.id}: stdoutIncludes must be nonempty text.`);
+   if(step.stdoutIncludes!==undefined&&!(typeof step.stdoutIncludes==="string"?step.stdoutIncludes.length>0:Array.isArray(step.stdoutIncludes)&&step.stdoutIncludes.length>0&&step.stdoutIncludes.every(v=>typeof v==="string"&&v.length>0)))throw new OperatorError(`${entry.id}: stdoutIncludes must be a nonempty string or a nonempty list of nonempty strings; every fragment is required.`);
    if(step.files!==undefined&&(!Array.isArray(step.files)||!step.files.length))throw new OperatorError(`${entry.id}: files must be a nonempty list.`);
    for(const file of (step.files??[]) as unknown[]){
     if(!object(file)||typeof file.path!=="string"||path.isAbsolute(file.path)||file.path.split(/[\\/]/u).some(p=>!p||p==="."||p==="..")
@@ -66,6 +67,12 @@ function parseManifest(raw:unknown,allowStaleRecipePin:boolean):CheckManifest{
   }
  }
  return raw as unknown as CheckManifest;
+}
+/** All fragments are independent host expectations; never join them or accept only one. */
+export function assertOutputExpectations(step:CheckStep,stdout:string,label:string):void{
+ if(step.stdout!==undefined&&stdout!==step.stdout)throw new OperatorError(`${label}: application output did not match approved text.`);
+ const fragments=step.stdoutIncludes===undefined?[]:Array.isArray(step.stdoutIncludes)?step.stdoutIncludes:[step.stdoutIncludes];
+ if(!fragments.every(fragment=>stdout.includes(fragment)))throw new OperatorError(`${label}: application output is missing approved text.`);
 }
 export const approvalPath=(project:string)=>path.join(harnessDirectory(project),"acceptance","approved.json");
 export async function approveChecks(project:string,source:string):Promise<Approval>{
@@ -88,9 +95,14 @@ export async function readApproval(project:string):Promise<Approval|undefined>{
  if(approval.version!==1||approval.digest!==hash(JSON.stringify(manifest)))throw new OperatorError("Approved acceptance checks changed. Review and approve them again.");
  return approval;
 }
+export async function acceptanceTaskScope(project:string,tasks:readonly string[],approval?:Approval):Promise<string[]>{
+ const saved=approval??await readApproval(project),features=await readFeatures(project);
+ return saved&&features?.ok?regressionTasks(features.features,tasks,saved.manifest):[...tasks];
+}
 export async function requireChecks(project:string,tasks:readonly string[]):Promise<Approval>{
  const approved=await readApproval(project);
  if(!approved)throw new OperatorError("Acceptance checks have not been approved for this project.","Run harness checks to prepare and review expected application behaviour, then approve the checks. No model work has started.");
+ tasks=await acceptanceTaskScope(project,tasks,approved);
  const missing=tasks.filter(task=>!approved.manifest.cases.some(c=>c.tasks.includes("*")||c.tasks.includes(task)));
  if(missing.length)throw new OperatorError(`No approved acceptance checks cover: ${missing.join(", ")}.`,"Run harness checks setup to draft and approve checks for the next task.");
  const features = await readFeatures(project);
@@ -122,6 +134,7 @@ export class AcceptanceFailure extends OperatorError {
 export async function assertAcceptanceProof(project: string, candidate: Snapshot, tasks: readonly string[], proof?: AcceptanceProof): Promise<void> {
   if (!proof) throw new OperatorError("Application requires approved acceptance evidence.", "Run verification before applying this candidate.");
   const approved = await requireChecks(project, tasks);
+  tasks=await acceptanceTaskScope(project,tasks,approved);
   const root = path.join(harnessDirectory(await realpath(project)), "acceptance", "results");
   if (path.dirname(proof.evidencePath) !== root || !/^[a-f0-9-]+\.json$/u.test(path.basename(proof.evidencePath))) throw new OperatorError("Invalid acceptance evidence location.");
   const evidence = JSON.parse(await readArtifact(root, path.basename(proof.evidencePath)) ?? "null");
@@ -138,6 +151,8 @@ export async function assertAcceptanceProof(project: string, candidate: Snapshot
 export async function verifyAcceptance(project: string, candidate: Snapshot, tasks: readonly string[], config: Config, approved: Approval, execution?: ExecutionPin): Promise<AcceptanceResult> {
   project = await realpath(project);
   await assertApprovalCurrent(project, approved);
+  tasks=await acceptanceTaskScope(project,tasks,approved);
+  await requireChecks(project,tasks);
   assertServerRuntimes(approved.manifest);
   await assertSnapshot(candidate);
   if (execution) await assertExecutionCompatible(execution, project, config, execution.settings.testCommand);
@@ -183,8 +198,7 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
         if (result.outputLimited) throw new OperatorError(`${label}: application output exceeded 2 MiB.`);
         if (result.timedOut || result.code !== step.exitCode) throw new OperatorError(`${label}: ${result.timedOut ? "timed out" : `expected exit ${step.exitCode}, got ${result.code}`}.`);
         if(step.recipe)assertRecipeEvidence(step.recipe,result.stdout);
-        if (step.stdout !== undefined && result.stdout !== step.stdout) throw new OperatorError(`${label}: application output did not match approved text.`);
-        if (step.stdoutIncludes !== undefined && !result.stdout.includes(step.stdoutIncludes)) throw new OperatorError(`${label}: application output is missing approved text.`);
+        assertOutputExpectations(step,result.stdout,label);
         for (const expected of step.files ?? []) {
           const file = await safePath(work, expected.path);
           const stat = await lstat(file).catch((e: NodeJS.ErrnoException) => { if (e.code === "ENOENT") return undefined; throw e; });

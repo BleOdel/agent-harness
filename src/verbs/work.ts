@@ -10,7 +10,7 @@ import { projectTestCommand, readProfile } from "../project/profile.ts";
 import { pinExecution, assertExecutionCompatible, type ExecutionPin } from "../project/execution.ts";
 import { assertSkillBundles } from "../project/skills.ts";
 import { dockerRunner } from "../runners/docker.ts";
-import { requireChecks, verifyAcceptance, assertAcceptanceProof, AcceptanceFailure } from "../acceptance/checks.ts";
+import { acceptanceTaskScope, requireChecks, verifyAcceptance, assertAcceptanceProof, AcceptanceFailure } from "../acceptance/checks.ts";
 /**
  *   harness work <goal>
  *
@@ -185,7 +185,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
   const workDigest = createHash("sha256").update(JSON.stringify({title:work.title, criteria:work.criteria, feature:work.feature, limits:limitsFrom(process.env)})).digest("hex");
   if (work.feature !== undefined) say(`item: ${work.title}`);
 
-  const acceptanceTasks = [work.feature?.id ?? goal];
+  const acceptanceTasks = await acceptanceTaskScope(project,[work.feature?.id ?? goal]);
   const approvedChecks = await requireChecks(project, acceptanceTasks);
   const approvedContext = (work.feature?.planContext ?? "") + contractContext(approvedChecks, acceptanceTasks);
   const originalInstruction = briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs", work.feature?.planContext) + contractContext(approvedChecks, acceptanceTasks);
