@@ -214,7 +214,7 @@ Node/SQLite web cases use a reusable entry/database outline; other cases ask the
 model for the smaller design. Neither path skips independent review of
 required protections and compatibility with unchanged peer code before existing
 peer receipts are rebound to the new outline. Contract and task scope cannot be
-changed. Each replacement is limited to 8 KiB and independently reviewed. The old
+changed. Each replacement targets 8 KiB, has the standard 16 KiB ceiling and is independently reviewed. The old
 review draft remains active until every replacement passes; the final writer-locked
 checkpoint archives the old state and invalidates a complete guided draft. A saved
 completion digest permits recovery if the process stops after that checkpoint.
@@ -229,8 +229,10 @@ Oversized generated replies retain their raw content, measured step size and err
 Only the oversized child is repartitioned; its independent outline review is saved
 before generation resumes. Nested checkpoints bind to the immediate outline and
 retain prior review receipts. Depth two, four subdivisions and 32 total cases bound
-this recovery; exhausted legacy size failures enter it without regenerating the
-same oversized child. The 8 KiB cap remains enforced. A standalone invocation uses
+this recovery. Before subdivision, a saved reply rejected under the former 8 KiB
+rule is retried once under the standard 16 KiB ceiling, retaining its spent attempt
+and original response. Schema, pins, syntax and independent review remain required.
+Failures above the hard ceiling still subdivide within the saved limits. A standalone invocation uses
 the shared request/time budget infrastructure and writes a spend audit; nested
 invocations reuse their parent's allowance. An earlier task's guided draft cannot
 mask fresh preparation for the current task. Status identifies pending subdivision

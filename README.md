@@ -601,15 +601,20 @@ Static asset discovery uses the pinned harness helper backed by parse5, Acorn
 and CSS Tree. Entry and asset bytes are retained for database-disclosure scans;
 computed runtime requests and visual behaviour still need browser/source evidence.
 
-Each smaller check is limited to 8 KiB of JSON-encoded steps. Outline attempts,
+Smaller checks target 8 KiB of JSON-encoded steps and use the same 16 KiB hard
+ceiling as normal preparation. Byte size alone is not a measure of behavioural
+complexity: a complete scenario may need shared setup and explicit observations.
+Outline attempts,
 outline-review operations and generation requests for each part have separate
 two-request budgets that survive interruption; executable reviews retain the
 usual bounded repair policy. An oversized reply is saved with its measured size.
 The harness subdivides only that child into two or three independently reviewed
 behaviours, preserving completed peers and spent requests. This also recovers old
 checkpoints that exhausted generation on an oversized child. Subdivision is bounded
-to two levels, four operations per original check and 32 total cases; the 8 KiB
-limit and required observations are not relaxed.
+to two levels, four operations per original check and 32 total cases. Required
+observations remain unchanged. Saved replies rejected by the former 8 KiB rule
+are recovered once if they fit the standard ceiling, without another generation
+request; schema, helper pins, syntax and independent review must still pass.
 
 A standalone simplification has a command-wide allowance of 12 model requests,
 600 seconds total and 180 seconds per request. It shares an enclosing preparation
