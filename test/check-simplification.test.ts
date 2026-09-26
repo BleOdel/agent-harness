@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {compileRecipe} from '../src/acceptance/recipes/catalog.ts';
 import {webSpec} from './recipe-fixtures.ts';
+import {proposalDigest} from '../src/acceptance/repair.ts';
 import {parseProposal} from '../src/acceptance/draft.ts';
 import {scopeDigest, type ReviewLedger} from '../src/acceptance/scoped-review.ts';
-import {simplifiableScopes, simplifyOutline, simplifyInParts, sqliteWebOutline, type SimplificationState} from '../src/acceptance/simplification.ts';
+import {normalizeSimplificationReply, simplifiableScopes, simplifyOutline, simplifyInParts, sqliteWebOutline, type SimplificationState} from '../src/acceptance/simplification.ts';
 import {mkdtemp,mkdir,readFile,writeFile,rm} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -159,4 +160,56 @@ test('simplification accepts current failed designs without spending repair atte
  entry.digest=scopeDigest(task,p,'giant');delete entry.review;
  assert.deepEqual(simplifiableScopes(task,p,l),[]);
  entry.repairs=2;assert.deepEqual(simplifiableScopes(task,p,l),['giant']);
+});
+
+test('model outline IDs are allocated safely without changing descriptions or existing checks',()=>{
+ const p=original();
+ const raw={cases:[{id:'startup',description:'Observe private prose.'},{id:'INVALID ID!'.repeat(20),description:'Observe database bytes.'},{description:'Observe report notes.'}],limitations:[]};
+ const prepared=normalizeSimplificationReply(p,'giant',raw) as typeof plan;
+ assert.equal(new Set(prepared.cases.map(c=>c!.id)).size,3);
+ for(const c of prepared.cases){assert.match(c!.id,/^[a-z][a-z0-9-]{0,79}$/);assert.ok(!p.manifest.cases.some(old=>old.id===c!.id));}
+ assert.deepEqual(prepared.cases.map(c=>c!.description),raw.cases.map(c=>c.description));
+ assert.deepEqual(simplifyOutline(task,p,'giant',prepared).manifest.cases[0],p.manifest.cases[0]);
+ assert.throws(()=>normalizeSimplificationReply(p,'giant',{...raw,cases:[{description:'x'.repeat(2001)},raw.cases[1]]}),/check 1 description.*2001.*2000/i);
+});
+test('raw outline replies survive a crash before validation and are reused without another plan request',async()=>{
+ let state:SimplificationState|undefined,requests=0;
+ const services={plan:async()=>{requests++;return plan;},reviewOutline:async()=>pass,generate:async(id:string)=>part(id,plan.cases.find(c=>c.id===id)!.description),syntax:async()=>[],review:async()=>pass,repair:async()=>original(),save:async(s:SimplificationState)=>{state=structuredClone(s);if(s.pendingOutline)throw Error('crash after raw outline');}};
+ await assert.rejects(simplifyInParts(task,original(),'giant',ledger(),services),/crash after raw outline/);
+ assert.deepEqual(state!.pendingOutline!.raw,plan);assert.equal(state!.outline,undefined);
+ await simplifyInParts(task,original(),'giant',ledger(),{...services,save:async s=>{state=structuredClone(s);}},state);
+ assert.equal(requests,1);assert.deepEqual(state!.outlineResponses![0]!.raw,plan);
+});
+test('invalid descriptions get precise feedback and one bounded format correction with both replies retained',async()=>{
+ let state:SimplificationState|undefined,requests=0;
+ const invalid={...plan,cases:[{id:'entry',description:'x'.repeat(2001)},plan.cases[1]]};
+ const services={plan:async(_previous:unknown,issues?:readonly string[])=>{requests++;if(requests===1)return invalid;assert.match(issues!.join(' '),/2001.*2000/);return plan;},reviewOutline:async()=>pass,generate:async(id:string)=>part(id,plan.cases.find(c=>c.id===id)!.description),syntax:async()=>[],review:async()=>pass,repair:async()=>original(),save:async(s:SimplificationState)=>{state=structuredClone(s);}};
+ await simplifyInParts(task,original(),'giant',ledger(),services);
+ assert.equal(requests,2);assert.deepEqual(state!.outlineResponses!.map(r=>r.raw),[invalid,plan]);
+ assert.match(state!.outlineResponses![0]!.error!,/description/);
+ requests=0;state=undefined;
+ await assert.rejects(simplifyInParts(task,original(),'giant',ledger(),{...services,plan:async()=>{requests++;return invalid;}}),/description.*2001.*2000/i);
+ assert.equal(requests,2);assert.equal(state!.outlineResponses!.length,2);assert.equal(state!.outline,undefined);
+});
+
+test('legacy failed-outline checkpoint keeps its spent attempt and resumes with host-assigned IDs',async()=>{
+ const p=original();let requests=0,state:SimplificationState|undefined;
+ const saved:SimplificationState={version:1,baseDigest:proposalDigest(p),taskDigest:taskDigest(task),scope:'giant',outlineAttempts:1,cases:[],generationAttempts:{}};
+ const result=await simplifyInParts(task,p,'giant',ledger(),{
+  plan:async()=>{requests++;return {cases:plan.cases.map(c=>({description:c.description})),limitations:plan.limitations};},
+  reviewOutline:async()=>pass,generate:async(id,outline)=>part(id,outline.manifest.cases.find(c=>c.id===id)!.description!),
+  syntax:async()=>[],review:async()=>pass,repair:async()=>p,save:async s=>{state=structuredClone(s);},
+ },saved);
+ assert.equal(requests,1);assert.equal(state!.outlineAttempts,2);
+ assert.deepEqual(result.proposal.manifest.cases.map(c=>c.id),['startup','giant-part-1','giant-part-2','persistence']);
+ assert.equal(result.ledger.entries.find(e=>e.scope==='startup')!.review!.verdict,'pass');
+});
+test('a saved correction reply resumes even when both outline requests were already spent',async()=>{
+ const p=original();let state:SimplificationState|undefined,plans=0,reviews=0;
+ const fixed={...plan,cases:[{...plan.cases[0],description:'Read the exact contracted entry.'},plan.cases[1]]};
+ const services={plan:async()=>++plans===1?plan:fixed,reviewOutline:async()=>++reviews===1?{verdict:'repair' as const,issues:['Wrong entry'],limitations:[]}:pass,generate:async(id:string)=>part(id,fixed.cases.find(c=>c!.id===id)!.description),syntax:async()=>[],review:async()=>pass,repair:async()=>p,save:async(s:SimplificationState)=>{state=structuredClone(s);if(s.pendingOutline?.phase==='correction')throw Error('crash after correction');}};
+ await assert.rejects(simplifyInParts(task,p,'giant',ledger(),services),/crash after correction/);
+ assert.equal(state!.outlineAttempts,2);assert.deepEqual(state!.pendingOutline!.raw,fixed);
+ await simplifyInParts(task,p,'giant',ledger(),{...services,save:async s=>{state=structuredClone(s);}},state);
+ assert.equal(plans,2);assert.equal(reviews,2);assert.equal(state!.outlineResponses!.length,2);
 });

@@ -205,7 +205,7 @@ review cannot create a suite approval receipt. Existing approvals are unchanged.
 
 Design simplification (`checks simplify [case-id]`) uses a separate checkpoint,
 bound to the original proposal, task, source and approval digest. It can replace
-only a blocked case's outline with two or three new IDs and append evidence
+only a rejected or blocked case's outline with two or three new IDs and append evidence
 limitations only to affected criteria. An independent outline review checks
 the proposed replacement (not unrelated frozen design choices). Matching
 Node/SQLite web cases use a reusable entry/database outline; other cases ask the
@@ -216,6 +216,13 @@ changed. Each replacement is limited to 8 KiB and independently reviewed. The ol
 review draft remains active until every replacement passes; the final writer-locked
 checkpoint archives the old state and invalidates a complete guided draft. A saved
 completion digest permits recovery if the process stops after that checkpoint.
+Complete outline replies are saved before schema validation, including corrections.
+The host assigns safe unique IDs for missing or malformed model labels without
+changing descriptions. Invalid descriptions and schema fields produce precise
+feedback within the same two-outline-request allowance. Pending replies are bound
+to the original or corrected outline digest; resumption parses a saved reply before
+charging another request. Rejected and accepted replies remain in checkpoint history.
+Legacy checkpoints with a spent request but no reply retain that spent allowance.
 Neither simplification nor the retained receipts grant operator approval.
 
 The server helper is bundled outside project source. Acceptance snapshots its

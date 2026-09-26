@@ -544,6 +544,13 @@ uses this recipe automatically only for complete catalogue descriptions, such as
 broader privacy or lifecycle check does not select the recipe. The same restriction
 applies to the routine SQLite simplification template: compound checks receive a
 tailored split that must preserve their application-specific observations.
+Simplification assigns safe IDs locally when the model omits or malforms them;
+descriptions and requirements are never truncated. Raw initial and corrected outline
+replies are checkpointed before validation. Precise format errors get correction
+within the existing two-outline-request allowance, with rejected replies retained.
+A saved valid reply is reused after interruption without spending another request.
+Older checkpoints whose invalid replies were discarded still need a new request;
+their already-spent allowance is preserved.
 Settings are read from an unambiguous saved contract where possible; otherwise the
 model returns settings only. It cannot supply code or weaken the recipe assertions.
 
