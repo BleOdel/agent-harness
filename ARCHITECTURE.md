@@ -813,7 +813,10 @@ flowchart TD
     Match -->|yes| Settings[Infer or request data-only settings]
     Settings --> Schema[Local schema validation and deterministic compilation]
     Schema --> Mapping[Independent settings and coverage review]
-    Mapping -->|needs changes| Edit[Correct project settings]
+    Mapping -->|incorrect settings| Edit[Correct project settings]
+    Mapping -->|unsupported promised behaviour| Regenerate[Regenerate selected custom check]
+    Regenerate --> CustomReview[Independent selected-check review]
+    CustomReview -->|pass| CustomApproval[Operator approval and generated-check execution]
     Edit --> Schema
     Mapping -->|pass| Approve[Explicit operator approval]
     Approve --> Run[Pinned offline runner]
@@ -835,3 +838,16 @@ for containment comparisons against snapshots before and after reads. Bounds and
 unsupported static references fail explicitly. This does not prove browser rendering,
 all possible routes/encodings, cryptographic properties, or application lifecycle
 behaviour; those requirements still need their own checks or source/browser evidence.
+
+Automatic recipe routing recognizes only complete catalogue descriptions, including
+legacy exact aliases. Unknown or compound descriptions follow generated preparation;
+keyword overlap cannot replace domain observations with fixed recipe evidence.
+`checks regenerate <case-id>` checkpoints a single replacement and its independent
+review in `acceptance/regenerations/<case-id>.json`. It binds the unchanged task/source,
+base draft, contract, coverage, case identity and approval digest, preserving peer
+receipts. A passing replacement is archived and committed to review progress only
+after freshness checks; approval remains a separate operator action. Failed or
+interrupted generation leaves the original draft intact, and a saved candidate is
+reused after review interruption. Each explicit invocation is bounded to two provider
+requests and 360 seconds, with a 180-second per-request cap. Rejected candidates are
+archived on retry; model format corrections share the same allowance.

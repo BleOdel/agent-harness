@@ -1,3 +1,4 @@
+import {regenerateSavedCheck} from "../acceptance/regenerate.ts";
 import {prepareChecks,checkWorkflowStatus} from '../acceptance/workflow.ts';
 import {parseCheckLimits} from '../acceptance/budget.ts';
 import { guidedSetup, readGuidedDraft, reviewGuidedDraft, resumePreparation, repairSavedCheck, simplifySavedCheck, useRecipeSavedCheck } from "../acceptance/guided.ts";
@@ -68,6 +69,7 @@ export async function setupChecks(project: string, io: Dialogue, manual = false)
 
 export async function checks(project: string, args: readonly string[]): Promise<void> {
   if(args[0]==='prepare'){const status=await prepareChecks(project,terminalDialogue(),parseCheckLimits(args.slice(1)));if(status==='blocked')process.exitCode=1;return;}
+  if(args.length===2&&args[0]==='regenerate')return regenerateSavedCheck(project,terminalDialogue(),args[1]!);
   if(args.length===1&&args[0]==='status')return checkWorkflowStatus(project,say);
   if (args.length === 1 && args[0] === "setup") return setupChecks(project, terminalDialogue());
   if (args.length === 2 && args[0] === "setup" && args[1] === "--manual") return setupChecks(project, terminalDialogue(), true);
@@ -96,6 +98,6 @@ export async function checks(project: string, args: readonly string[]): Promise<
     say("Next: harness checks prepare (bounded preparation from your plan), or harness checks approve <file> (JSON document).");
     say("Use application behaviour, not a test runner's claim that tests passed. The host checks expectations outside the candidate process."); return;
   }
-  if (args.length !== 2 || args[0] !== "approve") throw new OperatorError("Use: harness checks [prepare [--max-requests N] [--max-seconds N] [--request-seconds N] | status | setup [--manual] | review | repair [case-id] | use-recipe [case-id] | simplify [case-id] | approve <file>]");
+  if (args.length !== 2 || args[0] !== "approve") throw new OperatorError("Use: harness checks [prepare [--max-requests N] [--max-seconds N] [--request-seconds N] | regenerate <case-id> | status | setup [--manual] | review | repair [case-id] | use-recipe [case-id] | simplify [case-id] | approve <file>]");
   await withWriter(project, "checks", async () => { const approval = await approveChecks(project, path.resolve(args[1]!)); say(`Approved ${approval.manifest.cases.length} acceptance cases. These exact expectations will be checked before application.`); });
 }

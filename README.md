@@ -329,6 +329,7 @@ Run them inside your project.
 | `harness checks status` | saved progress, request count and provider-reported usage |
 | `harness checks setup` | draft checks from the saved plan and approve plain-language behaviours |
 | `harness checks review` | resume preparation, review and approve a saved check draft |
+| `harness checks regenerate <case-id>` | regenerate one unsuitable check and independently review it, preserving completed peers |
 | `harness checks use-recipe [case-id]` | replace a generated web/SQLite boundary probe with reviewed settings for a tested runner |
 | `harness checks repair [case-id]` | repair one blocked check, retaining the other checks |
 | `harness checks simplify [case-id]` | replace a complex blocked design with smaller independently reviewed checks |
@@ -538,7 +539,9 @@ For supported routine behaviours the harness now owns the check implementation.
 The initial recipe, **node-web-sqlite v1**, accepts a small configuration: server
 entry file, database/port environment names, literal readiness prefix, application
 and public-read paths, and expected Host/Origin rejection statuses. New preparation
-uses this recipe automatically for matching web-asset/SQLite boundary behaviours.
+uses this recipe automatically only for complete catalogue descriptions, such as
+“Inspect static assets and SQLite boundaries.” Mentioning assets and SQLite in a
+broader privacy or lifecycle check does not select the recipe.
 Settings are read from an unambiguous saved contract where possible; otherwise the
 model returns settings only. It cannot supply code or weaken the recipe assertions.
 
@@ -550,6 +553,17 @@ it never launches a generated-code repair loop. Changing settings reviews only t
 mapping. Received reviews survive interruption, and a provider interruption requires
 an explicit retry. Peers, the frozen contract, task criteria and existing approvals
 are preserved; the old check is archived. Nothing is approved automatically.
+
+If an older draft assigned a recipe to broader application-specific behaviour, run
+`harness checks regenerate <case-id>`. This generates only that case and independently
+reviews it against the unchanged description, coverage and interface contract.
+Each invocation permits at most two model requests, 180 seconds per request and
+360 seconds total model time; format correction requests consume that allowance.
+A completed candidate survives interrupted review. Rejected candidates and findings
+are retained, and an explicit retry gets a new bounded allowance. Replacement happens
+only after a passing design review, with completed peer reviews and existing approvals
+preserved. Run `harness checks review` afterward to review and explicitly approve the
+complete draft. This command neither changes application source nor runs the application.
 
 The recipe runs as a pinned, read-only program in offline verification. It records
 entry/asset observations, SQLite location and integrity, sampled raw-byte exposure,

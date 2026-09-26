@@ -314,7 +314,7 @@ export async function simplifySavedCheck(project:string,io:Dialogue,caseId?:stri
 
 /** The operator chooses a fresh bounded attempt; ordinary resume never resets budgets. */
 export async function repairSavedCheck(project:string,io:Dialogue,caseId?:string,repair=repairScopeInIsolation):Promise<void>{
- if(caseId&&repair===repairScopeInIsolation){const raw=await readArtifact(directory(project),'review-progress.json',8*1024*1024);const c=raw?JSON.parse(raw).proposal?.manifest?.cases?.find((c:{id:string})=>c.id===caseId):undefined;if(c&&(c.steps.some((s:{recipe?:unknown})=>s.recipe)||recipeForDescription(c.description??'')))return useRecipeSavedCheck(project,io,caseId);}
+ if(caseId&&repair===repairScopeInIsolation){const raw=await readArtifact(directory(project),'review-progress.json',8*1024*1024);const c=raw?JSON.parse(raw).proposal?.manifest?.cases?.find((c:{id:string})=>c.id===caseId):undefined;if(c){if(c.steps.some((s:{recipe?:unknown})=>s.recipe)&&!recipeForDescription(c.description??''))throw new OperatorError('This saved recipe promises application-specific behaviour.',`Use harness checks regenerate ${caseId} to replace only this check and independently review it.`);if(c.steps.some((s:{recipe?:unknown})=>s.recipe)||recipeForDescription(c.description??''))return useRecipeSavedCheck(project,io,caseId);}}
  if(await readArtifact(directory(project),'simplification.json',8*1024*1024))throw new OperatorError('A design simplification is pending.','Resume harness checks simplify, or use checks setup to prepare again with changes.');
  const file=path.join(directory(project),'review-progress.json');
  const raw=await readArtifact(directory(project),'review-progress.json',8*1024*1024);
@@ -334,7 +334,7 @@ export async function repairSavedCheck(project:string,io:Dialogue,caseId?:string
  if(!selected){const index=await choose(io,'Which blocked check should be repaired?',ids.map(id=>proposal.manifest.cases.find(c=>c.id===id)!.description!));if(index<0)return;selected=ids[index]!;}
  if(!ids.includes(selected))throw new OperatorError('Select one of the blocked checks.');
  const scope=selected;
- if(repair===repairScopeInIsolation){const c=proposal.manifest.cases.find(c=>c.id===scope)!;if(c.steps.some(s=>s.recipe)||recipeForDescription(c.description??''))return useRecipeSavedCheck(project,io,scope);}
+ if(repair===repairScopeInIsolation){const c=proposal.manifest.cases.find(c=>c.id===scope)!;if(c.steps.some(s=>s.recipe)&&!recipeForDescription(c.description??''))throw new OperatorError('This saved recipe promises application-specific behaviour.',`Use harness checks regenerate ${scope} to replace only this check and independently review it.`);if(c.steps.some(s=>s.recipe)||recipeForDescription(c.description??''))return useRecipeSavedCheck(project,io,scope);}
  await withWriter(project,'checks repair',async()=>{
   await checkCurrent();
   if(await readArtifact(directory(project),'review-progress.json',8*1024*1024)!==raw)throw new OperatorError('Saved checks changed during selection. Run harness checks repair again.');

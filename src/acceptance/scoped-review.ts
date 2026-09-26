@@ -158,7 +158,7 @@ export async function reviewScopes(task:Feature,original:Proposal,services:Servi
    }
    if(entry.review.verdict==='pass')break;
    for(const issue of entry.review.issues)services.progress?.(`  ${clip(issue.split("\nEvidence:")[0]!,400)}`);
-   if(p.manifest.cases.find(c=>c.id===scope)?.steps.some(s=>s.recipe))throw new OperatorError('Recipe settings or coverage need attention.',entry.review.issues.join('\n')+'\nUse harness checks use-recipe to revise the settings. The harness will not ask a model to repair recipe implementation code.');
+   if(p.manifest.cases.find(c=>c.id===scope)?.steps.some(s=>s.recipe))throw new OperatorError('Recipe settings or coverage need attention.',entry.review.issues.join('\n')+'\nUse harness checks use-recipe for incorrect settings, or harness checks regenerate '+scope+' when the promised behaviour exceeds the recipe. The harness will not repair recipe implementation code.');
    if(scope==='$contract')throw new OperatorError('The interface or behaviour outline needs revision before probe repairs.',remedy);
    if(entry.repairs>=2)throw new ScopeRepairBlocked(scope,`${label}: unresolved after two repair attempts.`,remedy);
    ensureCheckBudget();entry.repairs++;

@@ -25,7 +25,14 @@ export function assertRecipeStep(step:CheckStep,options:{allowStalePin?:boolean}
 }
 export function assertRecipeEvidence(recipe:WebRecipe,text:string):void{let raw;try{raw=JSON.parse(text);}catch{throw Error('Recipe did not return one JSON observation.');}assertWebEvidence(raw,recipe);}
 export async function writeRecipeRuntime(directory:string):Promise<void>{await writeServerRuntime(directory,true);await writeFile(path.join(directory,'recipe-web.mjs'),runner,{flag:'wx',mode:0o444});await writeFile(path.join(directory,'recipe-spec.mjs'),schema,{flag:'wx',mode:0o444});}
-export function recipeForDescription(description:string):'node-web-sqlite'|undefined{return /\bassets?\b/iu.test(description)&&/\bsqlite\b/iu.test(description)?'node-web-sqlite':undefined;}
+// A compound description can promise arbitrarily more than the fixed engine.
+// Only complete catalogue descriptions select it automatically; unknown prose
+// remains generated code and still receives an independent coverage review.
+export const WEB_RECIPE_BEHAVIOUR='Inspect static assets and SQLite boundaries.';
+const routineDescriptions=new Set([WEB_RECIPE_BEHAVIOUR,'Fetch assets and keep SQLite database files private.','Inspect assets and SQLite privacy.'].map(s=>s.toLowerCase()));
+export function recipeForDescription(description:string):'node-web-sqlite'|undefined {
+ return routineDescriptions.has(description.trim().replace(/\s+/gu,' ').toLowerCase())?'node-web-sqlite':undefined;
+}
 export function inferWebRecipe(contract:string):WebRecipe|undefined{
  const unique=(values:string[])=>[...new Set(values)];
  const entries=unique([...contract.matchAll(/`node ([A-Za-z0-9_/-]+\.(?:[cm]?js|ts))`/gu)].map(m=>m[1]!));
