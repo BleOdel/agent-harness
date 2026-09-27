@@ -111,3 +111,8 @@ Packaged macOS Electron GUI journeys are a separate capability described in
 reviewing existing script approvals. The original script base is retained.
 
 SwiftUI/AppKit accessibility journeys are documented in [MACOS_NATIVE.md](MACOS_NATIVE.md). They use this same offline base, with temporary driver permissions only inside each disposable guest.
+
+The separate [Metal training lane](METAL.md) reuses this controller for bounded GPU
+segments. It mounts fixed harness code and training rows, then retains validated
+checkpoints on the host. General native script diagnostics alone do not establish
+training correctness.

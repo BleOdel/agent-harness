@@ -162,3 +162,7 @@ model serving, signing and registry publication are outside E4. Passing one smal
 holdout does not establish fairness, robustness, generalization or production
 suitability. [E5](NEXT.md#e5--isolated-platform-runners) next requires a concrete
 infrastructure decision before native runners are implemented or provisioned.
+
+For Apple GPU execution of a separate fixed float32 regression recipe, see
+[Metal GPU training](METAL.md). CPU ML commands and their Docker workflow remain
+unchanged. The Metal lane has its own approval, checkpoint and evaluation records.

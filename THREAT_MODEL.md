@@ -526,3 +526,27 @@ adversarial acceptance boundary. App screenshots are filtered to the app PID and
 one window. Build scripts, application code and zipped outputs are untrusted; no
 zip is executed or installed on the host. The existing guardian, source/output
 bounds, free-space watchdog and owned-resource recovery remain in force.
+
+## Metal training lane
+
+The Metal lane mounts fixed harness-owned Swift/Metal code, bounded numeric
+training rows and a verified checkpoint in the offline native VM. Project code,
+holdout rows, quality thresholds and credentials are not mounted. The GPU recipe
+has no CPU fallback. Successful command buffers and device metadata are evidence
+from the trusted recipe, not remote hardware attestation or a defense against a
+compromised host, base VM or GPU driver.
+
+Completed checkpoints are validated before atomic host promotion; unfinished
+segments are discarded. Dataset, preprocessing, settings and recipe identities
+prevent accidental cross-workflow resume. The runtime also binds the native
+profile and host kernel/architecture. These checks do not promise bitwise
+portability between arbitrary physical GPUs. Corrupt checkpoints are refused;
+manual malicious rewriting of controller-owned approvals/state is outside the
+existing trusted-controller boundary.
+
+Host-only holdout evaluation is frozen to the first completed model. Checkpoints
+and data remain plaintext controller state. Passing the synthetic regression
+fixture does not establish fairness, generalization or suitability for sensitive
+uses. The GPU is shared with the host, without exclusive allocation or a hard
+VRAM quota. Native VM memory/time limits and disk-space guards still apply. The
+workflow does not load model executables on the host or publish an artifact.

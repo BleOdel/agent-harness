@@ -35,7 +35,8 @@
     "verify:browser": "node src/verify-browser.ts",
     "verify:native": "node src/verify-native.ts",
     "verify:macos": "node src/verify-macos.ts",
-    "verify:apple": "node src/verify-apple.ts"
+    "verify:apple": "node src/verify-apple.ts",
+    "verify:metal": "node src/verify-metal.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

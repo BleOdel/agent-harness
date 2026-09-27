@@ -28,7 +28,7 @@ disposable offline Tart VMs, Swift compilation, host comparison, timeout cleanup
 and recovery after controller loss. A packaged macOS Electron GUI lane adds keyboard interaction, restart persistence,
 validation messages, screenshots and host comparisons. A separate SwiftUI/AppKit lane now adds accessibility-identifier journeys, keyboard
 input, restart persistence and screenshots. It exercises command-line Swift builds,
-not arbitrary Xcode projects. Mobile, Windows and GPU training remain unimplemented.
+not arbitrary Xcode projects. Mobile, Windows and arbitrary GPU frameworks remain unimplemented; fixed Metal regression is documented below.
 See NATIVE.md, MACOS_GUI.md and MACOS_NATIVE.md.
 
 First completed implementation slice: browser verification. Available laptop space at
@@ -51,13 +51,21 @@ Infrastructure still required for later milestones:
   host Xcode installation alone is not simulator verification.
 - Windows: an appropriate licensed image or an existing Windows runner must be
   selected. No Windows subscription or VM has been purchased.
-- GPU: an isolated compute backend and its resource limits must be verified.
-  The M3 GPU and a virtual display do not by themselves establish GPU training.
+- GPU: the fixed Metal recipe now has a separate execution and recovery lane.
+  General frameworks and dedicated GPU quotas still need separate evidence.
 
 The operator selected a MacBook-first route: SwiftUI/AppKit, then a Metal GPU
 runner, then iOS. Android and Windows need separate runner selection. A real Metal
-compute probe returned correct doubled values on the guest Apple Paravirtual
-device, but this does not establish training or checkpoint support. The guest
+compute probe first returned correct doubled values on the guest Apple Paravirtual
+device; the separate training and recovery trial below now exercises the ML recipe. The guest
 reports kern.hv_support=0; no Android emulator acceleration is claimed. About
 55 GiB host space remained before this native UI milestone. No paid cloud machines
 or hosted Actions runners were provisioned.
+
+## Metal numeric training delivered
+
+The first [Metal lane](METAL.md) uses the Mac VM for fixed float32 regression,
+validated segment checkpoints, owned interruption recovery and host-only holdout
+evaluation. Its synthetic trial compares uninterrupted and recovered training.
+This closes the narrow Mac GPU training/recovery slice; arbitrary GPU frameworks,
+large models, distributed work, CUDA and exclusive GPU quotas remain deferred.

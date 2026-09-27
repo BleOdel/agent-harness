@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "title": "Metal numeric prediction",
+  "target": "y",
+  "seed": 42,
+  "epochs": 200,
+  "learningRate": 0.05,
+  "maxRmse": 0.002,
+  "minImprovement": 0.99,
+  "checkpointEvery": 100,
+  "limits": {
+    "timeoutSeconds": 300,
+    "totalSeconds": 1200,
+    "maxAttempts": 4
+  }
+}

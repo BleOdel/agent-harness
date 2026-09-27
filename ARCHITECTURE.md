@@ -1035,3 +1035,33 @@ requires real SwiftUI/AppKit journeys and a persistence mutation. Source accepta
 remains separate because driver and app share a guest. Records under `apple-gui`
 link to native ownership/recovery state; `look` and project removal account for
 active native UI runs. See MACOS_NATIVE.md for build and evidence limits.
+
+## Metal training and checkpoint recovery
+
+`src/metal/` composes bounded native jobs without changing the native isolation
+protocol. Only harness-owned Swift kernels, approved training rows and a verified
+checkpoint enter a segment. The VM must complete both Metal error and gradient
+kernels for every epoch; there is no CPU training fallback.
+
+```mermaid
+flowchart LR
+  A[Approved external CSV and settings] --> T[Frozen training split]
+  A --> H[Protected host holdout]
+  T --> V[Offline native VM: Metal segment]
+  C[Last verified checkpoint] --> V
+  V --> G[Host identity and progress validation]
+  G --> C
+  V -->|Interrupted| R[Owned recovery; discard unfinished segment]
+  R --> C
+  C -->|All epochs complete| E[Host holdout evaluation]
+  H --> E
+  E -->|Quality goal passed| X[Inert JSON model export]
+```
+
+A state write reserves each attempt before dispatch. Completed checkpoints and
+attempt status are committed together with atomic state replacement. A child
+native result can be promoted after a dead controller is recovered, otherwise
+only the last completed checkpoint survives. Reservations stay spent. Runtime,
+data and settings identities prohibit mismatched resumption. The first evaluated
+model hash is frozen, including after quality failure. See [METAL.md](METAL.md)
+for supported data, budgets, validation and shared-GPU limits.

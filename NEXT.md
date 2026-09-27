@@ -1,6 +1,6 @@
 # Harness expansion development plan
 
-Status: E0–E4, Linux/macOS Electron diagnostics and E9a local staging implemented. Deferred work was reopened on 2026-09-27. Isolated Chromium diagnostics are implemented and exercised on real Docker/Chromium. GitHub draft delivery and explicit prerelease publication are implemented with simulated API coverage; a live release trial is outstanding. macOS script, Electron and SwiftUI/AppKit diagnostic lanes are implemented; arbitrary Xcode projects, Windows, mobile and GPU training runners remain unimplemented. See [DEFERRED_IMPLEMENTATION.md](DEFERRED_IMPLEMENTATION.md).
+Status: E0–E4, Linux/macOS Electron diagnostics and E9a local staging implemented. Deferred work was reopened on 2026-09-27. Isolated Chromium diagnostics are implemented and exercised on real Docker/Chromium. GitHub draft delivery and explicit prerelease publication are implemented with simulated API coverage; a live release trial is outstanding. macOS script, Electron and SwiftUI/AppKit diagnostic lanes are implemented; a fixed Metal numeric training/checkpoint lane is also implemented. Arbitrary Xcode projects, Windows, mobile and general GPU frameworks remain unimplemented. See [METAL.md](METAL.md) for the bounded GPU scope. See [DEFERRED_IMPLEMENTATION.md](DEFERRED_IMPLEMENTATION.md).
 Additional native frameworks, mobile and GPU support require their own execution
 evidence. See DEFERRED_IMPLEMENTATION.md for the sequence and README.md for shipped commands.
 
@@ -345,6 +345,11 @@ Keep platform-native builds and tests separate from JavaScript component tests. 
 A small offline notes app builds, installs, launches, saves data, restarts and passes UI interactions in Android emulation; repeat on an iOS simulator before declaring iOS simulator support. Native build failure, a missing permission or broken persistence must stop acceptance even when JavaScript tests pass.
 
 ## E8 — GPU ML jobs
+
+A bounded Mac-first slice is implemented in [METAL.md](METAL.md): fixed numeric
+regression on the VM Metal device, completed-segment checkpoints, interruption
+recovery and independent holdout evaluation. General GPU frameworks, complete
+physical GPU/driver identity and hard GPU/VRAM allocation remain future work.
 
 ### Deliver
 

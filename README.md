@@ -163,11 +163,13 @@ Native macOS [script diagnostics](NATIVE.md) run approved build/test scripts in 
 Real Chromium [browser UI checks](BROWSER.md) now run approved journeys against disposable Node app copies in separate offline containers. Use `harness guide` → **Browser UI checks**; screenshots and accessibility diagnostics are retained. This does not replace source acceptance or establish native/mobile support.
 
 E9a adds [reviewed release preparation and local staging](RELEASES.md): freeze an artifact, approve its version/destination, dry run, stage and recover through **Prepare and stage a release** in `guide`. A separate guided GitHub Releases destination now supports draft upload and explicit prerelease publication; its simulated-API tests do not substitute for a live release trial. GitHub Free is supported; no hosted runner is required.
-E6 adds [packaged Linux Electron journeys](DESKTOP.md): keyboard/UI interaction, restart persistence, screenshots and checked local package export through **Linux desktop apps** in `guide`. Windows, mobile, emulators and GPUs remain unimplemented milestones in [the expansion plan](NEXT.md).
+E6 adds [packaged Linux Electron journeys](DESKTOP.md): keyboard/UI interaction, restart persistence, screenshots and checked local package export through **Linux desktop apps** in `guide`. Windows, mobile, emulators and general GPU frameworks remain unimplemented milestones in [the expansion plan](NEXT.md).
 
 Packaged macOS Electron apps have an offline VM diagnostic lane: `harness macos setup` or **macOS GUI apps** in `harness guide`. See [MACOS_GUI.md](MACOS_GUI.md) for provisioning, observations and limitations.
 
 [SwiftUI/AppKit journeys](MACOS_NATIVE.md) build and exercise native macOS apps in the offline VM. Use **SwiftUI/AppKit apps** in `harness guide`; identifiers, screenshots, persistence checks and guest-only permissions are documented there.
+
+[Metal GPU training](METAL.md) runs fixed numeric regression in the offline Mac VM, saves validated checkpoints between segments, resumes interrupted workflows and evaluates a protected holdout before JSON model export. Use **Metal GPU training** in `harness guide`.
 
 ```bash
 harness project setup       # choose the environment and skills using short prompts

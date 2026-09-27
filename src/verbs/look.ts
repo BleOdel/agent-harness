@@ -1,3 +1,4 @@
+import {listMetal,readMetalState} from "../metal/store.ts";
 import {listAppleRuns} from "../native/apple/store.ts";
 import {listGuiRuns} from "../native/gui/store.ts";
 import {listNativeRuns} from "../native/store.ts";
@@ -46,6 +47,7 @@ export function stateOfItem(feature: Feature, runs: readonly RunRecord[]): strin
 }
 
 export async function look(project: string): Promise<void> {
+  for(const a of await listMetal(project)){const s=await readMetalState(project,a.id);say(`METAL ${a.spec.title} · ${s.status} · epoch ${s.checkpoint?.model.completed??0}/${a.spec.epochs} · ${a.id}`);}
   for(const r of await listAppleRuns(project)) say(`NATIVE UI ${r.id} · ${r.status} · ${r.message}`);
   for(const r of await listGuiRuns(project)) say(`MACOS GUI ${r.id} · ${r.status} · ${r.message}`);
   for (const r of await listNativeRuns(project)) say(`NATIVE ${r.id} · ${r.status} · ${r.message}`);
