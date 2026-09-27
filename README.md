@@ -167,6 +167,8 @@ E6 adds [packaged Linux Electron journeys](DESKTOP.md): keyboard/UI interaction,
 
 Packaged macOS Electron apps have an offline VM diagnostic lane: `harness macos setup` or **macOS GUI apps** in `harness guide`. See [MACOS_GUI.md](MACOS_GUI.md) for provisioning, observations and limitations.
 
+[SwiftUI/AppKit journeys](MACOS_NATIVE.md) build and exercise native macOS apps in the offline VM. Use **SwiftUI/AppKit apps** in `harness guide`; identifiers, screenshots, persistence checks and guest-only permissions are documented there.
+
 ```bash
 harness project setup       # choose the environment and skills using short prompts
 harness project show        # display the saved choice and its location

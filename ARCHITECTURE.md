@@ -1009,3 +1009,29 @@ GUI preparation uses a source-free clone, transfers pinned tools as an archive,
 flushes the disk and shuts the guest down before registration. Native boundary
 checks and positive/negative GUI fixtures gate activation. Native GUI diagnostics
 remain separate from project `work` verification and from signing/distribution.
+
+## SwiftUI/AppKit diagnostic lane
+
+The native UI controller stages a bounded source copy, approved build entry and
+application path, and harness-owned Swift accessibility driver. It reuses the
+native VM controller rather than starting host applications. Each guest compiles
+and grants permissions to the driver at one fixed guest path. Only actions enter
+the guest; expected values stay in host approval state.
+
+```mermaid
+flowchart LR
+  A[Approved build path and UI journey] --> H[Host controller]
+  S[Source snapshot] --> V[Offline disposable macOS VM]
+  H --> V
+  V --> B[Build .app and Swift AX driver]
+  B --> U[Accessibility actions and window screenshot]
+  U --> O[Bounded retained observations]
+  O --> C[Host expectation comparison]
+  C --> R[Diagnostic record and export]
+```
+
+Runtime receipts bind the native profile and this driver's protocol. Validation
+requires real SwiftUI/AppKit journeys and a persistence mutation. Source acceptance
+remains separate because driver and app share a guest. Records under `apple-gui`
+link to native ownership/recovery state; `look` and project removal account for
+active native UI runs. See MACOS_NATIVE.md for build and evidence limits.

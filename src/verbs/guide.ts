@@ -1,3 +1,4 @@
+import {guideApple} from "../guide/apple.ts";
 import {guideMacos} from "../guide/macos.ts";
 import {nativeMenu} from "./native.ts";
 import { guideBrowser } from "../guide/browser.ts";
@@ -130,6 +131,7 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
     actions.push({ label: "Browser UI checks", run: () => guideBrowser(project, io, command) });
     actions.push({ label: "macOS GUI apps", run: () => guideMacos(project, io, command) });
     actions.push({ label: "Native macOS checks", run: () => nativeMenu(project, io, command) });
+    actions.push({ label: "SwiftUI/AppKit apps", run: () => guideApple(project, io, command) });
     const choice = await choose(io, "Next action", actions.map(a => a.label));
     if (choice < 0) { io.write(`Saved work stays with ${project}. Return with harness guide ${JSON.stringify(project)}.`); return; }
     try { await actions[choice]!.run(); }

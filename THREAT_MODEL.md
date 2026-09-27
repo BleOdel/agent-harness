@@ -509,3 +509,20 @@ uses recorded writer identities and the existing VM ownership rules. Preparation
 has its own saved ownership record; a live/different writer or ambiguous VM state
 prevents resource deletion. No Windows, emulator or GPU boundary is inferred from
 these macOS GUI results.
+
+## SwiftUI/AppKit driver
+
+Native UI actions execute inside the existing offline VM boundary. The driver
+receives narrowly named guest-local TCC grants for Accessibility, input posting
+and screen capture; the tested base already has guest SIP disabled. Neither the
+base nor host privacy settings are changed by these per-run grants. No host
+Accessibility entitlement is requested. Permission setup uses a version-sensitive
+guest database schema and must pass real runtime validation. Failure to obtain
+permission fails the journey; it never causes a host fallback.
+
+The guest application can affect the driver and fabricate observations. Host
+comparison with withheld expected values is useful diagnostic evidence, not a new
+adversarial acceptance boundary. App screenshots are filtered to the app PID and
+one window. Build scripts, application code and zipped outputs are untrusted; no
+zip is executed or installed on the host. The existing guardian, source/output
+bounds, free-space watchdog and owned-resource recovery remain in force.

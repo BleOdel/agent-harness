@@ -109,3 +109,5 @@ Packaged macOS Electron GUI journeys are a separate capability described in
 [MACOS_GUI.md](MACOS_GUI.md). Their tools use a prepared clone named
 `harness-macos-gui`; activating it updates the native base identity and requires
 reviewing existing script approvals. The original script base is retained.
+
+SwiftUI/AppKit accessibility journeys are documented in [MACOS_NATIVE.md](MACOS_NATIVE.md). They use this same offline base, with temporary driver permissions only inside each disposable guest.

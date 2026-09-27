@@ -98,3 +98,5 @@ Interrupted source-free tool preparation has its own ownership record and
 `harness macos validate` reuses the prepared base. Results are retained under the
 Harness runtime’s `gui-boundary.json`. `npm run verify:macos` repeats the installed
 runtime’s real notes journey and negative controls.
+
+For SwiftUI/AppKit controls, use the separate [native UI lane](MACOS_NATIVE.md).

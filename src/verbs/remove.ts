@@ -1,3 +1,4 @@
+import {listAppleRuns} from "../native/apple/store.ts";
 import {listGuiRuns} from "../native/gui/store.ts";
 import {listNativeRuns} from "../native/store.ts";
 import { listBrowserRuns } from "../browser/store.ts";
@@ -100,6 +101,7 @@ async function removeUnlocked(project: string, argv: readonly string[]): Promise
 
   if ((await listBrowserRuns(target)).some(run => ["preparing", "running"].includes(run.status))) throw new OperatorError("Recover active browser runs before removing this project.", "Use harness browser list and harness browser recover <run-id>.");
 
+  if ((await listAppleRuns(target)).some(r=>["preparing","running"].includes(r.status))) throw new OperatorError("Recover native UI runs before removing this project.", "Use harness macos-native list and harness macos-native recover <run-id>.");
   if ((await listGuiRuns(target)).some(r=>["preparing","running"].includes(r.status))) throw new OperatorError("Recover macOS GUI runs before removing this project.", "Use harness macos list and harness macos recover <run-id>.");
   if ((await listNativeRuns(target)).some(run => ["preparing", "running"].includes(run.status))) throw new OperatorError("Recover native VMs before removing this project.", "Use harness native list and harness native recover <run-id>.");
 

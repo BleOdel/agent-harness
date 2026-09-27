@@ -26,9 +26,10 @@ has been uploaded or published. It works with GitHub Free without hosted Actions
 A first native macOS script lane is implemented and verified on the laptop:
 disposable offline Tart VMs, Swift compilation, host comparison, timeout cleanup
 and recovery after controller loss. A packaged macOS Electron GUI lane adds keyboard interaction, restart persistence,
-validation messages, screenshots and host comparisons. It does not cover arbitrary
-native frameworks. Mobile, Windows and
-GPU work remains unimplemented. See NATIVE.md and MACOS_GUI.md.
+validation messages, screenshots and host comparisons. A separate SwiftUI/AppKit lane now adds accessibility-identifier journeys, keyboard
+input, restart persistence and screenshots. It exercises command-line Swift builds,
+not arbitrary Xcode projects. Mobile, Windows and GPU training remain unimplemented.
+See NATIVE.md, MACOS_GUI.md and MACOS_NATIVE.md.
 
 First completed implementation slice: browser verification. Available laptop space at
 inspection: about 89 GiB; RAM 18 GB, Apple M3 Pro. Avoid installing every SDK or
@@ -53,5 +54,10 @@ Infrastructure still required for later milestones:
 - GPU: an isolated compute backend and its resource limits must be verified.
   The M3 GPU and a virtual display do not by themselves establish GPU training.
 
-A runner-location question is pending with the operator. No paid cloud machines
+The operator selected a MacBook-first route: SwiftUI/AppKit, then a Metal GPU
+runner, then iOS. Android and Windows need separate runner selection. A real Metal
+compute probe returned correct doubled values on the guest Apple Paravirtual
+device, but this does not establish training or checkpoint support. The guest
+reports kern.hv_support=0; no Android emulator acceleration is claimed. About
+55 GiB host space remained before this native UI milestone. No paid cloud machines
 or hosted Actions runners were provisioned.
