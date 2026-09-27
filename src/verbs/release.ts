@@ -1,8 +1,10 @@
+import {githubReleaseCommand} from "./github-release.ts";
 import {listReleases,readRelease} from '../releases/store.ts';
 import {prepareRelease,approveRelease,dryRunRelease,stageRelease,retireRelease} from '../releases/controller.ts';
 import {setupRelease,reviewRelease,describeRelease} from '../guide/releases.ts';
 import {OperatorError,say} from './io.ts';
 export async function releaseCommand(project:string,args:readonly string[]):Promise<void>{
+ if(args[0]==='github')return githubReleaseCommand(project,args.slice(1));
  const [action,id,extra,...rest]=args;
  if(action==='setup'&&!id)return setupRelease(project);
  if((!action||action==='list')&&(!id||id==='--json')&&!extra){const releases=await listReleases(project);if(id==='--json')say(JSON.stringify(releases));else{releases.forEach(r=>say(`${r.id} · ${r.manifest.name} ${r.manifest.version} · ${r.status}`));say('Continue with harness guide → Prepare and stage a release.');}return;}

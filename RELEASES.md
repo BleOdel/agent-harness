@@ -5,9 +5,10 @@ exact destination, preserves the artifact independently of its producing run, an
 stages checked bytes with a completion receipt. It never runs the artifact,
 extracts an archive, applies source changes, signs files or uploads anything.
 
-The only installed target is `local-directory@1`. External registries, GitHub
-releases, app stores, signing and release credentials are future E9 work. Native,
-mobile and GPU infrastructure remain deferred.
+The local target is `local-directory@1`. The GitHub delivery workflow below can
+upload a staged artifact as a draft and publish it after separate approval.
+Other registries, app stores and signing remain future work. Native, mobile and
+GPU infrastructure are not yet supported.
 
 ## Guided workflow
 
@@ -131,3 +132,65 @@ blobs. It does not delete a local release or undo an external publication.
 reference-retention, ownership, interrupted-write, actual controller-crash and PTY
 checks. It refuses skips and uses no provider or network. `npm run check` also
 collects these tests. See [the release example](examples/releases/README.md).
+
+## GitHub Releases (E9b)
+
+GitHub Free is sufficient for this destination. The harness builds/verifies on the
+local machine and uploads directly through GitHub's API; it installs no Actions
+workflow and requires no paid runner. Existing repository workflows may still run
+when a release is published. Actions, Packages and LFS have separate allowances.
+No billing setting is changed by this feature.
+
+Use **Prepare and stage a release → GitHub draft releases and publication** in
+`harness guide`, or `harness release github menu`:
+
+1. Select an already staged local artifact; supply `owner/repository`, a simple
+   tag and the exact full commit SHA already available in that repository.
+2. Review the artifact hash, inherited verification, destination and commit.
+   Preparation and dry run are local. Approve the saved manifest for draft upload.
+3. **Upload or reconcile the draft** creates an unpublished prerelease, uploads
+   the artifact and `SHA256SUMS.txt`, and checks GitHub-reported sizes and SHA-256
+   digests. It never overwrites a foreign release or mismatched asset.
+4. Review the remote draft. **Review and publish this prerelease** asks separately
+   before publishing. The explicit CLI equivalent requires the manifest digest.
+
+```bash
+harness release github setup
+harness release github list
+harness release github inspect <github-release-id>
+harness release github dry-run <github-release-id>
+harness release github approve <github-release-id> --digest <manifest-digest>
+harness release github upload <github-release-id>
+harness release github publish <github-release-id> --digest <manifest-digest>
+```
+
+Authenticate `gh` on the host with access to the selected repository (a fine-grained
+credential needs the repository's Contents write permission). The controller gets
+its token in memory from `gh auth token`; no token enters an app container, model
+prompt or saved release record. API hosts are fixed to `api.github.com` and
+`uploads.github.com`, redirects are refused, requests are timed out and response
+sizes bounded. GitHub Enterprise is not supported in this initial backend.
+
+Intent is saved before creating a release, uploading each asset and publishing.
+After an interrupted response, retry reconciles the exact saved release marker,
+commit, filenames and digests. If the outcome is unknown and no matching object
+is found, it stops instead of creating another object. Inspect the remote state
+before proceeding; this initial backend has no destructive overwrite/delete or
+manual outcome-resolution command. A recovery record lives in
+`<project>-harness/github-releases/`. Retain the staged source release until delivery
+is finished; retiring it prevents further upload/publication from that record.
+
+Existing tags must resolve to the exact selected commit. Assets are checked again
+before publication, but GitHub has no atomic compare-and-publish primitive: a
+concurrent external editor can still race the last check. These are unsigned
+prereleases, not production certification or supply-chain attestations. Choosing
+a commit does not prove that the artifact was built from that commit. The artifact's
+original verification status remains visible. Local paths in the staging manifest
+are not included in the public description. The existing 32 MiB artifact limit
+still applies. No signing, app-store upload, Packages or automatic promotion to
+latest is provided.
+
+`test/github-release.test.ts` covers approval, draft-only upload, separate
+publication, changed destinations/assets and uncertain outcomes using a simulated
+API. No real repository was uploaded to or published during development; a live
+end-to-end trial remains a separately approved release operation.

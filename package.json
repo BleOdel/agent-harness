@@ -31,7 +31,8 @@
     "verify:jobs": "node src/verify-jobs.ts",
     "verify:ml": "node src/verify-ml.ts",
     "verify:desktop": "node src/verify-desktop.ts",
-    "verify:releases": "node src/verify-releases.ts"
+    "verify:releases": "node src/verify-releases.ts",
+    "verify:browser": "node src/verify-browser.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -46,7 +47,8 @@
     "README.md",
     ".env.example",
     "profiles",
-    "containers/desktop"
+    "containers/desktop",
+    "containers/browser"
   ],
   "dependencies": {
     "acorn": "8.18.0",

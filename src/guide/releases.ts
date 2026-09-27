@@ -1,3 +1,4 @@
+import {githubMenu} from "../verbs/github-release.ts";
 import {listArtifacts} from '../artifacts/store.ts';
 import {prepareRelease,approveRelease,dryRunRelease} from '../releases/controller.ts';
 import {listReleases,readRelease,type Release} from '../releases/store.ts';
@@ -23,7 +24,8 @@ export async function reviewRelease(project:string,id:string,io:Dialogue=termina
 export async function guideReleases(project:string,io:Dialogue,command:GuideCommand):Promise<void>{
  const run=async(...args:string[])=>{if(await command(project,['release',...args]))io.write('That release step stopped. Saved approval and staging records remain; inspect the reason before retrying.');};
  for(;;){
-  const releases=await listReleases(project);const choice=await choose(io,'Release preparation (local staging)',[...releases.map(r=>`${r.manifest.name} ${r.manifest.version}: ${r.status}`),'Prepare a new release draft']);if(choice<0)return;
+  const releases=await listReleases(project);const choice=await choose(io,'Release preparation (local staging)',[...releases.map(r=>`${r.manifest.name} ${r.manifest.version}: ${r.status}`),'Prepare a new release draft','GitHub draft releases and publication']);if(choice<0)return;
+  if(choice===releases.length+1){await githubMenu(project,io);continue;}
   if(choice===releases.length){await run('setup');continue;}
   const r=releases[choice]!;io.write(`${r.manifest.name} ${r.manifest.version}: ${r.status}. ${r.reason??''}`);
   const actions=[{label:'Inspect the manifest and local result',verb:'inspect'}];

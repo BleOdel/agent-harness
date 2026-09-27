@@ -1,3 +1,5 @@
+import { listGitHub } from "../releases/github.ts";
+import { listBrowserRuns, listApprovals as listBrowserApprovals } from "../browser/store.ts";
 import { listWorkCheckpoints } from "../workspace/work-checkpoints.ts";
 import { listReleases } from '../releases/store.ts';
 /**
@@ -41,6 +43,9 @@ export function stateOfItem(feature: Feature, runs: readonly RunRecord[]): strin
 }
 
 export async function look(project: string): Promise<void> {
+  for (const d of await listGitHub(project)) say(`GITHUB RELEASE ${d.manifest.repository} ${d.manifest.tag} · ${d.status} · ${d.id}`);
+  const browserJourneys = await listBrowserApprovals(project);
+  for (const run of await listBrowserRuns(project)) say(`BROWSER ${browserJourneys.find(a => a.id === run.approval)?.journey.title ?? run.approval} · ${run.status} · ${run.id}`);
   for (const r of await listReleases(project)) say(`RELEASE ${r.manifest.name} ${r.manifest.version} · ${r.status} · local staging · ${r.id}`);
   const journeys = await listApprovals(project);
   for (const run of await listDesktopRuns(project)) say(`DESKTOP ${journeys.find(a => a.id === run.approval)?.journey.title ?? run.approval} · ${run.status} · ${run.id}`);

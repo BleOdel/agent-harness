@@ -1,6 +1,6 @@
 # Harness architecture
 
-Current implementation includes E0 hardening, E1 adapter/runner contracts, E2 Python support, E3 artifacts/jobs, E4 CPU regression, Linux-only E6 desktop diagnostics, E9a release preparation and the extended U0 guide on top of team M0–M6 and durable planning.
+Current implementation includes E0 hardening, E1 adapter/runner contracts, E2 Python support, E3 artifacts/jobs, E4 CPU regression, Linux-only E6 desktop diagnostics, E9a local staging, GitHub release delivery, isolated browser diagnostics and the extended U0 guide on top of team M0–M6 and durable planning.
 Use the [README](README.md) for commands and [threat model](THREAT_MODEL.md) for
 security assumptions. These diagrams describe implemented behavior; milestone
 reports preserve their original observations.
@@ -765,7 +765,7 @@ container ownership and status. Ctrl-C and bounded deadlines stop execution; rec
 checks ownership before removing resources after a controller crash. A rerun starts
 from a fresh app, not a partial GUI checkpoint. Artifact release protects unreleased
 desktop references; guide and `look` read these saved records directly. Native OS
-runners remain deferred. See [DESKTOP.md](DESKTOP.md) for limits and image preparation.
+runners remain unimplemented. See [DESKTOP.md](DESKTOP.md) for limits and image preparation.
 
 
 ## Reviewed local release preparation (E9a)
@@ -793,8 +793,7 @@ the existing project writer lock and never mounts or executes artifacts. A kille
 controller can resume completed writes; foreign contents, changed destinations
 and missing ownership cause a refusal. The receipt is the completion boundary,
 not directory creation. A copied release artifact remains retained independently
-of its producing job/workflow until retirement. No external release backend or
-credential path exists. See [RELEASES.md](RELEASES.md) for local filesystem limits.
+of its producing job/workflow until retirement. Local staging has no credential path; the separate GitHub backend is described below. See [RELEASES.md](RELEASES.md) for local filesystem limits.
 
 ### Maintained static asset evidence
 
@@ -920,3 +919,40 @@ an old pass. Builder contract context includes those prerequisite contracts.
 
 See [the architecture review](docs/acceptance-architecture-review.md) for evidence,
 tradeoffs, the updated flow and the remaining typed-scenario/browser boundaries.
+
+## Isolated browser diagnostics
+
+The browser controller (`src/browser/`) runs a read-only source snapshot in a
+network-none app container. A separately owned Chromium container joins only
+that network namespace and mounts harness instrumentation, action instructions
+and its output folder. Expected values remain on the host. Journey approval
+pins runtime and protocol; results bind source, approval and runtime identities.
+Host comparisons and bounded artifacts record observed UI behaviour without
+substituting for source acceptance. Cancellation and explicit recovery verify
+container labels, token and immutable image before removal. See [BROWSER.md](BROWSER.md)
+for boundaries and supported actions. Native/mobile/GPU runners remain separate.
+
+
+## GitHub draft delivery and explicit publication
+
+The host consumes one staged release, freezes repository/tag/commit and payload
+hash into a separately approved manifest, and obtains GitHub credentials only
+for the outbound delivery operation. Source builders and containers receive none.
+
+```mermaid
+flowchart LR
+  S[Verified local staging] --> D[Offline destination draft]
+  D --> A[Approve exact destination and bytes]
+  A --> U[Reconcile or upload unpublished GitHub draft]
+  U --> V[Check GitHub asset digests and commit]
+  V --> P[Separate publication approval]
+  P --> R[Publish prerelease and save result]
+  U -->|uncertain outcome| C[Retain intent; reconcile without duplicate writes]
+  C --> U
+```
+
+The API transport is restricted to GitHub.com API/upload hosts. Intent records
+precede external mutations, so uncertain outcomes never prompt blind recreation.
+Foreign releases or modified assets stop delivery. Local byte verification does
+not prove commit-to-artifact provenance, and remote checks are not atomic with
+publication. See [RELEASES.md](RELEASES.md) for tested scope and recovery limits.

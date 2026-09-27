@@ -413,9 +413,9 @@ GUI-proof verification are outside this release. See [DESKTOP.md](DESKTOP.md).
 
 ## Local release preparation (E9a)
 
-Release operations run in the trusted controller and transfer one bounded artifact
+Local staging operations run in the trusted controller and transfer one bounded artifact
 as inert bytes. They never execute it, extract archives, invoke project release
-scripts, fetch credentials, sign or upload. Only local-directory@1 exists. Product
+scripts, fetch credentials, sign or upload. This lane uses local-directory@1. Product
 verification is inherited unchanged; staging does not upgrade diagnostics into
 independent acceptance or an assertion of production readiness.
 
@@ -436,4 +436,31 @@ and hashes; directory visibility is not transactional completion. Local fsync/ha
 link semantics and an operator-controlled filesystem are assumed. There is no
 protection claim against malicious same-host races, network-filesystem semantics,
 an aggregate staging-disk quota, native/remote distribution or release-credential
-handling. Public descriptors and uncertain remote outcomes belong to future E9 work.
+handling. GitHub delivery below adds a minimal public descriptor and bounded reconciliation.
+
+## Browser diagnostic lane
+
+The browser driver and untrusted Node application use distinct offline containers
+and filesystems; only the app network namespace is shared. No ports are published
+and no host credentials are mounted. Chromium runs without its inner sandbox,
+so restricted containers remain the security boundary. The app has a read-only
+source snapshot and bounded temporary data; it cannot write host expectations or
+driver output. Observed DOM/axe results are diagnostics, not proof against hostile
+content or a replacement for independently approved source acceptance. See BROWSER.md.
+
+
+## GitHub release delivery
+
+Only the host release controller reads GitHub credentials, after the operator
+selects a staged artifact and approves the frozen destination manifest. API and
+upload hosts are fixed; HTTP redirects are refused. Credentials are held in memory
+and omitted from public descriptors, saved records and worker inputs. Artifact
+bytes are never executed. Uploads create unpublished prerelease drafts; a separate
+exact-digest approval authorises publication. State is recorded before each
+external mutation. Missing or mismatched remote state causes refusal rather than
+overwrite or duplicate creation. Remote asset verification uses GitHub-reported
+size and digest, not an independently downloaded copy. GitHub/host compromise,
+concurrent external edits and automatic workflows already installed in the
+repository are outside this controller's boundary. There is no signing or claim
+that the artifact was built from the selected commit. Tests simulate GitHub; a
+live upload/publication has not been exercised.

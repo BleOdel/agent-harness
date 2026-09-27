@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --experimental-strip-types
+import {browserCommand} from "./verbs/browser.ts";
 import {evidenceCommand} from "./verbs/evidence.ts";
 import { modelCommand } from "./verbs/model.ts";
 /**
@@ -53,6 +54,8 @@ const USAGE = [
   "  harness project setup      select the project adapter and skill bundles",
   "  harness project show       show saved environment requirements",
   "  harness release setup      prepare, approve and stage a retained artifact locally",
+  "  harness release github menu guided GitHub drafts and publication",
+  "  harness browser setup      approve a real-browser UI journey",
   "  harness desktop setup      approve and verify a packaged Linux GUI journey",
   "  harness ml setup           approve CSV data, train and evaluate a CPU regressor",
   "  harness job setup          save a bounded offline job through short prompts",
@@ -108,6 +111,7 @@ async function main(): Promise<void> {
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
 
   switch (verb) {
+    case "browser": return browserCommand(project, rest);
     case "evidence": return evidenceCommand(project, rest);
     case "model": return modelCommand(project, rest);
     case "release": return releaseCommand(project, rest);

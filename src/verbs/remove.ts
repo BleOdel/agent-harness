@@ -1,3 +1,4 @@
+import { listBrowserRuns } from "../browser/store.ts";
 /**
  *   harness remove <project>          show what would go
  *   harness remove <project> --yes    remove it
@@ -94,6 +95,8 @@ async function removeUnlocked(project: string, argv: readonly string[]): Promise
     say(`  harness remove ${target} --yes`);
     return;
   }
+
+  if ((await listBrowserRuns(target)).some(run => ["preparing", "running"].includes(run.status))) throw new OperatorError("Recover active browser runs before removing this project.", "Use harness browser list and harness browser recover <run-id>.");
 
   for (const directory of targets) {
     await rm(directory, { recursive: true, force: true });

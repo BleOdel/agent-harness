@@ -158,8 +158,10 @@ Local artifact retention and bounded resumable jobs are documented in [Jobs and 
 E4 adds [CPU numeric regression](ML.md) with approved datasets, protected host
 evaluation, checkpoint resume and inert JSON model export. Use `harness guide` →
 **Build and evaluate a CPU ML model**. Source tests and model quality are separate.
-E9a adds [reviewed release preparation and local staging](RELEASES.md): freeze an artifact, approve its version/destination, dry run, stage and recover through **Prepare and stage a release** in `guide`. Remote publication remains unimplemented.
-E6 adds [packaged Linux Electron journeys](DESKTOP.md): keyboard/UI interaction, restart persistence, screenshots and checked local package export through **Linux desktop apps** in `guide`. Native macOS/Windows support is explicitly deferred; mobile, emulators and GPUs remain future milestones in [the expansion plan](NEXT.md).
+Real Chromium [browser UI checks](BROWSER.md) now run approved journeys against disposable Node app copies in separate offline containers. Use `harness guide` → **Browser UI checks**; screenshots and accessibility diagnostics are retained. This does not replace source acceptance or establish native/mobile support.
+
+E9a adds [reviewed release preparation and local staging](RELEASES.md): freeze an artifact, approve its version/destination, dry run, stage and recover through **Prepare and stage a release** in `guide`. A separate guided GitHub Releases destination now supports draft upload and explicit prerelease publication; its simulated-API tests do not substitute for a live release trial. GitHub Free is supported; no hosted runner is required.
+E6 adds [packaged Linux Electron journeys](DESKTOP.md): keyboard/UI interaction, restart persistence, screenshots and checked local package export through **Linux desktop apps** in `guide`. Native macOS/Windows, mobile, emulators and GPUs remain unimplemented milestones in [the expansion plan](NEXT.md).
 
 ```bash
 harness project setup       # choose the environment and skills using short prompts
@@ -1378,7 +1380,8 @@ npm run verify:python     # E2 Python image, wheels, pytest, CLI, guide and appl
 npm run verify:jobs       # E3 outputs, jobs, quotas, crash recovery and guided export
 npm run verify:ml         # E4 numeric regression, protected evaluation, resume and guide
 npm run verify:desktop    # E6 Linux packaged Electron, GUI/persistence, cleanup and guide
-npm run verify:releases   # E9a approval, local staging, crash recovery and terminal workflow
+npm run verify:releases   # local staging plus simulated GitHub delivery/recovery
+npm run verify:browser    # actual offline Docker/Chromium UI diagnostics
 npm run verify:boundary   # the container, against a real daemon
 npm run verify:hardening  # approved checks, binary undo, guide PTY and planning cleanup
 npm run verify:gates      # each gate broken in turn, confirmed to stop the apply

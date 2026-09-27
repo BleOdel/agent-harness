@@ -1,7 +1,8 @@
 # Harness expansion development plan
 
-Status: E0–E4, Linux-only E6 and E9a local release preparation implemented; U0 guide extended. E5 native runners explicitly deferred by the operator on 2026-09-12. Mobile, GPU and external release/distribution remain unimplemented.
-Updated 2026-09-12. See README.md for shipped commands and limitations.
+Status: E0–E4, Linux-only E6 and E9a local staging implemented. Deferred work was reopened on 2026-09-27. Isolated Chromium diagnostics are implemented and exercised on real Docker/Chromium. GitHub draft delivery and explicit prerelease publication are implemented with simulated API coverage; a live release trial is outstanding. Native macOS/Windows, mobile and GPU runners remain unimplemented. See [DEFERRED_IMPLEMENTATION.md](DEFERRED_IMPLEMENTATION.md).
+Native, mobile and GPU support remains unimplemented until its own evidence
+passes. See DEFERRED_IMPLEMENTATION.md for the sequence and README.md for shipped commands.
 
 Delivered in E0/U0: strict reviewer schema, byte-preserving ordinary undo,
 canonical writable-state and hard-link protections, read-only assertion
@@ -139,7 +140,7 @@ journey is not complete. Document any remaining advanced-only operation clearly.
 | E6 | Linux Electron verification shipped; native desktop deferred | Existing Docker, Node adapter; E5 for native |
 | E7 | Mobile application verification | E5, Node adapter |
 | E8 | GPU training workflows | E4, E5 |
-| E9 | Local preparation/staging shipped; external distribution pending | Relevant platform milestone, E3, E5 |
+| E9 | Local staging and GitHub delivery; live upload trial pending | Relevant platform milestone, E3, E5 |
 
 Recommended execution order: U0 alongside E0, then E1 → E2 → E3 → E4 → E5 → E6 → E7 → E8 → E9. U0 continues as a required operator journey in each later milestone.
 E6, E7 and E8 can be reprioritized after E5 based on the next real project and available hardware. Each milestone is a separate reviewable delivery, not one large implementation branch.
@@ -159,7 +160,7 @@ flowchart TD
   E5 --> E7["E7: Mobile"]
   E4 --> E8["E8: GPU ML"]
   E5 --> E8
-  E3 --> E9["E9a: Local release staging; external release pending"]
+  E3 --> E9["E9a/b: Local staging and GitHub delivery"]
   E6 --> E9
   E7 --> E9
   E8 --> E9
@@ -357,7 +358,7 @@ A bounded GPU training fixture completes, checkpoints, is interrupted, resumes c
 
 ## E9 — Controlled release and distribution
 
-E9a local preparation implemented on 2026-09-12 after the operator selected it while native/mobile/GPU infrastructure remained deferred. See [RELEASES.md](RELEASES.md). It freezes one retained artifact, inherited verification, version and destination into an approved manifest; dry runs, exclusive local staging, receipt reconciliation, retirement and guided recovery are implemented. Real process-crash and terminal tests cover the workflow. External targets, credentials, signing, upload, remote-outcome reconciliation and production distribution remain future E9 work; this does not complete the original external-release milestone.
+E9a local preparation implemented on 2026-09-12 after the operator selected it while native/mobile/GPU infrastructure remained deferred. See [RELEASES.md](RELEASES.md). It freezes one retained artifact, inherited verification, version and destination into an approved manifest; dry runs, exclusive local staging, receipt reconciliation, retirement and guided recovery are implemented. Real process-crash and terminal tests cover the workflow. E9b adds GitHub draft upload and separately approved prerelease publication, with host credential separation and saved outcome reconciliation. Simulated API tests pass; a live trial is outstanding. Signing, other targets and production distribution remain future work.
 
 ### Deliver
 

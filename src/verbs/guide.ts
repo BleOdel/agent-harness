@@ -1,3 +1,4 @@
+import { guideBrowser } from "../guide/browser.ts";
 import { guideReleases } from '../guide/releases.ts';
 import { guideDesktop } from '../guide/desktop.ts';
 import { guideMl } from "../guide/ml.ts";
@@ -124,6 +125,7 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
     actions.push({ label: "Linux desktop apps", run: () => guideDesktop(project, io, command) });
     actions.push({ label: "Prepare and stage a release", run: () => guideReleases(project, io, command) });
     actions.push({ label: "Choose model and reasoning strength", run: () => run("model", "setup") });
+    actions.push({ label: "Browser UI checks", run: () => guideBrowser(project, io, command) });
     const choice = await choose(io, "Next action", actions.map(a => a.label));
     if (choice < 0) { io.write(`Saved work stays with ${project}. Return with harness guide ${JSON.stringify(project)}.`); return; }
     try { await actions[choice]!.run(); }
