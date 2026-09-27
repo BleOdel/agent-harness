@@ -171,6 +171,9 @@ Packaged macOS Electron apps have an offline VM diagnostic lane: `harness macos 
 
 [Metal GPU training](METAL.md) runs fixed numeric regression in the offline Mac VM, saves validated checkpoints between segments, resumes interrupted workflows and evaluates a protected holdout before JSON model export. Use **Metal GPU training** in `harness guide`.
 
+[PyTorch CPU learning](PYTORCH.md) adds small neural-network classifiers, unlabeled clustering and complete checkpoint recovery. The guide includes runtime preparation, training, resume and evaluation. A bounded SmolLM2 LoRA experiment passed; PyTorch MPS in the Mac VM failed numerical qualification and is not enabled for training. CUDA and general large-model training remain outstanding.
+
+
 ```bash
 harness project setup       # choose the environment and skills using short prompts
 harness project show        # display the saved choice and its location
@@ -1742,6 +1745,7 @@ envelope can pass component tests while failing the combined contract check.
 |---|---|
 | [Release preparation](RELEASES.md) | Reviewed manifests, dry runs, local staging, receipts and recovery; no remote publishing |
 | [Linux desktop apps](DESKTOP.md) | Electron image preparation, packaged UI journeys, screenshots, checked export and limits |
+| [PyTorch learning](PYTORCH.md) | CPU deep learning, clustering, complete recovery, small LoRA trial and Mac GPU compatibility evidence |
 | [CPU ML workflows](ML.md) | Numeric CSV setup, training, protected evaluation, resume, model export and limits |
 | [Python projects](PYTHON.md) | Current Python setup, dependency policy, packaging and guided workflow |
 | [Architecture](ARCHITECTURE.md) | Current execution, control, recovery and skill diagrams |

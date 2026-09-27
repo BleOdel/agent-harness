@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "title": "Numeric categories",
+  "kind": "classifier",
+  "seed": 42,
+  "steps": 100,
+  "learningRate": 0.01,
+  "batchSize": 8,
+  "clusters": 2,
+  "maxError": 0.15,
+  "limits": {
+    "timeoutSeconds": 300,
+    "totalSeconds": 1200,
+    "maxAttempts": 4
+  }
+}

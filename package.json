@@ -36,7 +36,8 @@
     "verify:native": "node src/verify-native.ts",
     "verify:macos": "node src/verify-macos.ts",
     "verify:apple": "node src/verify-apple.ts",
-    "verify:metal": "node src/verify-metal.ts"
+    "verify:metal": "node src/verify-metal.ts",
+    "verify:torch": "node src/verify-torch.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -52,7 +53,8 @@
     ".env.example",
     "profiles",
     "containers/desktop",
-    "containers/browser"
+    "containers/browser",
+    "containers/torch"
   ],
   "dependencies": {
     "acorn": "8.18.0",

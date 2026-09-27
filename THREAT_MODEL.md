@@ -550,3 +550,21 @@ fixture does not establish fairness, generalization or suitability for sensitive
 uses. The GPU is shared with the host, without exclusive allocation or a hard
 VRAM quota. Native VM memory/time limits and disk-space guards still apply. The
 workflow does not load model executables on the host or publish an artifact.
+
+### Fixed PyTorch recipes
+
+PyTorch CPU learning uses the existing credential-free, offline job sandbox.
+Only frozen training rows and validated JSON recovery state are prepared for a
+job; holdout labels remain in the host controller. A fresh inference container
+receives predictors only, and its output must agree with host numeric inference.
+Complete-step checkpoints use a fixed tensor/dictionary codec, not pickle.
+Arbitrary Python model code, worker loaders, distributed state, mixed precision
+and user-supplied serialized Python objects are outside the supported recipes.
+
+Tools and the optional small-model trial use checksum-pinned binary downloads.
+The trial disables remote model code and loads safetensors from a read-only model
+mount. Its report is feasibility evidence, not production model certification.
+The source-free Mac GPU probe uses a disposable clone of the existing native
+base and the offline guardian; it does not provision GPU training capability
+unless the tested operations meet their numerical controls. Current MPS results
+fail qualification. Physical GPU isolation and hard VRAM allocation remain absent.

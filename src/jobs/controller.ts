@@ -1,4 +1,5 @@
-import { jobRecipe, validateJobCheckpoint } from '../ml/recipe.ts';
+import {readTorchState} from '../torch/store.ts';
+import { jobRecipe, validateJobCheckpoint } from './recipes.ts';
 import { readMlState } from '../ml/store.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -65,7 +66,7 @@ export async function recoverJob(project:string,id:string):Promise<Job>{return w
  j.status='interrupted';delete j.container;await saveJob(project,j,'interrupted','Owned resources removed. Resume uses only a previously validated checkpoint.');return j;
 });}
 export async function releaseJob(project:string,id:string):Promise<void>{return withWriter(project,'job release',async()=>{
- const j=await readJob(project,id);if(j.spec.recipe&&(await readMlState(project,j.spec.recipe.approvalId)).status!=='released')required('Retire this ML workflow with harness ml release first.');if(['preparing','running'].includes(j.status))required('Cannot release an active job; cancel or recover it first.');
+ const j=await readJob(project,id);if(j.spec.recipe&&(await (j.spec.recipe.id==='torch-cpu'?readTorchState:readMlState)(project,j.spec.recipe.approvalId)).status!=='released')required(`Retire this ML workflow with harness ${j.spec.recipe.id==='torch-cpu'?'torch':'ml'} release first.`);if(['preparing','running'].includes(j.status))required('Cannot release an active job; cancel or recover it first.');
  if(await owned(j))required('Job resources still exist; recover them first.');
  j.status='released';delete j.checkpoint;j.artifacts=[];await saveJob(project,j,'released','Recovery outputs released. This job can no longer resume.');await releaseArtifacts(project,id,new Set());
  const root=await jobRoot(project,id);for(const name of ['source',...Array.from({length:8},(_,i)=>`environment-${i+1}`),...Array.from({length:8},(_,i)=>`input-${i+1}`)])await rm(path.join(root,name),{recursive:true,force:true});
@@ -78,6 +79,7 @@ export async function runJob(project:string,id:string,notify:(message:string)=>v
  if(['succeeded','released'].includes(j.status))required(`Job is ${j.status}; create a new job to run again.`);
  if(j.attempts>=j.spec.limits.maxAttempts||j.reservedSeconds+j.spec.limits.timeoutSeconds>j.spec.limits.totalSeconds)required('Job dispatch budget exhausted. Saved artifacts remain available; create a new job with an explicit budget to run more.');
  const adapter=getAdapter((await readProfile(project)).adapter),recipe=await jobRecipe(project,j.spec);
+ if(recipe&&'image' in recipe&&recipe.image!==config.imageId)required('Restore the approved PyTorch image before training.');
  if(recipe&&adapter.reference.id!=='python-pip')required('ML training requires the approved Python project environment.');
  // A retry always starts from an accepted checkpoint. It never silently restarts a partial job.
  if(j.attempts>0&&(!j.checkpoint||!j.spec.checkpoint))required('No compatible checkpoint is saved. Create a new job to start from the beginning.');

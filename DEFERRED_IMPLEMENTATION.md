@@ -69,3 +69,17 @@ validated segment checkpoints, owned interruption recovery and host-only holdout
 evaluation. Its synthetic trial compares uninterrupted and recovered training.
 This closes the narrow Mac GPU training/recovery slice; arbitrary GPU frameworks,
 large models, distributed work, CUDA and exclusive GPU quotas remain deferred.
+
+## PyTorch follow-up (2026-09-27)
+
+Implemented bounded CPU binary neural-network classification and unlabeled
+k-means, complete optimizer/RNG/sampler checkpoint recovery, independent held-out
+inference/quality checks and evaluated JSON export. Cancellation and actual
+controller SIGKILL recovery passed. A pinned SmolLM2-135M LoRA CPU trial passed
+fresh-process JSON checkpoint recovery and reduced synthetic held-out loss.
+
+PyTorch 2.14.0 MPS was tested inside the offline Mac VM, without CPU fallback.
+Although the device is visible, neural-network output/updates failed numerical
+comparison with CPU. MPS training is not enabled. CUDA, general GPU frameworks,
+user-corpus LLM workflows and large/distributed model training remain deferred.
+See [PYTORCH.md](PYTORCH.md) for the tested versions and guided commands.

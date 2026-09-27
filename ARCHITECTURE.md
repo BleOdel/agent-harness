@@ -1065,3 +1065,40 @@ only the last completed checkpoint survives. Reservations stay spent. Runtime,
 data and settings identities prohibit mismatched resumption. The first evaluated
 model hash is frozen, including after quality failure. See [METAL.md](METAL.md)
 for supported data, budgets, validation and shared-GPU limits.
+
+
+## PyTorch CPU recipes
+
+The PyTorch registry dispatches fixed recipes through the existing job controller.
+It preserves linear-regression recipe identity. An approval pins external JSON
+data, its protected split, training-only normalization, quality ceiling, image and
+recipe hash. Only training rows enter the offline container. PyTorch is installed
+in the pinned system image, invoked with `-I`; project packages are not imported.
+
+```mermaid
+flowchart LR
+  A[Data and resource approval] --> S[Immutable training / holdout split]
+  S --> T[Offline CPU job: classifier or k-means]
+  T --> C[Atomic complete JSON checkpoint]
+  C --> R[Host-retained checkpoint]
+  R --> T
+  T --> M[Inert numeric model]
+  M --> E[Host inference and quality comparison]
+  S --> E
+  E --> P[Evaluated JSON export]
+```
+
+Classifier checkpoints include Adam and scheduler state, parameters, both RNGs,
+sampler order/cursor and update progress. No pickle is loaded. The CPU-only exact
+recovery test compares full state across fresh processes and detects a deliberate
+optimizer-reset mutation. Job crash recovery retains ownership, stops the owned
+container and resumes only validated saved state. No saved update means no silent
+restart. Evaluation freezes the first candidate; only quality-passed exports get
+evaluated provenance. Clustering compactness does not establish semantic quality.
+
+The bounded LoRA experiment loads only pinned safetensors with remote code disabled
+and verifies fresh-process checkpoint recovery. It is not a general user-corpus
+training controller. The source-free Mac VM probe installs pinned Python/PyTorch
+in an owned clone with offline networking and an external guardian. It records
+numerical failures as incompatibility evidence, never as training readiness.
+See [PYTORCH.md](PYTORCH.md) for measured results and limitations.

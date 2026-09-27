@@ -1,0 +1,15 @@
+import {choose,confirmed,terminalDialogue,type Dialogue} from './dialogue.ts';
+import {readTorchRuntime} from '../torch/runtime.ts';import {approveTorch,listTorch,readTorchState} from '../torch/store.ts';
+import {withWriter} from '../workspace/writer-lock.ts';import type {GuideCommand} from '../verbs/guide.ts';
+export async function torchSetup(project:string,io:Dialogue=terminalDialogue(),probe=readTorchRuntime){
+ const runtime=await probe();io.write('PyTorch CPU: small binary classifier (deep learning) or unlabeled clustering. Fixed recipes, 2 CPUs and 2 GiB RAM. Saved checkpoints include the optimizer, scheduler, random state and data position.');
+ const kind=await choose(io,'What should the model learn?',['Predict one of two categories from numeric inputs','Group similar numeric examples without labels']);if(kind<0)return;
+ const file=(await io.ask('External JSON dataset path (see examples/torch):')).trim();if(!file)return;
+ const title=(await io.ask('Model name:')).trim()||'PyTorch model',steps=Number((await io.ask('Training steps (Enter for 100):')).trim()||100),maxError=Number(await io.ask(kind===0?'Largest acceptable error fraction (e.g. 0.1 for 10%):':'Largest acceptable mean squared distance in normalized feature units:'));
+ const clusters=kind===1?Number((await io.ask('Number of groups (2–8; Enter for 2):')).trim()||2):2;
+ io.write('A deterministic 80/20 split keeps evaluation rows out of training. Normalization uses training rows only. Maximum four attempts of 300 seconds each; a timeout spends that reservation. Recovery replays from the last saved complete step. Evaluation must beat the simple baseline and your goal.');
+ if(await confirmed(io,'Approve this recipe, split and budget?')){const a=await withWriter(project,'PyTorch approval',()=>approveTorch(project,file,{version:1,title,kind:kind===0?'classifier':'kmeans',seed:42,steps,learningRate:0.01,batchSize:8,clusters,maxError,limits:{timeoutSeconds:300,totalSeconds:1200,maxAttempts:4}},runtime.image));io.write(`Approved ${a.id}. Next: harness torch train ${a.id}`);}
+}
+export async function guideTorch(project:string,io:Dialogue,command:GuideCommand){for(;;){const actions=[{label:'Prepare CPU PyTorch tools (pinned downloads)',args:['provision']},{label:'Test PyTorch GPU compatibility in the Mac VM',args:['probe-mac']},{label:'Trial one small language model with LoRA',args:['trial-llm']},{label:'Check CPU runtime',args:['doctor']},{label:'Validate complete checkpoint recovery',args:['validate']},{label:'Set up a classifier or clustering model',args:['setup']}];for(const id of await listTorch(project)){const s=await readTorchState(project,id);actions.push({label:`Inspect ${id}: ${s.status}`,args:['inspect',id]});if(['approved','training'].includes(s.status)){actions.push({label:`Train or resume ${id}`,args:['train',id]});actions.push({label:`Evaluate ${id}`,args:['evaluate',id]});}}
+ const n=await choose(io,'PyTorch CPU learning',actions.map(a=>a.label));if(n<0)return;try{await command(project,['torch',...actions[n]!.args]);}catch(e){io.write((e as Error).message);}}
+}

@@ -1,0 +1,250 @@
+{
+  "version": 1,
+  "date": "2026-09-27",
+  "cpuImage": "sha256:55a2958667abd8134bc8ad42241b308a0deeea885c6568790692bc0108603ebd",
+  "cpuCompleteRecovery": {
+    "passed": true,
+    "observations": [
+      "classifier: exact complete checkpoint, loss trajectory and model recovery",
+      "kmeans: exact complete checkpoint, loss trajectory and model recovery",
+      "Optimizer-reset mutation detected"
+    ]
+  },
+  "realWorkflowTests": {
+    "passed": 10,
+    "failed": 0,
+    "skipped": 0,
+    "includes": [
+      "protected data",
+      "fresh PyTorch and host inference",
+      "quality failure prevents export",
+      "cancellation/resume",
+      "SIGKILL controller recovery",
+      "artifact export/retirement"
+    ]
+  },
+  "llm": {
+    "version": 1,
+    "model": "HuggingFaceTB/SmolLM2-135M",
+    "revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
+    "framework": "2.14.0+cpu",
+    "device": "cpu",
+    "method": "LoRA rank 2 on last two layers q/v",
+    "steps": 12,
+    "sequenceLimit": 48,
+    "batchSize": 1,
+    "trainExamples": 8,
+    "heldOutExamples": 2,
+    "trainableParameters": 7680,
+    "beforeLoss": 4.432631969451904,
+    "afterLoss": 4.296396255493164,
+    "freshProcessRecoveryExact": true,
+    "checkpointBytes": 544281,
+    "limitation": "Synthetic smoke trial; not a useful journal model or production quality evaluation."
+  },
+  "macVm": {
+    "torch": "2.14.0",
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "mpsBuilt": true,
+    "mpsAvailable": true,
+    "cpuFallback": false,
+    "passed": false,
+    "tests": [
+      {
+        "name": "matrix multiplication",
+        "maxError": 0,
+        "passed": true
+      },
+      {
+        "name": "SGD forward/backward training",
+        "initialForwardError": 0.24986591935157776,
+        "maxWeightError": 0.07743370532989502,
+        "firstStepWeightError": 0.00446648895740509,
+        "losses": [
+          [
+            0.9352136850357056,
+            0.94533771276474
+          ],
+          [
+            0.9289553165435791,
+            0.9385261535644531
+          ],
+          [
+            0.9229578971862793,
+            0.931991457939148
+          ],
+          [
+            0.917207658290863,
+            0.9257193803787231
+          ],
+          [
+            0.9116919040679932,
+            0.9196963310241699
+          ],
+          [
+            0.9063986539840698,
+            0.9139102697372437
+          ],
+          [
+            0.9013164043426514,
+            0.9083491563796997
+          ],
+          [
+            0.8964347839355469,
+            0.9030019640922546
+          ],
+          [
+            0.8917436599731445,
+            0.8978583812713623
+          ],
+          [
+            0.8872337341308594,
+            0.8929086923599243
+          ],
+          [
+            0.8828960061073303,
+            0.8881436586380005
+          ],
+          [
+            0.8787223696708679,
+            0.8835544586181641
+          ],
+          [
+            0.8747047185897827,
+            0.8791331648826599
+          ],
+          [
+            0.8708357810974121,
+            0.8748720288276672
+          ],
+          [
+            0.8671085238456726,
+            0.8707635998725891
+          ],
+          [
+            0.8635163307189941,
+            0.8668010830879211
+          ],
+          [
+            0.8600529432296753,
+            0.8629778623580933
+          ],
+          [
+            0.8567124605178833,
+            0.8592879772186279
+          ],
+          [
+            0.8534892797470093,
+            0.8557254672050476
+          ],
+          [
+            0.8503782153129578,
+            0.8522847294807434
+          ]
+        ],
+        "passed": false
+      },
+      {
+        "name": "Adam forward/backward training",
+        "initialForwardError": 0.24986591935157776,
+        "maxWeightError": 0.318343847990036,
+        "firstStepWeightError": 0.02000001072883606,
+        "losses": [
+          [
+            0.9352136850357056,
+            0.94533771276474
+          ],
+          [
+            0.9036898016929626,
+            0.914823591709137
+          ],
+          [
+            0.8760119080543518,
+            0.8881218433380127
+          ],
+          [
+            0.8518823385238647,
+            0.8649300336837769
+          ],
+          [
+            0.8310789465904236,
+            0.8449498414993286
+          ],
+          [
+            0.8133107423782349,
+            0.8278471827507019
+          ],
+          [
+            0.7982052564620972,
+            0.8132644891738892
+          ],
+          [
+            0.7853814959526062,
+            0.8008634448051453
+          ],
+          [
+            0.7744858860969543,
+            0.7903406620025635
+          ],
+          [
+            0.7651986479759216,
+            0.7814229726791382
+          ],
+          [
+            0.7572372555732727,
+            0.773862361907959
+          ],
+          [
+            0.7503588199615479,
+            0.7674360275268555
+          ],
+          [
+            0.7443603277206421,
+            0.7619483470916748
+          ],
+          [
+            0.7390774488449097,
+            0.7572315335273743
+          ],
+          [
+            0.7343804836273193,
+            0.753144383430481
+          ],
+          [
+            0.7301685214042664,
+            0.7495700120925903
+          ],
+          [
+            0.7263617515563965,
+            0.7464122176170349
+          ],
+          [
+            0.7228943705558777,
+            0.7435922026634216
+          ],
+          [
+            0.719707190990448,
+            0.7410460114479065
+          ],
+          [
+            0.7167434096336365,
+            0.7387208342552185
+          ]
+        ],
+        "passed": false
+      },
+      {
+        "name": "convolution backward",
+        "gradientError": 3.5762786865234375e-07,
+        "passed": true
+      }
+    ]
+  },
+  "repositorySuite": {
+    "total": 696,
+    "passed": 649,
+    "failed": 0,
+    "skipped": 47
+  },
+  "limits": "Evidence applies to these pinned recipes and runtimes. Mac MPS failure blocks PyTorch GPU training; CPU-only LoRA trial is not production quality evidence."
+}
