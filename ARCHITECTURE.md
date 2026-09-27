@@ -764,8 +764,8 @@ Saved runs bind source, approval, image and tool versions, package/report hashes
 container ownership and status. Ctrl-C and bounded deadlines stop execution; recovery
 checks ownership before removing resources after a controller crash. A rerun starts
 from a fresh app, not a partial GUI checkpoint. Artifact release protects unreleased
-desktop references; guide and `look` read these saved records directly. Native OS
-runners remain unimplemented. See [DESKTOP.md](DESKTOP.md) for limits and image preparation.
+desktop references; guide and `look` read these saved records directly. The separate
+macOS VM lane is described below; Windows remains unimplemented. See [DESKTOP.md](DESKTOP.md) for Linux limits and image preparation.
 
 
 ## Reviewed local release preparation (E9a)
@@ -982,3 +982,30 @@ The guardian bounds orphan lifetime; explicit recovery checks the ended
 controller's PID and resource ownership. Results are diagnostic, not independent
 acceptance: project code can fabricate its own output. See [NATIVE.md](NATIVE.md)
 for image identity caching, disk limits and deferred platform capabilities.
+
+### Packaged macOS GUI lane
+
+The macOS Electron controller stages a bounded source snapshot and harness-owned
+GUI actions in a derived native job. Expected UI text/counts never enter that
+job. A pinned GUI base supplies Electron, Playwright and ASAR; the guest packages
+the app twice, runs the `.app`, and produces observations and window screenshots.
+After native VM cleanup, the host checks those observations and rechecks source
+identity. The outer GUI record retains its native child identity for recovery.
+
+```mermaid
+flowchart LR
+  A[Approved GUI journey] --> H[Host expected results]
+  S[Source snapshot] --> J[Derived native job]
+  A -->|actions only| J
+  J --> V[Offline macOS VM]
+  V --> P[Package and exercise Electron app]
+  P --> O[Observations and screenshots]
+  O --> C[Host comparison]
+  H --> C
+  C --> R[GUI diagnostic record]
+```
+
+GUI preparation uses a source-free clone, transfers pinned tools as an archive,
+flushes the disk and shuts the guest down before registration. Native boundary
+checks and positive/negative GUI fixtures gate activation. Native GUI diagnostics
+remain separate from project `work` verification and from signing/distribution.

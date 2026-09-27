@@ -408,7 +408,8 @@ Ownership token, labels and immutable image are checked before explicit recovery
 unconfirmed cleanup remains active state and blocks another desktop run. GUI user
 data is disposable, with no checkpoint-resume claim. Native macOS/Windows, OS-level
 accessibility, signed installers, browser isolation within Electron and malicious
-GUI-proof verification are outside this release. See [DESKTOP.md](DESKTOP.md).
+GUI-proof verification are outside this Linux lane. The separate macOS lane is
+described below. See [DESKTOP.md](DESKTOP.md).
 
 
 ## Local release preparation (E9a)
@@ -486,3 +487,25 @@ fresh operator approval. A saved machine-wide slot blocks other native runs afte
 controller loss. Recovery releases only a recorded dead controller's writer locks
 and resources matching the run marker; ambiguity stops cleanup. Emulator, native
 GUI, Windows and GPU guarantees are not provided by this first lane.
+
+## macOS Electron GUI diagnostics
+
+The GUI lane inherits the native VM boundary and its lack of a hard root-disk
+quota. The development Electron archive is pinned by official SHA-256, and driver
+packages use the retained desktop npm lockfile with lifecycle scripts disabled.
+Source-free preparation gets only these tools; the existing script base is
+preserved. The cloned base is cleanly shut down before its full image is hashed.
+
+A driver in the guest can operate only that guest's app. It receives actions but
+not expected UI values. It packages before launch and retains app-window images;
+it does not receive host screen/accessibility access. App and driver nevertheless
+share a guest, so a hostile app can interfere with driver observations. Host
+comparison, immutable expectations and passing negative controls do not turn
+these diagnostics into independent application acceptance. Ad hoc guest signing
+is not release signing, notarisation or an assurance of source trust.
+
+The GUI run owns a derived native project and references its child run. Recovery
+uses recorded writer identities and the existing VM ownership rules. Preparation
+has its own saved ownership record; a live/different writer or ambiguous VM state
+prevents resource deletion. No Windows, emulator or GPU boundary is inferred from
+these macOS GUI results.

@@ -1,8 +1,8 @@
 # Harness expansion development plan
 
-Status: E0–E4, Linux-only E6 and E9a local staging implemented. Deferred work was reopened on 2026-09-27. Isolated Chromium diagnostics are implemented and exercised on real Docker/Chromium. GitHub draft delivery and explicit prerelease publication are implemented with simulated API coverage; a live release trial is outstanding. A first macOS script diagnostic lane is implemented; native GUI, Windows, mobile and GPU runners remain unimplemented. See [DEFERRED_IMPLEMENTATION.md](DEFERRED_IMPLEMENTATION.md).
-Native, mobile and GPU support remains unimplemented until its own evidence
-passes. See DEFERRED_IMPLEMENTATION.md for the sequence and README.md for shipped commands.
+Status: E0–E4, Linux/macOS Electron diagnostics and E9a local staging implemented. Deferred work was reopened on 2026-09-27. Isolated Chromium diagnostics are implemented and exercised on real Docker/Chromium. GitHub draft delivery and explicit prerelease publication are implemented with simulated API coverage; a live release trial is outstanding. macOS script and packaged Electron GUI diagnostic lanes are implemented; arbitrary native frameworks, Windows, mobile and GPU runners remain unimplemented. See [DEFERRED_IMPLEMENTATION.md](DEFERRED_IMPLEMENTATION.md).
+Additional native frameworks, mobile and GPU support require their own execution
+evidence. See DEFERRED_IMPLEMENTATION.md for the sequence and README.md for shipped commands.
 
 Delivered in E0/U0: strict reviewer schema, byte-preserving ordinary undo,
 canonical writable-state and hard-link protections, read-only assertion
@@ -136,8 +136,8 @@ journey is not complete. Document any remaining advanced-only operation clearly.
 | E2 | Reproducible Python projects | E1 |
 | E3 | Artifact storage and long-running jobs | E1 |
 | E4 | CPU-based ML workflows | E2, E3 |
-| E5 | Isolated platform runners | E1, E3 |
-| E6 | Linux Electron verification shipped; native desktop deferred | Existing Docker, Node adapter; E5 for native |
+| E5 | macOS VM lane shipped; other platform runners pending | E1, E3 |
+| E6 | Linux and macOS Electron diagnostics shipped; other native stacks pending | Existing Docker, Node adapter; E5 for native |
 | E7 | Mobile application verification | E5, Node adapter |
 | E8 | GPU training workflows | E4, E5 |
 | E9 | Local staging and GitHub delivery; live upload trial pending | Relevant platform milestone, E3, E5 |
@@ -153,10 +153,10 @@ flowchart TD
   E1 --> E3["E3: Artifacts and jobs"]
   E2 --> E4["E4: CPU ML"]
   E3 --> E4
-  E1 --> E5["E5: Native runners deferred"]
+  E1 --> E5["E5: macOS VM; other runners pending"]
   E3 --> E5
-  E1 --> E6["E6: Linux Electron shipped"]
-  E5 -.->|native support deferred| E6
+  E1 --> E6["E6: Linux and macOS Electron"]
+  E5 -->|macOS VM isolation| E6
   E5 --> E7["E7: Mobile"]
   E4 --> E8["E8: GPU ML"]
   E5 --> E8
@@ -304,7 +304,7 @@ splits, arbitrary frameworks, tuning, GPU and publication are not supported.
 
 ## E5 — Isolated platform runners
 
-Reopened by the operator on 2026-09-27. The first macOS script diagnostic lane uses a pinned Tart base, disposable offline clones, two CPUs/4 GiB RAM, bounded output storage, approved host comparisons and owned recovery. See [NATIVE.md](NATIVE.md). This does not complete E5: Windows, emulator-capable native runners, native GUI evidence and a hard root-disk quota remain unimplemented. Ordinary build agents continue using their configured Docker runner. No paid runner was provisioned.
+Reopened by the operator on 2026-09-27. The first macOS script diagnostic lane uses a pinned Tart base, disposable offline clones, two CPUs/4 GiB RAM, bounded output storage, approved host comparisons and owned recovery. See [NATIVE.md](NATIVE.md). This does not complete E5: Windows, emulator-capable native runners, arbitrary native framework automation and a hard root-disk quota remain unimplemented. Packaged macOS Electron GUI evidence is covered by [MACOS_GUI.md](MACOS_GUI.md). Ordinary build agents continue using their configured Docker runner. No paid runner was provisioned.
 
 ### Deliver
 
@@ -322,7 +322,7 @@ Confirm available hardware, OS images and operating costs before implementation 
 
 ## E6 — Desktop applications
 
-Linux-only scope implemented 2026-09-12. See [DESKTOP.md](DESKTOP.md) for the exact support boundary. The shipped notes starter packages reproducibly as ASAR, launches with a pinned Electron runtime inside offline Docker/Xvfb, and checks keyboard input, persistence after restart, invalid input, logs and screenshots. A guided terminal journey covers approval, verification, inspection and local export without JSON edits or copied IDs. Export includes ASAR plus a runtime descriptor, not a self-contained installer. GUI observations remain diagnostics because the application main process shares the driver container; approved source acceptance remains required. Native Windows/macOS, external dependencies and human usability validation remain deferred/unverified.
+Linux-only scope implemented 2026-09-12. See [DESKTOP.md](DESKTOP.md) for the exact support boundary. The shipped notes starter packages reproducibly as ASAR, launches with a pinned Electron runtime inside offline Docker/Xvfb, and checks keyboard input, persistence after restart, invalid input, logs and screenshots. A guided terminal journey covers approval, verification, inspection and local export without JSON edits or copied IDs. Export includes ASAR plus a runtime descriptor, not a self-contained installer. GUI observations remain diagnostics because the application main process shares the driver container; approved source acceptance remains required. Packaged macOS Electron verification was added on 2026-09-27 in a disposable VM; see [MACOS_GUI.md](MACOS_GUI.md). Native Windows, arbitrary macOS frameworks, external dependencies and human usability validation remain deferred/unverified.
 
 ### Deliver
 

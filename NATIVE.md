@@ -104,3 +104,8 @@ incorrect expected output, stopped at their deadline and recovered after the
 controller was forcibly killed. The receipt is retained in the runtime’s
 `native/boundary.json`. `npm run verify:native` repeats these integration fixtures;
 it requires the provisioned Mac and is separate from the portable unit suite.
+
+Packaged macOS Electron GUI journeys are a separate capability described in
+[MACOS_GUI.md](MACOS_GUI.md). Their tools use a prepared clone named
+`harness-macos-gui`; activating it updates the native base identity and requires
+reviewing existing script approvals. The original script base is retained.

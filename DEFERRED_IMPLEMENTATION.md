@@ -25,8 +25,10 @@ Releases delivery is implemented with simulated transport tests; no remote artif
 has been uploaded or published. It works with GitHub Free without hosted Actions.
 A first native macOS script lane is implemented and verified on the laptop:
 disposable offline Tart VMs, Swift compilation, host comparison, timeout cleanup
-and recovery after controller loss. Full E5/E6 GUI capability,
-mobile, Windows and GPU work remains unimplemented. See NATIVE.md.
+and recovery after controller loss. A packaged macOS Electron GUI lane adds keyboard interaction, restart persistence,
+validation messages, screenshots and host comparisons. It does not cover arbitrary
+native frameworks. Mobile, Windows and
+GPU work remains unimplemented. See NATIVE.md and MACOS_GUI.md.
 
 First completed implementation slice: browser verification. Available laptop space at
 inspection: about 89 GiB; RAM 18 GB, Apple M3 Pro. Avoid installing every SDK or
@@ -37,3 +39,19 @@ Chromium and its driver in a second container sharing only the first container's
 network namespace. App source never shares the driver's filesystem. Observed UI
 checks are diagnostics, not automatic approval of all application requirements.
 This does not replace the separately approved source acceptance workflow.
+
+Infrastructure still required for later milestones:
+
+- Android: choose and verify an emulator-capable isolated runner before SDK/image
+  installation. The current macOS guest has no validated emulator acceleration.
+  [Android acceleration requirements](https://developer.android.com/studio/run/emulator-acceleration)
+  do not establish support inside the current VM.
+- iOS: the guest needs a pinned Xcode/simulator image and sufficient storage; the
+  host Xcode installation alone is not simulator verification.
+- Windows: an appropriate licensed image or an existing Windows runner must be
+  selected. No Windows subscription or VM has been purchased.
+- GPU: an isolated compute backend and its resource limits must be verified.
+  The M3 GPU and a virtual display do not by themselves establish GPU training.
+
+A runner-location question is pending with the operator. No paid cloud machines
+or hosted Actions runners were provisioned.

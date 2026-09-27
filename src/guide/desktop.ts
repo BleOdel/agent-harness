@@ -8,7 +8,7 @@ import {withWriter} from '../workspace/writer-lock.ts';
 import {choose,confirmed,terminalDialogue,type Dialogue} from './dialogue.ts';
 import type {GuideCommand} from '../verbs/guide.ts';
 export async function desktopSetup(project:string,io:Dialogue=terminalDialogue(),probe=inspectDesktop):Promise<void>{
- const runtime=await probe();io.write(`Linux desktop: Electron ${runtime.electron}, ${runtime.arch}. Offline; 2 CPUs, 2 GiB RAM. Native macOS/Windows/mobile support is deferred.`);
+ const runtime=await probe();io.write(`Linux desktop: Electron ${runtime.electron}, ${runtime.arch}. Offline; 2 CPUs, 2 GiB RAM. Native macOS Electron GUI checks use harness macos. Windows/mobile support is unavailable.`);
  const choice=await choose(io,'Journey to review',['Starter notes: keyboard save, restart, invalid input and screenshot','Create a journey with short prompts','Read a journey file']);if(choice<0)return;
  let raw:unknown;
  if(choice===0)raw=notesJourney;

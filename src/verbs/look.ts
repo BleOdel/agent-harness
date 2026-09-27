@@ -1,3 +1,4 @@
+import {listGuiRuns} from "../native/gui/store.ts";
 import {listNativeRuns} from "../native/store.ts";
 import { listGitHub } from "../releases/github.ts";
 import { listBrowserRuns, listApprovals as listBrowserApprovals } from "../browser/store.ts";
@@ -44,6 +45,7 @@ export function stateOfItem(feature: Feature, runs: readonly RunRecord[]): strin
 }
 
 export async function look(project: string): Promise<void> {
+  for(const r of await listGuiRuns(project)) say(`MACOS GUI ${r.id} · ${r.status} · ${r.message}`);
   for (const r of await listNativeRuns(project)) say(`NATIVE ${r.id} · ${r.status} · ${r.message}`);
   for (const d of await listGitHub(project)) say(`GITHUB RELEASE ${d.manifest.repository} ${d.manifest.tag} · ${d.status} · ${d.id}`);
   const browserJourneys = await listBrowserApprovals(project);

@@ -10,7 +10,7 @@ export async function desktopCommand(project:string,args:readonly string[]):Prom
  const [action,id,destination,...extra]=args;
  if(extra.length)throw new OperatorError('Too many desktop arguments.');
  if(action==='image'&&!id){await buildDesktopImage(say);return;}
- if(action==='doctor'&&!id){const r=await inspectDesktop();say(`Linux desktop ready: Electron ${r.electron}; ${r.arch}; ${r.image}.\nVirtual display inside Docker; 2 CPUs, 2 GiB RAM; offline. Packaged UI support is checked by running an approved journey.\nNative macOS, Windows, mobile, GPU and installers are deferred. Next: harness desktop setup`);return;}
+ if(action==='doctor'&&!id){const r=await inspectDesktop();say(`Linux desktop ready: Electron ${r.electron}; ${r.arch}; ${r.image}.\nVirtual display inside Docker; 2 CPUs, 2 GiB RAM; offline. Packaged UI support is checked by running an approved journey.\nNative macOS Electron GUI checks use harness macos. Windows, mobile, GPU and installers remain unavailable. Next: harness desktop setup`);return;}
  if(action==='setup'&&!id)return desktopSetup(project);
  if(action==='approve'&&id&&!destination){await withWriter(project,'desktop approve',async()=>{const a=await saveApproval(project,JSON.parse(await readFile(id,'utf8')),await inspectDesktop());say(`Approved ${a.id}: ${a.journey.title}. Continue with harness guide.`);});return;}
  if((!action||action==='list')&&!id){for(const a of await listApprovals(project))say(`${a.id}: ${a.journey.title}`);for(const j of await listDesktopRuns(project))say(`${j.id}: ${j.status} · ${j.message}`);say('Continue with harness guide → Linux desktop apps.');return;}

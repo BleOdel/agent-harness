@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --experimental-strip-types
+import {macosCommand} from "./verbs/macos.ts";
 import {nativeCommand} from "./verbs/native.ts";
 import {browserCommand} from "./verbs/browser.ts";
 import {evidenceCommand} from "./verbs/evidence.ts";
@@ -56,6 +57,7 @@ const USAGE = [
   "  harness project show       show saved environment requirements",
   "  harness release setup      prepare, approve and stage a retained artifact locally",
   "  harness release github menu guided GitHub drafts and publication",
+  "  harness macos setup        approve a packaged macOS Electron GUI journey",
   "  harness native setup       approve an offline macOS script check",
   "  harness browser setup      approve a real-browser UI journey",
   "  harness desktop setup      approve and verify a packaged Linux GUI journey",
@@ -113,6 +115,7 @@ async function main(): Promise<void> {
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
 
   switch (verb) {
+    case "macos": return macosCommand(project, rest);
     case "native": return nativeCommand(project, rest);
     case "browser": return browserCommand(project, rest);
     case "evidence": return evidenceCommand(project, rest);
