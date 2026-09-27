@@ -23,7 +23,10 @@ its evidence exists. No automatic external publication is authorised.
 Browser verification is implemented and tested with the installed image. GitHub
 Releases delivery is implemented with simulated transport tests; no remote artifact
 has been uploaded or published. It works with GitHub Free without hosted Actions.
-The native/mobile/GPU steps remain unimplemented pending runner provisioning.
+A first native macOS script lane is implemented and verified on the laptop:
+disposable offline Tart VMs, Swift compilation, host comparison, timeout cleanup
+and recovery after controller loss. Full E5/E6 GUI capability,
+mobile, Windows and GPU work remains unimplemented. See NATIVE.md.
 
 First completed implementation slice: browser verification. Available laptop space at
 inspection: about 89 GiB; RAM 18 GB, Apple M3 Pro. Avoid installing every SDK or

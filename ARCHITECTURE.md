@@ -956,3 +956,29 @@ precede external mutations, so uncertain outcomes never prompt blind recreation.
 Foreign releases or modified assets stop delivery. Local byte verification does
 not prove commit-to-artifact provenance, and remote checks are not atomic with
 publication. See [RELEASES.md](RELEASES.md) for tested scope and recovery limits.
+
+
+## Native macOS script diagnostics
+
+`src/native/` is a separate diagnostic lane; it does not replace the Docker runner
+used by ordinary implementation and acceptance. Preparation uses a source-free
+trusted macOS VM. Registration requires real offline boundary fixtures before a
+profile becomes available to project checks.
+
+```mermaid
+flowchart LR
+  B[Stopped base VM and pinned tools] --> C[Disposable APFS clone]
+  S[Source snapshot and launcher] -->|Read-only share| C
+  C -->|Bounded private output volume| O[Observed output and artifacts]
+  E[Approved expectations retained on host] --> H[Host comparison]
+  O --> H
+  G[Independent deadline and space guardian] --> C
+  C --> X[Stop VM then detach owned volume]
+```
+
+The network device terminates in a pinned frame dropper; no network path is
+forwarded. A saved global slot and project writer lock serialize native work.
+The guardian bounds orphan lifetime; explicit recovery checks the ended
+controller's PID and resource ownership. Results are diagnostic, not independent
+acceptance: project code can fabricate its own output. See [NATIVE.md](NATIVE.md)
+for image identity caching, disk limits and deferred platform capabilities.

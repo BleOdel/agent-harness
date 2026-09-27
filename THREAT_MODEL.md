@@ -464,3 +464,25 @@ concurrent external edits and automatic workflows already installed in the
 repository are outside this controller's boundary. There is no signing or claim
 that the artifact was built from the selected commit. Tests simulate GitHub; a
 live upload/publication has not been exercised.
+
+
+## Native macOS scripts
+
+The native lane trusts the signed Tart tool, Apple hypervisor, a frozen prepared
+base and the host controller. The untrusted project sees a read-only source share
+and one private writable output volume; no host home, credentials or browser
+profile is shared. CPU/RAM and wall time are bounded. A pinned frame dropper
+consumes the guest network device without forwarding it. Clipboard, audio and USB
+accessories are disabled. Initial source-free preparation may access the network;
+verification cannot. The output volume is limited to 64 MiB. Root-disk growth uses
+a free-space watchdog, not a hard quota; concurrent host activity can race it.
+
+Host expectations are withheld, but guest-produced results remain unverified
+artifacts and diagnostic observations. A hostile project can fake stdout, so this
+is not source acceptance or security certification. Base full hashes are cached
+against filesystem identity and nanosecond change metadata; privileged host
+manipulation is outside that assumption. Runtime changes require revalidation and
+fresh operator approval. A saved machine-wide slot blocks other native runs after
+controller loss. Recovery releases only a recorded dead controller's writer locks
+and resources matching the run marker; ambiguity stops cleanup. Emulator, native
+GUI, Windows and GPU guarantees are not provided by this first lane.

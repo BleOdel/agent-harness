@@ -1,6 +1,6 @@
 # Harness expansion development plan
 
-Status: E0–E4, Linux-only E6 and E9a local staging implemented. Deferred work was reopened on 2026-09-27. Isolated Chromium diagnostics are implemented and exercised on real Docker/Chromium. GitHub draft delivery and explicit prerelease publication are implemented with simulated API coverage; a live release trial is outstanding. Native macOS/Windows, mobile and GPU runners remain unimplemented. See [DEFERRED_IMPLEMENTATION.md](DEFERRED_IMPLEMENTATION.md).
+Status: E0–E4, Linux-only E6 and E9a local staging implemented. Deferred work was reopened on 2026-09-27. Isolated Chromium diagnostics are implemented and exercised on real Docker/Chromium. GitHub draft delivery and explicit prerelease publication are implemented with simulated API coverage; a live release trial is outstanding. A first macOS script diagnostic lane is implemented; native GUI, Windows, mobile and GPU runners remain unimplemented. See [DEFERRED_IMPLEMENTATION.md](DEFERRED_IMPLEMENTATION.md).
 Native, mobile and GPU support remains unimplemented until its own evidence
 passes. See DEFERRED_IMPLEMENTATION.md for the sequence and README.md for shipped commands.
 
@@ -304,7 +304,7 @@ splits, arbitrary frameworks, tuning, GPU and publication are not supported.
 
 ## E5 — Isolated platform runners
 
-Deferred by the operator on 2026-09-12 after infrastructure assessment. No native VM, paid runner, OS image or emulator was provisioned. Linux E6 uses the existing Docker boundary and does not establish native support.
+Reopened by the operator on 2026-09-27. The first macOS script diagnostic lane uses a pinned Tart base, disposable offline clones, two CPUs/4 GiB RAM, bounded output storage, approved host comparisons and owned recovery. See [NATIVE.md](NATIVE.md). This does not complete E5: Windows, emulator-capable native runners, native GUI evidence and a hard root-disk quota remain unimplemented. Ordinary build agents continue using their configured Docker runner. No paid runner was provisioned.
 
 ### Deliver
 

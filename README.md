@@ -158,6 +158,8 @@ Local artifact retention and bounded resumable jobs are documented in [Jobs and 
 E4 adds [CPU numeric regression](ML.md) with approved datasets, protected host
 evaluation, checkpoint resume and inert JSON model export. Use `harness guide` →
 **Build and evaluate a CPU ML model**. Source tests and model quality are separate.
+Native macOS [script diagnostics](NATIVE.md) run approved build/test scripts in disposable offline VMs on Apple Silicon. Use **Native macOS checks** in `harness guide`. This first lane does not establish native GUI, mobile, Windows or GPU support.
+
 Real Chromium [browser UI checks](BROWSER.md) now run approved journeys against disposable Node app copies in separate offline containers. Use `harness guide` → **Browser UI checks**; screenshots and accessibility diagnostics are retained. This does not replace source acceptance or establish native/mobile support.
 
 E9a adds [reviewed release preparation and local staging](RELEASES.md): freeze an artifact, approve its version/destination, dry run, stage and recover through **Prepare and stage a release** in `guide`. A separate guided GitHub Releases destination now supports draft upload and explicit prerelease publication; its simulated-API tests do not substitute for a live release trial. GitHub Free is supported; no hosted runner is required.
