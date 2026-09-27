@@ -1,3 +1,4 @@
+import {assertProductCurrent} from "../product/spec.ts";
 /** Host-only batch application. Intent precedes writes; fingerprints decide recovery. */
 import { assertAcceptanceProof, type AcceptanceProof } from "../acceptance/checks.ts";
 import { abortRequested } from "./control.ts";
@@ -146,6 +147,7 @@ async function writeFeatures(intent: Intent, rollback: boolean, checkpoint: Appl
 }
 async function finish(intent: Intent, options: ApplicationOptions): Promise<TeamState> {
   const checkpoint = options.checkpoint ?? (() => {});
+  if (!options.rollback && (await assertProductCurrent(intent.project))?.digest !== intent.before.productDigest) throw new Error("Product specification changed since application began. Restore it or roll back this application.");
   await inspectLive(intent);
   let state = await readState(intent.teamDirectory);
   if (state.application?.transactionId !== intent.id) state = await appendEvent(intent.teamDirectory, { type: "application-started", transactionId: intent.id, intentDigest: digest(intent), direction: intent.direction });

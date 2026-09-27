@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --experimental-strip-types
+import {productCommand} from "./verbs/product.ts";
 import {torchCommand} from "./verbs/torch.ts";
 import {metalCommand} from "./verbs/metal.ts";
 import {appleCommand} from "./verbs/apple.ts";
@@ -54,6 +55,10 @@ import { work } from "./verbs/work.ts";
 const USAGE = [
   "harness — build software in a sandbox, prove it, then apply it.",
   "",
+  "  harness product setup      protect product requirements and choose verification",
+  "  harness product report     current evidence and remaining gaps (--json available)",
+  "  harness product verify     tests and all approved behaviour checks; no model call",
+  "  harness product assess     record human observations for the current source",
   "  harness model [setup]      inspect or choose provider, model and reasoning strength",
   "  harness guide [path]        select a project and continue through guided steps",
   "  harness project setup      select the project adapter and skill bundles",
@@ -121,6 +126,7 @@ async function main(): Promise<void> {
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
 
   switch (verb) {
+    case "product": return productCommand(project,rest);
     case "torch": return torchCommand(project, rest);
     case "metal": return metalCommand(project, rest);
     case "macos-native": return appleCommand(project, rest);

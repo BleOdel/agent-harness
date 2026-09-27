@@ -37,6 +37,43 @@ acceptance: feed passed against operator-approved expectations
 applied as r5. undo with: npm run undo -- r5
 ```
 
+## Product requirements and readiness
+
+After accepting a plan's items, use `harness product setup` (also in `harness guide`).
+Choose CLI/library, API/service, web, desktop or ML, and whether failures have
+sensitive consequences. The guide reviews the existing requirements and interface
+contracts, recommends the appropriate verification, and optionally protects source
+documents such as `PLAN.md`. Approval lives outside builder source; builders cannot
+rewrite those documents to satisfy their tests.
+
+```sh
+harness product setup         # review and approve the product specification
+harness product verify        # run tests and all approved behaviour checks; no model
+harness product report        # evidence for the current source, with next action
+harness product report --json # machine-readable status; exits 1 if incomplete
+harness product assess        # record your human observations and evidence limits
+```
+
+Work still uses `harness work` and the existing acceptance/reviewer gates. Product
+setup is optional for existing projects. Once enabled, changes to requirements or
+protected documents require a new `product setup` review; completed task statuses
+and acceptance-helper-only updates do not. Approve new interface choices before
+refreshing the product specification. The specification references existing plans
+and criteria, so there is no extra requirements document to maintain.
+
+The report distinguishes missing, stale, failed and passed evidence, plus checks
+requiring human assessment. Browser observations are checked against their saved
+journey and current source. `product verify` can take as long as the project's
+whole approved check suite, but uses no model tokens. It changes no application
+source and does not publish anything.
+
+**Current limits:** desktop/ML run evidence is not yet automatically aggregated;
+the report directs you to those existing tools and keeps the gap visible. Sensitive
+projects also retain an explicit security/performance assessment gap. No amount of
+unit-test success or a general human approval clears those gaps. `doctor` checks
+the environment; `product report` checks retained product evidence, not deployment
+readiness or complete correctness.
+
 ## The guarantee
 
 > **The model works on a disposable copy. New application requires project

@@ -136,6 +136,8 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
     actions.push({ label: "PyTorch CPU deep learning and clustering", run: () => guideTorch(project, io, command) });
           actions.push({ label: "Metal GPU training", run: () => guideMetal(project, io, command) });
     actions.push({ label: "SwiftUI/AppKit apps", run: () => guideApple(project, io, command) });
+    actions.push({ label: "Protect product requirements and choose verification", run: () => run("product", "setup") });
+    actions.push({ label: "Review product evidence and remaining gaps", run: () => run("product", "report") });
     const choice = await choose(io, "Next action", actions.map(a => a.label));
     if (choice < 0) { io.write(`Saved work stays with ${project}. Return with harness guide ${JSON.stringify(project)}.`); return; }
     try { await actions[choice]!.run(); }

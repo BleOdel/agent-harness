@@ -1,3 +1,4 @@
+import {assertProductCurrent} from "../product/spec.ts";
 import {regressionTasks} from './regression.ts';
 import {assertRecipeStep,assertRecipeEvidence,writeRecipeRuntime,type WebRecipe} from './recipes/catalog.ts';
 import {assertServerRuntimes, writeServerRuntime} from './server-runtime.ts';
@@ -100,6 +101,7 @@ export async function acceptanceTaskScope(project:string,tasks:readonly string[]
  return saved&&features?.ok?regressionTasks(features.features,tasks,saved.manifest):[...tasks];
 }
 export async function requireChecks(project:string,tasks:readonly string[]):Promise<Approval>{
+ await assertProductCurrent(project);
  const approved=await readApproval(project);
  if(!approved)throw new OperatorError("Acceptance checks have not been approved for this project.","Run harness checks to prepare and review expected application behaviour, then approve the checks. No model work has started.");
  tasks=await acceptanceTaskScope(project,tasks,approved);

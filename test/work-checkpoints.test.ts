@@ -19,7 +19,7 @@ test('timeout checkpoint restores additions, edits and deletions without claims,
 test('stale inputs and modified checkpoints are rejected; saved source is retained for inspection',()=>fixture(async(root,project,worker)=>{
  const baseline=await captureBaseline(project,path.join(root,'baseline'));const saved=await saveWorkCheckpoint(project,'r1',worker,{...identity,baseline,attempt:1,instruction:'Continue.'});
  assertCheckpointInputs(saved,{...identity,baseline});
- for(const changed of [{workDigest:'d'.repeat(64)},{approvalDigest:'d'.repeat(64)},{executionDigest:'d'.repeat(64)},{baseline:{...baseline,digest:'d'.repeat(64)}},{baseline:{...baseline,controls:'d'.repeat(64)}}])assert.throws(()=>assertCheckpointInputs(saved,{...identity,baseline,...changed}),/changed/);
+ for(const changed of [{workDigest:'d'.repeat(64)},{approvalDigest:'d'.repeat(64)},{executionDigest:'d'.repeat(64)},{baseline:{...baseline,digest:'d'.repeat(64)}},{baseline:{...baseline,controls:'d'.repeat(64)}},{baseline:{...baseline,productDigest:'d'.repeat(64)}}])assert.throws(()=>assertCheckpointInputs(saved,{...identity,baseline,...changed}),/changed/);
  await writeFile(path.join(saved.directory,'source','a.js'),'tampered');await assert.rejects(restoreWorkCheckpoint(saved,path.join(root,'target')),/changed/);
  assert.equal(await readFile(path.join(saved.directory,'source','a.js'),'utf8'),'tampered');
 }));

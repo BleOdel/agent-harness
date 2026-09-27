@@ -1,3 +1,4 @@
+import {assertProductCurrent,protectedDocumentInstruction} from "../product/spec.ts";
 import {browserBinding,loadBrowserEvidence} from "../review/browser-evidence.ts";
 import {checkRefresh, type CheckRefresh} from "../workspace/check-refresh.ts";
 import { repairClaim } from "../agent/claim-repair.ts";
@@ -189,7 +190,8 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
   const acceptanceTasks = await acceptanceTaskScope(project,[work.feature?.id ?? goal]);
   const approvedChecks = await requireChecks(project, acceptanceTasks);
   const approvedContext = (work.feature?.planContext ?? "") + contractContext(approvedChecks, acceptanceTasks);
-  const originalInstruction = briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs", work.feature?.planContext) + contractContext(approvedChecks, acceptanceTasks);
+  const productInstructions = protectedDocumentInstruction((await assertProductCurrent(project))?.documents);
+  const originalInstruction = productInstructions + "\n\n" + briefing(work.title, work.criteria, work.feature?.kind === "shared-inputs", work.feature?.planContext) + contractContext(approvedChecks, acceptanceTasks);
   let instruction = originalInstruction;
   let claimCorrectionUsed = false;
   let refreshedChecks: CheckRefresh | undefined;

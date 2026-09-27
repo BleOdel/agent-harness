@@ -11,6 +11,8 @@ const text = (bytes: Buffer): string | undefined => {
 };
 export async function integrateCandidate(base: Snapshot, candidate: Snapshot, current: Snapshot, destination: string, contracts: readonly string[], sharedInputs: readonly string[] = ["package.json", "package-lock.json", "npm-shrinkwrap.json"]): Promise<Integration> {
   if (base.executionDigest !== current.executionDigest || candidate.executionDigest !== current.executionDigest) throw new Error("Integration environment identity differs between source snapshots.");
+  if (base.productDigest !== current.productDigest || candidate.productDigest !== current.productDigest) throw new Error("Integration product specification differs between source snapshots.");
+  for (const [file,digest] of Object.entries(current.protectedDocuments ?? {})) if (candidate.files[file] !== digest) throw new Error(`Protected product document changed: ${file}`);
   await Promise.all([assertSnapshot(base), assertSnapshot(candidate), assertSnapshot(current)]);
   const shared = new Set([...Object.keys(base.files), ...Object.keys(current.files)].filter(file => sharedInputs.includes(path.basename(file)) || contracts.some(c => file === c || file.startsWith(`${c}/`))));
   const stale = [...shared].filter(file => base.files[file] !== current.files[file]);
@@ -51,6 +53,6 @@ export async function integrateCandidate(base: Snapshot, candidate: Snapshot, cu
       await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, bytes);
       if (current.files[file] === undefined) await chmod(target, (await lstat(path.join(candidate.directory, file))).mode & 0o777);
     }
-    return { ok: true, proposal: await captureBaseline(work, destination, current.exclusions, current.executionDigest) };
+    return { ok: true, proposal: { ...await captureBaseline(work, destination, current.exclusions, current.executionDigest), ...(current.productDigest ? {productDigest:current.productDigest,protectedDocuments:current.protectedDocuments} : {}) } };
   } finally { await rm(work, { recursive: true, force: true }); }
 }

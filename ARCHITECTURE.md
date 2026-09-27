@@ -1102,3 +1102,47 @@ training controller. The source-free Mac VM probe installs pinned Python/PyTorch
 in an owned clone with offline networking and an external guardian. It records
 numerical failures as incompatibility evidence, never as training readiness.
 See [PYTORCH.md](PYTORCH.md) for measured results and limitations.
+
+## Protected product requirements and evidence
+
+`product setup` is an optional operator step after accepting items. It indexes
+existing task requirements, saved plan context and approved interface contracts
+in `<project>-harness/product/approved.json`. It does not create a second editable
+plan. Optional source documents are pinned by content hash. Completion status and
+role assignment do not alter requirement identity; scope, priority, criteria and
+interface choices do. Approval previews are checked again when saved.
+
+```mermaid
+flowchart TD
+  R["Accepted tasks, plan context, interface choices"] --> P["Operator reviews product kind and verification needs"]
+  D["Optional protected source documents"] --> P
+  P --> S["Host-owned product specification"]
+  S --> B["Baseline, candidate, staging and resume enforce identity"]
+  B --> G["Existing independent review and acceptance gates"]
+  V["product verify: offline diagnostics and approved behaviour"] --> E["Source-bound evidence"]
+  W["Real browser observations and artifact provenance"] --> E
+  H["Explicit human assessment"] --> E
+  S --> Q["product report: current, stale, failed, missing or human"]
+  E --> Q
+```
+
+Protected documents cannot change in builder candidates, even in shared-inputs
+assignments. Staging and implementation checkpoints carry product identity.
+Changing approved requirements stops dispatch/application until `product setup`
+is reviewed again. Existing projects without a product approval retain their
+current workflow.
+
+`product verify` reuses the adapter's offline diagnostics and approved acceptance
+runner with no provider call. Starting a diagnostic run invalidates the previous
+pass; interruption cannot leave that pass appearing current. Applicable tests,
+collection, type and build checks retain their actual verdicts, including skipped
+checks. Acceptance evidence must cover the current source and current approval.
+The report re-evaluates saved browser observations against their journey, checking
+artifact provenance, rather than trusting a run's status label.
+
+This is product evidence, distinct from `doctor` environment readiness. It is
+not a release authorization. Desktop/ML artifact evidence and security/performance
+assessments remain explicit gaps in this first aggregate report; their existing
+runners continue to work. A human assessment never turns those unaggregated lanes
+into automatic passes. Source, profile or requirement changes invalidate affected
+evidence, and missing evidence never becomes success because an item is done.

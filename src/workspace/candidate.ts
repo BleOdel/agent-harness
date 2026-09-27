@@ -1,4 +1,5 @@
 /** Host-owned source snapshots. None of these directories is mounted writable by a worker. */
+import { assertProductCurrent } from "../product/spec.ts";
 import { createHash } from "node:crypto";
 import { copyFile, lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -6,6 +7,8 @@ import { checkLimits, type Limits } from "../gates/limits.ts";
 import { assertChangesAreApplicable, BoundaryViolation, type Change, EXCLUDED_FROM_COPY, NEVER_APPLIED } from "./changes.ts";
 
 export interface Snapshot {
+  readonly productDigest?: string;
+  readonly protectedDocuments?: Readonly<Record<string,string>>;
   readonly directory: string;
   readonly digest: string;
   readonly files: Readonly<Record<string, string>>;
@@ -61,10 +64,11 @@ async function freeze(source: string, directory: string, exclusions: readonly st
   return snapshot;
 }
 export async function captureBaseline(project: string, directory: string, exclusions: readonly string[] = [], executionDigest?: string): Promise<Snapshot> {
+  const product = await assertProductCurrent(project);
   const controls = await controlsOf(project);
   const snapshot = await freeze(project, directory, exclusions, executionDigest);
   if (controls !== await controlsOf(project)) throw new Error("Requirements changed while capturing a baseline.");
-  const baseline = { ...snapshot, controls };
+  const baseline = { ...snapshot, controls, ...(product ? {productDigest:product.digest, protectedDocuments:product.documents} : {}) };
   await writeFile(`${directory}.json`, JSON.stringify(baseline, null, 2) + "\n");
   return baseline;
 }
@@ -72,6 +76,7 @@ export async function assertSnapshot(snapshot: Snapshot): Promise<void> {
   if (snapshot.digest !== digestOf(await sourceFiles(snapshot.directory, "", snapshot.exclusions))) throw new Error("Frozen source changed after capture.");
 }
 export async function assertLiveBaseline(project: string, baseline: Snapshot): Promise<void> {
+  if ((await assertProductCurrent(project))?.digest !== baseline.productDigest) throw new Error("Product specification changed during this run. Re-run from the current baseline.");
   if (baseline.digest !== digestOf(await sourceFiles(project, "", baseline.exclusions)) || (baseline.controls !== undefined && baseline.controls !== await controlsOf(project))) {
     throw new Error("The live project or its requirements changed during this run. Re-run from the current baseline.");
   }
@@ -80,6 +85,9 @@ export async function captureCandidate(baseline: Snapshot, worker: string, direc
   policy: { sharedInputs?: boolean; contractPaths?: readonly string[]; sharedInputFiles?: readonly string[]; limits?: Limits } = {}): Promise<Candidate> {
   await assertSnapshot(baseline);
   const files = await sourceFiles(worker, "", baseline.exclusions);
+  for (const [file,digest] of Object.entries(baseline.protectedDocuments ?? {})) {
+    if (files[file] !== digest) throw new BoundaryViolation(`Protected product document cannot be changed by the builder: ${file}. Revise it through the operator and run harness product setup.`,file);
+  }
   const changes: Change[] = [];
   for (const file of new Set([...Object.keys(baseline.files), ...Object.keys(files)])) {
     if (files[file] === baseline.files[file]) continue;
@@ -104,7 +112,7 @@ export async function captureCandidate(baseline: Snapshot, worker: string, direc
   }
   const snapshot = await freeze(worker, directory, baseline.exclusions, baseline.executionDigest);
   if (snapshot.digest !== digestOf(files)) throw new Error("Worker output changed while capturing the candidate.");
-  const candidate = { ...snapshot, changes, sharedInputsChanged: inputChanges.length > 0 };
+  const candidate = { ...snapshot, ...(baseline.productDigest ? {productDigest:baseline.productDigest,protectedDocuments:baseline.protectedDocuments} : {}), changes, sharedInputsChanged: inputChanges.length > 0 };
   await writeFile(`${directory}.json`, JSON.stringify(candidate, null, 2) + "\n");
   return candidate;
 }

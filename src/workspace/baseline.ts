@@ -7,5 +7,5 @@ export async function nextBaseline(runDirectory: string, candidate: Snapshot): P
   await assertSnapshot(candidate);
   const next = await captureBaseline(candidate.directory, path.join(runDirectory, "baselines", randomUUID()));
   if (next.digest !== candidate.digest) throw new Error("Staging copy differs from verified candidate.");
-  return next;
+  return {...next, ...(candidate.productDigest ? {productDigest:candidate.productDigest,protectedDocuments:candidate.protectedDocuments} : {})};
 }

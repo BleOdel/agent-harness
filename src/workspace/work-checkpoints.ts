@@ -9,7 +9,7 @@ import {readArtifact} from '../planning/store.ts';
 import {OperatorError} from '../verbs/io.ts';
 export interface CheckpointInputs {
  goal:string;workDigest:string;approvalDigest:string;executionDigest:string;
- baseline:Pick<Snapshot,'digest'|'controls'|'exclusions'>;
+ baseline:Pick<Snapshot,'digest'|'controls'|'exclusions'|'productDigest'>;
 }
 interface State extends CheckpointInputs {
  version:1;project:string;runId:string;savedAt:string;attempt:number;instruction:string;
@@ -39,7 +39,7 @@ export async function saveWorkCheckpoint(project:string,runId:string,worker:stri
  await mkdir(root(project),{recursive:true,mode:0o700});const pending=await mkdtemp(path.join(root(project),'.pending-'));
  try {
   const partial=await captureBaseline(worker,path.join(pending,'source'),input.baseline.exclusions);
-  const state:WorkCheckpoint={...input,baseline:{digest:input.baseline.digest,...(input.baseline.controls?{controls:input.baseline.controls}:{}),...(input.baseline.exclusions?{exclusions:input.baseline.exclusions}:{})},version:1,project,runId,savedAt:new Date().toISOString(),partial:{digest:partial.digest,files:partial.files,...(partial.exclusions?{exclusions:partial.exclusions}:{})},status:'available',directory:pending};
+  const state:WorkCheckpoint={...input,baseline:{digest:input.baseline.digest,...(input.baseline.productDigest?{productDigest:input.baseline.productDigest}:{}),...(input.baseline.controls?{controls:input.baseline.controls}:{}),...(input.baseline.exclusions?{exclusions:input.baseline.exclusions}:{})},version:1,project,runId,savedAt:new Date().toISOString(),partial:{digest:partial.digest,files:partial.files,...(partial.exclusions?{exclusions:partial.exclusions}:{})},status:'available',directory:pending};
   // Flush source bytes before publishing the manifest; a visible checkpoint is complete.
   for (const file of Object.keys(partial.files)) {const h=await open(path.join(pending,'source',file),'r');try{await h.sync();}finally{await h.close();}}
   const directories=new Set(['source']);for(const file of Object.keys(partial.files)){let d=path.posix.dirname(`source/${file}`);while(d!=='.'){directories.add(d);d=path.posix.dirname(d);}}
@@ -71,6 +71,7 @@ export async function findWorkCheckpoint(project:string,goal?:string,runId?:stri
 }
 export function assertCheckpointInputs(c:WorkCheckpoint,input:CheckpointInputs):void{
  for(const name of ['goal','workDigest','approvalDigest','executionDigest'] as const)if(c[name]!==input[name])throw new OperatorError(`Cannot resume ${c.runId}: ${name} changed.`,remedy);
+ if(c.baseline.productDigest!==input.baseline.productDigest)throw new OperatorError(`Cannot resume ${c.runId}: product specification changed.`,remedy);
  if(c.baseline.digest!==input.baseline.digest||c.baseline.controls!==input.baseline.controls||JSON.stringify(c.baseline.exclusions??[])!==JSON.stringify(input.baseline.exclusions??[]))throw new OperatorError(`Cannot resume ${c.runId}: project source or requirements changed.`,remedy);
 }
 export async function restoreWorkCheckpoint(c:WorkCheckpoint,target:string):Promise<void>{
