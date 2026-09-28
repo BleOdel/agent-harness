@@ -1146,3 +1146,41 @@ assessments remain explicit gaps in this first aggregate report; their existing
 runners continue to work. A human assessment never turns those unaggregated lanes
 into automatic passes. Source, profile or requirement changes invalidate affected
 evidence, and missing evidence never becomes success because an item is done.
+
+## Optional Git worktree delivery
+
+The host worktree controller is an optional layer around ordinary task builds.
+It does not replace source snapshots, containment, independent review, acceptance
+proofs or implementation checkpoints. The primary repository must have a clean
+checkout on a branch, accepted work items and approved checks for the selected task.
+
+```mermaid
+flowchart TD
+  P["Primary checkout: clean committed base"] --> W["Host creates task branch and linked checkout"]
+  W --> C["Copy approved controls; no historical evidence"]
+  C --> B["Pi works in a disposable source copy without Git metadata"]
+  B --> G["Existing gates, separate review and host acceptance"]
+  G --> T["Apply to task checkout; explicit verified commit"]
+  T --> I["Detached integration of current target and task tip"]
+  I --> V["Fresh diagnostics and acceptance for completed tasks"]
+  V -->|Pass and identities unchanged| F["Fast-forward target to verified merge commit"]
+  V -->|Failure or conflict| R["Retain task and integration; leave primary unchanged"]
+  F --> D["Explicit cleanup of clean merged checkouts; retain branches/evidence"]
+```
+
+State is held under `<project>-harness/worktrees/<id>/state.json`, alongside the
+managed checkout and separately named integration attempts. Control fingerprints
+bind task semantics, interface approvals, model settings, environment profile and
+optional product specification. Status transitions do not change task semantics.
+Changes to approved controls require a fresh task worktree, preserving old work.
+No approval is inferred from a prior checkout's records.
+
+Branch builds own their usual checkout writer, so independent tasks can build
+concurrently. Git mutations hold the primary writer and the selected task writer.
+A saved `verified` integration records target HEAD, task tip and merge commit
+before fast-forward; recovery validates these identities and clean checkouts.
+Failed, interrupted and conflicting integration attempts are never force-reset.
+Commands disable hooks, filesystem-monitor commands, signing prompts and global
+attributes, reject repository attributes/filters and submodules, and do not make
+network requests. Tests include actual Git branches, interrupted merge stages,
+refused cleanup, changed approvals/source and offline Docker regression rejection.

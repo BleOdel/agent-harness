@@ -1168,6 +1168,54 @@ Applied by the harness as r2.
 Six months later the useful question about a commit is not what changed —
 the diff says that — but what it was supposed to satisfy.
 
+### Optional task worktrees
+
+Use `harness worktree setup` or **Create a separate Git task branch** in the guide.
+Run these commands from the primary repository root. Commit or preserve pending
+changes first, and approve checks for the selected task.
+
+```sh
+harness worktree create reader-experience
+harness worktree list
+harness worktree work <id>       # build/resume through Pi and the existing gates
+harness worktree commit <id>     # commit exactly the verified task source locally
+harness worktree merge <id>      # test combined changes before updating the target
+harness worktree remove <id>     # remove clean merged checkouts; retain history
+```
+
+The command prints an ID such as `worktree-<uuid>`; use that ID in later commands.
+Each task gets a local `harness/<task>-<suffix>` branch and a checkout beneath
+`<project>-harness/worktrees/`. Existing model settings, environment, acceptance
+approvals and optional protected product specification are copied to its separate
+host state. Prior verification results, credentials and run history are not copied.
+Pi still receives an isolated source copy with `.git` excluded. Separate task
+builds can run in separate terminals; host create/commit/merge/remove operations
+are serialized through the primary project writer.
+
+`worktree commit` refuses edits that differ from the applied, reviewed candidate,
+including extra excluded files. `worktree merge` combines the current target and
+task branch in a detached checkout, runs adapter diagnostics and approved checks
+for completed tasks, then fast-forwards the target to that tested merge commit.
+It makes no model request and never pushes. Evidence remains in the task and
+integration state; `product verify` on the primary checkout refreshes that
+checkout’s own aggregate report. The existing GitHub release command
+is unrelated; this workflow does not open pull requests.
+
+Conflicts and failed checks leave the primary checkout unchanged and preserve the
+integration directory for inspection. Fix the task branch and verify it through
+`harness work` again before committing; do not treat edits in the diagnostic
+integration directory as verified output. `harness worktree recover <id>` resumes
+creation or a verified merge interrupted around the fast-forward. A stale writer
+still needs the normal explicit `harness recover-lock <token>` step.
+
+Cleanup refuses dirty files (including ignored files), extra task commits, and
+unmerged work. Branches, evidence and sidecar state are retained. Failed integration
+copies containing changes are retained too; inspect and preserve them before
+removing them explicitly with Git. This initial workflow supports ordinary full
+repositories: submodules, Git attributes/filters (including LFS), automatic
+rebasing/conflict resolution, and PR publication are not included. Avoid concurrent
+manual Git mutations during host operations; worktrees share repository metadata.
+
 ## Why the Reviewer exists
 
 Every gate above asks whether the code is *sound*. None can ask whether it

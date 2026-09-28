@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --experimental-strip-types
+import {worktreeCommand} from "./verbs/worktree.ts";
 import {productCommand} from "./verbs/product.ts";
 import {torchCommand} from "./verbs/torch.ts";
 import {metalCommand} from "./verbs/metal.ts";
@@ -59,6 +60,8 @@ const USAGE = [
   "  harness product report     current evidence and remaining gaps (--json available)",
   "  harness product verify     tests and all approved behaviour checks; no model call",
   "  harness product assess     record human observations for the current source",
+  "  harness worktree setup     create a separate task branch (optional)",
+  "  harness worktree list      inspect task branches; work, commit, merge, recover or remove",
   "  harness model [setup]      inspect or choose provider, model and reasoning strength",
   "  harness guide [path]        select a project and continue through guided steps",
   "  harness project setup      select the project adapter and skill bundles",
@@ -126,6 +129,7 @@ async function main(): Promise<void> {
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
 
   switch (verb) {
+    case "worktree": return worktreeCommand(project,rest);
     case "product": return productCommand(project,rest);
     case "torch": return torchCommand(project, rest);
     case "metal": return metalCommand(project, rest);

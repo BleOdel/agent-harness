@@ -568,3 +568,27 @@ The source-free Mac GPU probe uses a disposable clone of the existing native
 base and the offline guardian; it does not provision GPU training capability
 unless the tested operations meet their numerical controls. Current MPS results
 fail qualification. Physical GPU isolation and hard VRAM allocation remain absent.
+
+## Optional managed Git worktrees
+
+Git metadata remains host-only. A linked worktree is a delivery checkout, not a
+security sandbox: builders still receive disposable copies with `.git` excluded.
+Only fixed host commands create task branches, commit an exact applied candidate,
+verify an integrated tree and advance the selected target. No network Git command,
+force push, reset-hard, automatic stash or force removal is exposed.
+
+Host commands suppress repository hooks, fsmonitor commands and signing, clear
+inherited `GIT_*` overrides, disable global/system attributes and reject repository
+attributes and submodules. They use argument arrays with bounded output/time.
+Worktree records and copied controls live outside source. Commit checks compare
+current source to the applied acceptance proof and reject extra excluded files.
+Integration checks operate on the combined tree and recheck source, controls and
+branch identities before advancing the target. Cleanup preserves unmerged history
+and refuses modified or ignored files; failed attempts remain inspectable.
+
+The operator and repository metadata remain trusted. Writer locks coordinate
+harness operations, not arbitrary external Git commands. Concurrent manual Git
+changes can still race between host checks and Git's own ref/index locks. This
+initial implementation does not support attributes/filters/LFS, submodules,
+automatic conflict resolution or PR publication. Filesystem and Git crashes may
+require the normal explicit writer/Git lock inspection before worktree recovery.
