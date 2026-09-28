@@ -1141,9 +1141,10 @@ The report re-evaluates saved browser observations against their journey, checki
 artifact provenance, rather than trusting a run's status label.
 
 This is product evidence, distinct from `doctor` environment readiness. It is
-not a release authorization. Desktop/ML artifact evidence and security/performance
-assessments remain explicit gaps in this first aggregate report; their existing
-runners continue to work. A human assessment never turns those unaggregated lanes
+not a release authorization. Linux desktop evidence can now be selected and
+aggregated. Other desktop/ML adapters and security/performance assessments remain
+explicit gaps; their existing runners continue to work. A human assessment never
+turns those unaggregated lanes
 into automatic passes. Source, profile or requirement changes invalidate affected
 evidence, and missing evidence never becomes success because an item is done.
 
@@ -1184,3 +1185,44 @@ Commands disable hooks, filesystem-monitor commands, signing prompts and global
 attributes, reject repository attributes/filters and submodules, and do not make
 network requests. Tests include actual Git branches, interrupted merge stages,
 refused cleanup, changed approvals/source and offline Docker regression rejection.
+
+## Selected evidence foundation (E1)
+
+A product specification may include a versioned `evidence` scope containing up to
+16 required approval/runtime references. Absence preserves the legacy report;
+an empty scope cannot waive a desktop/ML requirement. Scope changes alter the
+protected product digest and require operator approval. The first selection UI
+lists Linux Electron journeys; other provider IDs are reserved and report
+unavailable until their adapters ship.
+
+```mermaid
+flowchart LR
+  J[Approved journeys] --> S[Product selection and pinned runtime]
+  R[Runner records and retained artifacts] --> A[Bounded read-only adapter]
+  S --> A
+  A --> V[Validate bytes, provenance and raw observations]
+  V --> E[Outcome plus current/stale/missing applicability]
+  E --> P[Product report and next action]
+  E --> H[Human assessment bound to selected evidence digest]
+```
+
+`src/product/evidence/` separates the scope/result contract, bounded consistent
+file reader and first desktop adapter. Runner-native records remain authoritative;
+no second mutable pass flag is stored. A matching run is selected by source,
+approval and runtime, then ordered by recorded time. Ambiguous equal timestamps
+are refused. A newer incomplete attempt without a captured source blocks fallback.
+Other source versions remain historical; unrelated approvals are not requirements.
+
+The Linux adapter recomputes journey comparisons from observations, validates
+package and screenshot references, and checks the current harness driver protocol.
+It verifies artifacts' hashes and producer/input/environment identities. Passing
+saved assessment flags alone are insufficient. Required unsupported providers
+cannot pass and never convert to skipped. Artifact cleanup invalidates references;
+aggregation does not secretly retain another copy. No native process or provider
+is invoked while reporting. Inspection has limits of 256 directory entries,
+1024 file references and 128 MiB read bytes, with per-file artifact limits retained.
+Concurrent modifications invalidate the snapshot before publication.
+
+These are packaged GUI diagnostics. They do not replace independent acceptance,
+prove universal accessibility, authenticate a malicious host operator, or authorize
+a release. ML identity and native adapter integration belong to subsequent phases.

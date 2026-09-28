@@ -67,9 +67,29 @@ journey and current source. `product verify` can take as long as the project's
 whole approved check suite, but uses no model tokens. It changes no application
 source and does not publish anything.
 
-**Current limits:** desktop/ML run evidence is not yet automatically aggregated;
-the report directs you to those existing tools and keeps the gap visible. Sensitive
-projects also retain an explicit security/performance assessment gap. No amount of
+For a desktop product, setup lists approved Linux Electron journeys. Select the
+required journey numbers, or press Enter to retain your selection. The product
+pins those approvals and runtimes. Selecting none keeps the desktop evidence gap;
+it does not waive the requirement. Unrelated experimental journeys are excluded.
+Run selected journeys with `harness desktop verify <journey-id>`, then read the
+product report; `product verify` still runs source diagnostics and acceptance,
+not GUI journeys.
+
+The first shared evidence adapter validates Linux packages, raw GUI observations,
+required screenshots and their provenance. The report names the observed platform
+and runtime; JSON includes the exact source, producer, approval, artifact hashes,
+limitations, outcome and applicability. A failed/incomplete latest matching run
+cannot borrow an older pass. Changed source makes old evidence stale. Releasing
+selected artifacts invalidates their evidence rather than silently keeping a pass.
+Human assessments for selected evidence are also invalidated when that evidence
+changes. Reports read retained files only: they never start Docker, download
+packages or request a model. Old product specifications remain readable without
+automatically adopting any new evidence.
+
+**Current limits:** macOS Electron, SwiftUI/AppKit and ML aggregation remain
+unfinished, as do dashboard presentation and security/performance assessments.
+Existing runners still work; the report keeps these gaps visible. Sensitive
+projects retain an explicit security/performance assessment gap. No amount of
 unit-test success or a general human approval clears those gaps. `doctor` checks
 the environment; `product report` checks retained product evidence, not deployment
 readiness or complete correctness.

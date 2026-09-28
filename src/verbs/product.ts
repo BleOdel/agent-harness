@@ -3,6 +3,8 @@ import {withWriter} from '../workspace/writer-lock.ts';
 import {approveProduct,draftProduct,kinds,readProduct,verificationPlan} from '../product/spec.ts';
 import {productReport,recordAssessment} from '../product/report.ts';
 import {verify} from './verify.ts';
+import {desktopChoices} from '../product/evidence/desktop.ts';
+import type {EvidenceScope} from '../product/evidence/schema.ts';
 import {say,OperatorError} from './io.ts';
 export async function productSetup(project:string,io:Dialogue):Promise<void>{
  const selected=await choose(io,'What are you building?',['Command-line tool or library','API or service','Website or web app','Desktop app','ML or deep learning project']);if(selected<0)return;
@@ -10,12 +12,24 @@ export async function productSetup(project:string,io:Dialogue):Promise<void>{
  const previous=await readProduct(project);
  const input=(await io.ask(`Additional product documents to protect (relative paths, comma-separated; Enter for ${Object.keys(previous?.documents??{}).join(', ')||'none'}):`)).trim();
  const documents=input?input.split(',').map(s=>s.trim()):Object.keys(previous?.documents??{});
- const draft=await draftProduct(project,kinds[selected]!,risk===0?'prototype':'sensitive',documents);
+ let evidence:EvidenceScope|undefined=previous&&previous.kind===kinds[selected]?previous.evidence:undefined;
+ if(kinds[selected]==='desktop'){
+  const choices=await desktopChoices(project);
+  io.write('Required desktop evidence: Linux Electron aggregation is available. Native/macOS aggregation remains a separate evidence gap when selected.');
+  choices.forEach((c,i)=>io.write(`  ${i+1}. ${c.title} (${c.target.approval})`));
+  const existing=evidence?.targets??[];
+  io.write(`Current selection: ${existing.map(t=>t.provider+':'+t.approval).join(', ')||'none; desktop evidence remains incomplete'}`);
+  const answer=(await io.ask('Required journey numbers, comma-separated (Enter to keep; none to clear):')).trim();
+  if(answer==='none')evidence={version:1,targets:[]};
+  else if(answer){const indexes=answer.split(',').map(s=>Number(s.trim())-1);if(indexes.some(i=>!Number.isInteger(i)||i<0||i>=choices.length)||new Set(indexes).size!==indexes.length)throw new OperatorError('Use unique journey numbers from the list. No settings saved.');evidence={version:1,targets:indexes.map(i=>choices[i]!.target)};}
+ }
+ const draft=await draftProduct(project,kinds[selected]!,risk===0?'prototype':'sensitive',documents,evidence);
  io.write('Product specification uses the accepted work items, their saved plans and approved interface contracts.');
  for(const task of draft.requirements.tasks as {id:string;criteria:string[]}[]){io.write(task.id);task.criteria.forEach(c=>io.write(`  ${c}`));}
  io.write(`Saved interface contracts: ${draft.requirements.interfaces.length}. Protected documents: ${documents.join(', ')||'none'}.`);
  for(const contract of draft.requirements.interfaces)io.write(`${contract.tasks.join(', ')}: ${contract.contract}`);
  io.write('Required verification:');verificationPlan(draft.kind,draft.consequence).forEach(c=>io.write(`  ${c}`));
+ for(const t of draft.evidence?.targets??[])io.write(`Required evidence: ${t.provider} / ${t.approval}. Approval and runtime are pinned; unrelated experiments are excluded.`);
  io.write('Changed requirements require renewed approval. Builders cannot edit protected documents. Setup does not run checks or approve a release.');
  if(await confirmed(io,'Approve this product specification?')){
   await withWriter(project,'product setup',()=>approveProduct(project,draft));
@@ -32,7 +46,7 @@ export async function productCommand(project:string,args:readonly string[]):Prom
   io.write('This records your assessment only. It cannot override missing or failed automated checks, native/ML evidence gaps, or a separate security assessment.');
   const notes=await io.ask('Describe what you inspected, the evidence used and remaining limits:');
   const passed=await confirmed(io,'Does your human assessment pass?');
-  if(await confirmed(io,'Save this assessment for the current source and specification?'))await withWriter(project,'product assess',()=>recordAssessment(project,report.source!,report.spec!,passed,notes));
+  if(await confirmed(io,'Save this assessment for the current source and specification?'))await withWriter(project,'product assess',()=>recordAssessment(project,report.source!,report.spec!,passed,notes,report.evidenceDigest));
   return;
  }
  if((!args.length||args[0]==='report')&&args.length<=2&&(!args[1]||args[1]==='--json')){

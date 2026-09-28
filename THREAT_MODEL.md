@@ -592,3 +592,20 @@ changes can still race between host checks and Git's own ref/index locks. This
 initial implementation does not support attributes/filters/LFS, submodules,
 automatic conflict resolution or PR publication. Filesystem and Git crashes may
 require the normal explicit writer/Git lock inspection before worktree recovery.
+
+## Product evidence aggregation
+
+E1 reads operator-selected Linux desktop evidence from host-owned sidecar state.
+Workers do not receive this authority. The adapter treats saved pass labels as
+insufficient: it compares raw observations, checks approval/runtime/source identity,
+and validates package/screenshot blobs and their producer metadata. This detects
+corruption and accidental cross-run substitution; it is not a cryptographic
+attestation against the host operator who controls both records and hashes.
+
+Inspection executes no artifact code, starts no runtime and contacts no provider.
+Paths reject aliases and links; record/blob counts and sizes are bounded. A changed
+file or directory during inspection prevents publication of a consistent result.
+Missing, malformed, released, failed and incomplete selected evidence cannot
+satisfy a required check. Supported comparisons keep their diagnostic limitations;
+human sign-off cannot promote unavailable adapters to automatic passes. Security
+and performance assessment have not been implemented by this foundation.
