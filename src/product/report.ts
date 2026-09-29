@@ -1,3 +1,4 @@
+import {securityReport,type SecurityReport} from '../security/report.ts';
 /** Evidence summary, never an approval shortcut or a substitute for execution. */
 import {readdir} from 'node:fs/promises';
 import path from 'node:path';
@@ -15,9 +16,9 @@ import {listApprovals,listBrowserRuns,readApproval as browserApproval} from '../
 import {assessJourney} from '../browser/schema.ts';
 import {collectEvidence} from './evidence/desktop.ts';
 import {evidenceStatus,type EvidenceRecord} from './evidence/schema.ts';
-export type Status='passed'|'failed'|'missing'|'stale'|'human'|'skipped'|'unavailable';
+export type Status='passed'|'failed'|'missing'|'stale'|'human'|'skipped'|'unavailable'|'accepted-risk';
 export interface ReportCheck {id:string;status:Status;detail:string;next?:string;required?:boolean;evidence?:EvidenceRecord;}
-export interface ProductReport {version:1;project:string;ready:boolean;checks:ReportCheck[];spec?:string;source?:string;evidenceDigest?:string;kind?:string;plan?:string[];}
+export interface ProductReport {version:1;project:string;ready:boolean;checks:ReportCheck[];spec?:string;source?:string;evidenceDigest?:string;kind?:string;plan?:string[];security?:SecurityReport;}
 export interface Diagnostic {name:string;status:'passed'|'failed'|'skipped';summary:string;}
 export interface VerificationRuntime {image:string;testCommand:readonly string[];}
 interface Diagnostics {runtime?:VerificationRuntime;version:1;source:string;spec:string|null;profile:string;at:string;checks:Diagnostic[];}
@@ -109,8 +110,10 @@ export async function productReport(project:string):Promise<ProductReport>{
  try{assessment=await optional(project,'product/assessment.json') as Assessment|undefined;if(assessment&&(assessment.version!==1||typeof assessment.passed!=='boolean'||typeof assessment.notes!=='string'||assessment.notes.trim().length<20))throw Error('Invalid human assessment.');}catch(e){checks.push({id:'assessment-record',status:'failed',detail:(e as Error).message});assessment=undefined;}
  const status:Status=!assessment?'human':assessment.source!==current.source||assessment.spec!==spec.digest||(retained&&assessment.evidenceDigest!==retained.digest)?'stale':assessment.passed?'passed':'failed';
  checks.push({id:'human-assessment',status,detail:assessment?`Operator assessment: ${assessment.notes}`:'Assess requirement coverage, remaining evidence limits and user experience. Automated tests cannot establish all of these.',next:'harness product assess'});
- if(spec.consequence==='sensitive')checks.push({id:'security',status:'human',detail:'A separate security and performance assessment is required. This report does not certify consequential or production use.'});
+ const security=await securityReport(project,{source:current.source,product:spec.digest,consequence:spec.consequence,acceptance:checks});
+ if(spec.consequence==='sensitive'||security.configured)checks.push({id:'security',status:security.status,detail:security.complete?'Scoped security assessment complete; accepted risk remains distinct from passed testing.':'Scoped security assessment needs attention. '+security.requirements.filter(r=>!['passed','not-applicable','accepted-risk'].includes(r.status)).map(r=>r.id+': '+r.status).join('; '),next:security.next});
+ if(spec.consequence==='sensitive')checks.push({id:'performance',status:'human',detail:'Separate performance assessment is still required; security approval cannot waive it.'});
  if((await identity(project)).source!==current.source||(await assertProductCurrent(project))?.digest!==spec.digest)throw Error("Project changed while reading evidence; run the report again.");
  await retained?.assertUnchanged();
- return {version:1,project,spec:spec.digest,source:current.source,...(retained?{evidenceDigest:retained.digest}:{}),kind:spec.kind,plan:verificationPlan(spec.kind,spec.consequence),ready:checks.every(c=>c.status==='passed'||(c.status==='skipped'&&c.required===false)),checks};
+ return {version:1,project,spec:spec.digest,source:current.source,...(retained?{evidenceDigest:retained.digest}:{}),kind:spec.kind,plan:verificationPlan(spec.kind,spec.consequence),ready:checks.every(c=>c.status==='passed'||(c.status==='skipped'&&c.required===false)||(c.id==='security'&&c.status==='accepted-risk'&&security.complete&&spec.consequence==='prototype')),security,checks};
 }

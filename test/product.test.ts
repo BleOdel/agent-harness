@@ -65,7 +65,7 @@ test('report never confuses missing evidence or done flags with passed verificat
  const r=await productReport(f.project);assert.equal(r.ready,false);
  assert.equal(r.checks.find(c=>c.id==='diagnostics')?.status,'missing');
  assert.equal(r.checks.find(c=>c.id==='browser')?.status,'missing');
- assert.equal(r.checks.find(c=>c.id==='security')?.status,'human');
+ assert.equal(r.checks.find(c=>c.id==='security')?.status,'missing');
 });
 test('diagnostics report includes skipped checks and never reuses stale source',async t=>{
  const f=await fixture(t);const d=await draftProduct(f.project,'cli','prototype',[]);await approveProduct(f.project,d);

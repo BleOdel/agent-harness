@@ -1143,7 +1143,7 @@ artifact provenance, rather than trusting a run's status label.
 This is product evidence, distinct from `doctor` environment readiness. It is
 not a release authorization. Linux/macOS desktop evidence can now be selected and
 aggregated, as can selected CPU/PyTorch/Metal model evidence. ML application
-integration and security/performance assessments remain explicit gaps; their existing runners continue to work. A human assessment never
+integration and performance assessments remain explicit gaps; scoped security now has its own evidence and assessment; their existing runners continue to work. A human assessment never
 turns those unaggregated lanes
 into automatic passes. Source, profile or requirement changes invalidate affected
 evidence, and missing evidence never becomes success because an item is done.
@@ -1321,3 +1321,50 @@ The normal suite uses labelled deterministic fixtures. Opt-in real tests are in
 training and cancellation/resume; `HARNESS_VERIFY_PRODUCT_METAL=1` enables the
 existing bounded native interruption/recovery validation plus aggregation. These
 require configured immutable local runtime images; no provider calls occur.
+
+
+## Scoped security evidence (assessment E4)
+
+```mermaid
+flowchart TD
+  P["Approved product: requirements and consequence"] --> S["Security setup: assets, interfaces, trust boundaries, synthetic API scope"]
+  S --> A["Approval pins configuration, observer/rules and immutable image"]
+  A --> C["Explicit security verify under writer lock"]
+  C --> APP["Offline app container: immutable source; disposable data"]
+  C --> OBS["Separate fixed observer: loopback API requests; own config/output"]
+  APP --> OBS
+  OBS --> HOST["Host stops app, scans bounded complete logs, validates observations"]
+  HOST --> ART["Artifact: statuses and disclosure counts; no raw responses or keys"]
+  ART --> R["Read-only report rechecks bytes, provenance and fixed comparisons"]
+  A --> R
+  E["Existing validated acceptance evidence"] --> R
+  R --> F["Structured findings and policy-limited risk dispositions"]
+  F --> H["Separate scoped security assessment tied to evidence digest"]
+  H --> PROD["Product report: passed, accepted-risk, failed, stale, missing or unavailable"]
+```
+
+The observer joins the application's isolated network namespace, not its filesystem
+or PID namespace. The application cannot access observer code, expectations or
+output mounts. Host comparisons—not a persisted passed flag—decide findings.
+Positive controls require distinct owners and each owner's synthetic content;
+negative responses cannot pass by making every request fail. Redirects are not
+followed. A fixed scan handles JSON string escaping and duplicate members; only
+one newly issued key occurrence in its own creation response is exempted.
+
+State is retained in `<project>-harness/security`: approval, bounded run records,
+artifact references, dispositions and assessment. Labels bind containers to a run
+and ownership token. Interruption/controller recovery removes only those owned
+containers and transient source/config/output directories. Unfinished cleanup and
+incomplete observations block completion. App shutdown precedes bounded log
+inspection so shutdown disclosures are included; overflow cannot yield a clean
+result. Raw log bytes remain in memory and Docker's bounded temporary log storage
+until container cleanup; only disclosure counts enter artifact storage.
+
+Report identity binds current source, product/consequence, approved scope, immutable
+runtime, rules/observer/controller and supporting evidence code, artifact bytes,
+selected acceptance evidence and inventory. Changes invalidate assessments and
+risk decisions. Read consistency checks prevent combining changed records.
+Sensitive products always require security; prototypes acquire that obligation
+when a scope is approved. Generic product assessment and release approval remain
+separate. A selected unsupported recipe or missing dependency intelligence stays
+unavailable. There is no external scanner/feed adapter or network freshness claim.

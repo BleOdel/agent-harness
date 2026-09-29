@@ -130,12 +130,72 @@ owned resources if necessary and resume before evaluation. Reporting never start
 this trial for you. Artifact cleanup invalidates selected evidence.
 
 **Current limits:** automatic ML application integration, dashboard presentation
-and security/performance assessments remain unfinished.
+and performance assessments remain unfinished.
 Existing runners still work; the report keeps these gaps visible. Sensitive
-projects retain an explicit security/performance assessment gap. No amount of
+projects require separate scoped security evidence and retain an explicit performance assessment gap. No amount of
 unit-test success or a general human approval clears those gaps. `doctor` checks
 the environment; `product report` checks retained product evidence, not deployment
 readiness or complete correctness.
+
+## Scoped security assessment
+
+Use `harness security setup` (also in `harness guide`) after approving product
+requirements. It asks what needs protection, which callers must be separated,
+which existing acceptance checks should be reused, and the synthetic API paths
+and fields to exercise. No probe code or model request is needed. Review the
+configuration, immutable `HARNESS_IMAGE_ID`, runtime limits and coverage before
+saving. Setup does not execute the application.
+
+```sh
+harness security setup
+harness security verify
+harness security report
+harness security assess
+harness product report
+```
+
+The first automated recipe supports a **dependency-free Node HTTP API** with
+JSON creation, a returned top-level management key, bearer-authorized owner reads,
+and a public reading route. It creates two synthetic records and compares valid
+owner access with missing/invalid credentials, cross-owner content, pending-content
+privacy, foreign Host/Origin and unsupported JSON media type. Raw, JSON-escaped,
+URL, hex and base64 disclosure checks cover response headers/bodies and complete
+bounded application logs, including shutdown. These are sampled observations,
+not exhaustive authorization, injection, cryptography or data-loss testing.
+Existing approved, current-source acceptance evidence can cover additional
+lifecycle and validation requirements without regenerating checks.
+
+Verification uses two offline containers: the app receives only a source snapshot;
+the fixed observer has its own configuration and output mounts. Each has 2 CPUs,
+512 MiB RAM and bounded process/storage/time limits. Requests target the shared
+loopback interface, with no external scanning, model calls, downloads or real
+credentials. Source is limited to 32 MiB (4 MiB per file), responses to 64 KiB and
+collected logs to 512 KiB. Incomplete/oversized observations fail closed. Only
+status/count observations are retained as artifacts; synthetic keys and raw
+responses/logs are excluded from reports and removed during cleanup.
+
+A separate security assessment records the operator's review of coverage and
+limits. Findings identify the affected source, scope, severity, run/artifact and
+remediation. `harness security accept-risk <finding-rule>` can explicitly accept a
+low/medium finding for a prototype, with a rationale. The result remains
+**accepted-risk**, never passed testing. High findings and all sensitive-product
+findings cannot be waived this way. General product approval cannot clear security
+obligations. Source, scope, runtime/rule or selected evidence changes invalidate
+relevant signoffs. Merely reading a report runs no checks.
+
+If interrupted, normal cancellation removes owned containers. After controller
+loss, inspect/recover the writer lock as directed, then run
+`harness security recover <run-id>` before verifying again. Reports cannot borrow
+an earlier pass while the current attempt or cleanup is incomplete.
+
+**Limits:** no dependency/secret/source scanner or vulnerability feed is integrated.
+Missing feed coverage stays unavailable, never a clean scan. A scoped third-party
+dependency check may be marked not applicable only with an operator rationale and
+no declared package inputs (including development dependencies); runtime
+vulnerabilities remain outside that assertion. Desktop/ML automatic security
+recipes are unavailable. Security is required for sensitive products and for any
+prototype with an approved security scope; it is separate from performance,
+release authorization and production assurance.
 
 ## The guarantee
 

@@ -638,3 +638,46 @@ These remain retained host records, not protection against a malicious operator.
 Dataset representativeness, unseen leakage, clustering usefulness and application
 integration remain separate obligations. No complete-product readiness is claimed
 while source-and-model integration evidence is unsupported.
+
+
+## Scoped local security assessment (assessment E4)
+
+The security lane exercises only operator-approved local endpoints with newly
+generated synthetic markers and keys. Its initial supported target is a
+third-party-dependency-free Node HTTP API. It does not inspect real credentials,
+scan remote hosts, invoke a model, fetch vulnerability intelligence or claim a
+penetration test. Existing acceptance evidence remains responsible for additional
+application-specific lifecycle behavior. Desktop/ML security and runtime/dependency
+vulnerability analysis remain explicit gaps.
+
+The application and trusted observer use separate container filesystems and PID
+namespaces. Only their isolated network is shared. Both use the approved immutable
+image, a non-root UID, read-only root filesystem, dropped capabilities, no-new-privileges
+and fixed CPU/RAM/process/time limits. The app sees the source snapshot and disposable
+storage; it does not see the probe/config/output mounts. No Docker socket or host
+credentials are mounted. The host holds expectations and assesses strictly parsed
+status/count observations. Positive controls prevent a universally denying server
+from passing authorization checks. Responses are bounded and redirects are not
+followed. Privacy scans cover raw/JSON-decoded strings and common encodings in
+headers, bodies and logs; arbitrary encodings, timing/covert channels and unprobed
+routes remain outside coverage.
+
+The host waits for app shutdown before inspecting bounded logs. Overflow, missing
+observations, malformed artifacts and pending cleanup cannot pass. Logs and raw
+responses never enter the report or retained observation artifact. Synthetic keys
+briefly exist in an owned observer output file for host log comparison; it is
+removed during cleanup, or by explicit run recovery after controller loss. Docker
+logs are bounded and removed with the owned containers. This does not promise
+forensic secure erasure from disks/backups. Source scopes must use synthetic inputs;
+operators must not put real secrets into their approved field values or rationales.
+
+Reports revalidate artifact hashes and producer/source/runtime identities and
+recompute findings. They are not attestations against an operator who can rewrite
+all host state. A current incomplete run blocks reuse of an earlier pass. Relevant
+source, configuration, rule/tool and evidence changes stale the scoped assessment.
+Accepted risk is a separate disposition restricted to low/medium prototype findings;
+no high finding or sensitive-product finding can be cleared this way. A generic
+product assessment cannot waive security, performance or release obligations.
+Missing external vulnerability intelligence never means no vulnerabilities. The
+not-applicable package-inventory claim checks declarations and lockfile entries;
+it does not prove absence of copied/vendored code or runtime vulnerabilities.

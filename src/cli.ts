@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --experimental-strip-types
+import {securityCommand} from './verbs/security.ts';
 import {worktreeCommand} from "./verbs/worktree.ts";
 import {productCommand} from "./verbs/product.ts";
 import {torchCommand} from "./verbs/torch.ts";
@@ -56,6 +57,7 @@ import { work } from "./verbs/work.ts";
 const USAGE = [
   "harness — build software in a sandbox, prove it, then apply it.",
   "",
+  "  harness security setup     approve a bounded local security scope; verify/report/assess",
   "  harness product setup      protect product requirements and choose verification",
   "  harness product report     current evidence and remaining gaps (--json available)",
   "  harness product verify     tests and all approved behaviour checks; no model call",
@@ -130,6 +132,7 @@ async function main(): Promise<void> {
 
   switch (verb) {
     case "worktree": return worktreeCommand(project,rest);
+    case "security": return securityCommand(project,rest);
     case "product": return productCommand(project,rest);
     case "torch": return torchCommand(project, rest);
     case "metal": return metalCommand(project, rest);

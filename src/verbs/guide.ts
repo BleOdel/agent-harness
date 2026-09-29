@@ -137,6 +137,7 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
           actions.push({ label: "Metal GPU training", run: () => guideMetal(project, io, command) });
     actions.push({ label: "SwiftUI/AppKit apps", run: () => guideApple(project, io, command) });
     actions.push({ label: "Protect product requirements and choose verification", run: () => run("product", "setup") });
+    actions.push({ label: "Scope security checks and review protection", run: () => run("security", "setup") });
     actions.push({ label: "Review product evidence and remaining gaps", run: () => run("product", "report") });
     actions.push({ label: "Create a separate Git task branch", run: () => run("worktree", "setup") });
     actions.push({ label: "Inspect Git task branches", run: () => run("worktree", "list") });

@@ -1,0 +1,4 @@
+/** Scan raw and JSON-decoded strings, including duplicate JSON members. No source text leaves the observer. */
+const tokens=text=>[...text.matchAll(/"(?:[^"\\]|\\.)*"/gu)].flatMap(m=>{try{return [{index:m.index,raw:m[0],value:JSON.parse(m[0])}];}catch{return [];}});
+export function countLeaks(text,values){const decoded=text+'\n'+tokens(text).map(t=>t.value).join('\n');return values.reduce((n,v)=>n+[...new Set([v,encodeURIComponent(v),Buffer.from(v).toString('base64'),Buffer.from(v).toString('hex')])].filter(x=>decoded.includes(x)).length,0);}
+export function creationLeaks(headers,body,ownKey,keys){const token=tokens(body).find(t=>t.value===ownKey);if(!token)throw Error('Creation key observation missing.');return countLeaks(headers+'\n'+body.slice(0,token.index)+body.slice(token.index+token.raw.length),keys);}
