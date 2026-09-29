@@ -595,7 +595,7 @@ require the normal explicit writer/Git lock inspection before worktree recovery.
 
 ## Product evidence aggregation
 
-E1 reads operator-selected Linux desktop evidence from host-owned sidecar state.
+E1/E2 read operator-selected Linux and macOS desktop evidence from host-owned sidecar state.
 Workers do not receive this authority. The adapter treats saved pass labels as
 insufficient: it compares raw observations, checks approval/runtime/source identity,
 and validates package/screenshot blobs and their producer metadata. This detects
@@ -609,3 +609,12 @@ Missing, malformed, released, failed and incomplete selected evidence cannot
 satisfy a required check. Supported comparisons keep their diagnostic limitations;
 human sign-off cannot promote unavailable adapters to automatic passes. Security
 and performance assessment have not been implemented by this foundation.
+
+Mac aggregation additionally validates the underlying native execution, its frozen
+script contract and original artifact provenance. Copied outer bytes must match
+those originals. Incomplete cleanup, missing child records, wrong exit/stdout,
+substituted packages and failed raw GUI observations cannot be hidden behind a
+wrapper's passed status. Reporting never unpacks or executes the retained app.
+These retained host records are diagnostics, not signed attestations; a malicious
+host operator can alter both evidence and its hashes. Existing native containment
+limits, code-signing limits and human accessibility obligations still apply.

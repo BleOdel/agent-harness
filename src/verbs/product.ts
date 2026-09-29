@@ -15,8 +15,8 @@ export async function productSetup(project:string,io:Dialogue):Promise<void>{
  let evidence:EvidenceScope|undefined=previous&&previous.kind===kinds[selected]?previous.evidence:undefined;
  if(kinds[selected]==='desktop'){
   const choices=await desktopChoices(project);
-  io.write('Required desktop evidence: Linux Electron aggregation is available. Native/macOS aggregation remains a separate evidence gap when selected.');
-  choices.forEach((c,i)=>io.write(`  ${i+1}. ${c.title} (${c.target.approval})`));
+  io.write('Required desktop evidence: select every target journey this product needs. Linux Electron, macOS Electron and SwiftUI/AppKit are distinct targets.');
+  choices.forEach((c,i)=>io.write(`  ${i+1}. ${c.title} [${c.target.provider}] (${c.target.approval})`));
   const existing=evidence?.targets??[];
   io.write(`Current selection: ${existing.map(t=>t.provider+':'+t.approval).join(', ')||'none; desktop evidence remains incomplete'}`);
   const answer=(await io.ask('Required journey numbers, comma-separated (Enter to keep; none to clear):')).trim();

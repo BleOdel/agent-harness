@@ -1,4 +1,4 @@
-/** First evidence adapter: Linux packaged GUI diagnostics, not independent source acceptance. */
+/** Selected desktop diagnostics; each platform retains its own adapter and provenance. */
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {sha256} from '../../artifacts/store.ts';
@@ -6,6 +6,7 @@ import {desktopResources,type Runtime} from '../../desktop/runtime.ts';
 import {parseJourney,assessJourney} from '../../desktop/schema.ts';
 import {validatePng} from '../../desktop/output.ts';
 import type {Approval,DesktopRun} from '../../desktop/store.ts';
+import {nativeChoices,nativeEvidence} from './native.ts';
 import {EvidenceReader} from './reader.ts';
 import {hash,uuidId,timestamp,object,type EvidenceScope,type EvidenceTarget,type EvidenceRecord} from './schema.ts';
 export async function desktopProtocol(){return sha256(Buffer.concat(await Promise.all(['driver.mjs','package.mjs','probe.mjs','../schema.ts','../runtime.ts'].map(f=>readFile(path.join(desktopResources,f))))));}
@@ -24,10 +25,10 @@ function run(raw:unknown,id:string):DesktopRun{
  return r as unknown as DesktopRun;
 }
 export async function desktopChoices(project:string){
- const reader=new EvidenceReader(project+'-harness'),choices=[];
+ const reader=new EvidenceReader(project+'-harness'),choices:{title:string;target:EvidenceTarget}[]=[];
  for(const name of await reader.names('desktop/approvals')){if(name.startsWith('.harness-write-'))continue;if(!uuidId(name.slice(0,-5),'journey')||!name.endsWith('.json'))throw Error('Unexpected desktop approval file.');
   const a=approval(await reader.json('desktop/approvals/'+name),name.slice(0,-5));choices.push({title:a.journey.title,target:{provider:'linux-electron' as const,approval:a.id,approvalDigest:a.digest,runtime:sha256(JSON.stringify(a.runtime))}});
- }await reader.assertUnchanged();return choices.sort((a,b)=>a.target.approval.localeCompare(b.target.approval));
+ }choices.push(...await nativeChoices(reader));await reader.assertUnchanged();return choices.sort((a,b)=>a.target.approval.localeCompare(b.target.approval));
 }
 function base(target:EvidenceTarget,source:string):EvidenceRecord{return {...target,version:1,id:`runtime:${target.provider}:${target.approval}`,required:true,subject:{kind:'application',digest:source},applicability:'missing',outcome:'unknown',artifacts:[],detail:'No matching retained run.',limitations:['Packaged GUI observations are diagnostics; independent source acceptance remains separate.','Human review of interaction and accessibility is still required.'],next:'harness desktop verify '+target.approval};}
 async function linux(reader:EvidenceReader,target:EvidenceTarget,source:string):Promise<EvidenceRecord>{
@@ -71,6 +72,7 @@ export async function collectEvidence(project:string,source:string,scope:Evidenc
  const reader=new EvidenceReader(project+'-harness'),records:EvidenceRecord[]=[];
  for(const target of scope.targets){
   if(target.provider==='linux-electron')records.push(await linux(reader,target,source));
+  else if(target.provider==='macos-electron'||target.provider==='macos-native')records.push(await nativeEvidence(reader,target,source));
   else records.push({...base(target,source),subject:{kind:'unresolved'},applicability:'unavailable',detail:`${target.provider} aggregation is not implemented. Existing evidence remains retained.`,next:'harness guide'});
  }
  await reader.assertUnchanged();

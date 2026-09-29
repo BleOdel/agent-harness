@@ -67,15 +67,16 @@ journey and current source. `product verify` can take as long as the project's
 whole approved check suite, but uses no model tokens. It changes no application
 source and does not publish anything.
 
-For a desktop product, setup lists approved Linux Electron journeys. Select the
+For a desktop product, setup lists approved Linux Electron, macOS Electron and SwiftUI/AppKit journeys. Select the
 required journey numbers, or press Enter to retain your selection. The product
 pins those approvals and runtimes. Selecting none keeps the desktop evidence gap;
 it does not waive the requirement. Unrelated experimental journeys are excluded.
-Run selected journeys with `harness desktop verify <journey-id>`, then read the
-product report; `product verify` still runs source diagnostics and acceptance,
+Run selected journeys with `harness desktop verify <journey-id>`,
+`harness macos verify <macos-check-id>`, or
+`harness macos-native verify <apple-check-id>`, then read the product report; `product verify` still runs source diagnostics and acceptance,
 not GUI journeys.
 
-The first shared evidence adapter validates Linux packages, raw GUI observations,
+Desktop evidence adapters validate retained packages, raw GUI observations,
 required screenshots and their provenance. The report names the observed platform
 and runtime; JSON includes the exact source, producer, approval, artifact hashes,
 limitations, outcome and applicability. A failed/incomplete latest matching run
@@ -86,8 +87,18 @@ changes. Reports read retained files only: they never start Docker, download
 packages or request a model. Old product specifications remain readable without
 automatically adopting any new evidence.
 
-**Current limits:** macOS Electron, SwiftUI/AppKit and ML aggregation remain
-unfinished, as do dashboard presentation and security/performance assessments.
+For Mac journeys the report also traces every copied execution artifact back to
+its native VM run, checks the native approval and exit/output observations, and
+requires completed cleanup. A successful build-only script cannot satisfy a GUI
+journey. JSON exposes the native execution identity and retained artifact hashes.
+Linux and Mac targets are separate requirements: one platform's pass never covers
+another. Reporting needs the saved records, not a currently running or installed
+VM; re-execution still requires the approved runtime to be available. Keep the
+nested native evidence when retaining a Mac result; deleting it leaves a visible
+evidence gap. Native app signing and broad accessibility review remain separate.
+
+**Current limits:** ML aggregation, dashboard presentation and security/performance
+assessments remain unfinished.
 Existing runners still work; the report keeps these gaps visible. Sensitive
 projects retain an explicit security/performance assessment gap. No amount of
 unit-test success or a general human approval clears those gaps. `doctor` checks

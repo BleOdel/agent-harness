@@ -6,6 +6,7 @@ export interface EvidenceScope {version:1;targets:EvidenceTarget[];}
 export interface EvidenceRecord extends EvidenceTarget {
  version:1;id:string;required:true;subject:{kind:'application'|'model'|'unresolved';digest?:string};
  applicability:'current'|'stale'|'missing'|'unavailable'|'invalid';outcome:'passed'|'failed'|'incomplete'|'unknown';
+ execution?:{provider:'native-script';producer:string;approval:string;profile:string;source:string;artifacts:{id:string;name:string;sha256:string}[]};
  producer?:string;at?:string;artifacts:{id:string;name:string;sha256:string}[];
  detail:string;limitations:string[];next:string;
 }
@@ -23,6 +24,8 @@ export function parseEvidenceScope(raw:unknown,kind:string):EvidenceScope{
   const desktop=['linux-electron','macos-electron','macos-native'].includes(t.provider as string);
   if(desktop?kind!=='desktop':kind!=='ml')throw Error('Evidence target does not match product kind.');
   if(t.provider==='linux-electron'&&!uuidId(t.approval,'journey'))throw Error('Invalid Linux journey selection.');
+  if(t.provider==='macos-electron'&&!uuidId(t.approval,'macos-check'))throw Error('Invalid macOS Electron journey selection.');
+  if(t.provider==='macos-native'&&!uuidId(t.approval,'apple-check'))throw Error('Invalid native macOS journey selection.');
   const key=t.provider+':'+t.approval;if(seen.has(key))throw Error('Duplicate evidence target.');seen.add(key);return {provider:t.provider as Provider,approval:t.approval,approvalDigest:t.approvalDigest,runtime:t.runtime};
  });return {version:1,targets:targets.sort((a,b)=>(a.provider+':'+a.approval).localeCompare(b.provider+':'+b.approval))};
 }

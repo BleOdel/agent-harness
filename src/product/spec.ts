@@ -52,9 +52,9 @@ export async function draftProduct(project:string,kind:ProductKind,consequence:C
 export async function approveProduct(project:string,preview:ProductSpec):Promise<void>{
  const current=await draftProduct(project,preview.kind,preview.consequence,Object.keys(preview.documents),preview.evidence);
  if(current.digest!==preview.digest)throw new OperatorError('Product requirements changed during preview. Review setup again.');
- if(current.evidence?.targets.some(t=>t.provider==='linux-electron')){
+ if(current.evidence?.targets.some(t=>['linux-electron','macos-electron','macos-native'].includes(t.provider))){
   const {desktopChoices}=await import('./evidence/desktop.ts');const choices=await desktopChoices(project);
-  for(const target of current.evidence.targets.filter(t=>t.provider==='linux-electron'))if(!choices.some(c=>JSON.stringify(c.target)===JSON.stringify(target)))throw new OperatorError('Selected journey changed during preview. Review product setup again.');
+  for(const target of current.evidence.targets.filter(t=>['linux-electron','macos-electron','macos-native'].includes(t.provider)))if(!choices.some(c=>JSON.stringify(c.target)===JSON.stringify(target)))throw new OperatorError('Selected journey changed during preview. Review product setup again.');
  }
  if(Buffer.byteLength(JSON.stringify(current))>1900000)throw new OperatorError('Product specification exceeds the retained size limit. Reduce duplicated plan context before setup.');
  await saveJson(await productRoot(project),'approved.json',current);

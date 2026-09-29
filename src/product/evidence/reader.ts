@@ -25,9 +25,9 @@ export class EvidenceReader {
   try{if(await realpath(p)!==p)throw Error('Evidence directory contains an alias.');const names=(await readdir(p)).sort();if(names.length>256)throw Error('Evidence directory exceeds 256 records. Retire unused history.');return names;}catch(e){if(absent(e))return [];throw e;}
  }
  async names(directory:string){const names=await this.list(directory),value=JSON.stringify(names);if(this.directories.has(directory)&&this.directories.get(directory)!==value)throw Error('Evidence directory changed while reading.');this.directories.set(directory,value);return names;}
- async artifact(id:string){
-  if(!uuidId(id,'artifact'))throw Error('Invalid artifact reference.');const raw=await this.json(`artifacts/manifests/${id}.json`);if(!raw)throw Error(`Missing artifact ${id}.`);
-  const a=parseArtifact(raw);if(a.id!==id)throw Error('Artifact manifest identity changed.');const bytes=await this.bytes(`artifacts/blobs/${a.sha256}`,ARTIFACT_LIMITS.file);
+ async artifact(id:string,namespace=''){
+  if(!uuidId(id,'artifact'))throw Error('Invalid artifact reference.');const raw=await this.json(`${namespace}artifacts/manifests/${id}.json`);if(!raw)throw Error(`Missing artifact ${id}.`);
+  const a=parseArtifact(raw);if(a.id!==id)throw Error('Artifact manifest identity changed.');const bytes=await this.bytes(`${namespace}artifacts/blobs/${a.sha256}`,ARTIFACT_LIMITS.file);
   if(!bytes||bytes.length!==a.size||sha256(bytes)!==a.sha256)throw Error('Artifact bytes are missing or corrupt.');return {artifact:a,bytes};
  }
  digest(){return sha256(JSON.stringify({files:[...this.files].sort(([a],[b])=>a.localeCompare(b)),directories:[...this.directories].sort(([a],[b])=>a.localeCompare(b))}));}

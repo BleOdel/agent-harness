@@ -1141,8 +1141,8 @@ The report re-evaluates saved browser observations against their journey, checki
 artifact provenance, rather than trusting a run's status label.
 
 This is product evidence, distinct from `doctor` environment readiness. It is
-not a release authorization. Linux desktop evidence can now be selected and
-aggregated. Other desktop/ML adapters and security/performance assessments remain
+not a release authorization. Linux/macOS desktop evidence can now be selected and
+aggregated. ML adapters and security/performance assessments remain
 explicit gaps; their existing runners continue to work. A human assessment never
 turns those unaggregated lanes
 into automatic passes. Source, profile or requirement changes invalidate affected
@@ -1191,9 +1191,9 @@ refused cleanup, changed approvals/source and offline Docker regression rejectio
 A product specification may include a versioned `evidence` scope containing up to
 16 required approval/runtime references. Absence preserves the legacy report;
 an empty scope cannot waive a desktop/ML requirement. Scope changes alter the
-protected product digest and require operator approval. The first selection UI
-lists Linux Electron journeys; other provider IDs are reserved and report
-unavailable until their adapters ship.
+protected product digest and require operator approval. Selection lists Linux
+Electron, macOS Electron and SwiftUI/AppKit journeys separately. ML provider IDs
+remain reserved and report unavailable until their adapters ship.
 
 ```mermaid
 flowchart LR
@@ -1225,4 +1225,48 @@ Concurrent modifications invalidate the snapshot before publication.
 
 These are packaged GUI diagnostics. They do not replace independent acceptance,
 prove universal accessibility, authenticate a malicious host operator, or authorize
-a release. ML identity and native adapter integration belong to subsequent phases.
+a release. ML identity and aggregation belong to the next phase.
+
+
+## Native desktop evidence aggregation (E2)
+
+`src/product/evidence/native.ts` reads both Mac GUI formats without invoking
+runtime discovery or provisioning. It validates pinned profile metadata and the
+current harness protocol, resolves the latest matching source/approval/runtime,
+and recomputes raw journey comparisons. Names and bytes identify the app package,
+observation report and each required PNG. Duplicate names and malformed selected
+records fail closed. Historical evidence keeps the exact approved OS/runtime;
+reporting makes no claim about what is currently installed on the host.
+
+```mermaid
+flowchart TD
+  P[Product target selection] --> G[Mac GUI approval and run]
+  G --> C[Copied package, observations and screenshots]
+  G --> N[Linked native run and script approval]
+  N --> O[Original native artifacts and exit/output observations]
+  C --> M[Match producer, source, environment and copied hashes]
+  O --> M
+  N --> K[Require completed native execution and cleanup]
+  M --> A[Recompute approved GUI comparisons]
+  K --> A
+  A --> R[Product evidence with native execution references]
+```
+
+The original child records live within the GUI run's `candidate-harness` state.
+They remain part of the bounded, consistent read set: copying files into the outer
+artifact store does not erase their lineage. The native check must be the GUI
+controller's declared entry/output/package contract, not an arbitrary build-only
+script. Its run must have completed and released its output mount. The host
+rechecks observed exit and stdout and does not adopt stored assessment booleans.
+A changed or missing child invalidates the outer evidence. The shared report's
+human assessment digest includes the native execution/artifact references.
+
+Real opt-in coverage:
+
+```sh
+HARNESS_VERIFY_PRODUCT_MACOS=1 node --test test/product-macos-process.test.ts
+```
+
+This executes positive and deliberately wrong expectation journeys for Electron, SwiftUI and AppKit in the installed offline VM.
+Interrupted test runs retain their ownership state for recovery. Fixtures exercise
+corruption, runtime/approval mismatch, substitution, missing screenshots and cleanup.
