@@ -56,6 +56,7 @@ export async function approveProduct(project:string,preview:ProductSpec):Promise
   const {desktopChoices}=await import('./evidence/desktop.ts');const choices=await desktopChoices(project);
   for(const target of current.evidence.targets.filter(t=>['linux-electron','macos-electron','macos-native'].includes(t.provider)))if(!choices.some(c=>JSON.stringify(c.target)===JSON.stringify(target)))throw new OperatorError('Selected journey changed during preview. Review product setup again.');
  }
+ if(current.kind==='ml'&&current.evidence?.targets.length){const {mlChoices}=await import('./evidence/ml.ts');const choices=await mlChoices(project);for(const target of current.evidence.targets)if(!choices.some(c=>JSON.stringify(c.target)===JSON.stringify(target)))throw new OperatorError('Selected ML workflow changed during preview. Review product setup again.');}
  if(Buffer.byteLength(JSON.stringify(current))>1900000)throw new OperatorError('Product specification exceeds the retained size limit. Reduce duplicated plan context before setup.');
  await saveJson(await productRoot(project),'approved.json',current);
 }

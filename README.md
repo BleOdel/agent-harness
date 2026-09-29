@@ -97,8 +97,40 @@ VM; re-execution still requires the approved runtime to be available. Keep the
 nested native evidence when retaining a Mac result; deleting it leaves a visible
 evidence gap. Native app signing and broad accessibility review remain separate.
 
-**Current limits:** ML aggregation, dashboard presentation and security/performance
-assessments remain unfinished.
+For an ML product, `harness product setup` lists saved CPU regression, PyTorch
+classifier/clustering and Metal regression workflows. Select the required numbers;
+Enter retains your selection. CPU regression becomes selectable after a training
+job captures its immutable image. No training starts during selection or reporting.
+
+Each selected model has four separate report rows:
+
+- **Quality:** host-recomputed holdout metrics, units, approved ceilings, baseline
+  comparison and sample count. Protected rows and labels stay out of report JSON.
+- **Checkpoint:** complete retained state matching the evaluated model. PyTorch
+  checks include model tensors, Adam moments, scheduler, RNG and sampler state.
+- **Recovery:** an observed interrupted attempt, its validated checkpoint, a fresh
+  resumed attempt and the final evaluated model. A normal segmented run alone does
+  not prove interruption recovery. Older jobs without structured links show a gap.
+- **Integration:** a quality model does not prove an application loads or uses it
+  correctly. Automatic source-and-model integration evidence is not implemented;
+  this row remains missing and keeps full product readiness incomplete.
+
+Model quality is pinned to approval, data split, train-only preprocessing, recipe,
+runtime and model identity. An unrelated application README edit does not change
+model weights or their quality result; application diagnostics and acceptance
+still need current source evidence. Clustering distance measures compactness,
+not meaningful categories. No dataset suitability or broad generalization is
+claimed automatically. Reports do not deserialize Python objects or execute models.
+
+Train and evaluate explicitly with the existing `harness ml`, `harness torch`, and
+`harness metal` commands. Existing budgets and frozen holdouts still apply: do not
+retune an evaluated model against the same holdout. To demonstrate recovery, use a
+new approved bounded workflow, cancel an active job after a checkpoint, recover
+owned resources if necessary and resume before evaluation. Reporting never starts
+this trial for you. Artifact cleanup invalidates selected evidence.
+
+**Current limits:** automatic ML application integration, dashboard presentation
+and security/performance assessments remain unfinished.
 Existing runners still work; the report keeps these gaps visible. Sensitive
 projects retain an explicit security/performance assessment gap. No amount of
 unit-test success or a general human approval clears those gaps. `doctor` checks

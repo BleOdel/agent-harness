@@ -3,6 +3,7 @@ import {withWriter} from '../workspace/writer-lock.ts';
 import {approveProduct,draftProduct,kinds,readProduct,verificationPlan} from '../product/spec.ts';
 import {productReport,recordAssessment} from '../product/report.ts';
 import {verify} from './verify.ts';
+import {mlChoices} from '../product/evidence/ml.ts';
 import {desktopChoices} from '../product/evidence/desktop.ts';
 import type {EvidenceScope} from '../product/evidence/schema.ts';
 import {say,OperatorError} from './io.ts';
@@ -13,15 +14,15 @@ export async function productSetup(project:string,io:Dialogue):Promise<void>{
  const input=(await io.ask(`Additional product documents to protect (relative paths, comma-separated; Enter for ${Object.keys(previous?.documents??{}).join(', ')||'none'}):`)).trim();
  const documents=input?input.split(',').map(s=>s.trim()):Object.keys(previous?.documents??{});
  let evidence:EvidenceScope|undefined=previous&&previous.kind===kinds[selected]?previous.evidence:undefined;
- if(kinds[selected]==='desktop'){
-  const choices=await desktopChoices(project);
-  io.write('Required desktop evidence: select every target journey this product needs. Linux Electron, macOS Electron and SwiftUI/AppKit are distinct targets.');
+ if(kinds[selected]==='desktop'||kinds[selected]==='ml'){
+  const choices=await (kinds[selected]==='ml'?mlChoices:desktopChoices)(project);
+  io.write(kinds[selected]==='ml'?'Select required ML workflows. Quality, checkpoints, demonstrated recovery and application integration remain separate. CPU regression becomes selectable once its job captures a runtime.':'Required desktop evidence: select every target journey this product needs. Linux Electron, macOS Electron and SwiftUI/AppKit are distinct targets.');
   choices.forEach((c,i)=>io.write(`  ${i+1}. ${c.title} [${c.target.provider}] (${c.target.approval})`));
   const existing=evidence?.targets??[];
   io.write(`Current selection: ${existing.map(t=>t.provider+':'+t.approval).join(', ')||'none; desktop evidence remains incomplete'}`);
-  const answer=(await io.ask('Required journey numbers, comma-separated (Enter to keep; none to clear):')).trim();
+  const answer=(await io.ask('Required workflow or journey numbers, comma-separated (Enter to keep; none to clear):')).trim();
   if(answer==='none')evidence={version:1,targets:[]};
-  else if(answer){const indexes=answer.split(',').map(s=>Number(s.trim())-1);if(indexes.some(i=>!Number.isInteger(i)||i<0||i>=choices.length)||new Set(indexes).size!==indexes.length)throw new OperatorError('Use unique journey numbers from the list. No settings saved.');evidence={version:1,targets:indexes.map(i=>choices[i]!.target)};}
+  else if(answer){const indexes=answer.split(',').map(s=>Number(s.trim())-1);if(indexes.some(i=>!Number.isInteger(i)||i<0||i>=choices.length)||new Set(indexes).size!==indexes.length)throw new OperatorError('Use unique listed numbers from the list. No settings saved.');evidence={version:1,targets:indexes.map(i=>choices[i]!.target)};}
  }
  const draft=await draftProduct(project,kinds[selected]!,risk===0?'prototype':'sensitive',documents,evidence);
  io.write('Product specification uses the accepted work items, their saved plans and approved interface contracts.');

@@ -618,3 +618,23 @@ wrapper's passed status. Reporting never unpacks or executes the retained app.
 These retained host records are diagnostics, not signed attestations; a malicious
 host operator can alter both evidence and its hashes. Existing native containment
 limits, code-signing limits and human accessibility obligations still apply.
+
+
+ML evidence aggregation reads protected training/holdout data only in the host
+controller for split checks and inert numeric inference. Report output contains
+hashes, scalar metrics, thresholds and row counts, not data rows or labels. Errors
+from malformed records are filtered to avoid copying JSON excerpts. Models are
+never unpickled or executed. Required artifacts must match their producer, source,
+runtime and evaluated report; changing a score or replacing a model cannot borrow
+another run's pass. Metal segments must resolve to completed, cleaned-up native
+executions with the expected fixed training source and checkpoint input.
+
+Host-owned recipe-job attempt links distinguish checkpoint availability from
+actual interruption recovery. A missing legacy link stays missing; saved success
+flags alone do not prove recovery. PyTorch completeness checks inspect packed
+model/optimizer tensors, scheduler progress, RNG and sampler state, while recovery
+requires actual resumed progress. No CPU/GPU bitwise-equivalence claim is added.
+These remain retained host records, not protection against a malicious operator.
+Dataset representativeness, unseen leakage, clustering usefulness and application
+integration remain separate obligations. No complete-product readiness is claimed
+while source-and-model integration evidence is unsupported.

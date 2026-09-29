@@ -70,7 +70,7 @@ test('scope parser refuses duplicates, unknown fields and inappropriate target t
  const f=await fixture(t);assert.throws(()=>parseEvidenceScope({...f.scope,targets:[f.target,f.target]},'desktop'));
  assert.throws(()=>parseEvidenceScope({...f.scope,targets:[{...f.target,required:false}]},'desktop'));
  assert.throws(()=>parseEvidenceScope(f.scope,'ml'));assert.throws(()=>parseEvidenceScope({...f.scope,version:2},'desktop'));
- const unavailable={...f.target,provider:'cpu-regression' as const};const e=await collectEvidence(f.project,f.source,{version:1,targets:[unavailable]});assert.equal(evidenceStatus(e.records[0]!),'unavailable');
+ const unavailable={...f.target,provider:'cpu-regression' as const};const e=await collectEvidence(f.project,f.source,{version:1,targets:[unavailable]});assert.equal(evidenceStatus(e.records[0]!),'failed');
 });
 test('legacy product approval stays readable and retains its missing desktop obligation',async t=>{
  const f=await fixture(t);await approveProduct(f.project,await draftProduct(f.project,'desktop','prototype',[]));const old=await readProduct(f.project);assert.equal(old?.evidence,undefined);assert.equal((await assertProductCurrent(f.project))?.digest,old?.digest);

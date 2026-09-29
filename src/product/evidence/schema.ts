@@ -7,6 +7,8 @@ export interface EvidenceRecord extends EvidenceTarget {
  version:1;id:string;required:true;subject:{kind:'application'|'model'|'unresolved';digest?:string};
  applicability:'current'|'stale'|'missing'|'unavailable'|'invalid';outcome:'passed'|'failed'|'incomplete'|'unknown';
  execution?:{provider:'native-script';producer:string;approval:string;profile:string;source:string;artifacts:{id:string;name:string;sha256:string}[]};
+ metrics?:{name:string;value:number;unit:string;threshold:number;comparison:'at-most'|'at-least';baseline?:number;samples:number}[];
+ lineage?:{model:string;train:string;holdout:string;preprocessing:string;recipe:string;trainingSource?:string};
  producer?:string;at?:string;artifacts:{id:string;name:string;sha256:string}[];
  detail:string;limitations:string[];next:string;
 }
@@ -26,6 +28,7 @@ export function parseEvidenceScope(raw:unknown,kind:string):EvidenceScope{
   if(t.provider==='linux-electron'&&!uuidId(t.approval,'journey'))throw Error('Invalid Linux journey selection.');
   if(t.provider==='macos-electron'&&!uuidId(t.approval,'macos-check'))throw Error('Invalid macOS Electron journey selection.');
   if(t.provider==='macos-native'&&!uuidId(t.approval,'apple-check'))throw Error('Invalid native macOS journey selection.');
+  for(const [provider,prefix] of [['cpu-regression','ml'],['torch-cpu','torch'],['metal-regression','metal']])if(t.provider===provider&&!uuidId(t.approval,prefix!))throw Error('Invalid ML workflow selection.');
   const key=t.provider+':'+t.approval;if(seen.has(key))throw Error('Duplicate evidence target.');seen.add(key);return {provider:t.provider as Provider,approval:t.approval,approvalDigest:t.approvalDigest,runtime:t.runtime};
  });return {version:1,targets:targets.sort((a,b)=>(a.provider+':'+a.approval).localeCompare(b.provider+':'+b.approval))};
 }

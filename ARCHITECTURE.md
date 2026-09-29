@@ -1142,8 +1142,8 @@ artifact provenance, rather than trusting a run's status label.
 
 This is product evidence, distinct from `doctor` environment readiness. It is
 not a release authorization. Linux/macOS desktop evidence can now be selected and
-aggregated. ML adapters and security/performance assessments remain
-explicit gaps; their existing runners continue to work. A human assessment never
+aggregated, as can selected CPU/PyTorch/Metal model evidence. ML application
+integration and security/performance assessments remain explicit gaps; their existing runners continue to work. A human assessment never
 turns those unaggregated lanes
 into automatic passes. Source, profile or requirement changes invalidate affected
 evidence, and missing evidence never becomes success because an item is done.
@@ -1192,8 +1192,8 @@ A product specification may include a versioned `evidence` scope containing up t
 16 required approval/runtime references. Absence preserves the legacy report;
 an empty scope cannot waive a desktop/ML requirement. Scope changes alter the
 protected product digest and require operator approval. Selection lists Linux
-Electron, macOS Electron and SwiftUI/AppKit journeys separately. ML provider IDs
-remain reserved and report unavailable until their adapters ship.
+Electron, macOS Electron and SwiftUI/AppKit journeys separately. ML workflow approvals are selected separately for CPU regression, PyTorch CPU
+and Metal regression.
 
 ```mermaid
 flowchart LR
@@ -1225,7 +1225,7 @@ Concurrent modifications invalidate the snapshot before publication.
 
 These are packaged GUI diagnostics. They do not replace independent acceptance,
 prove universal accessibility, authenticate a malicious host operator, or authorize
-a release. ML identity and aggregation belong to the next phase.
+a release. ML subjects and recovery chains are described below.
 
 
 ## Native desktop evidence aggregation (E2)
@@ -1270,3 +1270,54 @@ HARNESS_VERIFY_PRODUCT_MACOS=1 node --test test/product-macos-process.test.ts
 This executes positive and deliberately wrong expectation journeys for Electron, SwiftUI and AppKit in the installed offline VM.
 Interrupted test runs retain their ownership state for recovery. Fixtures exercise
 corruption, runtime/approval mismatch, substitution, missing screenshots and cleanup.
+
+
+## ML evidence aggregation (E3)
+
+The ML adapters use the same bounded, consistent reader. They validate the exact
+selected workflow, frozen deterministic split, train-only preprocessing, recipe,
+immutable image or native profile, job identity and artifacts. CPU/PyTorch models
+are inert JSON; host arithmetic recomputes held-out predictions and comparisons.
+Metal validation additionally reconstructs each fixed segment's source identity,
+including approved training input and previous checkpoint, and resolves the native
+script approval, artifact provenance, exit/stdout observations and cleanup.
+
+```mermaid
+flowchart TD
+  P[Selected ML approval and runtime] --> D[Frozen split and training preprocessing]
+  D --> T[Training job or native segment chain]
+  T --> M[Exact model and evaluated artifact]
+  D --> H[Host numeric holdout comparison]
+  M --> H
+  H --> Q[Quality metrics and limitations]
+  T --> C[Checkpoint completeness]
+  T --> R[Interruption, checkpoint and resumed attempt links]
+  R --> F[Recovery claim tied to evaluated model]
+  Q --> S[Product report]
+  C --> S
+  F --> S
+  I[Application integration remains separate and missing] --> S
+```
+
+New recipe jobs retain `jobs/<id>/recovery/attempt-N.json` before launch and update
+it after dispatch and confirmed cleanup. These host records pin source, spec,
+execution identity, image, input/output checkpoint IDs, progress and outcome.
+Controller recovery completes the retained attempt record; it never fabricates
+records for older attempts. Aggregation checks the complete chain and validates
+all referenced checkpoint artifacts. Only observed interruption followed by resumed
+progress to the evaluated model can pass recovery. Uninterrupted-reference
+numerical equivalence is not inferred. The separate fixed Metal validation trial
+uses its existing 0.00001 tolerance, not a new bitwise-GPU assumption.
+
+Quality, checkpoint, recovery and application integration are distinct required
+rows. Model identity is independent of application source. An integration row is
+source-bound but remains missing until a supported source-and-model integration
+proof exists. That gap cannot be waived by a general human assessment. Older job
+records remain usable for quality but lack demonstrated recovery unless they
+contain sufficient lineage. Reporting runs no containers, models, VMs or downloads.
+
+The normal suite uses labelled deterministic fixtures. Opt-in real tests are in
+`test/product-ml-process.test.ts`: `HARNESS_VERIFY_PRODUCT_ML=1` enables CPU/PyTorch
+training and cancellation/resume; `HARNESS_VERIFY_PRODUCT_METAL=1` enables the
+existing bounded native interruption/recovery validation plus aggregation. These
+require configured immutable local runtime images; no provider calls occur.

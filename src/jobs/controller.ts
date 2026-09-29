@@ -1,3 +1,4 @@
+import {beginRecoveryEvidence,updateRecoveryEvidence} from './recovery-evidence.ts';
 import {readTorchState} from '../torch/store.ts';
 import { jobRecipe, validateJobCheckpoint } from './recipes.ts';
 import { readMlState } from '../ml/store.ts';
@@ -63,7 +64,7 @@ export async function recoverJob(project:string,id:string):Promise<Job>{return w
  }
  await rm(path.join(await jobRoot(project,id),`input-${j.attempts}`),{recursive:true,force:true});
  await rm(path.join(await jobRoot(project,id),`environment-${j.attempts}`),{recursive:true,force:true});
- j.status='interrupted';delete j.container;await saveJob(project,j,'interrupted','Owned resources removed. Resume uses only a previously validated checkpoint.');return j;
+ j.status='interrupted';delete j.container;await updateRecoveryEvidence(project,j,false,true);await saveJob(project,j,'interrupted','Owned resources removed. Resume uses only a previously validated checkpoint.');return j;
 });}
 export async function releaseJob(project:string,id:string):Promise<void>{return withWriter(project,'job release',async()=>{
  const j=await readJob(project,id);if(j.spec.recipe&&(await (j.spec.recipe.id==='torch-cpu'?readTorchState:readMlState)(project,j.spec.recipe.approvalId)).status!=='released')required(`Retire this ML workflow with harness ${j.spec.recipe.id==='torch-cpu'?'torch':'ml'} release first.`);if(['preparing','running'].includes(j.status))required('Cannot release an active job; cancel or recover it first.');
@@ -100,6 +101,7 @@ export async function runJob(project:string,id:string,notify:(message:string)=>v
   const environment=await adapter.prepare(j.source.directory,path.join(root,`environment-${j.attempts}`),{...layout,purpose:'verification'},config.gateTimeoutMs,config.installPolicy);
   const identity=sha256(JSON.stringify({version:1,protocol:j.spec.checkpoint?.protocol??null,spec:j.specDigest,source:j.source.digest,profile,capabilities,environment:environment.key,policy}));
   if(j.identity&&j.identity!==identity)required('Prepared dependency identity changed; checkpoint resume refused.');j.identity=identity;j.environment=environment.key;
+  await beginRecoveryEvidence(project,j);
   await adapter.install(j.source.directory,layout.workDirectory,environment,{...layout,purpose:'verification'},config.gateTimeoutMs);
   await assertSnapshot(j.source);await assertLiveBaseline(project,j.source);
   await recipe?.prepare(layout.workDirectory);
@@ -109,7 +111,7 @@ export async function runJob(project:string,id:string,notify:(message:string)=>v
   j.container=layout.containerName;j.status='running';await saveJob(project,j,'running',`Running offline: 2 CPUs, 2 GiB RAM, 512 MiB workspace, ${j.spec.limits.timeoutSeconds}s attempt limit.`);
   const launch={...layout,labels:{'harness.job':j.id,'harness.token':j.token!}};
   started=Date.now();const start=await command(config.dockerExecutable,buildRunArguments(launch,'none',['node','/harness-instrumentation/supervisor.mjs']));
-  if(start.code!==0||start.timedOut)required(`Could not launch job: ${start.stderr}`);notify(j.events.at(-1)!.message);
+  if(start.code!==0||start.timedOut)required(`Could not launch job: ${start.stderr}`);await updateRecoveryEvidence(project,j,true,false);notify(j.events.at(-1)!.message);
   let lastNotice=Date.now(),prior=j.checkpoint;
   for(;;){
    if(interrupted||await requestMatches(root,j)||Date.now()-started>=j.spec.limits.timeoutSeconds*1000){j.status=interrupted||await requestMatches(root,j)?'cancelled':'timed-out';await command(config.dockerExecutable,['kill','--signal=TERM',j.container]);await delay(300);try{await checkpoint(project,j);}catch(e){notify(`Latest checkpoint refused: ${(e as Error).message}`);}break;}
@@ -138,6 +140,7 @@ export async function runJob(project:string,id:string,notify:(message:string)=>v
   // If cleanup cannot be confirmed, retain running ownership for explicit recovery.
   try{await stopOwned(j);}catch(e){j.status='running';await saveJob(project,j,'cleanup-blocked',(e as Error).message);throw e;}
   delete j.container;await rm(layout.workDirectory,{recursive:true,force:true});await rm(path.join(root,`environment-${j.attempts}`),{recursive:true,force:true});
+  await updateRecoveryEvidence(project,j,false,true);
   await saveJob(project,j,j.status,`${j.status}. ${j.artifacts.length} outputs retained; checkpoint ${j.completed??'none'}. No source applied or artifact published. Compute cost unknown.`);notify(j.events.at(-1)!.message);
  }
  return j;

@@ -6,6 +6,7 @@ import {desktopResources,type Runtime} from '../../desktop/runtime.ts';
 import {parseJourney,assessJourney} from '../../desktop/schema.ts';
 import {validatePng} from '../../desktop/output.ts';
 import type {Approval,DesktopRun} from '../../desktop/store.ts';
+import {mlEvidence} from './ml.ts';
 import {nativeChoices,nativeEvidence} from './native.ts';
 import {EvidenceReader} from './reader.ts';
 import {hash,uuidId,timestamp,object,type EvidenceScope,type EvidenceTarget,type EvidenceRecord} from './schema.ts';
@@ -73,7 +74,7 @@ export async function collectEvidence(project:string,source:string,scope:Evidenc
  for(const target of scope.targets){
   if(target.provider==='linux-electron')records.push(await linux(reader,target,source));
   else if(target.provider==='macos-electron'||target.provider==='macos-native')records.push(await nativeEvidence(reader,target,source));
-  else records.push({...base(target,source),subject:{kind:'unresolved'},applicability:'unavailable',detail:`${target.provider} aggregation is not implemented. Existing evidence remains retained.`,next:'harness guide'});
+  else records.push(...await mlEvidence(reader,target,source));
  }
  await reader.assertUnchanged();
  return {version:1 as const,records,digest:sha256(JSON.stringify(records)),assertUnchanged:()=>reader.assertUnchanged()};
