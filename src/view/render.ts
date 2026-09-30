@@ -1,3 +1,4 @@
+import {productEvidence,PRODUCT_STYLE} from './product.ts';
 import {nextAction,workspacePanels,GUIDANCE_STYLE} from './guidance.ts';
 import {emptyWorkspace,type WorkspaceInfo} from './workspace.ts';
 import {WORKSPACE_SCRIPT} from './workspace-client.ts';
@@ -475,8 +476,8 @@ export function renderPage(
     '<html lang="en"><head><meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     `<title>${escape(project)} · Harness</title>`,
-    `<style>${STYLE}${DASHBOARD_STYLE}${OFFICE_STYLE}${GUIDANCE_STYLE}</style></head><body><a class="skip-link" href="#overview">Skip to project overview</a><main>`,
-    '<div class="rail"><div class="brand"><span>▥</span> Harness</div><p>Project workspace</p><nav aria-label="Project sections"><a href="#overview">Next step</a><a href="#attention">Needs attention</a><a href="#office">Agent office</a><a href="#journey">Project journey</a><a href="#review">Review changes</a><a href="#outputs">Outputs</a><a href="#tasks">Tasks</a><a href="#history">Run history</a><a href="#teams">Teams</a><a href="#project-files">Files</a></nav><div class="rail-bottom"><p>Local · read-only</p><p>Plan and run work with<br><code>harness guide</code></p></div></div>',
+    `<style>${STYLE}${DASHBOARD_STYLE}${OFFICE_STYLE}${GUIDANCE_STYLE}${PRODUCT_STYLE}</style></head><body><a class="skip-link" href="#overview">Skip to project overview</a><main>`,
+    '<div class="rail"><div class="brand"><span>▥</span> Harness</div><p>Project workspace</p><nav aria-label="Project sections"><a href="#overview">Next step</a><a href="#attention">Needs attention</a><a href="#office">Agent office</a><a href="#product-evidence">Product evidence</a><a href="#journey">Project journey</a><a href="#review">Review changes</a><a href="#outputs">Outputs</a><a href="#tasks">Tasks</a><a href="#history">Run history</a><a href="#teams">Teams</a><a href="#project-files">Files</a></nav><div class="rail-bottom"><p>Local · read-only</p><p>Plan and run work with<br><code>harness guide</code></p></div></div>',
     '<div class="workspace">',
     `<header class="page-head"><div><p class="eyebrow">Project overview</p><h1>${escape(project)}</h1><p class="team-id">${escape(projectPath)}</p></div><div class="page-actions"><span class="badge">${live ? "Live status" : "Saved snapshot"}</span>${live ? '<button class="action" id="refresh-overview" type="button">Refresh overview</button>' : ""}</div></header>`,
     `<p class="sub" id="record-summary">${String(views.length)} runs recorded &middot; ${String(applied)} still standing &middot; read-only</p>`,
@@ -484,6 +485,7 @@ export function renderPage(
     overview(items, warnings,workspace?nextAction(items,teams,views,workspace):undefined,projectPath),
     extra.attention,
     officeSection(office,includeRoom),
+    productEvidence(workspace?.product,workspace?.productError,live,projectPath),
     extra.journey,
     extra.orbit,
     '<section id="tasks" class="section"><div class="section-heading"><h2>Tasks</h2><p>Accepted scope and what comes next</p></div>',

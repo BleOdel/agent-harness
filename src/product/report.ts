@@ -1,9 +1,10 @@
+import {browserChecks} from './evidence/browser.ts';
 import {performanceReport,type PerformanceReport} from '../performance/report.ts';
 import {securityReport,type SecurityReport} from '../security/report.ts';
 /** Evidence summary, never an approval shortcut or a substitute for execution. */
 import {readdir} from 'node:fs/promises';
 import path from 'node:path';
-import {readJson,saveJson,sha256,artifactBytes,listArtifacts} from '../artifacts/store.ts';
+import {readJson,saveJson,sha256} from '../artifacts/store.ts';
 import {readFeatures} from '../features.ts';
 import {readProfile,projectTestCommand} from '../project/profile.ts';
 import {loadConfig,setting} from '../config.ts';
@@ -13,8 +14,6 @@ import {harnessDirectory} from '../record/record.ts';
 import {canonicalProject} from '../workspace/writer-lock.ts';
 import {requireChecks,assertAcceptanceProof} from '../acceptance/checks.ts';
 import {readProduct,assertProductCurrent,productRoot,verificationPlan} from './spec.ts';
-import {listApprovals,listBrowserRuns,readApproval as browserApproval} from '../browser/store.ts';
-import {assessJourney} from '../browser/schema.ts';
 import {collectEvidence} from './evidence/desktop.ts';
 import {evidenceStatus,type EvidenceRecord} from './evidence/schema.ts';
 export type Status='passed'|'failed'|'missing'|'stale'|'human'|'skipped'|'unavailable'|'accepted-risk';
@@ -86,25 +85,8 @@ export async function productReport(project:string):Promise<ProductReport>{
    checks.push({id:`acceptance:${task.id}`,status,detail:last?`${last.outcome}: ${last.file}`:'Needs evidence for the current source and approved checks.',next:'harness product verify'});
   }
  }catch(e){checks.push({id:'acceptance',status:'missing',detail:(e as Error).message,next:'harness checks setup'});}
- if(spec.kind==='web'){
-  try{
-   const approvals=await listApprovals(project),runs=await listBrowserRuns(project);
-   if(!approvals.length)checks.push({id:'browser',status:'missing',detail:'No approved browser journey.',next:'harness browser setup'});
-   for(const a of approvals){
-    const last=runs.filter(r=>r.approval===a.id&&r.status!=='released').sort((a,b)=>a.at.localeCompare(b.at)).at(-1);
-    let status:Status=!last?'missing':last.source!==current.source?'stale':'failed';
-    if(last?.status==='passed'&&last.source===current.source&&last.approvalDigest===a.digest&&last.report){
-     await browserApproval(project,a.id);
-     const artifact=(await listArtifacts(project)).find(item=>item.id===last.report);
-     const expectedIdentity=sha256(JSON.stringify({source:current.source,approval:a.digest,runtime:last.runtime}));
-     if(!artifact||artifact.producer!==last.id||artifact.input!==current.source||artifact.environment!==expectedIdentity||last.identity!==expectedIdentity||JSON.stringify(last.runtime)!==JSON.stringify(a.runtime))throw Error('Browser artifact provenance changed.');
-     const observations=JSON.parse((await artifactBytes(project,last.report)).toString());
-     if(assessJourney(a.journey,observations).passed)status='passed';
-    }
-    checks.push({id:'browser',status,detail:`${a.id}: ${last?.message??'No run yet.'}`,next:'harness browser list'});
-   }
-  }catch(e){checks.push({id:'browser',status:'failed',detail:(e as Error).message,next:'harness browser list'});}
- }
+ let browser:Awaited<ReturnType<typeof browserChecks>>|undefined;
+ if(spec.kind==='web'){try{browser=await browserChecks(project,current.source);checks.push(...browser.checks);}catch{checks.push({id:'browser',status:'failed',detail:'Browser evidence is unavailable, changed or inconsistent. Inspect retained journeys.',next:'harness browser list'});}}
  if(retained)for(const e of retained.records)checks.push({id:e.id,status:evidenceStatus(e),required:true,detail:e.detail,next:e.next,evidence:e});
  if((spec.kind==='desktop'||spec.kind==='ml')&&!spec.evidence?.targets.length)checks.push({id:'runtime',status:'human',detail:spec.kind==='desktop'?'Review the packaged GUI run on the intended OS and identify its exact artifact. Select required Linux or macOS journeys with product setup; each target needs its own retained GUI evidence.':'Review the selected dataset, recipe, held-out evaluation, model artifact and checkpoint recovery. Select ML workflows with product setup. Quality, checkpoint, recovery and application integration are separate evidence requirements.',next:spec.kind==='desktop'?'harness guide':'harness torch list'});
  let assessment:Assessment|undefined;
@@ -116,6 +98,6 @@ export async function productReport(project:string):Promise<ProductReport>{
  const performance=await performanceReport(project,{source:current.source,product:spec.digest});
  if(spec.consequence==='sensitive'||performance.configured)checks.push({id:'performance',status:performance.status,detail:performance.detail,next:performance.next});
  if((await identity(project)).source!==current.source||(await assertProductCurrent(project))?.digest!==spec.digest)throw Error("Project changed while reading evidence; run the report again.");
- await retained?.assertUnchanged();
+ await retained?.assertUnchanged();await browser?.assertUnchanged();
  return {version:1,project,spec:spec.digest,source:current.source,...(retained?{evidenceDigest:retained.digest}:{}),kind:spec.kind,plan:verificationPlan(spec.kind,spec.consequence),ready:checks.every(c=>c.status==='passed'||(c.status==='skipped'&&c.required===false)||(c.id==='security'&&c.status==='accepted-risk'&&security.complete&&spec.consequence==='prototype')),security,performance,checks};
 }

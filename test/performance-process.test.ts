@@ -1,3 +1,4 @@
+import {productEvidence} from '../src/view/product.ts';
 import test from 'node:test';import assert from 'node:assert/strict';import {mkdtemp,realpath,mkdir,writeFile,readFile,readdir,rm} from 'node:fs/promises';import os from 'node:os';import path from 'node:path';import {spawn} from 'node:child_process';import {once} from 'node:events';
 import {draftProduct,approveProduct} from '../src/product/spec.ts';import {productReport} from '../src/product/report.ts';import {approvePerformance,inspectEnvironment,parseRun} from '../src/performance/store.ts';import {verifyPerformance,recoverPerformance,appArguments,probeArguments} from '../src/performance/controller.ts';import {performanceReport,recordPerformanceAssessment} from '../src/performance/report.ts';import {recoverWriter} from '../src/workspace/writer-lock.ts';import {artifactBytes} from '../src/artifacts/store.ts';import {profile} from './performance-fixture.ts';import {run} from '../src/run.ts';
 test('benchmark containers isolate app from sampler and fixed instrumentation parses',async()=>{
@@ -22,5 +23,6 @@ test('real bounded benchmarks: repeated positive, slow/wrong replies, timeouts, 
   else if(['cancel','crash'].includes(fault)){assert.equal(r.status,'interrupted');assert.ok(r.report,'partial artifact retained');const o=JSON.parse((await artifactBytes(project,r.report!)).toString());assert.equal(o.complete,false);assert.ok(o.rounds.length);assert.equal(report.complete,false);}
   else if(fault==='runtime'){assert.equal(r.status,'failed');assert.ok(r.message.includes('runtime validation'));assert.equal(report.complete,false);assert.equal(r.report,undefined);}
   else{assert.equal(r.status,'failed',r.message);assert.equal(report.complete,false);assert.ok(report.failures.includes(fault==='slow'?'mean latency':fault==='wrong'?'response correctness':'error rate'),JSON.stringify(report));}
+  const panel=productEvidence(await productReport(project),undefined);assert.match(panel,/Measurement limitations/);if(['none','repeat'].includes(fault))assert.match(panel,/Local API measurements/);
  }success=true;}finally{if(success)await rm(root,{recursive:true,force:true});else console.log('Retained benchmark fixture: '+root);}
 });

@@ -1119,11 +1119,15 @@ flowchart TD
   P --> S["Host-owned product specification"]
   S --> B["Baseline, candidate, staging and resume enforce identity"]
   B --> G["Existing independent review and acceptance gates"]
-  V["product verify: offline diagnostics and approved behaviour"] --> E["Source-bound evidence"]
+  V["product verify --checks: diagnostics and approved behaviour"] --> E["Source-bound evidence"]
   W["Real browser observations and artifact provenance"] --> E
   H["Explicit human assessment"] --> E
   S --> Q["product report: current, stale, failed, missing or human"]
   E --> Q
+  Q --> UI["Read-only dashboard: statuses, metrics, artifacts, limits"]
+  Q --> GUIDE["product verify: missing actions and budget preview"]
+  GUIDE --> CONFIRM["Operator confirms unchanged scope"]
+  CONFIRM --> V
 ```
 
 Protected documents cannot change in builder candidates, even in shared-inputs
@@ -1132,7 +1136,7 @@ Changing approved requirements stops dispatch/application until `product setup`
 is reviewed again. Existing projects without a product approval retain their
 current workflow.
 
-`product verify` reuses the adapter's offline diagnostics and approved acceptance
+`product verify --checks` reuses the adapter's offline diagnostics and approved acceptance
 runner with no provider call. Starting a diagnostic run invalidates the previous
 pass; interruption cannot leave that pass appearing current. Applicable tests,
 collection, type and build checks retain their actual verdicts, including skipped
@@ -1419,3 +1423,22 @@ latency samples; wrong responses and failing warm-ups always fail correctness.
 There is no tail percentile, concurrent-load, cold-start, memory/GPU or desktop/ML
 measurement claim. The pinned Docker identity describes the measured environment,
 not exclusive access to laptop resources or future production capacity.
+
+### Guided product evidence and dashboard
+
+`readWorkspace` attaches `productReport` to the view model. The HTML renderer uses
+its readiness verdict directly; it does not calculate another readiness rule.
+Failure to read the report yields an unavailable panel. The browser evidence
+adapter uses the bounded read-only `EvidenceReader`, checks artifact provenance
+and rechecks files/directories before returning; reporting no longer initializes
+browser or artifact stores. Live refresh replaces only the evidence section's
+contents, retaining expanded details and focus. Serving remains GET-only.
+
+`product verify` opens a terminal guide over the same report. Passing checks are
+removed from its action list; actions come from fixed command mappings and typed
+journey/run IDs, never arbitrary saved shell text. Each selected execution previews
+its approved scope and limits. After confirmation the report and budget identity
+are read again; changes return to the choice instead of dispatching. Existing
+runner writer locks, approval checks, budget enforcement and recovery still apply.
+`product verify --checks` preserves explicit noninteractive diagnostics/acceptance.
+Training, setup, assessment and release approval retain their separate workflows.

@@ -1,3 +1,5 @@
+import {verificationActions} from '../product/actions.ts';
+import {guideProduct} from '../guide/product.ts';
 import {choose,confirmed,terminalDialogue,type Dialogue} from '../guide/dialogue.ts';
 import {withWriter} from '../workspace/writer-lock.ts';
 import {approveProduct,draftProduct,kinds,readProduct,verificationPlan} from '../product/spec.ts';
@@ -39,7 +41,8 @@ export async function productSetup(project:string,io:Dialogue):Promise<void>{
 }
 export async function productCommand(project:string,args:readonly string[]):Promise<void>{
  if(args[0]==='setup'&&args.length===1)return productSetup(project,terminalDialogue());
- if(args[0]==='verify'&&args.length===1)return verify(project,['--acceptance']);
+ if(args[0]==='verify'&&args.length===1)return guideProduct(project);
+ if(args[0]==='verify'&&args.length===2&&args[1]==='--checks')return verify(project,['--acceptance']);
  if(args[0]==='assess'&&args.length===1){
   const io=terminalDialogue(),report=await productReport(project);
   if(!report.source||!report.spec)throw new OperatorError('Approve a current product specification first.','Run harness product setup.');
@@ -53,8 +56,8 @@ export async function productCommand(project:string,args:readonly string[]):Prom
  if((!args.length||args[0]==='report')&&args.length<=2&&(!args[1]||args[1]==='--json')){
   const report=await productReport(project);
   if(args[1]==='--json')say(JSON.stringify(report,null,2));
-  else{say(`Product evidence: ${report.ready?'complete for the approved scope':'needs attention'}`);for(const c of report.checks)say(`${c.status}: ${c.id} — ${c.detail}`);const next=report.checks.find(c=>c.status!=='passed'&&c.status!=='skipped'&&c.next);if(next?.next)say(`Next: ${next.next}`);say('This report is not release approval or a guarantee of correctness. Environment readiness: harness doctor.');}
+  else{say(`Product evidence: ${report.ready?'complete for the approved scope':'needs attention'}`);for(const c of report.checks)say(`${c.status}: ${c.id} — ${c.detail}`);const next=verificationActions(report)[0];if(next)say(`Next: ${next.command}`);say('This report is not release approval or a guarantee of correctness. Environment readiness: harness doctor.');}
   if(!report.ready)process.exitCode=1;return;
  }
- throw new OperatorError('Use: harness product setup | report [--json] | verify | assess');
+ throw new OperatorError('Use: harness product setup | report [--json] | verify [--checks] | assess');
 }

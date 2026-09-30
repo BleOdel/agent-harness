@@ -48,7 +48,8 @@ rewrite those documents to satisfy their tests.
 
 ```sh
 harness product setup         # review and approve the product specification
-harness product verify        # run tests and all approved behaviour checks; no model
+harness product verify        # guided missing evidence, with execution budget preview
+harness product verify --checks # explicit noninteractive diagnostics + acceptance; no model
 harness product report        # evidence for the current source, with next action
 harness product report --json # machine-readable status; exits 1 if incomplete
 harness product assess        # record your human observations and evidence limits
@@ -63,9 +64,15 @@ and criteria, so there is no extra requirements document to maintain.
 
 The report distinguishes missing, stale, failed and passed evidence, plus checks
 requiring human assessment. Browser observations are checked against their saved
-journey and current source. `product verify` can take as long as the project's
-whole approved check suite, but uses no model tokens. It changes no application
-source and does not publish anything.
+journey and current source. `product verify` reads this report, reuses passing
+evidence and offers the next missing or stale action. It previews that action's
+budget before dispatch and checks the scope again after confirmation. Setup and
+assessment stay separate; it never silently approves new requirements.
+
+Use `product verify --checks` in scripts or to deliberately rerun offline project
+diagnostics and all approved acceptance checks. This can take as long as the whole
+approved suite, uses no model tokens, changes no application source and publishes
+nothing. Other guided actions retain their own runtime and provider budgets.
 
 For a desktop product, setup lists approved Linux Electron, macOS Electron and SwiftUI/AppKit journeys. Select the
 required journey numbers, or press Enter to retain your selection. The product
@@ -73,8 +80,8 @@ pins those approvals and runtimes. Selecting none keeps the desktop evidence gap
 it does not waive the requirement. Unrelated experimental journeys are excluded.
 Run selected journeys with `harness desktop verify <journey-id>`,
 `harness macos verify <macos-check-id>`, or
-`harness macos-native verify <apple-check-id>`, then read the product report; `product verify` still runs source diagnostics and acceptance,
-not GUI journeys.
+`harness macos-native verify <apple-check-id>`, then read the product report. The guide offers a selected missing journey with
+its approved budget; `product verify --checks` runs only source diagnostics and acceptance.
 
 Desktop evidence adapters validate retained packages, raw GUI observations,
 required screenshots and their provenance. The report names the observed platform
@@ -129,8 +136,8 @@ new approved bounded workflow, cancel an active job after a checkpoint, recover
 owned resources if necessary and resume before evaluation. Reporting never starts
 this trial for you. Artifact cleanup invalidates selected evidence.
 
-**Current limits:** automatic ML application integration and the combined dashboard
-presentation remain unfinished. Security and performance now have scoped local API lanes;
+**Current limits:** automatic ML application integration remains unfinished.
+Security and performance have scoped local API lanes;
 other automatic assessment targets remain unavailable.
 Existing runners still work; the report keeps these gaps visible. Sensitive
 projects require separate scoped security and performance evidence. No amount of
@@ -1388,7 +1395,7 @@ including extra excluded files. `worktree merge` combines the current target and
 task branch in a detached checkout, runs adapter diagnostics and approved checks
 for completed tasks, then fast-forwards the target to that tested merge commit.
 It makes no model request and never pushes. Evidence remains in the task and
-integration state; `product verify` on the primary checkout refreshes that
+integration state; `product verify --checks` on the primary checkout refreshes that
 checkout’s own aggregate report. The existing GitHub release command
 is unrelated; this workflow does not open pull requests.
 
@@ -1495,7 +1502,7 @@ The browser view now opens even before the first run. It shows the project name
 and path, planned-task progress, the next eligible task and any unreadable task or
 history data. Excluded tasks do not count towards planned completion.
 
-Use the section navigation to reach **Next step**, **Needs attention**, the office,
+Use the section navigation to reach **Next step**, **Needs attention**, the office, **Product evidence**,
 **Project journey**, **Review changes**, **Outputs**, tasks, runs, teams and files. Search tasks by title, ID, criteria or prerequisites;
 filter them by open, waiting/attention, done or excluded status. Expand a task to
 read its acceptance criteria. Search run history by task, run ID or changed file,
@@ -1518,6 +1525,20 @@ planning, approvals, execution and recovery with `harness guide` in that project
 The next-step and attention panels explain live work, interrupted plans, missing
 approvals, blocked prerequisites and staged reviews. Commands can be copied into
 the project terminal; the browser never executes them.
+
+**Product evidence** uses the same report as `harness product report`. It keeps
+passed, failed, missing, stale, unavailable and accepted-risk results distinct.
+Expand a row for its source/runtime identity, retained artifacts, measured model
+or API metrics, thresholds, lineage hashes and limitations. Protected dataset rows
+and expected API response payloads are not included. Security dispositions and
+human assessments remain separate from passed testing.
+
+The next command opens `harness product verify` in the terminal. Copying a command
+does not execute it. Viewing and refreshing evidence creates no runner storage
+and starts no model, container, VM or training job. Expanded evidence and focused
+copy controls survive refresh. A report read failure renders unavailable. Network
+refresh failures retain the displayed snapshot with a visible refresh warning.
+Saved HTML remains a point-in-time snapshot.
 
 **Project journey** links planning, approval, build, verification, review and
 application. Expand saved plans, decisions, generated items and acceptance checks

@@ -1,3 +1,4 @@
+import {productReport,type ProductReport} from '../product/report.ts';
 /** Bounded, read-only projections. Viewing never creates stores or repairs journals. */
 import {constants} from 'node:fs';
 import {lstat,open,readdir,realpath} from 'node:fs/promises';
@@ -32,6 +33,7 @@ export interface DocumentView {name:string;text:string;status:string;}
 export interface ReviewView {id:string;status:string;files:FileDiff[];note?:string;}
 export interface WorkspaceInfo {
  warnings:string[];documents:DocumentView[];outputs:(Artifact&{preview?:string})[];releases:Release[];reviews:ReviewView[];
+ product?:ProductReport;productError?:string;
  plan?:PlanState;approval?:Approval;profile?:ProjectProfile;ordinary?:LiveStatus;
 }
 export const emptyWorkspace=():WorkspaceInfo=>({warnings:[],documents:[],outputs:[],releases:[],reviews:[]});
@@ -75,5 +77,6 @@ export async function readWorkspace(project:string):Promise<WorkspaceInfo>{
  });
  await read('Releases',async()=>{for(const file of (await names(root,'releases')).filter(n=>/^release-[a-f0-9-]{36}\.json$/.test(n)).slice(-100))await read(`Release ${file}`,async()=>{out.releases.push(parseRelease(await json(root,`releases/${file}`),file.slice(0,-5)));});});
  await read('Staged reviews',async()=>{for(const id of (await names(root,'teams')).filter(n=>/^team-[A-Za-z0-9_-]+$/.test(n)).slice(-30))await read(`Review ${id}`,async()=>{const directory=await checked(root,`teams/${id}`);const s=await readState(directory,false);if(['staged','applied','undone'].includes(s.status))out.reviews.push({id,status:s.status,files:await stagedDiff(directory,s.original,s.baseline)});});});
+ try{out.product=await productReport(canonical);}catch{out.productError='Saved evidence could not be validated. Inspect the CLI report before relying on readiness.';}
  return out;
 }

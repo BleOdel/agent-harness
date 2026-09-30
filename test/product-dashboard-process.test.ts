@@ -1,0 +1,21 @@
+/** Opt-in real Chromium observation; all report values here are synthetic UI fixtures. */
+import test from 'node:test';import assert from 'node:assert/strict';import {mkdtemp,writeFile,readFile,rm} from 'node:fs/promises';import path from 'node:path';import os from 'node:os';
+import {renderPage} from '../src/view/render.ts';import {emptyWorkspace} from '../src/view/workspace.ts';import {viewFixture} from './product-view-fixture.ts';import {run} from '../src/run.ts';
+test('Chromium evidence dashboard: keyboard, refresh, mobile overflow and accessibility',{skip:!process.env.HARNESS_VERIFY_PRODUCT_DASHBOARD,timeout:60000},async()=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'evidence-ui-'));let success=false;
+ try{const report=viewFixture(),html=()=>renderPage('Synthetic evidence demo',[],undefined,true,[],undefined,[],[],report.project,undefined,{...emptyWorkspace(),product:report});
+ await writeFile(root+'/before.html',html());report.checks[0]!.detail='Refreshed synthetic approval';await writeFile(root+'/after.html',html());
+ await writeFile(root+'/trial.cjs',String.raw`
+const {chromium}=require('/opt/browser-tools/node_modules/playwright');const fs=require('node:fs');const assert=require('node:assert/strict');
+(async()=>{const browser=await chromium.launch({headless:true,args:['--no-sandbox']});try{const page=await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/*',route=>{const pathname=new URL(route.request().url()).pathname;if(pathname==='/status')return route.fulfill({contentType:'application/json',body:JSON.stringify({teams:[],runs:[],office:{agents:[],events:[]}})});return route.fulfill({contentType:'text/html',body:fs.readFileSync('/trial/'+(pathname==='/workspace'?'after':'before')+'.html','utf8')});});
+ await page.goto('http://127.0.0.1:4173/');const section=page.locator('#product-evidence');await section.scrollIntoViewIfNeeded();
+ const summary=section.locator('details.evidence-check summary').first();await summary.focus();await page.keyboard.press('Enter');assert.equal(await section.locator('details.evidence-check').first().getAttribute('open'),'');
+ const copy=section.locator('[data-copy-command]').first();await copy.focus();const command=await copy.getAttribute('data-copy-command');await page.evaluate(()=>window.refreshHarnessWorkspace());assert.equal(await section.locator('details.evidence-check').first().getAttribute('open'),'');assert.equal(await page.evaluate(()=>document.activeElement.getAttribute('data-copy-command')),command);assert.match(await section.innerText(),/Refreshed synthetic approval/);
+ await section.locator('details').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));await page.addScriptTag({path:'/opt/browser-tools/node_modules/axe-core/axe.min.js'});const accessibility=await page.evaluate(async()=>await axe.run(document.querySelector('#product-evidence')));assert.deepEqual(accessibility.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>n.target)})),[]);
+ await section.screenshot({path:'/trial/desktop.png'});await page.setViewportSize({width:320,height:800});await section.scrollIntoViewIfNeeded();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'mobile document overflow');await page.screenshot({path:'/trial/mobile.png'});assert.deepEqual(errors,[]);fs.writeFileSync('/trial/result.json',JSON.stringify({keyboard:true,refresh:true,mobileWidth:320,axeViolations:accessibility.violations.length}));
+ }finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
+`);
+ const r=await run(process.env.HARNESS_DOCKER??'/usr/local/bin/docker',['run','--rm','--pull=never','--network=none','--cpus=2','--memory=1g','--mount',`type=bind,src=${root},dst=/trial`,'harness-browser:b1','node','/trial/trial.cjs'],{timeoutMs:55000});assert.equal(r.code,0,r.stderr);assert.equal(JSON.parse(await readFile(root+'/result.json','utf8')).axeViolations,0);success=true;console.log('UI evidence: '+root);
+ }finally{if(success&&!process.env.HARNESS_RETAIN_UI)await rm(root,{recursive:true,force:true});else console.log('Retained UI trial: '+root);}
+});

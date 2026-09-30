@@ -13,7 +13,7 @@ export const WORKSPACE_SCRIPT=`<script>
  });
  if(!document.getElementById('connection-status'))return;
  var busy=false;
- var targets=['record-summary','overview','attention','journey','review','outputs','orbit-guidance','task-content','usage-content','history-content','files-content'];
+ var targets=['record-summary','overview','product-evidence','attention','journey','review','outputs','orbit-guidance','task-content','usage-content','history-content','files-content'];
  function key(d){var run=d.closest('[data-run]');return (run?run.id+'/':'')+(d.getAttribute('data-state-key')||d.querySelector('summary')?.textContent||'');}
  function sync(doc){
   var y=window.scrollY, active=document.activeElement;
@@ -24,12 +24,12 @@ export const WORKSPACE_SCRIPT=`<script>
    var open=Array.from(old.querySelectorAll('details[open]')).map(key);
    var scroll=Array.from(old.querySelectorAll('pre')).map(function(p){return [p.scrollTop,p.scrollLeft];});
    var file=old.querySelector('[data-file-path]:not([hidden])')?.getAttribute('data-file-path');
-   var focused=old.contains(active)?{id:active.id,key:active.closest('details')?key(active.closest('details')):null}:null;
+   var focused=old.contains(active)?{id:active.id,command:active.getAttribute('data-copy-command'),key:active.closest('details')?key(active.closest('details')):null}:null;
    old.replaceChildren(...Array.from(next.childNodes));
    old.querySelectorAll('details').forEach(function(d){d.open=open.indexOf(key(d))!==-1;});
    old.querySelectorAll('pre').forEach(function(p,i){if(scroll[i]){p.scrollTop=scroll[i][0];p.scrollLeft=scroll[i][1];}});
    if(id==='files-content'){window.bindHarnessFiles?.();if(file){var panel=Array.from(old.querySelectorAll('[data-file-path]')).find(function(p){return p.getAttribute('data-file-path')===file;});if(panel){var button=Array.from(old.querySelectorAll('[data-file]')).find(function(b){return b.getAttribute('data-file')===panel.id;});button?.click();}}}
-   if(focused){var focus=focused.id?document.getElementById(focused.id):Array.from(old.querySelectorAll('details')).find(function(d){return key(d)===focused.key;})?.querySelector('summary');focus?.focus({preventScroll:true});}
+   if(focused){var focus=focused.id?document.getElementById(focused.id):focused.command?Array.from(old.querySelectorAll('[data-copy-command]')).find(function(b){return b.getAttribute('data-copy-command')===focused.command;}):Array.from(old.querySelectorAll('details')).find(function(d){return key(d)===focused.key;})?.querySelector('summary');focus?.focus({preventScroll:true});}
   });
   window.refreshHarnessFilters?.();window.scrollTo({top:y,behavior:'instant'});
  }

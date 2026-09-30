@@ -720,3 +720,22 @@ background work or scheduling noise. Sequential sampled timings do not establish
 production capacity or meaningful tail latency. Memory/GPU telemetry, native GUI/ML
 performance and concurrent load remain unavailable, not estimated. A report reads
 retained runtime identity without launching Docker or claiming live runtime freshness.
+
+## Product evidence dashboard and guidance
+
+The dashboard reads the authoritative product report without launching a provider,
+runner, VM, benchmark or training job. Browser evidence reads are bounded, reject
+aliased/corrupt artifacts, and recheck evidence before publication. Viewing does
+not initialize runner stores. Report errors render unavailable rather than green.
+All displayed report text is escaped. The panel displays lineage hashes and
+metrics, not held-out rows or approved expected-response payloads. Retained artifact
+downloads still use the existing validated ID, size and byte-hash gate.
+
+The web server gains no mutation endpoint. Copyable commands have fixed verbs and
+validated IDs; saved arbitrary command strings cannot become shell input. The
+terminal guide spawns argument arrays, previews limits and rechecks report/scope
+identity after confirmation. Existing runner approval and writer-lock gates remain
+authoritative. A passing row is omitted from automatic next actions; deliberate
+reruns use explicit CLI commands. Scoped accepted risk remains visibly different
+from passed testing. These observations do not authorize release or establish
+comprehensive security, production capacity or dataset suitability.

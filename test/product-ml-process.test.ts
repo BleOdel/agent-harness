@@ -4,9 +4,12 @@ import {init} from '../src/verbs/init.ts';import {loadConfig} from '../src/confi
 import {approveTorch,readTorchState} from '../src/torch/store.ts';import {trainTorch,evaluateTorch} from '../src/torch/workflow.ts';import {readTorchRuntime} from '../src/torch/runtime.ts';
 import {requestCancel} from '../src/jobs/controller.ts';import {collectEvidence} from '../src/product/evidence/desktop.ts';import {mlChoices} from '../src/product/evidence/ml.ts';import {csv,spec} from './ml-fixture.ts';
 import {validateMetal} from '../src/metal/verify.ts';
+import {draftProduct,approveProduct} from '../src/product/spec.ts';import {productReport} from '../src/product/report.ts';import {productEvidence} from '../src/view/product.ts';import {verificationActions} from '../src/product/actions.ts';
 const source='a'.repeat(64);
 async function inspect(project:string,id:string,recovered:boolean){const choices=await mlChoices(project),scope={version:1 as const,targets:[choices.find(c=>c.target.approval===id)!.target]},result=await collectEvidence(project,source,scope);
  assert.equal(result.records[0]!.outcome,'passed',result.records[0]!.detail);assert.equal(result.records[1]!.outcome,'passed',result.records[1]!.detail);assert.equal(result.records[2]!.outcome,recovered?'passed':'unknown',result.records[2]!.detail);assert.equal(result.records[3]!.applicability,'missing');
+ await writeFile(project+'/features.json',JSON.stringify([{id:'model',title:'Model',priority:'must',status:'done',criteria:['Retained evaluation and recovery'],dependsOn:[]}]));await approveProduct(project,await draftProduct(project,'ml','prototype',[],scope));
+ const report=await productReport(project),panel=productEvidence(report,undefined);assert.match(panel,/Observed model metrics/);assert.ok(report.checks.some(c=>c.id.endsWith(':quality')&&c.status==='passed'));assert.ok(report.checks.some(c=>c.id.endsWith(':integration')&&c.status!=='passed'));assert.ok(!verificationActions(report).some(a=>a.checks.some(id=>id.endsWith(':quality'))));
  const artifact=result.records[0]!.artifacts[0]!,manifest=project+'-harness/artifacts/manifests/'+artifact.id+'.json',before=await readFile(manifest,'utf8');
  try{const changed=JSON.parse(before);changed.producer='substituted';await writeFile(manifest,JSON.stringify(changed));assert.notEqual((await collectEvidence(project,source,scope)).records[0]!.outcome,'passed');}finally{await writeFile(manifest,before);}
  assert.equal((await collectEvidence(project,'b'.repeat(64),scope)).records[0]!.outcome,'passed');return result;

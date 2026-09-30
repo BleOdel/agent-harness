@@ -1,3 +1,4 @@
+import {productEvidence} from '../src/view/product.ts';
 import test from 'node:test';import assert from 'node:assert/strict';import {mkdtemp,realpath,mkdir,writeFile,readFile,rm} from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
 import {draftProduct,approveProduct} from '../src/product/spec.ts';import {productReport} from '../src/product/report.ts';import {approveSecurity} from '../src/security/store.ts';import {verifySecurity,appArguments,probeArguments} from '../src/security/controller.ts';import {securityReport,recordSecurityAssessment} from '../src/security/report.ts';import {scope} from './security-fixture.ts';import {run} from '../src/run.ts';
 const server=String.raw`
@@ -38,7 +39,7 @@ test('real isolated security: positive controls, authorization failure, header d
    const context={source:before.source!,product:product.digest,consequence:'prototype' as const,acceptance:[]},report=await securityReport(project,context);
    if(fault==='none'){assert.equal(r.status,'passed',r.message);assert.equal(report.requirements.find(r=>r.id==='probes')?.status,'passed',JSON.stringify(report));await recordSecurityAssessment(project,report,true,'Reviewed the synthetic local scope; no dependency or production assurance.');assert.equal((await securityReport(project,context)).status,'passed');}
    else{assert.equal(r.status,'failed',r.message);assert.ok(report.findings.some(f=>f.rule===fault),JSON.stringify(report));}
-   assert.ok(!JSON.stringify(report).includes('HARNESS_SYNTHETIC_'));
+   assert.ok(!JSON.stringify(report).includes('HARNESS_SYNTHETIC_'));const panel=productEvidence(await productReport(project),undefined);assert.match(panel,/Security scope/);assert.ok(!panel.includes('HARNESS_SYNTHETIC_'));
   }
   assert.deepEqual(r.containers,[]);const ps=await run(docker,['ps','-aq','--filter',`label=harness.security=${r.id}`],{timeoutMs:10000});assert.equal(ps.stdout.trim(),'');await assert.rejects(readFile(project+'-harness/security/runs/'+r.id+'/output/synthetic-secrets.json'));
  }success=true;
