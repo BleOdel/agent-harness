@@ -1,0 +1,4 @@
+import {canonicalHash,type Profile,type Observation} from '../src/performance/schema.ts';
+export const profile:Profile={version:1,entry:'src/server.js',port:3848,path:'/health',expectedStatus:200,expectedJson:{status:'ok'},warmup:2,repetitions:3,samples:5,requestTimeoutMs:200,maxSeconds:20,meanMs:50,minRps:1,maxErrorPercent:0,maxSpreadPercent:100,maxRegressionPercent:20};
+export const environment={image:'sha256:'+'a'.repeat(64),dockerVersion:'28.0',kernel:'Linux fixture',os:'linux',arch:'aarch64',cpus:4,memoryBytes:4*1024**3};
+export function observation(ms=5):Observation{const sample=()=>({ms,status:200,bodyHash:canonicalHash(profile.expectedJson),error:null});return {version:1,complete:true,rounds:Array.from({length:3},()=>({warmup:Array.from({length:2},sample),samples:Array.from({length:5},sample),elapsedMs:ms*5+1}))};}

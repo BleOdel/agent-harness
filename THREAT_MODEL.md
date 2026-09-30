@@ -681,3 +681,42 @@ product assessment cannot waive security, performance or release obligations.
 Missing external vulnerability intelligence never means no vulnerabilities. The
 not-applicable package-inventory claim checks declarations and lockfile entries;
 it does not prove absence of copied/vendored code or runtime vulnerabilities.
+
+
+## Bounded performance measurement (assessment E5)
+
+The initial performance lane only sends approved synthetic GETs to a disposable
+Node API over an isolated shared loopback network. The operator approves the full
+expected JSON value, workload, time/resource ceilings, thresholds and optional
+baseline before execution. Image pulling, credential mounts, external targets,
+model requests and application-controlled thresholds are absent. The app gets only
+source and disposable storage; the fixed observer gets separate configuration and
+output mounts, with its own PID/filesystem namespaces. Both have read-only roots,
+dropped capabilities, no-new-privileges and bounded CPU/RAM/process/time limits.
+
+Correctness is compared alongside speed. Warm-up failures, unexpected responses,
+missing samples and malformed timing records cannot pass. Timeouts and network
+errors count against the approved allowance and remain in latency/throughput
+calculation. The observer uses monotonic timings, bounded response size and absolute
+request deadlines; redirects are not followed. Raw response contents and application
+logs are not retained, only canonical response hashes. Hashes may reveal equality
+or permit guessing low-entropy values: workloads must use synthetic data.
+
+Samples are saved atomically during execution. Controller loss/cancellation retains
+available partial data, marks it incomplete and uses ownership labels/tokens before
+removing containers. Recovery never promotes partial data to a successful result.
+Source/runtime consistency and complete host validation are required before a run
+can satisfy the report. Current failed/interrupted attempts cannot inherit a prior
+pass. Altered artifacts, baselines or approval/runtime identities block aggregation.
+
+A baseline is a pinned comparison, not a moving average that adapts to regressions.
+Changing thresholds is a new approval, never an automatic waiver. Separate human
+performance review considers workload relevance and measurement stability; general
+product review cannot clear it. Historical observations are not cryptographic
+attestations against an operator who can rewrite all state.
+
+VM identity and fixed CPU limits do not remove host contention, thermal changes,
+background work or scheduling noise. Sequential sampled timings do not establish
+production capacity or meaningful tail latency. Memory/GPU telemetry, native GUI/ML
+performance and concurrent load remain unavailable, not estimated. A report reads
+retained runtime identity without launching Docker or claiming live runtime freshness.

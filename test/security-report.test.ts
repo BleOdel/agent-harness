@@ -32,7 +32,7 @@ test('unavailable dependency intelligence and declared dependencies never turn i
  await f.save(good);await writeFile(f.project+'/package.json','{"dependencies":{"some-package":"1.0.0"}}');const r=await securityReport(f.project,f.context);assert.equal(r.status,'unavailable');assert.equal(r.complete,false);
 }));
 test('general product assessment does not clear missing security or performance for sensitive products',async()=>fixture(async f=>{
- const r=await productReport(f.project);await recordAssessment(f.project,r.source!,r.spec!,true,'General usability review only; no security or performance waiver.');const after=await productReport(f.project);assert.notEqual(after.checks.find(c=>c.id==='security')?.status,'passed');assert.equal(after.checks.find(c=>c.id==='performance')?.status,'human');assert.equal(after.ready,false);
+ const r=await productReport(f.project);await recordAssessment(f.project,r.source!,r.spec!,true,'General usability review only; no security or performance waiver.');const after=await productReport(f.project);assert.notEqual(after.checks.find(c=>c.id==='security')?.status,'passed');assert.equal(after.checks.find(c=>c.id==='performance')?.status,'missing');assert.equal(after.ready,false);
 },'sensitive'));
 test('guided security scope previews synthetic fields and budget before saving; Enter reuses saved endpoints',async()=>fixture(async f=>{
  const answers=['','','','','1','2','','','','','','','','1','y','','n','y'],lines:string[]=[];await securitySetup(f.project,{ask:async()=>{assert.ok(answers.length);return answers.shift()!;},write:s=>lines.push(s)});assert.ok(lines.some(l=>l.includes('512 MiB')));assert.ok(lines.some(l=>l.includes('Security scope saved')));assert.equal(answers.length,0);

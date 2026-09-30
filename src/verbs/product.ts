@@ -44,7 +44,7 @@ export async function productCommand(project:string,args:readonly string[]):Prom
   const io=terminalDialogue(),report=await productReport(project);
   if(!report.source||!report.spec)throw new OperatorError('Approve a current product specification first.','Run harness product setup.');
   for(const check of report.checks)io.write(`${check.status}: ${check.id} — ${check.detail}`);
-  io.write('This records your assessment only. It cannot override missing or failed automated checks, native/ML evidence gaps, or a separate security assessment.');
+  io.write('This records your assessment only. It cannot override missing or failed automated checks, native/ML evidence gaps, or separate security and performance assessments.');
   const notes=await io.ask('Describe what you inspected, the evidence used and remaining limits:');
   const passed=await confirmed(io,'Does your human assessment pass?');
   if(await confirmed(io,'Save this assessment for the current source and specification?'))await withWriter(project,'product assess',()=>recordAssessment(project,report.source!,report.spec!,passed,notes,report.evidenceDigest));

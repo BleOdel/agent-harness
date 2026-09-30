@@ -1143,7 +1143,7 @@ artifact provenance, rather than trusting a run's status label.
 This is product evidence, distinct from `doctor` environment readiness. It is
 not a release authorization. Linux/macOS desktop evidence can now be selected and
 aggregated, as can selected CPU/PyTorch/Metal model evidence. ML application
-integration and performance assessments remain explicit gaps; scoped security now has its own evidence and assessment; their existing runners continue to work. A human assessment never
+integration remains an explicit gap. Scoped local API security and performance now have separate evidence and assessments; existing runners continue to work. A human assessment never
 turns those unaggregated lanes
 into automatic passes. Source, profile or requirement changes invalidate affected
 evidence, and missing evidence never becomes success because an item is done.
@@ -1368,3 +1368,54 @@ Sensitive products always require security; prototypes acquire that obligation
 when a scope is approved. Generic product assessment and release approval remain
 separate. A selected unsupported recipe or missing dependency intelligence stays
 unavailable. There is no external scanner/feed adapter or network freshness claim.
+
+
+## Repeatable performance evidence (assessment E5)
+
+```mermaid
+flowchart TD
+  P["Product requirements"] --> A["Guided profile: stable JSON GET, limits, repeats, thresholds"]
+  B["Optional validated passing baseline"] --> A
+  A --> PIN["Approval: workload, runtime, measurement code, baseline artifact"]
+  PIN --> V["Explicit verify under writer lock"]
+  V --> APP["Offline app: 2 CPUs, 512 MiB, immutable source"]
+  V --> OBS["Separate observer: 1 CPU, 512 MiB, shared loopback only"]
+  APP --> OBS
+  OBS --> RAW["Atomic partial samples: warm-up and repetitions"]
+  RAW --> HOST["Host verifies source/runtime and retains hashed sample artifact"]
+  HOST --> CMP["Recompute correctness, mean latency, throughput, errors, spread and regression"]
+  CMP --> ASSESS["Separate performance assessment tied to evidence"]
+  ASSESS --> REPORT["Product report: current, failed, stale or missing"]
+  RAW --> REC["Cancellation/controller recovery: stop owned resources; retain incomplete evidence"]
+```
+
+`<project>-harness/performance` holds the active and historical approvals, bounded
+run records and the separate assessment. Artifacts use the existing content-addressed
+store. Thresholds and expected response values stay on the host; the fixed observer
+receives only the request path and execution counts/deadlines. It atomically saves
+raw durations, statuses, response-value hashes and error categories during execution.
+The app cannot read observer configuration or write its samples. No response prose
+or application logs enter retained timing artifacts.
+
+A complete execution must finish all repetitions and pass source/runtime consistency
+checks before it is eligible for aggregation. Host comparisons distinguish that
+eligibility from a passing threshold result. Reports never trust a persisted status
+alone: they validate artifacts/provenance, sample counts and timing consistency and
+recompute metrics. Partial/cancelled/recovered evidence remains incomplete even if
+some samples are fast. A newer incomplete trial blocks fallback to an older pass.
+
+Baselines are explicitly selected from correct passing executions, including any
+previous baseline obligation. Their workload, runtime, original source, approval,
+record and artifact are validated on each report. Reference chains are bounded to
+16 links and cycles fail. New results cannot update the baseline; changing the
+workload or threshold creates a new approval and requires fresh measurements.
+Separate assessment digests bind the current evidence. Ordinary reports perform
+no network access, model calls, process execution or live hardware inspection.
+
+Warm-up precedes each sequential repetition; requests use fresh connections. Mean
+latency includes parsing/hashing, and successful throughput includes between-request
+observer persistence/scheduling. Timeout/network errors stay in the denominator and
+latency samples; wrong responses and failing warm-ups always fail correctness.
+There is no tail percentile, concurrent-load, cold-start, memory/GPU or desktop/ML
+measurement claim. The pinned Docker identity describes the measured environment,
+not exclusive access to laptop resources or future production capacity.

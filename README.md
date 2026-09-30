@@ -129,10 +129,11 @@ new approved bounded workflow, cancel an active job after a checkpoint, recover
 owned resources if necessary and resume before evaluation. Reporting never starts
 this trial for you. Artifact cleanup invalidates selected evidence.
 
-**Current limits:** automatic ML application integration, dashboard presentation
-and performance assessments remain unfinished.
+**Current limits:** automatic ML application integration and the combined dashboard
+presentation remain unfinished. Security and performance now have scoped local API lanes;
+other automatic assessment targets remain unavailable.
 Existing runners still work; the report keeps these gaps visible. Sensitive
-projects require separate scoped security evidence and retain an explicit performance assessment gap. No amount of
+projects require separate scoped security and performance evidence. No amount of
 unit-test success or a general human approval clears those gaps. `doctor` checks
 the environment; `product report` checks retained product evidence, not deployment
 readiness or complete correctness.
@@ -196,6 +197,73 @@ vulnerabilities remain outside that assertion. Desktop/ML automatic security
 recipes are unavailable. Security is required for sensitive products and for any
 prototype with an approved security scope; it is separate from performance,
 release authorization and production assurance.
+
+## Repeatable local API performance
+
+After product setup, `harness performance setup` guides you through one stable
+local JSON GET request, its expected response, latency/throughput thresholds,
+warm-up, repetitions, error/stability allowances and runtime budget. It uses the
+existing immutable Node Docker image (`HARNESS_IMAGE_ID`, or the previous saved
+image). Setup inspects Docker metadata and previews the configuration; it neither
+runs the application nor sends a model request. Use only synthetic response data.
+
+```sh
+harness performance setup
+harness performance verify
+harness performance report
+harness performance assess
+harness product report
+```
+
+The supported target is a **dependency-free Node API** serving a stable JSON
+response on a simple local path. Defaults are three repetitions, five warm-ups
+and twenty measured requests per repetition, one request at a time, a fresh
+connection per request, a one-second request deadline and a 120-second measurement
+budget. The initial response expectation is `GET /health` → `200 {"status":"ok"}`;
+choose an endpoint and full JSON value your application actually promises. JSON
+member order is ignored. No endpoint is added to your project by setup.
+
+Results retain every measured duration, response status, canonical JSON hash and
+error category. The host recomputes mean latency, successful requests/second,
+error rate and the spread of repetition means. Incorrect responses and failed
+warm-ups always fail; timeout/network errors remain measured samples and count
+against the preapproved error allowance. Incomplete samples never pass. There are
+no invented zero timings or tail-percentile claims. Raw response bodies are not
+retained. The separate operator assessment must consider whether the workload
+represents real use and whether repeat stability and environment limits are acceptable.
+
+An optional baseline is selected by a retained run ID during setup. It must be
+complete, correct and passing, with the same workload, measurement code and
+runtime. Its source, artifact and metrics are pinned before the new trial. The
+approved slowdown allowance limits latency growth and the reciprocal throughput
+ratio. A later slower run cannot replace that baseline automatically. Changing
+thresholds creates a new approval and requires new measurements; changing source,
+measurement rules, evidence or scope invalidates the relevant signoff. Baseline
+artifact deletion or corruption blocks comparison instead of silently dropping it.
+
+The app has two CPUs, the separate observer one CPU, and each has 512 MiB RAM.
+Containers are offline, use a read-only source snapshot and disposable storage, and
+never pull an image implicitly. Approval and execution bind the immutable image,
+Docker server version, kernel, architecture, VM CPU/memory capacity and fixed
+resource allocation. Runtime drift stops a new run. Reporting reads retained
+identity without launching Docker or claiming the machine is still unchanged.
+
+Normal cancellation cleans up and preserves partial observations. After controller
+loss, recover the writer lock as instructed and run
+`harness performance recover <run-id>`; this stops owned containers and retains
+available partial samples. Then start a fresh bounded trial. A partial or newer
+failed trial cannot borrow an earlier passing result. View retained timing bytes
+through the existing artifact commands using the ID shown by the report.
+
+**Measurement limits:** this is a warmed application and sequential closed-loop
+workload. Throughput includes observer scheduling and between-request sample
+persistence. Laptop/VM contention affects measurements, and kernel/CPU identity
+does not attest exclusive hardware use. Cold start, concurrent load, production
+capacity, desktop/ML timing and memory/GPU telemetry are not measured. Requests
+are capped at 64 KiB of response data; source is capped at 32 MiB (4 MiB per file).
+Benchmarks, human UX review, security and release approval remain separate. A
+sensitive product—or a prototype with an approved performance profile—requires
+its current scoped performance evidence and separate assessment.
 
 ## The guarantee
 
