@@ -1,3 +1,4 @@
+import {ImplementationInterrupted} from '../workflow/controller.ts';
 import {assertProductCurrent,protectedDocumentInstruction} from "../product/spec.ts";
 import {browserBinding,loadBrowserEvidence} from "../review/browser-evidence.ts";
 import {checkRefresh, type CheckRefresh} from "../workspace/check-refresh.ts";
@@ -444,9 +445,9 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
           throw await stop("error", "agent: timed out; partial work could not be checkpointed", `Nothing was applied. ${(error as Error).message}`);
         }
         if (checkpoint) await retireWorkCheckpoint(checkpoint, "superseded", runId);
-        throw await stop("error", `agent: timed out after ${String(Math.round(config.agentTimeoutMs / 1000))}s; unverified partial work saved`,
+        throw new ImplementationInterrupted(await stop("error", `agent: timed out after ${String(Math.round(config.agentTimeoutMs / 1000))}s; unverified partial work saved`,
           `Saved source: ${path.join(saved.directory, "source")}\nContinue with: harness work --resume ${runId}\nRunning harness work for this item also resumes it. Use harness work --fresh <item-id> to start again. Nothing was applied.`,
-          {implementationCheckpoint:runId});
+          {implementationCheckpoint:runId}),runId);
       }
       if (agent.providerError) throw await stop("error", `agent: ${agent.providerError}`, "Restore provider authentication or resolve the provider error before retrying.");
       if (agent.code !== 0) throw await stop("error", `agent: exited ${String(agent.code)}`, agent.stderr);

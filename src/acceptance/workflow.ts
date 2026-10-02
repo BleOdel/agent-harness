@@ -1,6 +1,6 @@
 import {caseKind,routeBlueprint} from './evidence-kind.ts';
 import {readActivePreparation} from './active-preparation.ts';
-import {CheckRequestInterrupted} from './request-failure.ts';
+import {CheckRequestInterrupted,transientCheckFailure} from './request-failure.ts';
 /** One resumable controller; checkpoints and writer locks remain owned by existing check operations. */
 import path from 'node:path';import {mkdir,readdir} from 'node:fs/promises';
 import {CheckBudgetExceeded,withCheckBudget,ensureCheckBudget,defaultCheckLimits,validateCheckLimits,describeCheckSpend,type CheckLimits,type CheckSpend} from './budget.ts';
@@ -16,8 +16,8 @@ import {readFeatures} from '../features.ts';
 import {OperatorError} from '../verbs/io.ts';
 export type WorkflowOutcome='ready'|'paused'|'blocked';
 interface WorkflowRun {started:string;limits:CheckLimits;spend:CheckSpend;status:'running'|WorkflowOutcome;}
-export interface WorkflowState {version:1;retried:string[];runs:WorkflowRun[];pendingRetry?:{key:string;scope:string;epoch:number};problem?:string;}
-interface Services {snapshot:()=>Promise<{key:string;ready:boolean;retryCounts?:Record<string,number>}>;resume:()=>Promise<void>;repair:(scope:string)=>Promise<void>;save:()=>Promise<void>;write:(s:string)=>void;}
+export interface WorkflowState {version:1;interruptions?:string[];retried:string[];runs:WorkflowRun[];pendingRetry?:{key:string;scope:string;epoch:number};problem?:string;}
+interface Services {wait?:(ms:number)=>Promise<void>;snapshot:()=>Promise<{key:string;stage?:string;ready:boolean;retryCounts?:Record<string,number>}>;resume:()=>Promise<void>;repair:(scope:string)=>Promise<void>;save:()=>Promise<void>;write:(s:string)=>void;}
 export async function driveCheckWorkflow(state:WorkflowState,services:Services):Promise<WorkflowOutcome>{
  for(let step=0;step<100;step++){
   const snapshot=await services.snapshot();
@@ -34,6 +34,15 @@ export async function driveCheckWorkflow(state:WorkflowState,services:Services):
   }
   catch(error){
    state.problem=(error as Error).message;
+   if(error instanceof CheckRequestInterrupted&&transientCheckFailure(error)){
+    const current=await services.snapshot(),key=current.key+':'+(current.stage??'')+':'+error.kind;
+    if(!(state.interruptions??[]).includes(key)){
+     try{ensureCheckBudget();}catch(budget){if(budget instanceof CheckBudgetExceeded){await services.save();services.write(budget.message);return 'paused';}throw budget;}
+     (state.interruptions??=[]).push(key);await services.save();
+     services.write('A transient provider interruption occurred. Retrying this saved stage once within the same allowance.');
+     await (services.wait??(ms=>new Promise(resolve=>setTimeout(resolve,ms))))(2000);continue;
+    }
+   }
    if(error instanceof CheckBudgetExceeded||error instanceof CheckRequestInterrupted){await services.save();services.write(error.message);if(error instanceof CheckRequestInterrupted)services.write(error.remedy??'');return 'paused';}
    if(error instanceof ScopeRepairBlocked){
     const current=await services.snapshot(),key=current.key+':'+error.scope;
@@ -54,6 +63,7 @@ async function loadState(project:string):Promise<WorkflowState>{
  const raw=await readArtifact(directory(project),'workflow.json',8*1024*1024);
  if(!raw)return {version:1,retried:[],runs:[]};const s=JSON.parse(raw) as WorkflowState;
  if(!s||s.version!==1||!Array.isArray(s.retried)||s.retried.some(v=>typeof v!=='string')||!Array.isArray(s.runs))throw new OperatorError('Invalid saved preparation workflow.');
+ if(s.interruptions!==undefined&&(!Array.isArray(s.interruptions)||s.interruptions.length>1000||s.interruptions.some(k=>typeof k!=='string')))throw new OperatorError('Invalid interruption history.');
  for(const r of s.runs){
   if(!r||typeof r.started!=='string'||!['running','ready','paused','blocked'].includes(r.status)||!r.limits||!r.spend||!Number.isInteger(r.spend.requests)||r.spend.requests<0)throw new OperatorError('Invalid saved preparation allowance.');
   validateCheckLimits(r.limits);
@@ -62,7 +72,7 @@ async function loadState(project:string):Promise<WorkflowState>{
  if(s.pendingRetry&&(typeof s.pendingRetry.key!=='string'||typeof s.pendingRetry.scope!=='string'||!Number.isInteger(s.pendingRetry.epoch)||s.pendingRetry.epoch<1))throw new OperatorError('Invalid saved preparation retry.');
  return s;
 }
-export async function prepareChecks(project:string,io:Dialogue,limits:CheckLimits=defaultCheckLimits):Promise<WorkflowOutcome>{
+export async function prepareChecks(project:string,io:Dialogue,limits:CheckLimits=defaultCheckLimits,taskId?:string):Promise<WorkflowOutcome>{
  validateCheckLimits(limits);project=await canonicalProject(project);
  return withWriter(project,'checks prepare',async()=>{
   const state=await loadState(project),run:WorkflowRun={started:new Date().toISOString(),limits,spend:{requests:0},status:'running'};
@@ -73,10 +83,16 @@ export async function prepareChecks(project:string,io:Dialogue,limits:CheckLimit
   const snapshot=async()=>{
    const raw=(await readActivePreparation(directory(project)))?.raw;
    const record=raw?JSON.parse(raw):undefined;
-   return {key:record?`${record.taskDigest}:${record.sourceDigest}`:'new',retryCounts:Object.fromEntries((record?.ledger?.entries??[]).map((e:{scope:string;retryCount?:number})=>[e.scope,e.retryCount??0])),ready:await readyCheckDraft(project)};
+   return {key:record?`${record.taskDigest}:${record.sourceDigest}`:'new',stage:String(record?.state?.pendingCase?.id??record?.state?.cases?.length??record?.ledger?.entries?.length??'outline'),retryCounts:Object.fromEntries((record?.ledger?.entries??[]).map((e:{scope:string;retryCount?:number})=>[e.scope,e.retryCount??0])),ready:(!taskId||record?.taskId===taskId)&&await readyCheckDraft(project)};
   };
   try{
    run.status=await withCheckBudget(limits,run.spend,save,io.write,()=>driveCheckWorkflow(state,{snapshot,save,write:io.write,repair:scope=>repairSavedCheck(project,io,scope),resume:async()=>{
+    if(taskId){
+     const features=await readFeatures(project),selected=features?.ok?features.features.find(t=>t.id===taskId):undefined;
+     if(!selected)throw new OperatorError('The selected task is no longer available.');
+     for(const name of ['simplification.json','recipe-change.json']){const pending=await readArtifact(directory(project),name,8*1024*1024);if(pending&&JSON.parse(pending).taskId!==taskId)throw new OperatorError('Another task has unfinished check preparation. Resolve it before switching tasks.');}
+     await guidedSetup(project,selected,io,undefined,undefined,undefined,true,true);return;
+    }
     if(await resumePreparation(project,io,true))return;
     const features=await readFeatures(project);if(!features?.ok||!features.features.length)throw new OperatorError('Accept work items before preparing checks.','Use harness guide to plan and accept items first.');
     const index=await choose(io,'Prepare checks for which task?',features.features.map(t=>`${t.title} (${t.id})`));if(index<0)throw new OperatorError('Preparation cancelled.');

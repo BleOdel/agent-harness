@@ -36,3 +36,24 @@ test('a pause after durable scope renewal resumes review without granting anothe
  assert.equal(await driveCheckWorkflow(s,services),'paused');assert.ok(s.pendingRetry);
  assert.equal(await driveCheckWorkflow(s,services),'ready');assert.equal(repairs,1);assert.deepEqual(s.retried,['task:source:one']);
 });
+
+import {CheckRequestInterrupted} from '../src/acceptance/request-failure.ts';
+test('a recognized transient preparation failure retries once inside the same allowance and survives resume',async()=>{
+ const s=state();let resumes=0,ready=false,waits=0;
+ const services={snapshot:async()=>({key:'task:source:stage',ready}),resume:async()=>{if(++resumes===1)throw new CheckRequestInterrupted('timeout','Timed out');ready=true;},repair:async()=>assert.fail(),save:async()=>{},write:()=>{},wait:async()=>{waits++;}};
+ assert.equal(await driveCheckWorkflow(s,services),'ready');assert.equal(resumes,2);assert.equal(waits,1);
+ ready=false;services.resume=async()=>{resumes++;throw new CheckRequestInterrupted('timeout','Timed out');};
+ assert.equal(await driveCheckWorkflow(s,services),'paused');assert.equal(resumes,3);assert.equal(waits,1);
+});
+test('authentication, quota, output limits and unknown provider errors never automatically retry',async()=>{
+ for(const e of [new CheckRequestInterrupted('provider','401 token expired'),new CheckRequestInterrupted('provider','429 insufficient_quota'),new CheckRequestInterrupted('output-limit','limit'),new CheckRequestInterrupted('provider','unknown')]){
+  let calls=0;await driveCheckWorkflow(state(),{snapshot:async()=>({key:'task:source',ready:false}),resume:async()=>{calls++;throw e;},repair:async()=>assert.fail(),save:async()=>{},write:()=>{},wait:async()=>assert.fail()});assert.equal(calls,1);
+ }
+});
+
+test('transient recovery cannot exceed the shared model-request budget',async()=>{
+ const s=state(),spend={requests:0};let calls=0,waits=0;
+ const result=await withCheckBudget({maxRequests:1,maxSeconds:30,requestSeconds:10},spend,async()=>{},()=>{},()=>driveCheckWorkflow(s,{
+  snapshot:async()=>({key:'task:source',ready:false}),resume:async()=>{await checkRequestBudget(10000);calls++;throw new CheckRequestInterrupted('provider','HTTP 503');},repair:async()=>assert.fail(),save:async()=>{},write:()=>{},wait:async()=>{waits++;}
+ }));assert.equal(result,'paused');assert.equal(calls,1);assert.equal(waits,0);assert.equal(spend.requests,1);
+});

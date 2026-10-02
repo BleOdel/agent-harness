@@ -88,3 +88,35 @@ for(const name of ['keydown','keypress','beforeinput','input','keyup'])s.addEven
   const bad=await verifyBrowser(project,mutation.id);assert.equal(bad.status,'failed');assert.match(bad.message,/text/);
  }finally{await rm(root,{recursive:true,force:true});}
 });
+
+test('compact repeated fixtures are bounded data, exclusive with literals and captures, and not evidence',()=>{
+ const fill={action:'fill',selector:'#story',valueRepeat:{text:'ab',count:5000}};
+ const observation={action:'text',selector:'#count',expected:'10000'};
+ const j=parseJourney({...base,steps:[fill,observation]});
+ assert.deepEqual(actionRequest(j).steps[0],fill);assert.ok(JSON.stringify(actionRequest(j)).length<400);
+ assert.throws(()=>parseJourney({...base,steps:[fill]}));
+ for(const valueRepeat of [null,[],{}, {text:'',count:1},{text:'x'.repeat(129),count:1},{text:'\0',count:1},{text:'x',count:0},{text:'x',count:1.5},{text:'ab',count:6001},{text:'😀',count:6001},{text:'x',count:Number.MAX_SAFE_INTEGER},{text:'x',count:1,code:'process.exit()'}])assert.throws(()=>parseJourney({...base,steps:[{...fill,valueRepeat},observation]}));
+ for(const extra of [{value:'x'},{valueFrom:'key'}])assert.throws(()=>parseJourney({...base,steps:[{action:'capture',selector:'#key',name:'key',source:'text'},{...fill,...extra},observation]}));
+ assert.throws(()=>parseJourney({...base,steps:[{...fill,action:'type'},observation]}));
+ assert.equal(assessJourney(j,{version:1,errors:[],steps:[{action:'fill'},{action:'text',values:['9999']}]}).passed,false);
+});
+
+test('real Chromium expands compact boundary fixtures and preserves fill, paste and maxlength semantics',{skip:process.env.HARNESS_VERIFY_BROWSER!=='1'},async()=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'browser-repeat-')),project=root+'/app';await mkdir(project);
+ const server=`import http from 'node:http';http.createServer((q,r)=>{r.setHeader('Content-Type','text/html');r.end(\`<!doctype html><label>Story<textarea id="story" maxlength="10000"></textarea></label><output id="value">0</output><output id="kind">none</output><script>const s=document.querySelector('#story');s.oninput=e=>{document.querySelector('#value').textContent=String(s.value.length)+':'+s.value.slice(0,4)+':'+s.value.slice(-4);document.querySelector('#kind').textContent=e.inputType;};</script>\`)}).listen(Number(process.env.PORT),'127.0.0.1');`;
+ await writeFile(project+'/package.json','{"type":"module"}');await writeFile(project+'/server.js',server);
+ try{
+  const runtime=await inspectBrowser();
+  const steps=[{action:'goto',path:'/'},
+   {action:'fill',selector:'#story',valueRepeat:{text:'ab',count:50}},{action:'text',selector:'#value',expected:'100:abab:abab'},
+   {action:'fill',selector:'#story',valueRepeat:{text:'x',count:9999}},{action:'text',selector:'#value',expected:'9999:xxxx:xxxx'},
+   {action:'fill',selector:'#story',valueRepeat:{text:'xy',count:5000}},{action:'text',selector:'#value',expected:'10000:xyxy:xyxy'},
+   {action:'press',selector:'#story',key:'ControlOrMeta+A'},{action:'paste',selector:'#story',valueRepeat:{text:'z',count:10001}},
+   {action:'text',selector:'#value',expected:'10000:zzzz:zzzz'},{action:'text',selector:'#kind',expected:'insertFromPaste'}];
+  const good=await saveApproval(project,{...base,title:'Boundary fixtures',steps},runtime);
+  assert.equal((await verifyBrowser(project,good.id)).status,'passed');
+  const broken=steps.map(s=>s.action==='fill'?{action:'fill',selector:s.selector,value:'ab'}:s);
+  const bad=await saveApproval(project,{...base,title:'Unexpanded fixtures fail',steps:broken},runtime);
+  const result=await verifyBrowser(project,bad.id);assert.equal(result.status,'failed');assert.match(result.message,/text differs/);
+ }finally{await rm(root,{recursive:true,force:true});}
+});

@@ -21,6 +21,6 @@ export async function inspectBrowser(docker=desktopDocker(),selected=process.env
  if(probe.code!==0||probe.timedOut||probe.outputLimited)throw new OperatorError('Browser image tools are missing. Rebuild with harness browser image.');
  const facts=JSON.parse(probe.stdout);
  if(facts.node!=='v26.5.0'||facts.playwright!=='1.63.0'||facts.axe!=='4.13.0'||typeof facts.chromium!=='string')throw new OperatorError('Browser image toolchain differs from this harness release.');
- const protocol=sha256(Buffer.concat(await Promise.all(['driver.mjs','storage.mjs','../schema.ts','../capabilities.ts','../runtime.ts','../controller.ts'].map(f=>readFile(path.join(browserResources,f))))));
+ const protocol=sha256(Buffer.concat(await Promise.all(['driver.mjs','storage.mjs','input.ts','../schema.ts','../capabilities.ts','../runtime.ts','../controller.ts'].map(f=>readFile(path.join(browserResources,f))))));
  return {image:m.Id,arch:m.Architecture==='amd64'?'x64':'arm64',...facts,protocol};
 }

@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --experimental-strip-types
+import {continueCommand} from './verbs/continue.ts';
 import {performanceCommand} from './verbs/performance.ts';
 import {securityCommand} from './verbs/security.ts';
 import {worktreeCommand} from "./verbs/worktree.ts";
@@ -68,6 +69,8 @@ const USAGE = [
   "  harness worktree setup     create a separate task branch (optional)",
   "  harness worktree list      inspect task branches; work, commit, merge, recover or remove",
   "  harness model [setup]      inspect or choose provider, model and reasoning strength",
+  "  harness continue [task]     resume preparation and build within saved limits",
+  "  harness continue status     inspect progress and the decision needed",
   "  harness guide [path]        select a project and continue through guided steps",
   "  harness project setup      select the project adapter and skill bundles",
   "  harness project show       show saved environment requirements",
@@ -134,6 +137,7 @@ async function main(): Promise<void> {
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
 
   switch (verb) {
+    case "continue": return continueCommand(project,rest);
     case "worktree": return worktreeCommand(project,rest);
     case "performance": return performanceCommand(project,rest);
     case "security": return securityCommand(project,rest);

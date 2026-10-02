@@ -623,6 +623,8 @@ Run them inside your project.
 | `harness view [--open]` | the whole record as a page you can read |
 | `harness view --serve` | the same page, watching a run as it happens |
 | `harness undo <run-id>` | put it back |
+| `harness continue [task]` | carry one saved task through preparation, explicit approval and build; bounded recovery |
+| `harness continue status` | inspect retained progress and the decision needed |
 | `harness run [--max N]` | work items until one needs you |
 | `harness commit [<run-id>]` | commit what a run applied — never pushes |
 | `harness deps [--install]` | packages a run declared but did not install |
@@ -2110,3 +2112,38 @@ remain as recorded; a historical limitation is not necessarily a current one.
 
 For the findings, design decisions and remaining scenario-runner work, see
 [the acceptance architecture review](docs/acceptance-architecture-review.md).
+
+### Continue a task without relaying terminal errors
+
+`harness continue [task-id]` follows one accepted task from saved requirements to
+check preparation, an explicit review of checks/interface choices, implementation,
+verification and application. It uses the existing project writer lock and all
+existing gates. The dashboard shows the last saved status and diagnosis.
+
+```sh
+harness continue author-experience --max-requests 30 --max-seconds 1800 --max-builds 2
+harness continue status
+```
+
+Recognized transient preparation failures retry once per saved stage within the
+same request/time allowance. Authentication, quota, unknown errors and capability
+or contract decisions stop with retained details. An implementation timeout resumes
+its retained checkpoint once, within the build-dispatch limit; every gate runs
+again. Test/acceptance failures still receive the existing bounded builder repair
+policy. An unresolved failure is not silently approved or retried indefinitely.
+
+The preparation deadline and consumed request count survive controller restarts.
+`harness continue` reuses the remaining allowance. `harness continue --renew`
+explicitly grants a new allowance and archives the prior controller state. This
+does not reset exhausted recovery policy for the same task. Build dispatches use
+their existing agent/gate timeouts, separately from preparation's time limit; this
+is neither a whole-project wall-clock limit nor a dollar-cost cap. Provider usage
+remains an estimate and may be incomplete.
+
+Approvals, scope changes, missing credentials, unsupported required manual evidence
+and exhausted budgets still need a decision. Manual blockers in the saved outline
+are reported before model work. This release controls one task per continuation;
+it does not yet implement unattended whole-project delivery or background scheduling.
+A terminated process resumes when `harness continue` is invoked; it does not
+restart itself. Source changes are applied only through the existing work gate,
+and nothing is committed, pushed or published by the controller.

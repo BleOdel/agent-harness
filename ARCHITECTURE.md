@@ -1514,3 +1514,47 @@ are read again; changes return to the choice instead of dispatching. Existing
 runner writer locks, approval checks, budget enforcement and recovery still apply.
 `product verify --checks` preserves explicit noninteractive diagnostics/acceptance.
 Training, setup, assessment and release approval retain their separate workflows.
+
+## Persistent task continuation
+
+`verbs/continue` coordinates `acceptance/workflow` and `verbs/work` under the
+project writer lock. `workflow/controller` owns durable dispatch reservations,
+bounded timeout recovery and decision states; `workflow/store` validates the
+outside-source `continuation.json` journal. `harness continue status` and the
+read-only dashboard expose the same retained diagnosis. Existing check approval,
+source freshness, implementation checkpoints and application gates remain the
+owners of their evidence. A controller completion means a task is done, not that
+publication or an entire product has been approved.
+
+```mermaid
+flowchart LR
+  Saved[Saved requirements] --> Preflight[Check prerequisites and manual obligations]
+  Preflight --> Prepare[Bounded check preparation and recovery]
+  Prepare --> Decision[Explicit check approval]
+  Decision --> Build[Build or resume checkpoint]
+  Build --> Gates[Tests, review and acceptance]
+  Gates --> Applied[Apply and present result]
+  Build -->|saved timeout, once| Build
+  Preflight -->|decision needed| Attention[Persist diagnosis and ask user]
+  Prepare -->|budget or unresolved failure| Attention
+  Gates -->|unresolved failure| Attention
+```
+
+### Optional Graphify pilot (2026-10-02)
+
+Graphify 0.9.73 was tested in a disposable Python environment against a code-only
+copy of this working tree: 290 files, 2,110 graph nodes and 11,212 edges. No model
+requests were made, no Pi skill was registered, and the source snapshot hashes
+were unchanged. Rebuilding with its AST cache took 4.65 seconds. Three symbol
+queries found the expected capability-validation, checkpoint and preparation
+functions and related files.
+
+The query outputs were 14,938 / 4,936 / 4,854 characters, versus 554 / 666 / 359
+characters for focused `rg` symbol searches. These are retrieval-size observations,
+not an end-to-end diagnosis, accuracy or token-cost benchmark. The first graph
+query explicitly exceeded its requested 1,500-token budget because it retained
+connected edges. This pilot supports optional architecture lookup, not making
+Graphify a required runtime dependency or claiming that it reduces token usage.
+A future Pi adapter would need pinned source freshness, a host-enforced response
+size limit, retained extraction confidence, and source verification of inferred
+relationships. Core continuation does not depend on Graphify.

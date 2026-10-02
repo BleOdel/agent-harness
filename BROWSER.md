@@ -163,3 +163,14 @@ missing-action replies from a recognized earlier capability version are archived
 once so preparation can review the outline and generate a new journey. Contract
 choice blockers, completed cases and approval records are retained. This does
 not approve a check or provide evidence that the application works.
+
+### Compact boundary-test data
+
+Fill and paste accept `valueRepeat: {text: "a", count: 10001}` instead of a
+literal `value` or captured `valueFrom`. The harness validates the fixture and
+expands it inside the runner before the normal interaction. The repeated unit
+must be 1–128 characters, contain no NUL, and produce at most 12,000 UTF-16 code
+units using a positive integer count. This avoids generating long literals or
+capture/paste construction chains for length-boundary tests. It does not bypass
+form limits, replace typing evidence, or provide a passing observation by itself.
+The shared expansion code is included in the browser runtime approval pin.

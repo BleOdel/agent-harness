@@ -1,6 +1,7 @@
 /** Bounded browser actions; generated journeys never supply JavaScript. */
+import {repeatedInput,type RepeatedInput} from './instrumentation/input.ts';
 import {OperatorError} from '../verbs/io.ts';
-type Input={value:string;valueFrom?:never}|{valueFrom:string;value?:never};
+type Input={value:string;valueFrom?:never;valueRepeat?:never}|{valueFrom:string;value?:never;valueRepeat?:never}|{valueRepeat:RepeatedInput;value?:never;valueFrom?:never};
 type Expected={expected:string;expectedFrom?:never}|{expectedFrom:string;expected?:never};
 export type CapabilityStep={action:'type';selector:string;value:string}|({action:'fill'|'paste';selector:string}&Input)|{action:'capture';selector:string;name:string;source:'text'|'value'}|({action:'clipboard'}&Expected)|({action:'download';selector:string}&Expected)|{action:'storage';absentFrom:string}|{action:'context'|'page';name:string}|{action:'network';path:string;method:string;mode:'normal'|'abort'|'503'}|{action:'requestCount';path:string;method:string;expected:number}|{action:'attribute';selector:string;name:string;expected:string}|{action:'select';selector:string;value:string};
 export const capabilityActions=new Set(['type','fill','paste','capture','clipboard','download','storage','context','page','network','requestCount','attribute','select']);
@@ -11,7 +12,7 @@ export function validateCapability(s:Record<string,unknown>,refs:Set<string>,con
  const a=String(s.action);let keys:string[]=[],checks=0;
  const selector=()=>{if(!text(s.selector,300)||!s.selector.trim())fail('Invalid capability selector.');};
  const reference=(v:unknown)=>{if(!label(v)||!refs.has(v))fail('Browser reference must name an earlier capture.');};
- const input=()=>{if(s.valueFrom!==undefined){reference(s.valueFrom);return 'valueFrom';}if(!text(s.value))fail('Invalid browser input.');return 'value';};
+ const input=()=>{if(s.valueRepeat!==undefined){try{repeatedInput(s.valueRepeat);}catch(e){fail((e as Error).message);}return 'valueRepeat';}if(s.valueFrom!==undefined){reference(s.valueFrom);return 'valueFrom';}if(!text(s.value))fail('Invalid browser input.');return 'value';};
  const expected=()=>{if(s.expectedFrom!==undefined){reference(s.expectedFrom);return 'expectedFrom';}if(!text(s.expected))fail('Invalid browser expectation.');return 'expected';};
  if(a==='fill'||a==='paste'){selector();keys=['selector',input()];}
  if(a==='type'){selector();if(typeof s.value!=='string'||! /^[\x20-\x7e]{1,256}$/u.test(s.value))fail('Typing requires 1..256 printable ASCII characters. Use fill or paste for larger or Unicode input.');keys=['selector','value'];}

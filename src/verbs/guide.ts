@@ -114,6 +114,7 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
               await run("work", next.id);
             } });
             else io.write("No eligible next item. Review status for completed, deferred or blocked work.");
+            actions.push({ label: "Continue saved work (prepare, review and build)", run: () => run("continue") });
             actions.push({ label: "Prepare or resume acceptance checks (bounded)", run: () => run("checks", "prepare") });
             actions.push({ label: "Review a saved check draft", run: () => run("checks", "review") });
           }

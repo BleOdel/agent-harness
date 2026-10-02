@@ -1,3 +1,4 @@
+import {repeatedInput} from './input.ts';
 import {observeStorage} from './storage.mjs';
 import {readFile,writeFile} from 'node:fs/promises';
 import {chromium} from '/opt/browser-tools/node_modules/playwright/index.mjs';
@@ -27,7 +28,7 @@ async function selectContext(name){
  }
  session=sessions.get(name);await selectPage('main');
 }
-const input=step=>{const value=step.valueFrom===undefined?step.value:captures.get(step.valueFrom);if(typeof value!=='string')throw Error('Missing captured input.');return value;};
+const input=step=>{if(step.valueRepeat!==undefined)return repeatedInput(step.valueRepeat);const value=step.valueFrom===undefined?step.value:captures.get(step.valueFrom);if(typeof value!=='string')throw Error('Missing captured input.');return value;};
 try{
  browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});await selectContext('main');
  const deadline=Date.now()+20000;
