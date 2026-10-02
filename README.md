@@ -743,6 +743,17 @@ reviewed; their budget also survives interruption. Then each behaviour is genera
 separately and checkpointed
 in `acceptance/preparation.json`. The request and optional guidance are saved before
 the first provider call, so even an early failure can resume without retyping.
+Initial outline replies are retained before schema validation in
+`acceptance/outline-response.json`, with immutable reply copies under
+`acceptance/outline-responses/`. An invalid outline gets one structural correction
+before independent review. An empty behaviour list cannot count as acceptance
+coverage. Both replies and the correction count survive interruption; a still
+invalid result stops for an explicit revision rather than retrying indefinitely.
+The retained reply is bound to the task, source and request. The most recently
+saved preparation/review determines which task resumes, so an older completed
+reader review cannot hide a new author preparation. Existing approved checks are
+unchanged until the operator approves a reviewed draft.
+
 Initial case generation is limited to 16 KiB of JSON-encoded steps; up to 24 cases
 may be proposed. Invalid generated cases are saved with their raw response and
 receive at most two format/size corrections before quality review; this budget

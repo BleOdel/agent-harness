@@ -1,3 +1,4 @@
+import {readActivePreparation} from './active-preparation.ts';
 import {CheckRequestInterrupted} from './request-failure.ts';
 /** One resumable controller; checkpoints and writer locks remain owned by existing check operations. */
 import path from 'node:path';import {mkdir,readdir} from 'node:fs/promises';
@@ -69,7 +70,7 @@ export async function prepareChecks(project:string,io:Dialogue,limits:CheckLimit
   io.write(`Preparation allowance: ${limits.maxRequests} model requests, ${limits.maxSeconds}s total, ${limits.requestSeconds}s per request. Completed reviews are reused; approval remains separate.`);
   await save();await describeCheckProgress(project,io.write);
   const snapshot=async()=>{
-   const raw=await readArtifact(directory(project),'review-progress.json',8*1024*1024)??await readArtifact(directory(project),'preparation.json',8*1024*1024);
+   const raw=(await readActivePreparation(directory(project)))?.raw;
    const record=raw?JSON.parse(raw):undefined;
    return {key:record?`${record.taskDigest}:${record.sourceDigest}`:'new',retryCounts:Object.fromEntries((record?.ledger?.entries??[]).map((e:{scope:string;retryCount?:number})=>[e.scope,e.retryCount??0])),ready:await readyCheckDraft(project)};
   };
@@ -86,7 +87,7 @@ export async function prepareChecks(project:string,io:Dialogue,limits:CheckLimit
  });
 }
 async function describeCheckProgress(project:string,write:(s:string)=>void):Promise<void>{
- const raw=await readArtifact(directory(project),'review-progress.json',8*1024*1024);if(!raw)return;
+ const raw=(await readActivePreparation(directory(project)))?.raw;if(!raw)return;
  const record=JSON.parse(raw),features=await readFeatures(project),task=features?.ok?features.features.find(t=>t.id===record.taskId):undefined;
  if(!task||!record.proposal||!record.ledger)return;
  const p=parseProposal(record.proposal,task),scopes=['$contract',...p.manifest.cases.map(c=>c.id)];let reviewed=0,stale=0;

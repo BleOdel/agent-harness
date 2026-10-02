@@ -1,3 +1,4 @@
+import {readActivePreparation} from './active-preparation.ts';
 import {CheckRequestInterrupted} from './request-failure.ts';
 import {ensureCheckBudget,CheckBudgetExceeded,hasCheckBudget,withCheckBudget,defaultCheckLimits,validateCheckLimits,type CheckLimits,type CheckSpend} from './budget.ts';
 import {recipeForDescription,inferWebRecipe,recipeDescription} from './recipes/catalog.ts';
@@ -56,7 +57,7 @@ export async function readGuidedDraft(project: string, recovering = false): Prom
  if (!raw) return undefined;
  const saved = JSON.parse(raw) as SavedDraft;
  // A completed draft for an earlier task must not hide the current saved preparation.
- const active=await readArtifact(directory(project),'review-progress.json',8*1024*1024)??await readArtifact(directory(project),'preparation.json',8*1024*1024);
+ const active=(await readActivePreparation(directory(project)))?.raw;
  if(active){const pending=JSON.parse(active);if(pending.taskId!==saved.taskId){const task=await currentTask(project,pending.taskId).catch(()=>undefined);if(task&&pending.taskDigest===taskDigest(task)&&pending.sourceDigest===await sourceDigest(project))return undefined;}}
  if (saved.version !== 1 || typeof saved.taskId !== 'string' || typeof saved.inputDigest !== 'string' || typeof saved.sourceDigest !== 'string') throw new OperatorError('Invalid saved check draft.');
  saved.proposal = parseProposal(saved.proposal, await currentTask(project, saved.taskId));
@@ -127,7 +128,7 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
   freshPreparation = true;
  }
  if (!automatic && !resume && !existing) {
-  const incomplete = await readArtifact(directory(project),'review-progress.json',8*1024*1024) ?? await readArtifact(directory(project),'preparation.json',8*1024*1024);
+  const incomplete = (await readActivePreparation(directory(project)))?.raw;
   if (incomplete && JSON.parse(incomplete).taskId === task.id) {
    const record=JSON.parse(incomplete);
    const repairable=record.ledger && blockedScopes(task,parseProposal(record.proposal,task),record.ledger).length;
@@ -169,7 +170,7 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
    }
   }
   if (freshPreparation || feedback) {
-   for (const name of ['review-progress.json', 'preparation.json', 'guided-draft.json', 'simplification.json','recipe-change.json']) {
+   for (const name of ['review-progress.json', 'preparation.json', 'guided-draft.json', 'simplification.json','recipe-change.json','outline-response.json']) {
     const old = await readArtifact(directory(project), name, 8 * 1024 * 1024);
     if (old) {const history = path.join(directory(project), 'review-history');await mkdir(history,{recursive:true,mode:0o700});await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}.json`),old);}
     await rm(path.join(directory(project),name),{force:true});
@@ -203,7 +204,7 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
    };
    // Save the request before contacting the provider, including before an outline exists.
    await save();
-   return prepareInParts(project,fresh,request.feedback,request.previousProposal,save,io.write,request.state,request.previousIssues);
+   return prepareInParts(project,fresh,request.feedback,request.previousProposal,save,io.write,request.state,request.previousIssues,{source});
   };
   const partialRaw = await readArtifact(directory(project),'preparation.json',8*1024*1024);
   const partial = partialRaw ? JSON.parse(partialRaw) : undefined;
@@ -245,8 +246,9 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
 export async function resumePreparation(project:string,io:Dialogue,deferApproval=false):Promise<boolean>{
  if(await readArtifact(directory(project),'recipe-change.json',8*1024*1024)){await useRecipeSavedCheck(project,io,undefined,{resume:true});return true;}
  if(await readArtifact(directory(project),'simplification.json',8*1024*1024)){await simplifySavedCheck(project,io);return true;}
- for(const name of ['review-progress.json','preparation.json']){
-  const raw=await readArtifact(directory(project),name,8*1024*1024);if(!raw)continue;
+ const active=await readActivePreparation(directory(project));
+ if(active){
+  const raw=active.raw;
   const record=JSON.parse(raw);const task=await currentTask(project,record.taskId);
   if(record.taskDigest!==taskDigest(task)||record.sourceDigest!==await sourceDigest(project))throw new OperatorError('Saved preparation describes older source or requirements.','Run harness checks setup to prepare checks for the current task.');
   if(record.proposal&&record.ledger){const p=parseProposal(record.proposal,task);const suitable=p.manifest.cases.find(c=>!c.steps.some(s=>s.recipe)&&recipeForDescription(c.description??'')&&!record.ledger.entries.some((e:{scope:string;review?:{verdict:string}})=>e.scope===c.id&&e.review?.verdict==='pass'));if(suitable){io.write('A tested recipe can replace this generated parser check.');await useRecipeSavedCheck(project,io,suitable.id);return true;}}
