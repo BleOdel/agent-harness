@@ -17,7 +17,7 @@ import { OperatorError } from '../verbs/io.ts';
 import { proposalDigest, parseDraftReview, type DraftReview } from './repair.ts';
 import { requestScopedReview,reviewScopes,scopeDigest,type ReviewLedger } from './scoped-review.ts';
 export interface Blueprint { version:1; contract:string; coverage:Coverage[]; cases:Behaviour[]; }
-export interface Preparation { pendingOutlinePatch?:OutlinePatchReply; outlinePatchHistory?:OutlinePatchReply[]; routingHistory?:unknown[]; reviewLedger?:ReviewLedger; version:1; blueprint:Blueprint; cases:AcceptanceCase[]; pendingCase?:{id:string;raw:unknown;repairs:number;blockerClarifications?:number}; splits?:number; pendingSplit?:{id:string;raw:unknown;review?:DraftReview}; retiredCases?:{id:string;raw:unknown;repairs:number}[]; outlineRepairs?:number; outlineReview?:{digest:string;review:DraftReview}; }
+export interface Preparation { browserCapabilities?:string; pendingOutlinePatch?:OutlinePatchReply; outlinePatchHistory?:OutlinePatchReply[]; routingHistory?:unknown[]; reviewLedger?:ReviewLedger; version:1; blueprint:Blueprint; cases:AcceptanceCase[]; pendingCase?:{id:string;raw:unknown;repairs:number;blockerClarifications?:number}; splits?:number; pendingSplit?:{id:string;raw:unknown;review?:DraftReview}; retiredCases?:{id:string;raw:unknown;repairs:number}[]; outlineRepairs?:number; outlineReview?:{digest:string;review:DraftReview}; }
 export const MAX_CASE_BYTES = 16 * 1024;
 class OversizedCase extends OperatorError {}
 const stub = (task:Feature,c:Behaviour):AcceptanceCase => caseKind(c)==='browser'
@@ -82,6 +82,19 @@ export function initializePreparation(task:Feature,blueprint:Blueprint,saved?:Pr
  if(saved?.pendingOutlinePatch){
   if(rerouted||saved.pendingOutlinePatch.baseDigest!==outlinePatchDigest(blueprint)||!Object.hasOwn(saved.pendingOutlinePatch,'raw'))throw new OperatorError('Invalid saved outline patch; inspect the retained reply before preparing again.');
   state.pendingOutlinePatch=structuredClone(saved.pendingOutlinePatch);
+ }
+ // Legacy preparations recorded capabilities only inside the outline fingerprint.
+ // Recognize the last pre-typing version exactly; an unknown stale receipt is not
+ // sufficient reason to discard a diagnosis or spend another generation request.
+ const currentCapabilities=browserCapabilityDigest();
+ if(saved?.browserCapabilities!==undefined&&!/^[a-f0-9]{64}$/u.test(saved.browserCapabilities))throw new OperatorError('Invalid saved browser capability fingerprint.');
+ const legacyCapabilities='564661ba21ae989ace46811848a46d861666d14af414438216dfc4776a277ff6';
+ const legacyReceipt=createHash('sha256').update(proposalDigest(blueprintProposal(task,blueprint))+legacyCapabilities).digest('hex');
+ const priorCapabilities=saved?.browserCapabilities??(saved?.outlineReview?.digest===legacyReceipt?legacyCapabilities:undefined);
+ if(blueprint.cases.some(c=>caseKind(c)==='browser'))state.browserCapabilities=currentCapabilities;
+ const pending=state.pendingCase,raw=pending?.raw;
+ if(priorCapabilities&&priorCapabilities!==currentCapabilities&&pending&&!state.pendingSplit&&caseKind(blueprint.cases[cases.length]!)==='browser'&&raw&&typeof raw==='object'&&!Array.isArray(raw)&&'blocker' in raw&&raw.blocker==='missing-action'){
+  (state.retiredCases??=[]).push(structuredClone(pending));delete state.pendingCase;
  }
  const digest=outlineFingerprint(task,blueprint);
  if(!rerouted&&saved?.outlineReview?.digest===digest)state.outlineReview={digest,review:parseDraftReview(saved.outlineReview.review)};

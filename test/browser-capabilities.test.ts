@@ -50,3 +50,41 @@ document.querySelector('#submit').onclick=async()=>{const result=document.queryS
  assert.equal(await readFile(project+'/server.js','utf8'),server);
  }finally{await rm(root,{recursive:true,force:true});}
 });
+
+test('typing is bounded printable keyboard input, never an observation or an arbitrary key command',()=>{
+ const typing={action:'type',selector:'#story',value:'Hello! 42'};
+ const j=parseJourney({...base,steps:[typing,{action:'text',selector:'#count',expected:'9'}]});
+ assert.deepEqual(actionRequest(j).steps[0],typing);
+ assert.equal(assessJourney(j,{version:1,errors:[],steps:[{action:'type'},{action:'text',values:['9']}]}).passed,true);
+ assert.equal(assessJourney(j,{version:1,errors:[],steps:[{action:'type'},{action:'text',values:['0']}]}).passed,false);
+ assert.throws(()=>parseJourney({...base,steps:[typing]}));
+ for(const value of ['', 'x'.repeat(257),'a\nb','\t','é','\u007f'])assert.throws(()=>parseJourney({...base,steps:[{...typing,value},{action:'text',selector:'#count',expected:'9'}]}));
+ for(const extra of [{key:'Enter'},{delay:10000},{valueFrom:'key'}])assert.throws(()=>parseJourney({...base,steps:[{...typing,...extra},{action:'text',selector:'#count',expected:'9'}]}));
+});
+
+test('real Chromium typing emits per-character key and input events, appends text and respects maxlength',{skip:process.env.HARNESS_VERIFY_BROWSER!=='1'},async()=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'browser-typing-')),project=root+'/app';await mkdir(project);
+ const server=`import http from 'node:http';http.createServer((q,r)=>{r.setHeader('Content-Type','text/html');r.end(\`<!doctype html><label for="story">Story</label><input id="story" maxlength="5" value="X"><output id="events">ready</output><output id="value">X</output><script>
+const s=document.querySelector('#story'),o=document.querySelector('#events'),events=[];
+s.focus();s.setSelectionRange(1,1);s.addEventListener('input',()=>document.querySelector('#value').textContent=s.value);
+for(const name of ['keydown','keypress','beforeinput','input','keyup'])s.addEventListener(name,e=>{events.push(name+':'+(e.key||e.inputType));o.textContent=events.join('|')});
+</script>\`)}).listen(Number(process.env.PORT),'127.0.0.1');`;
+ await writeFile(project+'/package.json','{"type":"module"}');await writeFile(project+'/server.js',server);
+ try{
+  const runtime=await inspectBrowser();
+  const typed=(s:string)=>[...s].flatMap(c=>['keydown:'+c,'keypress:'+c,'beforeinput:insertText','input:insertText','keyup:'+c]).join('|');
+  const journeySteps=[{action:'goto',path:'/'},
+   {action:'type',selector:'#story',value:'ab'},{action:'text',selector:'#value',expected:'Xab'},
+   {action:'text',selector:'#events',expected:typed('ab')},
+   {action:'type',selector:'#story',value:'C!'},{action:'text',selector:'#value',expected:'XabC!'},
+   {action:'type',selector:'#story',value:'z'},{action:'text',selector:'#value',expected:'XabC!'},
+   {action:'text',selector:'#events',expected:typed('abC!')+'|keydown:z|keypress:z|beforeinput:insertText|keyup:z'},
+   {action:'press',selector:'#story',key:'Backspace'},{action:'text',selector:'#value',expected:'XabC'},
+   {action:'paste',selector:'#story',value:'?'},{action:'text',selector:'#value',expected:'XabC?'}];
+  const approval=await saveApproval(project,{...base,title:'Keyboard events',steps:journeySteps},runtime);
+  const good=await verifyBrowser(project,approval.id);assert.equal(good.status,'passed',good.message);
+  const badSteps=journeySteps.slice(0,4).map(s=>s.action==='type'?{...s,action:'fill'}:s);
+  const mutation=await saveApproval(project,{...base,title:'Fill cannot prove typing',steps:badSteps},runtime);
+  const bad=await verifyBrowser(project,mutation.id);assert.equal(bad.status,'failed');assert.match(bad.message,/text/);
+ }finally{await rm(root,{recursive:true,force:true});}
+});

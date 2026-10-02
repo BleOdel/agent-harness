@@ -2,8 +2,8 @@
 import {OperatorError} from '../verbs/io.ts';
 type Input={value:string;valueFrom?:never}|{valueFrom:string;value?:never};
 type Expected={expected:string;expectedFrom?:never}|{expectedFrom:string;expected?:never};
-export type CapabilityStep=({action:'fill'|'paste';selector:string}&Input)|{action:'capture';selector:string;name:string;source:'text'|'value'}|({action:'clipboard'}&Expected)|({action:'download';selector:string}&Expected)|{action:'storage';absentFrom:string}|{action:'context'|'page';name:string}|{action:'network';path:string;method:string;mode:'normal'|'abort'|'503'}|{action:'requestCount';path:string;method:string;expected:number}|{action:'attribute';selector:string;name:string;expected:string}|{action:'select';selector:string;value:string};
-export const capabilityActions=new Set(['fill','paste','capture','clipboard','download','storage','context','page','network','requestCount','attribute','select']);
+export type CapabilityStep={action:'type';selector:string;value:string}|({action:'fill'|'paste';selector:string}&Input)|{action:'capture';selector:string;name:string;source:'text'|'value'}|({action:'clipboard'}&Expected)|({action:'download';selector:string}&Expected)|{action:'storage';absentFrom:string}|{action:'context'|'page';name:string}|{action:'network';path:string;method:string;mode:'normal'|'abort'|'503'}|{action:'requestCount';path:string;method:string;expected:number}|{action:'attribute';selector:string;name:string;expected:string}|{action:'select';selector:string;value:string};
+export const capabilityActions=new Set(['type','fill','paste','capture','clipboard','download','storage','context','page','network','requestCount','attribute','select']);
 const fail=(m:string):never=>{throw new OperatorError(m);};
 const text=(v:unknown,n=12000):v is string=>typeof v==='string'&&v.length<=n&&!v.includes('\0');
 const label=(v:unknown):v is string=>typeof v==='string'&&/^[a-z][a-z0-9-]{0,39}$/u.test(v);
@@ -14,6 +14,7 @@ export function validateCapability(s:Record<string,unknown>,refs:Set<string>,con
  const input=()=>{if(s.valueFrom!==undefined){reference(s.valueFrom);return 'valueFrom';}if(!text(s.value))fail('Invalid browser input.');return 'value';};
  const expected=()=>{if(s.expectedFrom!==undefined){reference(s.expectedFrom);return 'expectedFrom';}if(!text(s.expected))fail('Invalid browser expectation.');return 'expected';};
  if(a==='fill'||a==='paste'){selector();keys=['selector',input()];}
+ if(a==='type'){selector();if(typeof s.value!=='string'||! /^[\x20-\x7e]{1,256}$/u.test(s.value))fail('Typing requires 1..256 printable ASCII characters. Use fill or paste for larger or Unicode input.');keys=['selector','value'];}
  if(a==='select'){selector();if(!text(s.value,300))fail('Invalid option value.');keys=['selector','value'];}
  if(a==='capture'){selector();if(!label(s.name)||refs.has(s.name)||refs.size>=20||!['text','value'].includes(String(s.source)))fail('Invalid or duplicate capture.');refs.add(s.name as string);keys=['selector','name','source'];}
  if(a==='clipboard'||a==='download'){if(a==='download')selector();keys=[...(a==='download'?['selector']:[]),expected()];checks++;}

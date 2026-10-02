@@ -38,6 +38,7 @@ try{
   if(step.action==='page')await selectPage(step.name);
   if(step.action==='goto'){const response=await page.goto(origin+step.path);o.status=response?.request().redirectedFrom()?302:(response?.status()??0);}
   if(step.action==='reload'){const response=await page.reload();o.status=response?.request().redirectedFrom()?302:(response?.status()??0);}
+  if(step.action==='type'){if(typeof step.value!=='string'||! /^[\x20-\x7e]{1,256}$/u.test(step.value))throw Error('Invalid keyboard input.');await element.pressSequentially(step.value);}
   if(step.action==='fill')await element.fill(input(step));
   if(step.action==='paste'){await page.evaluate(value=>navigator.clipboard.writeText(value),input(step));await element.focus();await element.press('ControlOrMeta+V');}
   if(step.action==='select')await element.selectOption(step.value);

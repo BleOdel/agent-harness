@@ -148,3 +148,18 @@ accounts only. Browser capability changes invalidate saved outline review receip
 changes to the driver or schema require explicit approval of the new runtime pin.
 The basic interactive setup menu remains available; these advanced actions are
 specified in reviewed JSON or generated acceptance journeys.
+
+### Keyboard typing in acceptance journeys
+
+`type {selector,value}` sends 1–256 printable ASCII characters through Chromium
+keyboard input, preserving the current value and caret position. Use separate
+`type` and text/count observations for successive live updates. `fill` replaces
+values, `paste` exercises clipboard paste, and `press` supports Backspace/Delete;
+these are distinct interactions. Use fill/paste for large or Unicode fixtures.
+Typing alone is setup and cannot make a journey pass.
+
+A browser capability update invalidates the outline capability receipt. Saved
+missing-action replies from a recognized earlier capability version are archived
+once so preparation can review the outline and generate a new journey. Contract
+choice blockers, completed cases and approval records are retained. This does
+not approve a check or provide evidence that the application works.
