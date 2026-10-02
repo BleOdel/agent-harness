@@ -1,3 +1,4 @@
+import {outlinePatchDigest} from '../src/acceptance/outline-patch.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { draftInParts, type Preparation, type Blueprint } from '../src/acceptance/preparation.ts';
@@ -123,7 +124,7 @@ test('legacy findings survive interruption and are supplied to case review, then
 
 test('outline correction is reviewed before code and its budget persists across provider interruption',async()=>{
  let saved:Preparation|undefined;let repairs=0,generated=0,reviews=0;
- const services={plan:async()=>blueprint,reviewOutline:async(b:Blueprint)=>{reviews++;return b.contract.includes('corrected')?pass:{verdict:'repair' as const,issues:['Response field is ambiguous.'],limitations:[]};},repairOutline:async(b:Blueprint)=>{repairs++;if(repairs===1)throw Error('provider unavailable');return {...b,contract:b.contract+' corrected'};},generate:async(id:string)=>{generated++;return entry(id);},save:async(s:Preparation)=>{saved=structuredClone(s);}};
+ const services={plan:async()=>blueprint,reviewOutline:async(b:Blueprint)=>{reviews++;return b.contract.includes('corrected')?pass:{verdict:'repair' as const,issues:['Response field is ambiguous.'],limitations:[]};},repairOutline:async(b:Blueprint)=>{repairs++;if(repairs===1)throw Error('provider unavailable');return {version:1,baseDigest:outlinePatchDigest(b),contractEdits:[{section:0,text:b.contract+' corrected'}]};},generate:async(id:string)=>{generated++;return entry(id);},save:async(s:Preparation)=>{saved=structuredClone(s);}};
  await assert.rejects(draftInParts(task,services),/provider unavailable/);
  assert.equal(generated,0);assert.equal(saved!.outlineRepairs,1);
  const result=await draftInParts(task,services,saved);
@@ -131,9 +132,10 @@ test('outline correction is reviewed before code and its budget persists across 
 });
 test('unchanged outline repairs and depleted budgets stop without generating or approving code',async()=>{
  let saved:Preparation|undefined;let repairs=0;
- const services={plan:async()=>blueprint,reviewOutline:async()=>({verdict:'repair' as const,issues:['Still contradictory.'],limitations:[]}),repairOutline:async(b:Blueprint)=>{repairs++;return b;},generate:async()=>{throw Error('must not generate');},save:async(s:Preparation)=>{saved=structuredClone(s);}};
- await assert.rejects(draftInParts(task,services),/outline repair made no change/i);
- await assert.rejects(draftInParts(task,services,saved),/outline repair made no change/i);
+ const services={plan:async()=>blueprint,reviewOutline:async()=>({verdict:'repair' as const,issues:['Still contradictory.'],limitations:[]}),repairOutline:async(b:Blueprint)=>{repairs++;return {version:1,baseDigest:outlinePatchDigest(b)};},generate:async()=>{throw Error('must not generate');},save:async(s:Preparation)=>{saved=structuredClone(s);}};
+ await assert.rejects(draftInParts(task,services),/outline needs revision/i);
+ assert.equal(saved!.outlinePatchHistory!.length,2);
+ await assert.rejects(draftInParts(task,services,saved),/outline needs revision/i);
  const before=repairs;await assert.rejects(draftInParts(task,services,saved),/outline needs revision/);assert.equal(repairs,before);
 });
 
@@ -192,7 +194,7 @@ test('incremental review cannot rewrite other checks or hand back an unreviewed 
 import {CheckRequestInterrupted} from '../src/acceptance/request-failure.ts';
 test('classified outline provider interruptions do not consume usable repair attempts',async()=>{
  let saved:Preparation|undefined,calls=0;
- const services={plan:async()=>blueprint,reviewOutline:async(b:Blueprint)=>b.contract.includes('corrected')?pass:{verdict:'repair' as const,issues:['Ambiguous interface'],limitations:[]},repairOutline:async(b:Blueprint)=>{if(++calls===1)throw new CheckRequestInterrupted('timeout','provider timeout');return {...b,contract:b.contract+' corrected'};},generate:async(id:string)=>entry(id),save:async(s:Preparation)=>{saved=structuredClone(s);}};
+ const services={plan:async()=>blueprint,reviewOutline:async(b:Blueprint)=>b.contract.includes('corrected')?pass:{verdict:'repair' as const,issues:['Ambiguous interface'],limitations:[]},repairOutline:async(b:Blueprint)=>{if(++calls===1)throw new CheckRequestInterrupted('timeout','provider timeout');return {version:1,baseDigest:outlinePatchDigest(b),contractEdits:[{section:0,text:b.contract+' corrected'}]};},generate:async(id:string)=>entry(id),save:async(s:Preparation)=>{saved=structuredClone(s);}};
  await assert.rejects(draftInParts(task,services),/provider timeout/);assert.equal(saved!.outlineRepairs,0);
  await draftInParts(task,services,saved);assert.equal(saved!.outlineRepairs,1);assert.equal(calls,2);
 });

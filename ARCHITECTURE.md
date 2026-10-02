@@ -165,7 +165,7 @@ flowchart LR
   I --> K["No tools: plan and save each criterion separately"]
   K --> O["Host assembles inherited interface and complete coverage"]
   O --> R["Independent outline review"]
-  R -->|conflict| O2["Correct outline; at most two attempts"]
+  R -->|conflict| O2["Tools-disabled section patch; at most two attempts"]
   O2 --> R
   R -->|command| C["Generate and save command observations"]
   R -->|browser| BC["Generate typed Chromium journey; no probe code"]
@@ -254,7 +254,19 @@ The contract and coverage outline stay fixed during case repairs. Each review
 receipt binds task requirements, outline and selected case bytes; the outer saved
 state additionally binds project source. Resume reuses matching successful reviews
 and retains spent repair budgets. Before code exists, outline corrections are
-independently reviewed with a separate two-attempt budget. Invalid generated cases
+independently reviewed with a separate two-attempt budget. Outline repair has its
+own tools-disabled prompt and a 16 KiB patch response, not the executable-check
+prompt. Edits identify case IDs, criterion rows or numbered contract paragraphs
+against a digest of the original outline. The host preserves untouched sections,
+IDs and existing coverage links. Added manual obligations remain unresolved.
+Deletion/consolidation requires explicit replanning. Every returned patch is saved
+before validation, including invalid replies; resuming reuses pending replies
+before requesting more work. Stale bases, unknown fields and whole-outline
+replacements are rejected atomically. Format correction shares the existing
+budget; provider interruptions preserve the usable repair allowance. Applying a
+patch invalidates outline review and requires independent review again. Existing
+saved outlines remain compatible; generated cases cannot be rewritten by this path.
+Invalid generated cases
 retain their raw response and at most two format/size correction attempts before
 quality review. Persistently oversized unfinished behaviours may be partitioned
 at most twice, preserving the interface and completed cases and independently

@@ -37,6 +37,11 @@ acceptance: feed passed against operator-approved expectations
 applied as r5. undo with: npm run undo -- r5
 ```
 
+During check preparation, outline corrections update only affected sections.
+Completed replies are saved for resume, and unrelated behaviours stay intact.
+Independent review and your approval are still required; manual observations
+remain outstanding until their evidence is recorded.
+
 ## Product requirements and readiness
 
 After accepting a plan's items, use `harness product setup` (also in `harness guide`).

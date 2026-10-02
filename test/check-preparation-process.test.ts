@@ -1,3 +1,5 @@
+import {requestOutlinePatch,applyOutlinePatch,outlinePatchDigest} from '../src/acceptance/outline-patch.ts';
+import {parseBlueprint} from '../src/acceptance/preparation.ts';
 /** Actual model-launch containers with deterministic responses; no provider calls. */
 import assert from 'node:assert/strict';import test from 'node:test';
 import {mkdtemp,mkdir,writeFile,readFile,readdir,rm} from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
@@ -40,6 +42,13 @@ test('Docker: failure before the outline response retains feedback and resumes w
   assert.match(lines.join('\n'),/Resuming saved behaviour preparation/);assert.match(lines.join('\n'),/No model requests made/);assert.equal(await readApproval(project),undefined);
   const receipts=await readdir(project+'-harness/acceptance/requests');const records=await Promise.all(receipts.map(async f=>JSON.parse(await readFile(project+'-harness/acceptance/requests/'+f,'utf8'))));assert.ok(records.some(r=>r.stage==='planning-interface'&&r.tools==='none'&&r.toolCalls===0));assert.ok(records.some(r=>r.status==='interrupted'));assert.ok(records.some(r=>r.stage==='timeout-fixture'&&r.status==='timeout'&&r.partialAssistantText==='unfinished visible reply'));
   assert.equal(await readFile(project+'/app.js','utf8'),'console.log("Hello");');
+
+  const outline=parseBlueprint(blueprint,task),patch={version:1,baseDigest:outlinePatchDigest(outline),cases:[{id:'hello',kind:'command',description:'Observe Hello followed by a newline.'}]};
+  await writeFile(path.join(pi,'dist/cli.js'),`if(!process.argv.includes('--no-tools')||process.argv.includes('--tools'))throw Error('repair tools enabled');const fs=require('node:fs');const prompt=fs.readFileSync(process.argv.find(a=>a.startsWith('@/work/')).slice(1),'utf8');if(!prompt.includes('Return ONLY a JSON patch')||prompt.includes('Read the source in /work'))throw Error('conflicting repair schema');const text=${JSON.stringify(JSON.stringify(patch))};const message={role:'assistant',content:[{type:'text',text}],usage:{totalTokens:10,cost:{total:0.001}}};console.log(JSON.stringify({type:'message_end',message}));console.log(JSON.stringify({type:'turn_end',message}));console.log(JSON.stringify({type:'agent_end',messages:[message]}));`);
+  const response=await requestOutlinePatch(project,task,outline,['Clarify the newline observation.']);
+  const repaired=parseBlueprint(applyOutlinePatch(outline,response),task);assert.equal(repaired.contract,outline.contract);assert.equal(repaired.cases[0]!.description,patch.cases[0]!.description);
+  const patchReceipts=await Promise.all((await readdir(project+'-harness/acceptance/requests')).map(async f=>JSON.parse(await readFile(project+'-harness/acceptance/requests/'+f,'utf8'))));
+  assert.ok(patchReceipts.some(r=>r.stage==='outline-patch'&&r.status==='returned'&&r.tools==='none'&&r.toolCalls===0));assert.equal(await readApproval(project),undefined);assert.equal(await readFile(project+'/app.js','utf8'),'console.log("Hello");');
 
  }finally{for(const [key,value]of Object.entries(prior)){if(value===undefined)delete process.env[key];else process.env[key]=value;}await rm(root,{recursive:true,force:true});}
 });
