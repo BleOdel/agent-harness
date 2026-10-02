@@ -54,7 +54,7 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
       const local = { ...layout(attempt, work), ...(adapter.executionEnvironment ? { environment: adapter.executionEnvironment } : {}) };
       await control?.record({ type: "phase", attemptId: attempt.id, phase: "preparing", modelRole: "builder" });
       let spent: Usage = { tokens: 0, costUsd: 0, complete: false };
-      await privateAgentDirectory(config.agentDirectory, local.agentDirectory);
+      await privateAgentDirectory(config.agentDirectory, local.agentDirectory, {piPackage:config.piPackageDirectory,provider:role.provider ?? config.provider!,validityMs:config.agentTimeoutMs});
       output(`attempt: ${attempt.id} · task: ${task.id} · role: ${role.id}\n`);
       for (const skill of attempt.skills) output(`skill: ${skill.id} ${skill.digest}\n`);
       try {
@@ -115,7 +115,7 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
       await atomicJson(path.join(attempt.directory, "verification.json"), { ...proof, execution: state.execution });
       if (!proof.run.passed) return { passed: false, gates, review: "not-run", blocked: proof.run.firstFailure?.kind === "environment-blocked", reason: proof.run.firstFailure?.detail ?? "Gates failed." };
       const reviewer = layout(attempt, result.candidate.directory, true);
-      await privateAgentDirectory(config.agentDirectory, reviewer.agentDirectory);
+      await privateAgentDirectory(config.agentDirectory, reviewer.agentDirectory, {piPackage:config.piPackageDirectory,provider:config.provider!,validityMs:config.agentTimeoutMs});
       await control?.record({ type: "phase", attemptId: attempt.id, phase: "reviewing", modelRole: "reviewer" });
       const request = { title: task.title, criteria: task.criteria, diff: await renderDiff(attempt.baseline.directory, result.candidate.directory, result.candidate.changes), provider: config.provider, model: config.model, effort: config.effort ?? "medium", timeoutMs: config.agentTimeoutMs };
       const reviewed = await runRpcAgent({ ...reviewer, purpose: "review" }, { goal: reviewPrompt(request), provider: request.provider, model: request.model, effort: request.effort, timeoutMs: request.timeoutMs, skills: false }, () => {}, {

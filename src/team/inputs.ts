@@ -1,4 +1,5 @@
 /** Freeze only declared role resources. Authentication is copied separately, never manifested. */
+import {credentialSnapshot,type CredentialSelection} from "../agent/credentials.ts";
 import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -40,16 +41,12 @@ export async function snapshotSkills(source: string, destination: string, defini
   }
   return versions;
 }
-export async function privateAgentDirectory(source: string, destination: string): Promise<string> {
+export async function privateAgentDirectory(source: string, destination: string, selection?:CredentialSelection): Promise<string> {
   await mkdir(destination, { recursive: true, mode: 0o700 });
   await mkdir(path.join(destination, "sessions"), { mode: 0o700 });
   // Global settings may discover packages or extensions. Only credentials are
   // copied; role provider/model and launcher policy supply all other inputs.
-  const auth = path.join(source, "auth.json");
-  const stat = await lstat(auth).catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return undefined; throw error; });
-  if (stat) {
-    if (!stat.isFile()) throw new Error("Authentication input must be a regular file.");
-    await writeFile(path.join(destination, "auth.json"), await readFile(auth), { mode: 0o600, flag: "wx" });
-  }
+  const auth = await credentialSnapshot(source, selection);
+  if (auth !== undefined) await writeFile(path.join(destination, "auth.json"), auth, { mode: 0o600, flag: "wx" });
   return destination;
 }

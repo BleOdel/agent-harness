@@ -1,5 +1,6 @@
+import {createHash} from 'node:crypto';
 import {caseKind,routeBlueprint,type Behaviour} from './evidence-kind.ts';
-import {browserDesignPrompt,parseRoutedCase,EvidenceCapabilityGap} from './browser-design.ts';
+import {browserDesignPrompt,browserCapabilityDigest,parseRoutedCase,EvidenceCapabilityGap} from './browser-design.ts';
 import {prepareOutline} from './planning-context.ts';
 import {CheckRequestInterrupted} from './request-failure.ts';
 import {syntaxIssues} from './repair.ts';
@@ -42,6 +43,7 @@ export function parsePreparedCase(raw:unknown,task:Feature,selected:Blueprint['c
  return {id:entry.id,description:entry.description,tasks:entry.tasks,steps:entry.steps,...(selected.kind?{kind:selected.kind}:{})};
 }
 export const blueprintProposal=(task:Feature,b:Blueprint):Proposal=>parseProposal({...b,manifest:{version:1,cases:b.cases.map(c=>stub(task,c))}},task);
+export const outlineFingerprint=(task:Feature,b:Blueprint):string=>{const digest=proposalDigest(blueprintProposal(task,b));return b.cases.some(c=>caseKind(c)==='browser')?createHash('sha256').update(digest+browserCapabilityDigest()).digest('hex'):digest;};
 /** Only ungenerated behaviours may be partitioned; host code preserves the interface and coverage. */
 export function partitionBlueprint(task:Feature,b:Blueprint,id:string,raw:unknown):Blueprint {
  const value=raw as {cases?:Blueprint['cases']};
@@ -71,7 +73,7 @@ export function initializePreparation(task:Feature,blueprint:Blueprint,saved?:Pr
   if(saved.pendingCase.id!==blueprint.cases[cases.length]?.id||!Number.isInteger(saved.pendingCase.repairs)||saved.pendingCase.repairs<0||saved.pendingCase.repairs>2)throw new OperatorError('Invalid saved case preparation.');
   state.pendingCase=structuredClone(saved.pendingCase);
  }
- const digest=proposalDigest(blueprintProposal(task,blueprint));
+ const digest=outlineFingerprint(task,blueprint);
  if(!rerouted&&saved?.outlineReview?.digest===digest)state.outlineReview={digest,review:parseDraftReview(saved.outlineReview.review)};
  if(rerouted&&saved)(state.routingHistory??=[]).push(structuredClone({...saved,routingHistory:undefined}));
  return state;
@@ -82,7 +84,7 @@ export async function draftInParts(task:Feature,services:{reviewCase?:(p:Proposa
  await services.save(state);
  if(services.reviewOutline){
   for(;;){
-   const currentDigest=proposalDigest(blueprintProposal(task,blueprint));
+   const currentDigest=outlineFingerprint(task,blueprint);
    if(!state.outlineReview){services.progress?.('Reviewing the interface before generating executable checks…');state.outlineReview={digest:currentDigest,review:parseDraftReview(await services.reviewOutline(blueprint))};await services.save(state);}
    if(state.outlineReview.review.verdict==='pass')break;
    const issues=state.outlineReview.review.issues;
@@ -94,7 +96,7 @@ export async function draftInParts(task:Feature,services:{reviewCase?:(p:Proposa
    try{raw=await services.repairOutline(blueprint,issues);}
    catch(error){if(error instanceof CheckRequestInterrupted||error instanceof CheckBudgetExceeded){state.outlineRepairs!--;await services.save(state);}throw error;}
    const next=parseBlueprint(raw,task);
-   if(proposalDigest(blueprintProposal(task,next))===currentDigest)throw new OperatorError('Outline repair made no change.',remedy);
+   if(outlineFingerprint(task,next)===currentDigest)throw new OperatorError('Outline repair made no change.',remedy);
    blueprint=next;state.blueprint=next;delete state.outlineReview;await services.save(state);
   }
  }
@@ -147,7 +149,7 @@ export async function draftInParts(task:Feature,services:{reviewCase?:(p:Proposa
      const before=currentProposal();
      blueprint=next;state.blueprint=next;
      if(state.reviewLedger){const after=currentProposal();state.reviewLedger.entries=state.reviewLedger.entries.filter(e=>e.scope!=='$contract'&&e.digest===scopeDigest(task,before,e.scope)&&cases.some(c=>c.id===e.scope)).map(e=>({...e,digest:scopeDigest(task,after,e.scope)}));}
-     state.outlineReview={digest:proposalDigest(blueprintProposal(task,next)),review:state.pendingSplit.review};
+     state.outlineReview={digest:outlineFingerprint(task,next),review:state.pendingSplit.review};
      delete state.pendingCase;delete state.pendingSplit;await services.save(state);
      continue prepareCases;
     }

@@ -23,6 +23,7 @@ export function ensureCheckBudget():void {const c=context.getStore();if(c?.state
 export async function withCheckBudget<T>(limits:CheckLimits,state:CheckSpend,save:()=>Promise<void>,write:(s:string)=>void,action:()=>Promise<T>,now=Date.now):Promise<T>{
  validateCheckLimits(limits);return context.run({limits,state,save,write,now,deadline:now()+limits.maxSeconds*1000},action);
 }
+export function checkRequestWindow(configTimeout:number):number {const c=context.getStore();return Math.min(configTimeout,c?c.limits.requestSeconds*1000:Infinity,c?c.limits.maxSeconds*1000:Infinity);}
 export async function checkRequestBudget(configTimeout:number):Promise<{timeoutMs:number;record:(usage:AgentUsage,complete:boolean)=>Promise<void>}>{
  ensureCheckBudget();const c=context.getStore();
  if(!c)return {timeoutMs:configTimeout,record:async()=>{}};

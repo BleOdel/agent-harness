@@ -43,7 +43,7 @@ by an untrusted project. `HARNESS_BROWSER_IMAGE_ID` can select an immutable imag
 
 Other actions: click, fill, press, count, focused, reload and motion. Motion takes
 `value: "reduce"` or `"no-preference"`; the initial browser preference is reduce.
-Supported keys are Tab, Shift+Tab, Enter, Space, Escape, ArrowUp and ArrowDown.
+Supported keys are Tab, Shift+Tab, Enter, Space, Escape, ArrowUp, ArrowDown, Backspace, Delete and ControlOrMeta+A.
 Text checks require exactly one matching element with exact text. Goto/reload
 require HTTP 200 and reject redirects. For asynchronously loaded UI, put a visible
 text observation before counting dependent elements. Navigation paths stay on the
@@ -112,6 +112,39 @@ application, just as for standalone browser runs. The result records the candida
 source digest and retained browser run; applying work re-assesses those observations.
 Changed runtime pins, missing observations and another candidate's evidence fail closed.
 
-Manual and unsupported capabilities stay unresolved. This integration does not add
-new Chromium actions or turn HTTP requests into browser observations. Existing
+Manual and unsupported capabilities stay unresolved. HTTP probes cannot substitute
+for browser observations. Existing
 standalone `browser approve` and `browser verify` commands continue to work.
+
+## Author workflows
+
+Reviewed JSON journeys and generated acceptance journeys also support:
+
+- `capture`: retain one element's nonempty text or input value under a unique name.
+  Later `fill`/`paste` actions use `valueFrom`; clipboard/download expectations use
+  `expectedFrom`. Capturing a value is setup, not proof by itself.
+- `clipboard`: observe text from Chromium's clipboard. `paste` uses a real keyboard
+  paste into the selected input. The laptop clipboard is never used.
+- `download`: click an element, retain at most 64 KiB of UTF-8 file content for host
+  comparison, and delete the temporary download. The application cannot choose a
+  host output path.
+- `context`: select a fresh, independent profile or return to a named one. `page`
+  selects another tab sharing that profile's storage. Limits are four profiles and
+  twelve pages per journey, including the initial `main` profile and page.
+- `storage`: scan local/session storage, IndexedDB records, Cache API entries and
+  cookies for a previously captured marker (`absentFrom`). The host also scans URL,
+  base64 and hex encodings. Oversized or unsupported stored values stop verification;
+  this does not prove absence of every possible encoding or OS-level copy.
+- `network`: inject `abort` or a fixed JSON `503` for one exact same-origin pathname
+  and method in the current profile. `normal` removes that fault. `requestCount`
+  observes cumulative intercepted requests for that path/method, including faults.
+  These actions test UI recovery; they do not prove backend failure handling.
+- `attribute`: observe bounded semantic/form attributes. `select` chooses a native
+  select option. DOM roles and axe results do not prove screen-reader announcements.
+
+Expected values and privacy comparisons stay on the host. Captured fixture values
+and storage snapshots are retained as diagnostic evidence, so use fictional test
+accounts only. Browser capability changes invalidate saved outline review receipts;
+changes to the driver or schema require explicit approval of the new runtime pin.
+The basic interactive setup menu remains available; these advanced actions are
+specified in reviewed JSON or generated acceptance journeys.

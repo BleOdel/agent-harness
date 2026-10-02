@@ -211,6 +211,17 @@ its source. The approval digest includes the runtime pin; archives, worktree con
 check refresh and dashboard projections preserve that identity. `browser-evidence.ts`
 re-assesses retained observations against the approved journey and candidate digest
 before application/reporting. No empty command array can count as browser success.
+`browser/capabilities.ts` validates dynamic captures, clipboard/download comparisons,
+profile/page isolation, origin storage scans and exact-route fault injection. The
+host receives observations and compares expectations; the driver receives actions
+only. Capability fingerprints invalidate outline review receipts without erasing
+saved designs. DOM accessibility evidence remains distinct from screen-reader use.
+
+`agent/credentials.ts` handles copied-session OAuth renewal in the canonical Pi
+store under Pi's own file lock. A sufficiently long-lived selected credential is
+copied with an empty refresh token; worker output never updates the host. This
+prevents per-check rotation from discarding the replacement login or concurrent
+workers from racing the same refresh token.
 
 The initial boundary is now a host-owned decomposition, not an exploratory agent
 session. `planning-context.ts` supplies exact prerequisite contracts without their

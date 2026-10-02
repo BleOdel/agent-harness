@@ -1897,8 +1897,12 @@ copied. Provider/model precedence is role, harness configuration, then the host
 Pi settings' `defaultProvider`/`defaultModel`. Only those two defaults are read;
 resolved values are frozen into the accepted roles.
 Team builders and reviewers use the pinned Pi RPC transport described below.
-Private token refreshes are not merged back to the operator's auth file. Restore
-provider authentication before retrying authentication failures. Skill availability,
+Check preparation and team snapshots renew OAuth in Pi's canonical host store under
+Pi's credential lock before dispatch. Their private copies contain only the selected
+provider and no OAuth refresh token. Workers cannot overwrite the host login. If a
+credential cannot cover the bounded operation, dispatch stops; use Pi `/login` in
+`HARNESS_AGENT_DIR` or shorten the requested timeout. Already invalid refresh tokens
+still require sign-in. Worker credential output is never merged back. Skill availability,
 observed reads, and reported workflow evidence are recorded separately; they are
 not proof of compliance.
 

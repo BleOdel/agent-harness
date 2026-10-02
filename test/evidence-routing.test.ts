@@ -31,3 +31,14 @@ test('unsupported browser capability stops without format repairs or HTTP substi
  await assert.rejects(draftInParts(task,{plan:async()=>({...legacy,cases:[{...legacy.cases[0]!,kind:'browser'}]}),generate:async()=>({blocker:'Independent browser contexts are unavailable.'}),repairCase:async()=>{repairs++;return http;},save:async s=>{state=structuredClone(s);}}),/capability requires manual/);
  assert.equal(repairs,0);assert.equal(state!.pendingCase!.repairs,0);assert.ok(JSON.stringify(state!.pendingCase!.raw).includes('contexts'));
 });
+
+test('browser capability changes invalidate outline review receipts without changing saved designs',async()=>{
+ const {outlineFingerprint,initializePreparation,blueprintProposal}=await import('../src/acceptance/preparation.ts');
+ const {proposalDigest}=await import('../src/acceptance/repair.ts');
+ const task={id:'ui',title:'UI',priority:'must' as const,status:'todo' as const,criteria:['Copy the key'],dependsOn:[]};
+ const blueprint={version:1 as const,contract:'Use the existing page',coverage:[{criterion:1,cases:['copy']}],cases:[{id:'copy',kind:'browser' as const,description:'Copy the displayed key'}]};
+ const old={version:1 as const,blueprint,cases:[],outlineReview:{digest:proposalDigest(blueprintProposal(task,blueprint)),review:{verdict:'pass' as const,issues:[],limitations:[]}}};
+ assert.equal(initializePreparation(task,blueprint,old).outlineReview,undefined);
+ const current={...old,outlineReview:{...old.outlineReview,digest:outlineFingerprint(task,blueprint)}};
+ assert.equal(initializePreparation(task,blueprint,current).outlineReview?.review.verdict,'pass');assert.deepEqual(current.blueprint,blueprint);
+});

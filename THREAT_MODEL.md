@@ -149,8 +149,15 @@ Shared-input assignments are exclusive. Bounded integration repair repeats all
 checks under the original role and scope. Workers receive no live project or controller-state mount. Each builder
 and reviewer receives a separate writable credential copy; skill bundles contain
 only role-selected definitions and declared resources and mount read-only.
-Credential refreshes are not propagated to the operator's store. A crash can leave
-private copies until explicit cleanup succeeds.
+Check preparation and team credential snapshots refresh OAuth on the host first,
+using the installed Pi credential backend's lock and built-in provider. The
+replacement is saved to the canonical store before a snapshot is returned. Only
+the selected provider is copied; OAuth refresh tokens are blank in snapshots.
+Worker-modified credentials are never merged back. Lifetimes must cover the
+bounded operation; a short-lived renewal is still saved before dispatch is refused.
+A crash during a provider refresh can still require a fresh login. Private access
+credential copies can remain until explicit cleanup succeeds. Ordinary work/planning
+retain their existing Pi-directory mount policy; this change concerns copied sessions.
 
 A canonical project writer lock excludes concurrent harness mutations, including
 ordinary work and undo. It does not lock editors or other external tools. Explicit
