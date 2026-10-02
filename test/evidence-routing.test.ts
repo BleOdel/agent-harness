@@ -28,8 +28,8 @@ test('browser format repair cannot substitute HTTP evidence; manual cases never 
 
 test('unsupported browser capability stops without format repairs or HTTP substitutions',async()=>{
  let repairs=0;let state:Preparation|undefined;
- await assert.rejects(draftInParts(task,{plan:async()=>({...legacy,cases:[{...legacy.cases[0]!,kind:'browser'}]}),generate:async()=>({blocker:'Independent browser contexts are unavailable.'}),repairCase:async()=>{repairs++;return http;},save:async s=>{state=structuredClone(s);}}),/capability requires manual/);
- assert.equal(repairs,0);assert.equal(state!.pendingCase!.repairs,0);assert.ok(JSON.stringify(state!.pendingCase!.raw).includes('contexts'));
+ await assert.rejects(draftInParts(task,{plan:async()=>({...legacy,cases:[{...legacy.cases[0]!,kind:'browser'}]}),generate:async()=>({blocker:'contract-choice',observation:'Observe the live title count.',reason:'No counter label or expected counter representation is specified in this frozen contract.',requiredResolution:'Define the semantic counter anchor and expected representation before preparing this journey.'}),repairCase:async()=>{repairs++;return http;},save:async s=>{state=structuredClone(s);}}),/browser design blocker/);
+ assert.equal(repairs,0);assert.equal(state!.pendingCase!.repairs,0);assert.ok(JSON.stringify(state!.pendingCase!.raw).includes('counter'));
 });
 
 test('browser capability changes invalidate outline review receipts without changing saved designs',async()=>{

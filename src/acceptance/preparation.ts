@@ -1,7 +1,7 @@
 import {applyOutlinePatch,outlinePatchDigest,requestOutlinePatch,type OutlinePatchReply,type InvalidOutlinePatch} from './outline-patch.ts';
 import {createHash} from 'node:crypto';
 import {caseKind,routeBlueprint,type Behaviour} from './evidence-kind.ts';
-import {browserDesignPrompt,browserCapabilityDigest,parseRoutedCase,EvidenceCapabilityGap} from './browser-design.ts';
+import {browserDesignPrompt,browserCapabilityDigest,parseRoutedCase,EvidenceCapabilityGap,IncompleteBrowserBlocker,browserBlockerPrompt} from './browser-design.ts';
 import {prepareOutline} from './planning-context.ts';
 import {CheckRequestInterrupted} from './request-failure.ts';
 import {syntaxIssues} from './repair.ts';
@@ -17,7 +17,7 @@ import { OperatorError } from '../verbs/io.ts';
 import { proposalDigest, parseDraftReview, type DraftReview } from './repair.ts';
 import { requestScopedReview,reviewScopes,scopeDigest,type ReviewLedger } from './scoped-review.ts';
 export interface Blueprint { version:1; contract:string; coverage:Coverage[]; cases:Behaviour[]; }
-export interface Preparation { pendingOutlinePatch?:OutlinePatchReply; outlinePatchHistory?:OutlinePatchReply[]; routingHistory?:unknown[]; reviewLedger?:ReviewLedger; version:1; blueprint:Blueprint; cases:AcceptanceCase[]; pendingCase?:{id:string;raw:unknown;repairs:number}; splits?:number; pendingSplit?:{id:string;raw:unknown;review?:DraftReview}; retiredCases?:{id:string;raw:unknown;repairs:number}[]; outlineRepairs?:number; outlineReview?:{digest:string;review:DraftReview}; }
+export interface Preparation { pendingOutlinePatch?:OutlinePatchReply; outlinePatchHistory?:OutlinePatchReply[]; routingHistory?:unknown[]; reviewLedger?:ReviewLedger; version:1; blueprint:Blueprint; cases:AcceptanceCase[]; pendingCase?:{id:string;raw:unknown;repairs:number;blockerClarifications?:number}; splits?:number; pendingSplit?:{id:string;raw:unknown;review?:DraftReview}; retiredCases?:{id:string;raw:unknown;repairs:number}[]; outlineRepairs?:number; outlineReview?:{digest:string;review:DraftReview}; }
 export const MAX_CASE_BYTES = 16 * 1024;
 class OversizedCase extends OperatorError {}
 const stub = (task:Feature,c:Behaviour):AcceptanceCase => caseKind(c)==='browser'
@@ -72,6 +72,7 @@ export function initializePreparation(task:Feature,blueprint:Blueprint,saved?:Pr
  if(!Number.isInteger(state.outlineRepairs)||state.outlineRepairs!<0||state.outlineRepairs!>2)throw new OperatorError("Invalid saved outline repair budget.");
  if(saved?.pendingCase&&!rerouted){
   if(saved.pendingCase.id!==blueprint.cases[cases.length]?.id||!Number.isInteger(saved.pendingCase.repairs)||saved.pendingCase.repairs<0||saved.pendingCase.repairs>2)throw new OperatorError('Invalid saved case preparation.');
+  if(saved.pendingCase.blockerClarifications!==undefined&&(!Number.isInteger(saved.pendingCase.blockerClarifications)||saved.pendingCase.blockerClarifications<0||saved.pendingCase.blockerClarifications>1))throw new OperatorError('Invalid saved browser clarification budget.');
   state.pendingCase=structuredClone(saved.pendingCase);
  }
  if(saved?.outlinePatchHistory){
@@ -87,7 +88,7 @@ export function initializePreparation(task:Feature,blueprint:Blueprint,saved?:Pr
  if(rerouted&&saved)(state.routingHistory??=[]).push(structuredClone({...saved,routingHistory:undefined}));
  return state;
 }
-export async function draftInParts(task:Feature,services:{reviewCase?:(p:Proposal,scope:string,ledger:ReviewLedger,save:(p:Proposal,l:ReviewLedger)=>Promise<void>)=>Promise<unknown>;plan:()=>Promise<unknown>;generate:(id:string,blueprint:Blueprint)=>Promise<unknown>;save:(state:Preparation)=>Promise<void>;reviewOutline?:(blueprint:Blueprint)=>Promise<DraftReview>;repairOutline?:(blueprint:Blueprint,issues:string[],previous?:InvalidOutlinePatch)=>Promise<unknown>;repairCase?:(id:string,blueprint:Blueprint,raw:unknown,error:string)=>Promise<unknown>;splitCase?:(id:string,blueprint:Blueprint)=>Promise<unknown>;reviewSplit?:(blueprint:Blueprint,original:Blueprint['cases'][number])=>Promise<DraftReview>;progress?:(text:string)=>void},saved?:Preparation):Promise<Proposal> {
+export async function draftInParts(task:Feature,services:{reviewCase?:(p:Proposal,scope:string,ledger:ReviewLedger,save:(p:Proposal,l:ReviewLedger)=>Promise<void>)=>Promise<unknown>;plan:()=>Promise<unknown>;generate:(id:string,blueprint:Blueprint)=>Promise<unknown>;save:(state:Preparation)=>Promise<void>;reviewOutline?:(blueprint:Blueprint)=>Promise<DraftReview>;repairOutline?:(blueprint:Blueprint,issues:string[],previous?:InvalidOutlinePatch)=>Promise<unknown>;clarifyBlocker?:(id:string,blueprint:Blueprint,raw:unknown,error:string)=>Promise<unknown>;repairCase?:(id:string,blueprint:Blueprint,raw:unknown,error:string)=>Promise<unknown>;splitCase?:(id:string,blueprint:Blueprint)=>Promise<unknown>;reviewSplit?:(blueprint:Blueprint,original:Blueprint['cases'][number])=>Promise<DraftReview>;progress?:(text:string)=>void},saved?:Preparation):Promise<Proposal> {
  let blueprint=parseBlueprint(saved?.blueprint??await services.plan(),task);
  const state=initializePreparation(task,blueprint,saved),cases=state.cases;
  await services.save(state);
@@ -147,6 +148,16 @@ export async function draftInParts(task:Feature,services:{reviewCase?:(p:Proposa
    try{entry=parsePreparedCase(state.pendingCase.raw,task,selected);break;}
    catch(error){
     if(error instanceof EvidenceCapabilityGap)throw error;
+    if(error instanceof IncompleteBrowserBlocker){
+     if(!services.clarifyBlocker||(state.pendingCase.blockerClarifications??0)>=1)throw new OperatorError('The model did not provide a usable browser diagnosis.',`${error.message} The replies are retained; inspect the generator and contract before another attempt. No manual rerouting or approval occurred.`);
+     ensureCheckBudget();state.pendingCase.blockerClarifications=(state.pendingCase.blockerClarifications??0)+1;await services.save(state);
+     services.progress?.('Clarifying the incomplete browser blocker once; the saved outline and evidence kind stay unchanged…');
+     let raw:unknown;
+     try{raw=await services.clarifyBlocker(selected.id,blueprint,state.pendingCase.raw,error.message);}
+     catch(failure){if(failure instanceof CheckRequestInterrupted||failure instanceof CheckBudgetExceeded){state.pendingCase.blockerClarifications--;await services.save(state);}throw failure;}
+     (state.retiredCases??=[]).push(structuredClone(state.pendingCase));state.pendingCase.raw=raw;await services.save(state);
+     continue;
+    }
     const problem=(error as Error).message;
     if(error instanceof OversizedCase && state.pendingCase.repairs>=2 && services.splitCase && services.reviewSplit && (state.pendingSplit || state.splits!<2)){
      if(!state.pendingSplit){
@@ -211,6 +222,7 @@ export async function prepareInParts(project:string,task:Feature,feedback:string
    JSON.stringify({contract:b.contract,selected:b.cases.find(c=>c.id===id),otherBehaviours:b.cases.filter(c=>c.id!==id)}),
   ].join('\n\n')),
   reviewSplit:async(b,original)=>requestScopedReview(project,task,blueprintProposal(task,b),'$contract',[`Partition replaces ${original.id}: ${original.description}. Verify that the replacement behaviours together preserve all these promised observations; the host has preserved the interface and unrelated behaviours.`],progress),
+  clarifyBlocker:(id,b,raw,error)=>requestCheckJson(project,browserBlockerPrompt(task.id,b.contract,b.cases.find(c=>c.id===id)!,raw,error),{tools:'none',stage:'browser-blocker:'+id}),
   repairCase:async(id,b,raw,error)=>{
    const selected=b.cases.find(c=>c.id===id)!;
    if(caseKind(selected)==='browser')return requestCheckJson(project,[browserDesignPrompt(),'Repair only this journey. Preserve all required observations.',JSON.stringify({contract:b.contract,selected,taskId:task.id,raw,error})].join('\n\n'),{tools:'none',stage:'browser-format:'+id});

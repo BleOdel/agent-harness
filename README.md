@@ -40,7 +40,10 @@ applied as r5. undo with: npm run undo -- r5
 During check preparation, outline corrections update only affected sections.
 Completed replies are saved for resume, and unrelated behaviours stay intact.
 Independent review and your approval are still required; manual observations
-remain outstanding until their evidence is recorded.
+remain outstanding until their evidence is recorded. A vague browser blocker gets
+one bounded clarification; it cannot silently turn a browser requirement into
+manual work. Specific blockers explain the missing action, interface choice or
+journey limit.
 
 ## Product requirements and readiness
 

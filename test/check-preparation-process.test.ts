@@ -1,3 +1,4 @@
+import {browserBlockerPrompt,parseRoutedCase,EvidenceCapabilityGap} from '../src/acceptance/browser-design.ts';
 import {requestOutlinePatch,applyOutlinePatch,outlinePatchDigest} from '../src/acceptance/outline-patch.ts';
 import {parseBlueprint} from '../src/acceptance/preparation.ts';
 /** Actual model-launch containers with deterministic responses; no provider calls. */
@@ -49,6 +50,12 @@ test('Docker: failure before the outline response retains feedback and resumes w
   const repaired=parseBlueprint(applyOutlinePatch(outline,response),task);assert.equal(repaired.contract,outline.contract);assert.equal(repaired.cases[0]!.description,patch.cases[0]!.description);
   const patchReceipts=await Promise.all((await readdir(project+'-harness/acceptance/requests')).map(async f=>JSON.parse(await readFile(project+'-harness/acceptance/requests/'+f,'utf8'))));
   assert.ok(patchReceipts.some(r=>r.stage==='outline-patch'&&r.status==='returned'&&r.tools==='none'&&r.toolCalls===0));assert.equal(await readApproval(project),undefined);assert.equal(await readFile(project+'/app.js','utf8'),'console.log("Hello");');
+
+  const selected={id:'hello-browser',kind:'browser' as const,description:'Observe the live title count.'};
+  const diagnosis={blocker:'contract-choice',observation:'Observe the live title count.',reason:'No agreed count label or displayed count format is supplied by the frozen interface.',requiredResolution:'Specify an accessible counter name and expected count representation.'};
+  await writeFile(path.join(pi,'dist/cli.js'),`if(!process.argv.includes('--no-tools'))throw Error('diagnostic tools enabled');const fs=require('node:fs');const prompt=fs.readFileSync(process.argv.find(a=>a.startsWith('@/work/')).slice(1),'utf8');if(!prompt.includes('Clarify this saved browser reply once'))throw Error('wrong diagnostic prompt');const text=${JSON.stringify(JSON.stringify(diagnosis))};const message={role:'assistant',content:[{type:'text',text}],usage:{totalTokens:10,cost:{total:0.001}}};console.log(JSON.stringify({type:'message_end',message}));console.log(JSON.stringify({type:'turn_end',message}));console.log(JSON.stringify({type:'agent_end',messages:[message]}));`);
+  const diagnostic=await requestCheckJson(project,browserBlockerPrompt(task.id,outline.contract,selected,{blocker:'capability needed'},'Missing diagnosis'),{tools:'none',stage:'browser-blocker:'+selected.id});
+  assert.deepEqual(diagnostic,diagnosis);assert.throws(()=>parseRoutedCase(diagnostic,task.id,selected),EvidenceCapabilityGap);assert.equal(await readApproval(project),undefined);
 
  }finally{for(const [key,value]of Object.entries(prior)){if(value===undefined)delete process.env[key];else process.env[key]=value;}await rm(root,{recursive:true,force:true});}
 });

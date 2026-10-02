@@ -266,6 +266,16 @@ replacements are rejected atomically. Format correction shares the existing
 budget; provider interruptions preserve the usable repair allowance. Applying a
 patch invalidates outline review and requires independent review again. Existing
 saved outlines remain compatible; generated cases cannot be rewritten by this path.
+Browser blockers require a category (missing action, contract choice or journey
+limit), an exact quotation of the affected observation, a concrete reason and a
+proposed resolution. A placeholder is not evidence of a runner limitation. One
+checkpointed clarification may produce a supported journey or a specific blocker;
+it shares the request/time allowance and never changes evidence kind or approval.
+Repeated vague replies stop. Classified provider interruptions preserve the
+clarification allowance, and the original response is retained. Diagnostic wording
+is excluded from capability changes so it does not invalidate a passing outline
+review; changes to actual supported actions still invalidate that review.
+
 Invalid generated cases
 retain their raw response and at most two format/size correction attempts before
 quality review. Persistently oversized unfinished behaviours may be partitioned
