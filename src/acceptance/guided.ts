@@ -1,3 +1,4 @@
+import {caseKind} from './evidence-kind.ts';
 import {readActivePreparation} from './active-preparation.ts';
 import {CheckRequestInterrupted} from './request-failure.ts';
 import {ensureCheckBudget,CheckBudgetExceeded,hasCheckBudget,withCheckBudget,defaultCheckLimits,validateCheckLimits,type CheckLimits,type CheckSpend} from './budget.ts';
@@ -50,7 +51,7 @@ async function assertCurrent(project: string, saved: SavedDraft): Promise<void> 
  })) throw new OperatorError('Saved commands do not match the reviewed proposal. Draft checks again.');
  const retained = (manifest: CheckManifest) => manifest.cases.filter(c => !(c.tasks.length === 1 && c.tasks[0] === saved.taskId));
  if (digest(retained(saved.manifest)) !== digest(approval ? retained(approval.manifest) : [])) throw new OperatorError('The draft would alter checks for other tasks. Draft checks again.');
- if ((approval?.digest ?? null) !== saved.baseApprovalDigest && approval?.digest !== digest(saved.manifest)) throw new OperatorError('Approved checks changed since this draft was prepared.', 'Run harness checks setup and choose to draft again; newer checks will be preserved.');
+ if ((approval?.digest ?? null) !== saved.baseApprovalDigest && digest(approval?.manifest) !== digest(saved.manifest)) throw new OperatorError('Approved checks changed since this draft was prepared.', 'Run harness checks setup and choose to draft again; newer checks will be preserved.');
 }
 export async function readGuidedDraft(project: string, recovering = false): Promise<SavedDraft | undefined> {
  const raw = await readArtifact(directory(project), 'guided-draft.json', 8 * 1024 * 1024);
@@ -72,7 +73,7 @@ export async function readyCheckDraft(project:string):Promise<boolean>{
 export function describeProposal(io: Dialogue, proposal: Proposal, task: Feature): void {
  io.write(`Review proposed checks: ${task.title}`);
  io.write('These are proposed checks, not successful verification results.');
- for (const c of proposal.manifest.cases){io.write(`  • ${c.description}`);for(const s of c.steps)if(s.recipe)io.write('    '+recipeDescription(s.recipe));}
+ for (const c of proposal.manifest.cases){io.write(`  • [${caseKind(c)}] ${c.description}`);if(c.browser)io.write(`    Real Chromium: ${c.browser.steps.length} actions, ${c.browser.timeoutSeconds}s limit. Runtime is pinned at approval.`);if(c.manual)io.write('    Required human observation; this remains unresolved and blocks automatic application.');for(const s of c.steps)if(s.recipe)io.write('    '+recipeDescription(s.recipe));}
  io.write('An interface contract is saved with these behaviours. View the interface contract for exact routes, fields and startup choices.');
  io.write('Coverage against the approved requirements:');
  for (const coverage of proposal.coverage) {
@@ -110,7 +111,7 @@ export async function reviewGuidedDraft(project: string, io: Dialogue, draft?: S
    if (await readArtifact(directory(project), 'guided-draft.json', 8 * 1024 * 1024) !== JSON.stringify(saved, null, 2) + '\n') throw new OperatorError('The draft changed while you reviewed it. Run harness checks review again.');
    const file = path.join(directory(project), 'draft.json');
    await atomicWrite(file, JSON.stringify(saved.manifest, null, 2) + '\n');
-   await approveChecks(project, file);
+   await approveChecks(project, file,{preserveOtherTaskRuntime:saved.taskId});
   });
   io.write('Checks approved. Saved interface choices will be passed to the builder.');
   io.write(`Next: harness work ${saved.taskId}`); return;
@@ -222,7 +223,7 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
    const completed=completedRaw?JSON.parse(completedRaw):undefined;
    if(completed?.taskId===fresh.id && completed.taskDigest===taskDigest(fresh) && completed.sourceDigest===source && completed.state?.outlineReview?.review?.verdict==='pass'){
     const b=completed.state.blueprint;
-    if(JSON.stringify({contract:b.contract,coverage:b.coverage,cases:b.cases})===JSON.stringify({contract:initial.contract,coverage:initial.coverage,cases:initial.manifest.cases.map(c=>({id:c.id,description:c.description}))}))ledger={version:1,entries:[...(completed.state.reviewLedger?.entries??[]).filter((e:{scope:string;digest:string})=>e.scope!=='$contract'&&e.digest===scopeDigest(fresh,initial,e.scope)),{scope:'$contract',digest:scopeDigest(fresh,initial,'$contract'),repairs:0,syntaxRepairs:0,review:completed.state.outlineReview.review}]};
+    if(JSON.stringify({contract:b.contract,coverage:b.coverage,cases:b.cases})===JSON.stringify({contract:initial.contract,coverage:initial.coverage,cases:initial.manifest.cases.map(c=>({id:c.id,description:c.description,...(c.kind?{kind:c.kind}:{})}))}))ledger={version:1,entries:[...(completed.state.reviewLedger?.entries??[]).filter((e:{scope:string;digest:string})=>e.scope!=='$contract'&&e.digest===scopeDigest(fresh,initial,e.scope)),{scope:'$contract',digest:scopeDigest(fresh,initial,'$contract'),repairs:0,syntaxRepairs:0,review:completed.state.outlineReview.review}]};
    }
   }
   if(previousIssues.length)ledger={...(ledger??{version:1,entries:[]}),previousIssues:[...new Set([...(ledger?.previousIssues??[]),...previousIssues])]};
@@ -295,6 +296,7 @@ async function simplifySavedCheckWithinBudget(project:string,io:Dialogue,caseId:
   if(index<0)return;scope=ids[index]!;
  }
  if(!pending&&!ids.includes(scope))throw new OperatorError('Select a blocked check.');
+ if(caseKind(p.manifest.cases.find(c=>c.id===scope)!)!=='command')throw new OperatorError('Command-probe simplification cannot change browser/manual evidence.',`Use checks repair ${scope} for a browser journey defect, or checks setup to revise unsupported observations and overlapping journeys.`);
  const selected:string=scope;
  await withWriter(project,'checks simplify',async()=>{
   await current();
@@ -392,7 +394,7 @@ export async function useRecipeSavedCheck(project:string,io:Dialogue,caseId?:str
  const current=async()=>{if(record.taskDigest!==taskDigest(await currentTask(project,task.id))||record.sourceDigest!==await sourceDigest(project))throw new OperatorError('Saved recipe inputs changed.','Use checks setup to prepare from current source and requirements.');};
  await current();
  if(pending?.committedDigest===digest(raw)){await withWriter(project,'checks recipe',()=>rm(path.join(directory(project),'recipe-change.json')));io.write('The recipe migration was already saved. Next: harness checks review.');return;}
- const candidates=p.manifest.cases.filter(c=>c.steps.some(s=>s.recipe)||recipeForDescription(c.description??''));
+ const candidates=p.manifest.cases.filter(c=>caseKind(c)==='command'&&(c.steps.some(s=>s.recipe)||recipeForDescription(c.description??'')));
  let scope=caseId??pending?.scope;
  if(!scope){const index=await choose(io,'Use a tested recipe for which check?',candidates.map(c=>c.description??c.id));if(index<0)return;scope=candidates[index]!.id;}
  const selected=candidates.find(c=>c.id===scope);if(!selected)throw new OperatorError('No supported recipe matches this selected behaviour.','This release supports Node web assets and SQLite database boundaries; other behaviours keep their existing review path.');

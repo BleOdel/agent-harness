@@ -1,3 +1,4 @@
+import {caseKind} from '../acceptance/evidence-kind.ts';
 import {browserChecks} from './evidence/browser.ts';
 import {performanceReport,type PerformanceReport} from '../performance/report.ts';
 import {securityReport,type SecurityReport} from '../security/report.ts';
@@ -79,7 +80,7 @@ export async function productReport(project:string):Promise<ProductReport>{
    let status:Status=last?'failed':relevant.length?'stale':'missing';
    if(last?.outcome==='passed'){
     const required=approval.manifest.cases.filter(c=>c.tasks.includes('*')||c.tasks.includes(task.id));
-    if(!required.every(c=>c.steps.every((step,i)=>last.observations?.some((o:any)=>o.case===c.id&&o.step===i+1&&o.exitCode===step.exitCode&&!o.timedOut))))throw Error(`Acceptance observations incomplete for ${task.id}.`);
+    if(!required.every(c=>caseKind(c)==='browser'?last.browserObservations?.some((o:any)=>o.case===c.id&&o.source===current.source&&o.status==='passed'):caseKind(c)==='manual'?false:c.steps.every((step,i)=>last.observations?.some((o:any)=>o.case===c.id&&o.step===i+1&&o.exitCode===step.exitCode&&!o.timedOut))))throw Error(`Acceptance observations incomplete for ${task.id}.`);
     await assertAcceptanceProof(project,{directory:project,digest:current.source,files:{},exclusions:current.exclusions},[task.id],{approvalDigest:approval.digest,candidateDigest:current.source,evidencePath:path.join(root,last.file)});status='passed';
    }
    checks.push({id:`acceptance:${task.id}`,status,detail:last?`${last.outcome}: ${last.file}`:'Needs evidence for the current source and approved checks.',next:'harness product verify'});

@@ -7,7 +7,7 @@ import {createHash} from 'node:crypto';
 import {harnessDirectory} from '../record/record.ts';
 import {parseArtifact,type Artifact} from '../artifacts/store.ts';
 import {parseRelease,type Release} from '../releases/store.ts';
-import {parseChecks,type Approval} from '../acceptance/checks.ts';
+import {parseChecks,approvalDigest,type Approval} from '../acceptance/checks.ts';
 import {parseProfile,type ProjectProfile} from '../project/profile.ts';
 import type {PlanState} from '../planning/store.ts';
 import {readState} from '../team/state.ts';
@@ -59,7 +59,7 @@ export async function readWorkspace(project:string):Promise<WorkspaceInfo>{
  const canonical=await realpath(project),root=harnessDirectory(canonical),out=emptyWorkspace();
  const read=async(label:string,fn:()=>Promise<void>)=>{try{await fn();}catch(e){out.warnings.push(`${label} unavailable: ${(e as Error).message}`);}};
  await read('Project setup',async()=>{const p=await json(root,'project.json');if(p)out.profile=parseProfile(p);});
- await read('Acceptance checks',async()=>{const a=await json(root,'acceptance/approved.json') as Approval|undefined;if(a){const manifest=parseChecks(a.manifest);if(a.version!==1||a.digest!==hash(JSON.stringify(manifest)))throw Error('Approval does not match the saved checks');out.approval={...a,manifest};out.documents.push({name:'Approved acceptance checks',text:JSON.stringify(manifest,null,2),status:'Operator approved'});}const draft=await bytes(root,'acceptance/draft.json');if(draft)out.documents.push({name:'Acceptance-check draft',text:draft.toString(),status:'Draft — approval not implied'});});
+ await read('Acceptance checks',async()=>{const a=await json(root,'acceptance/approved.json') as Approval|undefined;if(a){const manifest=parseChecks(a.manifest);if(a.version!==1||a.digest!==approvalDigest(manifest,a.browserRuntime))throw Error('Approval does not match the saved checks');out.approval={...a,manifest};out.documents.push({name:'Approved acceptance checks',text:JSON.stringify(manifest,null,2),status:'Operator approved'});}const draft=await bytes(root,'acceptance/draft.json');if(draft)out.documents.push({name:'Acceptance-check draft',text:draft.toString(),status:'Draft — approval not implied'});});
  await read('Planning',async()=>{
   const entries=(await names(root,'plans')).filter(n=>/^[A-Za-z0-9_-]+$/.test(n));const id=entries.at(-1);if(!id)return;
   const p=await json(root,`plans/${id}/state.json`) as PlanState;

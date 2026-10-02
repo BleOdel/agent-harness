@@ -754,3 +754,18 @@ Owner-private request receipts retain stage/input hashes, visible assistant outp
 partial text and usage diagnostics, never reasoning deltas. Partial text is not
 accepted as completed JSON or application evidence. Receipts may contain project
 information and follow the existing local state-directory trust boundary.
+
+## Evidence destination separation
+
+Acceptance designs declare command, browser or manual evidence. Browser cases
+contain only the parsed action-based Chromium journey, never executable probes;
+manual cases have instructions and remain unresolved, blocking automatic work.
+Legacy browser declarations invalidate unapproved command substitutes and review
+receipts. Independent review still checks capability fit and coverage; names alone
+are not proof. Unsupported observations fail explicitly without inventing results.
+
+Browser acceptance mounts only the frozen candidate into the application container.
+Expectations remain on the host, and the driver sees action requests only. Approval
+binds image/toolchain/protocol; stored run, artifact provenance, source identity and
+host re-assessment bind the application proof. Product reporting rejects missing
+browser observations rather than treating zero command steps as success.

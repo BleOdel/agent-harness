@@ -1,0 +1,14 @@
+import {parseJourney} from '../browser/schema.ts';
+import {parseChecks,type AcceptanceCase} from './checks.ts';import {caseKind,type Behaviour} from './evidence-kind.ts';import {OperatorError} from '../verbs/io.ts';
+export const browserDesignPrompt=()=>[
+ 'Prepare a real Chromium journey, never inline JavaScript, shell or HTTP probes. Return {id,tasks,description,kind:"browser",steps:[],browser:Journey}. Preserve the selected identity and kind. Application source is read-only. No application execution.',
+ 'Journey schema: {version:1,title (max120),entry (relative Node .js/.mjs/.cjs),port (1024..65535),databaseEnv? (e.g. TO_BE_HEARD_DB),timeoutSeconds (10..300),steps (1..60)}. Actions: goto {path starting /}, fill {selector,value max12000}, click {selector}, press {selector,key:Tab|Shift+Tab|Enter|Space|Escape|ArrowUp|ArrowDown}, text {selector,expected exact text}, count {selector,expected integer}, focused {selector}, viewport {width:320..1920,height:320..1440}, motion {value:reduce|no-preference}, reload, overflow, accessibility, screenshot. Include a text/count/focus/overflow/accessibility observation. No evaluate, scripting, request interception, downloads, clipboard or additional browser contexts. Selectors may be explicit proposed interface choices only if the frozen contract permits them. Unsupported observations must return {blocker:"capability needed"}; do not replace or silently omit them. A blocker is retained for manual routing review, not a passing check.',
+ 'The existing browser lane runs dependency-free Node apps in isolated offline containers with fresh browser storage; databaseEnv points to isolated SQLite. Goto/reload require 200, no redirects. Text checks require exactly one element and exact text. Initial reduced motion is enabled. This schema does not prove visual design quality or complete accessibility.'
+].join('\n');
+export class EvidenceCapabilityGap extends OperatorError {}
+export function parseRoutedCase(raw:unknown,taskId:string,selected:Behaviour):AcceptanceCase {
+ if(raw&&typeof raw==='object'&&'blocker' in raw)throw new EvidenceCapabilityGap(`${selected.id}: browser capability requires manual evidence.`,String(raw.blocker)+' Use checks setup to revise this behaviour as manual; no HTTP substitute will be generated.');
+ const c=parseChecks({version:1,cases:[raw]}).cases[0]!;
+ if(c.id!==selected.id||c.description!==selected.description||JSON.stringify(c.tasks)!==JSON.stringify([taskId])||caseKind(c)!==caseKind(selected)||c.contract!==undefined||c.taskDigest!==undefined)throw new OperatorError('Generated evidence changed its kind or selected identity.');
+ if(c.browser){parseJourney(c.browser);if(Buffer.byteLength(JSON.stringify(c.browser))>64*1024)throw new OperatorError('Browser journey exceeds 64 KiB. Split or reduce repeated fixture text without dropping observations.');}return c;
+}

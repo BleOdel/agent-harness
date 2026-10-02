@@ -9,7 +9,7 @@ export interface CheckRefresh {previousApprovalDigest:string;currentApprovalDige
 export function assertOnlyCheckStepsChanged(previous:CheckManifest,current:CheckManifest,task:string):void {
  const metadata=(manifest:CheckManifest)=>manifest.cases.map(c=>{
   if(c.tasks.length!==1||c.tasks[0]!==task)return c;
-  const {steps:_,...rest}=c;return rest;
+  const {steps:_,browser:journey,...rest}=c;return c.kind==='browser'?rest:{...rest,...(journey?{browser:journey}:{})};
  });
  if(JSON.stringify(metadata(previous))!==JSON.stringify(metadata(current)))throw new OperatorError('Cannot refresh checks: interface, scope, metadata or another task’s checks changed.','Keep the original checkpoint. Only revised executable checks for this same task can use --refresh-checks.');
 }
@@ -20,6 +20,7 @@ export async function checkRefresh(project:string,previousDigest:string,current:
  if(!raw)throw new OperatorError('The previous approval archive is missing. Cannot refresh saved work.');
  const previous=JSON.parse(raw);
  if(createHash('sha256').update(JSON.stringify(previous)).digest('hex')!==previousDigest)throw new OperatorError('The previous approval archive changed. Cannot refresh saved work.');
- assertOnlyCheckStepsChanged(parseCheckDraft(previous),current.manifest,task);
+ if(JSON.stringify(previous.browserRuntime)!==JSON.stringify(current.browserRuntime))throw new OperatorError('Cannot refresh saved work across a browser runtime change. Start fresh with the newly approved runtime.');
+ assertOnlyCheckStepsChanged(parseCheckDraft(previous.manifest??previous),current.manifest,task);
  return {previousApprovalDigest:previousDigest,currentApprovalDigest:current.digest};
 }

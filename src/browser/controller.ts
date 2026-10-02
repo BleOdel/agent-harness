@@ -2,12 +2,12 @@ import {randomUUID} from 'node:crypto';
 import {mkdir,readFile,writeFile,rm} from 'node:fs/promises';import path from 'node:path';
 import {run} from '../run.ts';import {OperatorError} from '../verbs/io.ts';
 import {withWriter} from '../workspace/writer-lock.ts';
-import {captureBaseline,assertSnapshot,assertLiveBaseline} from '../workspace/candidate.ts';
+import {captureBaseline,assertSnapshot,assertLiveBaseline,type Snapshot} from '../workspace/candidate.ts';
 import {putArtifact,sha256} from '../artifacts/store.ts';
 import {boundedOutput,validatePng} from '../desktop/output.ts';
 import {browserDocker,browserResources,inspectBrowser} from './runtime.ts';
 import {actionRequest,assessJourney,type Journey} from './schema.ts';
-import {newRun,readApproval,readBrowserRun,listBrowserRuns,runRoot,saveBrowserRun,type BrowserRun} from './store.ts';
+import {newRun,readApproval,readBrowserRun,listBrowserRuns,runRoot,saveBrowserRun,type BrowserRun,saveApproval,type Approval,type AcceptanceLink,listApprovals} from './store.ts';
 const fail=(m:string):never=>{throw new OperatorError(m);};
 export function containerArguments(j:BrowserRun,name:string):string[]{
  return ['run','--init','--name',name,'--label',`harness.browser=${j.id}`,'--label',`harness.token=${j.token}`,'--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--cpus','2','--memory','1536m','--pids-limit','256','--user',`${process.getuid?.()??501}:${process.getgid?.()??20}`,'--tmpfs','/tmp:rw,nosuid,nodev,size=268435456','--env','HOME=/tmp','--log-driver','local','--log-opt','max-size=1m','--log-opt','max-file=1','--log-opt','compress=false','--entrypoint','timeout'];
@@ -25,14 +25,19 @@ async function cleanContainers(j:BrowserRun):Promise<void>{
 }
 async function cleanFiles(project:string,j:BrowserRun):Promise<void>{const root=await runRoot(project,j.id);for(const part of ['source','checks','output'])await rm(path.join(root,part),{recursive:true,force:true});}
 export async function recoverBrowser(project:string,id:string):Promise<void>{return withWriter(project,'browser recover',async()=>{const j=await readBrowserRun(project,id);if(!['preparing','running'].includes(j.status))return;await cleanContainers(j);await cleanFiles(project,j);j.status='interrupted';j.message='Owned resources removed. Verify the saved journey again from fresh source.';await saveBrowserRun(project,j);});}
-export async function verifyBrowser(project:string,id:string,notify:(m:string)=>void=()=>{}):Promise<BrowserRun>{return withWriter(project,'browser verify',async()=>{
+export async function verifyBrowser(project:string,id:string,notify:(m:string)=>void=()=>{}):Promise<BrowserRun>{return withWriter(project,'browser verify',async()=>executeBrowser(project,await readApproval(project,id),project,notify));}
+/** Called by the locked acceptance controller with operator-approved expectations. */
+export async function verifyBrowserCandidate(project:string,journey:Journey,runtime:Approval['runtime'],candidate:Snapshot,acceptance:AcceptanceLink):Promise<BrowserRun>{
+ await assertSnapshot(candidate);const a=(await listApprovals(project)).find(a=>JSON.stringify(a.acceptance)===JSON.stringify(acceptance)&&JSON.stringify(a.journey)===JSON.stringify(journey)&&JSON.stringify(a.runtime)===JSON.stringify(runtime))??await saveApproval(project,journey,runtime,acceptance);const result=await executeBrowser(project,a,candidate.directory,()=>{});await assertSnapshot(candidate);if(result.source&&result.source!==candidate.digest)fail('Browser evidence does not match the acceptance candidate.');return result;
+}
+async function executeBrowser(project:string,a:Approval,sourceProject:string,notify:(m:string)=>void):Promise<BrowserRun>{
  if((await listBrowserRuns(project)).some(j=>['preparing','running'].includes(j.status)))fail('Recover the previous browser run before starting another.');
- const a=await readApproval(project,id),docker=browserDocker(),runtime=await inspectBrowser(docker);
+ const docker=browserDocker(),runtime=await inspectBrowser(docker,a.runtime.image);
  if(JSON.stringify(runtime)!==JSON.stringify(a.runtime))fail('Browser runtime or protocol changed. Review and approve the journey for the current environment.');
  const j=await newRun(project,a,docker),root=await runRoot(project,j.id),abort=new AbortController();
  const cancel=()=>abort.abort();process.on('SIGINT',cancel);process.on('SIGTERM',cancel);
  try{
-  const baseline=await captureBaseline(project,path.join(root,'source'));
+  const baseline=await captureBaseline(sourceProject,path.join(root,'source'));
   if(!Object.hasOwn(baseline.files,a.journey.entry))fail('The approved server entry is absent from the safe source snapshot.');
   const pkg=JSON.parse(await readFile(path.join(baseline.directory,'package.json'),'utf8'));
   if(pkg.workspaces||['dependencies','optionalDependencies'].some(k=>Object.keys(pkg[k]??{}).length))fail('This browser lane supports dependency-free Node servers. Dependency preparation is not implemented in this lane.');
@@ -53,7 +58,7 @@ export async function verifyBrowser(project:string,id:string,notify:(m:string)=>
   j.assessment=assessJourney(a.journey,observations);let total=bytes.length;
   const files=[...j.assessment.screenshots,...a.journey.steps.flatMap((s,i)=>s.action==='accessibility'?[`axe-${i}.json`]:[])];
   for(const file of files){const content=await boundedOutput(root+'/output',file,4*1024*1024);if(file.endsWith('.png'))validatePng(content);total+=content.length;if(total>32*1024*1024)fail('Browser outputs exceed 32 MiB.');const artifact=await putArtifact(project,file,content,{producer:j.id,input:j.source,environment:j.identity,verification:'unverified'});j.artifacts.push(artifact.id);}
-  await assertSnapshot(baseline);await assertLiveBaseline(project,baseline);
+  await assertSnapshot(baseline);await assertLiveBaseline(sourceProject,baseline);
   if(!j.assessment.passed)fail(j.assessment.failures.join('\n'));
   j.status='passed';j.message=`${j.assessment.checks} browser checks passed. These observations do not establish complete accessibility or replace source acceptance.`;
  }catch(e){j.status=abort.signal.aborted?'interrupted':'failed';j.message=(e as Error).message;}
@@ -67,4 +72,4 @@ export async function verifyBrowser(project:string,id:string,notify:(m:string)=>
   await cleanFiles(project,j);await saveBrowserRun(project,j);notify(`${j.status}: ${j.message}`);
  }
  return j;
-});}
+}

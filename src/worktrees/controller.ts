@@ -11,7 +11,7 @@ import {readProfile} from '../project/profile.ts';
 import {getAdapter} from '../adapters/registry.ts';
 import {resolveModelSettings} from '../model-settings.ts';
 import {taskDigest} from '../acceptance/draft.ts';
-import {requireChecks,readApproval,assertAcceptanceProof,verifyAcceptance} from '../acceptance/checks.ts';
+import {approvalArchive,requireChecks,readApproval,assertAcceptanceProof,verifyAcceptance} from '../acceptance/checks.ts';
 import {assertProductCurrent} from '../product/spec.ts';
 import {captureBaseline,assertLiveBaseline,sourceFiles} from '../workspace/candidate.ts';
 import {loadConfig} from '../config.ts';
@@ -74,7 +74,7 @@ async function copyControls(project:string,checkout:string,expected:string){
  const c=await controls(project);if(c.digest!==expected)throw new OperatorError('Approved controls changed. Create a fresh worktree from the current requirements.');
  const state=await stateRoot(checkout);
  for(const [file,value]of Object.entries(c.files)){await safeDirectory(path.dirname(path.join(state,file)));await saveJson(state,file,value);}
- const approval=await readApproval(checkout);if(approval){await safeDirectory(path.join(state,'acceptance/approvals'));await saveJson(state,`acceptance/approvals/${approval.digest}.json`,approval.manifest);}
+ const approval=await readApproval(checkout);if(approval){await safeDirectory(path.join(state,'acceptance/approvals'));await saveJson(state,`acceptance/approvals/${approval.digest}.json`,approvalArchive(approval));}
 }
 async function unchangedControls(w:TaskWorktree){
  if((await controls(w.project)).digest!==w.controls||(await controls(w.checkout)).digest!==w.controls)throw new OperatorError('Approved controls or requirements changed. Retain this work; create a fresh worktree with current approvals.');

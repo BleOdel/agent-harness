@@ -167,7 +167,11 @@ flowchart LR
   O --> R["Independent outline review"]
   R -->|conflict| O2["Correct outline; at most two attempts"]
   O2 --> R
-  R -->|consistent| C["Generate and save one behaviour at a time"]
+  R -->|command| C["Generate and save command observations"]
+  R -->|browser| BC["Generate typed Chromium journey; no probe code"]
+  R -->|manual| MC["Retain unresolved human observations"]
+  BC --> S
+  MC --> U
   C -->|still oversized| P2["Partition unfinished behaviour; at most twice"]
   P2 --> R2["Review partition; retain interface and completed checks"]
   R2 --> C
@@ -188,8 +192,25 @@ flowchart LR
   XC -->|all replacements reviewed| XS["Archive old case; retain peer reviews; no approval"]
   XS --> S
   S -->|all scopes reviewed| U["Operator reviews behaviours and limitations"]
-  U -->|approved| A["Existing offline candidate acceptance gate"]
+  U -->|approved command/browser expectations| A["Offline candidate acceptance gate"]
+  A --> CA["Commands in verification container"]
+  A --> BA["Chromium against exact frozen candidate"]
+  BA --> BP["Retained observations, source and runtime pins"]
+  MC --> MB["Automatic work/application blocked; no fabricated proof"]
 ```
+
+Evidence type is part of scope identity. `evidence-kind.ts` routes explicit legacy
+browser declarations only in unapproved designs, retaining retired code and invalidating
+review receipts. The planner must supply a type for new behaviours; exact duplicate
+behaviours are shared across criterion mappings. Browser schemas and repair paths
+cannot accept command probes, and capability blockers bypass format-repair loops.
+Manual instructions are deliberately non-executable and cannot authorize work.
+
+Browser acceptance reuses `browser/controller.ts` with the candidate snapshot as
+its source. The approval digest includes the runtime pin; archives, worktree controls,
+check refresh and dashboard projections preserve that identity. `browser-evidence.ts`
+re-assesses retained observations against the approved journey and candidate digest
+before application/reporting. No empty command array can count as browser success.
 
 The initial boundary is now a host-owned decomposition, not an exploratory agent
 session. `planning-context.ts` supplies exact prerequisite contracts without their

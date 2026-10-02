@@ -82,8 +82,10 @@ This is browser evidence, not complete usability or accessibility certification.
 Axe checks common WCAG A/AA rules and saves incomplete findings for human review;
 keyboard, assistive-technology and visual judgement still need appropriate
 observations. A page may spoof its own DOM, so these diagnostics do not prove
-hostile application security. They do not replace independently approved source
-acceptance and are not automatically attached as operator-reported evidence.
+hostile application security. They do not replace project-test or source-review gates. Standalone journeys remain
+separate diagnostics; journeys explicitly approved as acceptance cases are executed
+on the frozen candidate and included in its acceptance proof. They are never
+automatically converted into a human assessment.
 
 Only Chromium on Linux and dependency-free Node servers are supported initially.
 This is not native macOS Safari, Windows, mobile emulator, iOS simulator or GPU
@@ -99,3 +101,17 @@ Wrong text, overflow and a stalled route must fail; orphan recovery is exercised
 The ordinary suite checks schema, expected-value withholding and host assessment
 without requiring Docker. The installed browser tool image is required for the
 real verification command; missing tools fail explicitly.
+
+## Typed acceptance cases
+
+`harness checks prepare` can now prepare `kind: "browser"` cases with an empty
+command-step list and a `browser` journey. Independent design review and operator
+approval are still required. Approval binds the browser image/toolchain/protocol.
+The host withholds expected values from the driver and all instructions from the
+application, just as for standalone browser runs. The result records the candidate
+source digest and retained browser run; applying work re-assesses those observations.
+Changed runtime pins, missing observations and another candidate's evidence fail closed.
+
+Manual and unsupported capabilities stay unresolved. This integration does not add
+new Chromium actions or turn HTTP requests into browser observations. Existing
+standalone `browser approve` and `browser verify` commands continue to work.

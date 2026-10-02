@@ -1,3 +1,4 @@
+import {caseKind,routeBlueprint} from './evidence-kind.ts';
 import {readActivePreparation} from './active-preparation.ts';
 import {CheckRequestInterrupted} from './request-failure.ts';
 /** One resumable controller; checkpoints and writer locks remain owned by existing check operations. */
@@ -90,6 +91,7 @@ async function describeCheckProgress(project:string,write:(s:string)=>void):Prom
  const planningRaw=await readArtifact(directory(project),'outline-planning.json',8*1024*1024);if(planningRaw){const p=JSON.parse(planningRaw);write(`Initial planning checkpoints: interface ${p.interface?'saved':'pending'}; ${p.criteria?.length??0} criterion outline(s) saved${p.pending?'; active '+p.pending.stage:''}. These are unapproved designs, not application evidence.`);}
  const raw=(await readActivePreparation(directory(project)))?.raw;if(!raw)return;
  const record=JSON.parse(raw),features=await readFeatures(project),task=features?.ok?features.features.find(t=>t.id===record.taskId):undefined;
+ if(record.state?.blueprint){const b=routeBlueprint(record.state.blueprint),counts={command:0,browser:0,manual:0};for(const c of b.cases)counts[caseKind(c)]++;write(`Evidence routing: ${counts.command} command, ${counts.browser} browser, ${counts.manual} manual behaviours. Browser journeys use Chromium; manual requirements remain unresolved.`);}
  if(!task||!record.proposal||!record.ledger)return;
  const p=parseProposal(record.proposal,task),scopes=['$contract',...p.manifest.cases.map(c=>c.id)];let reviewed=0,stale=0;
  for(const scope of scopes){

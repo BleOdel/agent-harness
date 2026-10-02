@@ -52,7 +52,7 @@ test('regeneration request allowance includes review and retains the candidate w
  await assert.rejects(regenerateSavedCheck(project,io,'privacy',{
   generate:async()=>{for(let i=0;i<2;i++){const budget=await checkRequestBudget(900000);assert.ok(budget.timeoutMs<=180000);}return replacement;},
   review:async()=>{await checkRequestBudget(900000);throw Error('third request must not run');},
- }),(error:any)=>/request or time limit/.test(error.message)&&error.remedy.includes('checks regenerate privacy'));
+ }),(error:any)=>/request limit reached/.test(error.message)&&error.remedy.includes('checks regenerate privacy'));
  assert.equal(await readFile(path.join(dir,'review-progress.json'),'utf8'),raw);
  await regenerateSavedCheck(project,io,'privacy',{generate:async()=>{throw Error('candidate retained');},review:async()=>pass});
 }));

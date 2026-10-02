@@ -1,3 +1,6 @@
+import {caseKind} from './evidence-kind.ts';
+import {browserDesignPrompt,parseRoutedCase} from './browser-design.ts';
+import {requestCheckJson,parseProposal} from './draft.ts';
 import {usesHttpRuntime} from './http-runtime.ts';
 import {applyCodeRepair,requestCodeRepair,type RepairResponseOptions} from './repair-response.ts';
 export {applyCodeRepair} from './repair-response.ts';
@@ -25,6 +28,13 @@ export function renewScope(task:Feature,p:Proposal,ledger:ReviewLedger,scope:str
  return next;
 }
 export async function repairCaseCode(project:string,task:Feature,p:Proposal,scope:string,issues:string[],options:RepairResponseOptions={}):Promise<Proposal>{
+ const chosen=p.manifest.cases.find(c=>c.id===scope);
+ if(chosen&&caseKind(chosen)!=='command'){
+  if(caseKind(chosen)==='manual')throw new OperatorError('Manual evidence cannot be repaired into automated proof.','Revise its observation plan through checks setup.');
+  const raw=await requestCheckJson(project,[browserDesignPrompt(),'Repair only the selected journey. Preserve its kind, identity, observations and frozen contract.',JSON.stringify({selected:chosen,taskId:task.id,contract:p.contract,criteria:task.criteria,issues})].join('\n\n'),{tools:'none',stage:'browser-repair:'+scope});
+  const replacement=parseRoutedCase(raw,task.id,{id:chosen.id,description:chosen.description!,kind:'browser'});
+  return parseProposal({...p,manifest:{...p.manifest,cases:p.manifest.cases.map(c=>c.id===scope?replacement:c)}},task);
+ }
  // A version refresh changes host-owned metadata only; code still receives independent review.
  if(issues.length===1 && issues[0]===RUNTIME_FINDING){
   const selected=p.manifest.cases.find(c=>c.id===scope)!;

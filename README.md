@@ -742,6 +742,32 @@ to task, source, feedback and context. An interruption repeats only the unfinish
 stage. No command behaviours means an explicit evidence gap, never a passing check.
 Existing completed outlines and generated checks continue through their saved path.
 
+Every new behaviour declares `kind: command`, `browser` or `manual`. The default
+is one focused behaviour per criterion, not three. Identical typed descriptions
+share one case across criteria; independent outline review checks semantic overlap
+and unsupported capability promises before generation.
+
+- **Command** cases run inline Node/Python observations in the command container.
+- **Browser** cases generate only the existing action-based Chromium journey schema.
+  The browser image must be installed (`harness browser doctor`); approval pins its
+  toolchain and driver protocol. During acceptance, Chromium runs against the exact
+  frozen implementation candidate, and its retained observations are checked again
+  before application. A browser case cannot contain command steps.
+- **Manual** cases retain observation instructions without generating code. Approving
+  their design does not create evidence: unresolved manual cases block automatic
+  work/application. Unsupported browser actions stop with a saved capability gap;
+  they do not spend format-repair attempts or become HTTP substitutes. The current
+  lane does not support clipboard/download assertions, interception, multiple browser
+  contexts or full human accessibility assessment. Revising these observations
+  requires an explicit verification-plan review, not waiving a criterion.
+
+Unapproved legacy outlines explicitly labelled as browser evidence are rerouted
+on resume. Mismatched command probes and old review receipts are retained as history,
+not reused as browser proof. Existing approved command checks are unchanged. Browser
+journeys can use scoped repair/regeneration; command-probe simplification and recipes
+cannot silently change their evidence type. Status shows counts by evidence type and
+pause messages distinguish the request limit from insufficient remaining time.
+
 An independent review then checks the combined interface and coverage before code
 generation. Existing bounded outline corrections, per-case generation, syntax checks,
 independent reviews and operator approval still apply. Planning is unapproved design,

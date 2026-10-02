@@ -20,7 +20,7 @@ test('an older task draft cannot mask fresh preparation for the current task',()
 test('direct simplification has an auditable command allowance and keeps the original draft on pause',()=>fixture(async(project,dir,raw)=>{
  const lines:string[]=[],io={write:(s:string)=>lines.push(s),ask:async()=>{throw Error('explicit id');}};
  const factory:Parameters<typeof simplifySavedCheck>[3]=(_p,_t,_proposal,_scope,_findings,save)=>({plan:async()=>{const request=await checkRequestBudget(900000);assert.ok(request.timeoutMs<=1000);return {cases:[{description:'Read public fields.'},{description:'Inspect private fields.'}],limitations:[]};},reviewOutline:async()=>{throw Error('must pause before review');},generate:async()=>{throw Error('must not generate');},syntax:async()=>[],review:async()=>pass,repair:async()=>{throw Error('must not repair');},save});
- await assert.rejects(simplifySavedCheck(project,io,'privacy',factory,{maxRequests:1,maxSeconds:10,requestSeconds:1}),(error:any)=>/request or time limit/.test(error.message)&&/checks simplify privacy/.test(error.remedy));
+ await assert.rejects(simplifySavedCheck(project,io,'privacy',factory,{maxRequests:1,maxSeconds:10,requestSeconds:1}),(error:any)=>/request limit reached/.test(error.message)&&/checks simplify privacy/.test(error.remedy));
  assert.equal(await readFile(path.join(dir,'review-progress.json'),'utf8'),raw);
  const runs=await readdir(path.join(dir,'simplification-runs'));assert.equal(runs.length,1);
  const audit=JSON.parse(await readFile(path.join(dir,'simplification-runs',runs[0]!),'utf8'));assert.equal(audit.spend.requests,1);assert.equal(audit.status,'paused');

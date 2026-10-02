@@ -1,3 +1,8 @@
+import {assertBrowserEvidence} from './browser-evidence.ts';
+import {verifyBrowserCandidate} from '../browser/controller.ts';
+import {caseKind,type EvidenceKind} from './evidence-kind.ts';
+import {parseJourney,type Journey} from '../browser/schema.ts';
+import {inspectBrowser,type Runtime as BrowserRuntime} from '../browser/runtime.ts';
 import {assertProductCurrent} from "../product/spec.ts";
 import {regressionTasks} from './regression.ts';
 import {assertRecipeStep,assertRecipeEvidence,writeRecipeRuntime,type WebRecipe} from './recipes/catalog.ts';
@@ -24,9 +29,9 @@ import { OperatorError } from "../verbs/io.ts";
 
 export interface ExpectFile { path:string; text?:string; sha256?:string; }
 export interface CheckStep { recipe?:WebRecipe; recipeRuntime?:string; serverRuntime?:string; assetRuntime?:string; httpRuntime?:string; command:string[]; exitCode:number; stdout?:string; stdoutIncludes?:string|string[]; files?:ExpectFile[]; }
-export interface AcceptanceCase { id:string; tasks:string[]; steps:CheckStep[]; description?:string; contract?:string; taskDigest?:string; }
+export interface AcceptanceCase { kind?:EvidenceKind; browser?:Journey; manual?:{instructions:string}; id:string; tasks:string[]; steps:CheckStep[]; description?:string; contract?:string; taskDigest?:string; }
 export interface CheckManifest { version:1; cases:AcceptanceCase[]; }
-export interface Approval { version:1; digest:string; approvedAt:string; manifest:CheckManifest; }
+export interface Approval { browserRuntime?:BrowserRuntime; version:1; digest:string; approvedAt:string; manifest:CheckManifest; }
 const hash=(text:string|Buffer)=>createHash("sha256").update(text).digest("hex");
 const object=(v:unknown):v is Record<string,unknown>=>v!==null&&typeof v==="object"&&!Array.isArray(v);
 const json = (text: string, name: string): unknown => {
@@ -45,8 +50,16 @@ function parseManifest(raw:unknown,allowStaleRecipePin:boolean):CheckManifest{
  if(!object(raw)||raw.version!==1||!Array.isArray(raw.cases)||!raw.cases.length)throw new OperatorError("Acceptance checks need version: 1 and at least one case.");
  const ids=new Set<string>();
  for(const entry of raw.cases){
-  if(!object(entry)||typeof entry.id!=="string"||!entry.id.trim()||ids.has(entry.id)||!strings(entry.tasks)||!Array.isArray(entry.steps)||!entry.steps.length)throw new OperatorError("Each acceptance case needs a unique id, task ids (or *), and steps.");
+  if(!object(entry)||typeof entry.id!=="string"||!entry.id.trim()||ids.has(entry.id)||!strings(entry.tasks)||!Array.isArray(entry.steps))throw new OperatorError("Each acceptance case needs a unique id, task ids (or *), and steps.");
   ids.add(entry.id);
+  const kind=caseKind(entry as unknown as AcceptanceCase);
+  if(kind==='browser'){
+   if(entry.steps.length||entry.manual!==undefined||!entry.browser)throw new OperatorError(`${entry.id}: browser evidence requires a journey and no command steps.`);
+   parseJourney(entry.browser);
+  }else if(kind==='manual'){
+   if(entry.steps.length||entry.browser!==undefined||!object(entry.manual)||Object.keys(entry.manual).length!==1||typeof entry.manual.instructions!=='string'||!entry.manual.instructions.trim()||entry.manual.instructions.length>8000)throw new OperatorError(`${entry.id}: manual evidence needs bounded instructions and no executable steps.`);
+  }else if(!entry.steps.length||entry.browser!==undefined||entry.manual!==undefined)throw new OperatorError(`${entry.id}: mixed browser/manual and command evidence is forbidden.`);
+
   for (const key of ["description", "contract", "taskDigest"]) if (entry[key] !== undefined && (typeof entry[key] !== "string" || !(entry[key] as string).trim())) throw new OperatorError(`${entry.id}: invalid ${key}.`);
   if (entry.taskDigest !== undefined && (!/^[a-f0-9]{64}$/u.test(entry.taskDigest as string) || entry.tasks.length !== 1 || entry.tasks[0] === "*")) throw new OperatorError(`${entry.id}: task fingerprint requires exactly one named task.`);
   for(const step of entry.steps){
@@ -75,15 +88,20 @@ export function assertOutputExpectations(step:CheckStep,stdout:string,label:stri
  const fragments=step.stdoutIncludes===undefined?[]:Array.isArray(step.stdoutIncludes)?step.stdoutIncludes:[step.stdoutIncludes];
  if(!fragments.every(fragment=>stdout.includes(fragment)))throw new OperatorError(`${label}: application output is missing approved text.`);
 }
+export const approvalArchive=(approval:Approval)=>approval.browserRuntime?{manifest:approval.manifest,browserRuntime:approval.browserRuntime}:approval.manifest;
+export const approvalDigest=(manifest:CheckManifest,runtime?:BrowserRuntime)=>hash(JSON.stringify(runtime?{manifest,browserRuntime:runtime}:manifest));
 export const approvalPath=(project:string)=>path.join(harnessDirectory(project),"acceptance","approved.json");
-export async function approveChecks(project:string,source:string):Promise<Approval>{
+export async function approveChecks(project:string,source:string,options:{preserveOtherTaskRuntime?:string}={}):Promise<Approval>{
  const canonical=await realpath(project);const raw=await readArtifact(path.dirname(source),path.basename(source));
  if(!raw)throw new OperatorError("No acceptance-check document at that path.");
- const manifest=parseChecks(json(raw, "Acceptance document"));assertServerRuntimes(manifest);const approval:Approval={version:1,digest:hash(JSON.stringify(manifest)),approvedAt:new Date().toISOString(),manifest};
+ const manifest=parseChecks(json(raw, "Acceptance document"));assertServerRuntimes(manifest);
+ const browserRuntime=manifest.cases.some(c=>caseKind(c)==='browser')?await inspectBrowser():undefined;
+ if(options.preserveOtherTaskRuntime){const prior=await readApproval(project);if(prior?.browserRuntime&&prior.manifest.cases.some(c=>caseKind(c)==='browser'&&(c.tasks.length!==1||c.tasks[0]!==options.preserveOtherTaskRuntime))&&JSON.stringify(prior.browserRuntime)!==JSON.stringify(browserRuntime))throw new OperatorError('Browser runtime changed for other approved tasks. Review and explicitly approve the complete manifest for this runtime before changing one task.');}
+ const approval:Approval={version:1,digest:approvalDigest(manifest,browserRuntime),approvedAt:new Date().toISOString(),manifest,...(browserRuntime?{browserRuntime}:{})};
  await mkdir(path.dirname(approvalPath(canonical)),{recursive:true,mode:0o700});
  const archive=path.join(path.dirname(approvalPath(canonical)),"approvals");
  await mkdir(archive,{recursive:true,mode:0o700});
- await writeFile(path.join(archive,`${approval.digest}.json`),JSON.stringify(manifest),{flag:"wx",mode:0o600}).catch((error:NodeJS.ErrnoException)=>{if(error.code!=="EEXIST")throw error;});
+ await writeFile(path.join(archive,`${approval.digest}.json`),JSON.stringify(approvalArchive(approval)),{flag:"wx",mode:0o600}).catch((error:NodeJS.ErrnoException)=>{if(error.code!=="EEXIST")throw error;});
  await atomicWrite(approvalPath(canonical),JSON.stringify(approval,null,2)+"\n");return approval;
 }
 export async function readApproval(project:string):Promise<Approval|undefined>{
@@ -93,7 +111,8 @@ export async function readApproval(project:string):Promise<Approval|undefined>{
  if(!object(parsed))throw new OperatorError("Saved approval is malformed. Review and approve checks again.");
  const approval=parsed as unknown as Approval;
  const manifest=parseChecks(approval.manifest);
- if(approval.version!==1||approval.digest!==hash(JSON.stringify(manifest)))throw new OperatorError("Approved acceptance checks changed. Review and approve them again.");
+ if(approval.version!==1||approval.digest!==approvalDigest(manifest,approval.browserRuntime))throw new OperatorError("Approved acceptance checks changed. Review and approve them again.");
+ if(manifest.cases.some(c=>caseKind(c)==='browser')&&!approval.browserRuntime)throw new OperatorError('Browser acceptance requires an operator-approved runtime pin. Review these checks again.');
  return approval;
 }
 export async function acceptanceTaskScope(project:string,tasks:readonly string[],approval?:Approval):Promise<string[]>{
@@ -112,6 +131,8 @@ export async function requireChecks(project:string,tasks:readonly string[]):Prom
   const task = features?.ok ? features.features.find(t => t.id === c.tasks[0]) : undefined;
   if (!task || taskDigest(task) !== c.taskDigest) throw new OperatorError(`Approved checks for ${c.tasks[0]} describe older requirements.`, "Run harness checks setup to draft and review checks for the current task.");
  }
+ const manual=approved.manifest.cases.filter(c=>caseKind(c)==='manual'&&(c.tasks.includes('*')||c.tasks.some(t=>tasks.includes(t))));
+ if(manual.length)throw new OperatorError('Required manual evidence is unresolved: '+manual.map(c=>c.id).join(', '),'Manual expectations are not successful evidence. Revise the verification plan or provide a supported automated journey before automatic application; requirements cannot be waived by approving this draft.');
  return approved;
 }
 export async function assertApprovalCurrent(project:string,expected:Approval):Promise<void>{
@@ -145,6 +166,7 @@ export async function assertAcceptanceProof(project: string, candidate: Snapshot
     || evidence.approvalDigest !== proof.approvalDigest || evidence.candidateDigest !== candidate.digest
     || proof.candidateDigest !== candidate.digest || !Array.isArray(evidence.tasks)
     || tasks.some(t => !evidence.tasks.includes(t))) throw new OperatorError("Acceptance evidence does not cover the current candidate and approved checks.");
+  for(const check of approved.manifest.cases.filter(c=>caseKind(c)==='browser'&&(c.tasks.includes('*')||c.tasks.some(t=>tasks.includes(t)))))await assertBrowserEvidence(project,check,approved.browserRuntime,candidate.digest,evidence.browserObservations);
   if (candidate.executionDigest) assertExecutionPin(evidence.execution);
   if (candidate.executionDigest && (proof.executionDigest !== candidate.executionDigest || evidence.execution?.digest !== candidate.executionDigest)) throw new OperatorError("Acceptance evidence does not match the candidate execution environment.");
   await assertSnapshot(candidate);
@@ -163,9 +185,10 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
   await mkdir(evidenceRoot, { recursive: true, mode: 0o700 });
   const proof: AcceptanceProof = { ...(execution ? { executionDigest: execution.digest } : {}), approvalDigest: approved.digest, candidateDigest: candidate.digest, evidencePath: path.join(evidenceRoot, `${randomUUID()}.json`) };
   let environmentKey: string | undefined;
+  const browserObservations:{case:string;run:string;source?:string;status:string}[]=[];
   const observations: { runner?: ReturnType<typeof dockerRunner.evidence>; case: string; step: number; exitCode: number | null; timedOut: boolean; stdoutHash: string; stdoutPreview: string; stderrTail: string; files: Record<string, string | null> }[] = [];
   const save = async (outcome: "passed" | "failed", error?: string) => atomicWrite(proof.evidencePath, JSON.stringify({
-    version: 1, at: new Date().toISOString(), project, ...proof, execution, adapter: adapter.reference, runner: dockerRunner.reference, image: config.imageId, environmentKey, tasks, outcome, observations, ...(error ? { error } : {}),
+    version: 1, at: new Date().toISOString(), project, ...proof, execution, adapter: adapter.reference, runner: dockerRunner.reference, image: config.imageId, environmentKey, tasks, outcome, observations, browserObservations, ...(error ? { error } : {}),
   }, null, 2) + "\n");
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-acceptance-")));
   const base: SandboxLayout = {
@@ -185,6 +208,14 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
     const selected = approved.manifest.cases.filter(c => c.tasks.includes("*") || tasks.some(t => c.tasks.includes(t)));
     if (!selected.length) throw new OperatorError("No approved acceptance cases apply to this work.");
     for (const [index, check] of selected.entries()) {
+      if(caseKind(check)==='manual')throw new OperatorError(`${check.id}: manual evidence is unresolved.`);
+      if(caseKind(check)==='browser'){
+        if(!approved.browserRuntime)throw new OperatorError('Missing approved browser runtime.');
+        const result=await verifyBrowserCandidate(project,check.browser!,approved.browserRuntime,candidate,{caseId:check.id,approvalDigest:approved.digest});
+        browserObservations.push({case:check.id,run:result.id,...(result.source?{source:result.source}:{}),status:result.status});
+        if(result.status!=='passed'||result.source!==candidate.digest)throw new OperatorError(`acceptance ${check.id}: ${result.message}`);
+        summaries.push(`acceptance: ${check.id} passed in Chromium against operator-approved expectations`);continue;
+      }
       const work = path.join(root, `case-${index}`);
       await adapter.install(candidate.directory, work, environment, base, config.gateTimeoutMs);
       const needsRecipe=check.steps.some(s=>s.recipe);

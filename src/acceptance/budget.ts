@@ -8,7 +8,7 @@ interface Context {limits:CheckLimits;state:CheckSpend;deadline:number;now:()=>n
 const context=new AsyncLocalStorage<Context>();
 export const hasCheckBudget=():boolean=>context.getStore()!==undefined;
 export class CheckBudgetExceeded extends OperatorError {
- constructor(){super('Check preparation paused at its request or time limit (not enough time for another configured model turn).','Progress is saved. Run harness checks prepare to continue with a new bounded allowance. Nothing was approved.');this.name='CheckBudgetExceeded';}
+ constructor(reason:'requests'|'time'='time'){super(reason==='requests'?'Check preparation paused: request limit reached.':'Check preparation paused: insufficient time for another configured model turn.','Progress is saved. Run harness checks prepare to continue with a new bounded allowance. Nothing was approved.');this.name='CheckBudgetExceeded';}
 }
 export const defaultCheckLimits:CheckLimits={maxRequests:12,maxSeconds:600,requestSeconds:180};
 export function validateCheckLimits(limits:CheckLimits):void{
@@ -19,7 +19,7 @@ function minimumWindow(c:Context,configTimeout=Infinity):number {
  // Permit a small amount of dispatch bookkeeping, not a near-expired model turn.
  return window-Math.min(1000,window/100);
 }
-export function ensureCheckBudget():void {const c=context.getStore();if(c&&(c.state.requests>=c.limits.maxRequests||c.deadline-c.now()<minimumWindow(c)))throw new CheckBudgetExceeded();}
+export function ensureCheckBudget():void {const c=context.getStore();if(c?.state.requests!==undefined&&c.state.requests>=c.limits.maxRequests)throw new CheckBudgetExceeded('requests');if(c&&c.deadline-c.now()<minimumWindow(c))throw new CheckBudgetExceeded('time');}
 export async function withCheckBudget<T>(limits:CheckLimits,state:CheckSpend,save:()=>Promise<void>,write:(s:string)=>void,action:()=>Promise<T>,now=Date.now):Promise<T>{
  validateCheckLimits(limits);return context.run({limits,state,save,write,now,deadline:now()+limits.maxSeconds*1000},action);
 }

@@ -45,7 +45,7 @@ export function parseProposal(raw: unknown, task: Feature): Proposal {
  if (seen.size !== task.criteria.length) throw new OperatorError('Draft must account for every criterion.');
  if ([...ids].some(id => !(raw.coverage as Coverage[]).some(c => c.cases.includes(id)))) throw new OperatorError('Each case must map to a criterion.');
  // Strip model-supplied approval metadata. Fingerprints and provenance come from the host.
- return { version: 1, contract: raw.contract, coverage: raw.coverage as Coverage[], manifest: { version: 1, cases: manifest.cases.map(c => ({ id: c.id, tasks: c.tasks, description: c.description!, steps: c.steps })) } };
+ return { version: 1, contract: raw.contract, coverage: raw.coverage as Coverage[], manifest: { version: 1, cases: manifest.cases.map(c => ({ id: c.id, tasks: c.tasks, description: c.description!, steps: c.steps, ...(c.kind?{kind:c.kind}:{}), ...(c.browser?{browser:c.browser}:{}), ...(c.manual?{manual:c.manual}:{}) })) } };
 }
 export function contractContext(approval: Approval | undefined, tasks: readonly string[]): string {
  const contracts = [...new Set(approval?.manifest.cases.filter(c => c.tasks.includes('*') || c.tasks.some(t => tasks.includes(t))).map(c => c.contract).filter((s): s is string => !!s) ?? [])];
