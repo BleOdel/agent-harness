@@ -1,10 +1,9 @@
+import {pendingStage} from '../staging/store.ts';
 import path from 'node:path';import {randomUUID} from 'node:crypto';
 import {readFeatures,nextItems,unmetDependencies} from '../features.ts';
-import {readApproval,requireChecks} from '../acceptance/checks.ts';
+import {readApproval,requireStagingChecks} from '../acceptance/checks.ts';
 import {prepareChecks} from '../acceptance/workflow.ts';
 import {reviewGuidedDraft} from '../acceptance/guided.ts';
-import {readActivePreparation} from '../acceptance/active-preparation.ts';
-import {taskDigest} from '../acceptance/draft.ts';
 import {parseCheckLimits,defaultCheckLimits,withCheckBudget} from '../acceptance/budget.ts';
 import {readArtifact,atomicWrite} from '../planning/store.ts';
 import {harnessDirectory} from '../record/record.ts';
@@ -16,18 +15,15 @@ import {work} from './work.ts';import {OperatorError,say} from './io.ts';
 export async function continuationSnapshot(project:string,taskId:string):Promise<ContinueSnapshot>{
  const f=await readFeatures(project),task=f?.ok?f.features.find(t=>t.id===taskId):undefined;
  if(!task)throw new OperatorError('The saved task no longer exists. Review the project requirements.');
+ const staged=await pendingStage(project,taskId);if(staged)return {done:false,checks:'approved',stage:staged.id};
  if(task.status==='done')return {done:true,checks:'approved'};
  const waiting=unmetDependencies(task,f!.ok?f!.features:[]);
  if(task.status==='blocked'||waiting.length)return {done:false,checks:'blocked',reason:waiting.length?`Waiting for prerequisites: ${waiting.join(', ')}.`:'The task explicitly requests human input. Review its recorded reason before resuming.'};
  const approval=await readApproval(project);
  if(!approval?.manifest.cases.some(c=>c.tasks.includes('*')||c.tasks.includes(taskId))){
-  const active=await readActivePreparation(path.join(harnessDirectory(project),'acceptance'));
-  const saved=active?JSON.parse(active.raw):undefined;
-  const manual=saved?.taskId===taskId&&saved.taskDigest===taskDigest(task)?(saved.state?.blueprint?.cases??saved.proposal?.manifest?.cases??[]).filter((c:{kind?:string})=>c.kind==='manual'):[];
-  if(manual.length)return {done:false,checks:'blocked',reason:'The saved design requires human evidence before automatic application: '+manual.map((c:{description?:string;id:string})=>c.description??c.id).join('; ')+'. Decide the supported evidence path before spending on generated checks; this controller cannot waive that requirement.'};
   return {done:false,checks:'missing'};
  }
- try{await requireChecks(project,[taskId]);return {done:false,checks:'approved'};}
+ try{await requireStagingChecks(project,[taskId]);return {done:false,checks:'approved'};}
  catch(error){return {done:false,checks:'blocked',reason:`${(error as Error).message}\n${error instanceof OperatorError?error.remedy:''}`};}
 }
 async function totalCheckRequests(project:string):Promise<number>{
@@ -75,7 +71,7 @@ export async function continueCommand(project:string,args:readonly string[],dial
     return prepareChecks(project,io,{...configured,maxRequests:remaining,maxSeconds:seconds},task);
    },
    review:()=>withCheckBudget(configured,{requests:configured.maxRequests},async()=>{},io.write,()=>reviewGuidedDraft(project,io)),
-   build:async()=>{if(await canonicalProject(process.env.HARNESS_PROJECT??process.cwd())!==project)throw new OperatorError('Configured project differs from the continuation project.');await work([task]);},
+   build:async()=>{if(await canonicalProject(process.env.HARNESS_PROJECT??process.cwd())!==project)throw new OperatorError('Configured project differs from the continuation project.');await work(["--stage",task]);},
   });
   io.write(`Saved progress: harness continue status. ${output.status==='paused'?'Grant a new allowance when ready: harness continue --renew.':output.status==='complete'?'Review the result in the dashboard.':'Decisions and diagnoses are saved; no log copying is required to retain them.'}`);
   if(output.status==='attention')process.exitCode=1;

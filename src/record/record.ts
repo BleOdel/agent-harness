@@ -28,7 +28,7 @@ export const recordPath = (project: string): string =>
 export const recoveryPath = (project: string, runId: string): string =>
   path.join(harnessDirectory(project), "recovery", runId);
 
-export type Outcome = "applied" | "gate-failed" | "escalated" | "no-changes" | "error" | "blocked" | "environment-blocked";
+export type Outcome = "staged" | "applied" | "gate-failed" | "escalated" | "no-changes" | "error" | "blocked" | "environment-blocked";
 
 export interface RunRecord {
   readonly checkRefresh?: {readonly previousApprovalDigest:string;readonly currentApprovalDigest:string};
@@ -110,7 +110,10 @@ export async function nextRunId(project: string): Promise<string> {
   // parsed would make two different runs share one recovery directory.
   // A timeout checkpoint can be published immediately before an interrupted record append.
   const checkpoints = await readdir(path.join(harnessDirectory(project), "implementation")).catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return []; throw error; });
-  const highest = [...runs.map(r => r.id), ...checkpoints].filter(id => /^r[1-9][0-9]*$/.test(id)).reduce((n,id) => Math.max(n,Number(id.slice(1))),0);
+  const staged = await readdir(path.join(harnessDirectory(project), "staging")).catch((error: NodeJS.ErrnoException) => {if(error.code === "ENOENT")return [];throw error;});
+  const reserved:string[]=[];
+  for(const id of staged.filter(id=>/^r[1-9][0-9]*$/.test(id))){const raw=await readFile(path.join(harnessDirectory(project),'staging',id,'state.json'),'utf8');const record=JSON.parse(raw).application?.record?.id;if(typeof record==='string')reserved.push(record);}
+  const highest = [...runs.map(r => r.id), ...checkpoints, ...staged, ...reserved].filter(id => /^r[1-9][0-9]*$/.test(id)).reduce((n,id) => Math.max(n,Number(id.slice(1))),0);
   return `r${String(Math.max(highest, runs.length + malformed.length) + 1)}`;
 }
 

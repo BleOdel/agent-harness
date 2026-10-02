@@ -112,7 +112,7 @@ application, just as for standalone browser runs. The result records the candida
 source digest and retained browser run; applying work re-assesses those observations.
 Changed runtime pins, missing observations and another candidate's evidence fail closed.
 
-Manual and unsupported capabilities stay unresolved. HTTP probes cannot substitute
+Manual observations remain pending until candidate-bound operator review; unsupported capabilities still need a decision. HTTP probes cannot substitute
 for browser observations. Existing
 standalone `browser approve` and `browser verify` commands continue to work.
 
@@ -174,3 +174,15 @@ units using a positive integer count. This avoids generating long literals or
 capture/paste construction chains for length-boundary tests. It does not bypass
 form limits, replace typing evidence, or provide a passing observation by itself.
 The shared expansion code is included in the browser runtime approval pin.
+
+## Human review of staged browser work
+
+After automated verification, `harness continue` retains a candidate. Run
+`harness stage preview <run-id>` to open the dependency-free Node app through a
+loopback URL, with isolated temporary data, then inspect it using your actual
+browser and assistive technology. Stop the preview with Ctrl+C and run
+`harness stage review <run-id>` to record each observation and approve application.
+The preview and observations are tied to the retained candidate; edited source,
+requirements, checks or execution settings cannot reuse them. This is operator
+attestation, not a substitute for Chromium evidence or automatic screen-reader
+certification. Preview containers have no external network or credential mounts.

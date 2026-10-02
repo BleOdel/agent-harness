@@ -75,6 +75,7 @@ const OUTCOME_LABEL: Record<string, string> = {
   escalated: "escalated to you",
   "gate-failed": "stopped by a gate",
   "no-changes": "no changes",
+  "staged": "staged — final review pending",
   error: "error",
   blocked: "blocked — input needed",
   "environment-blocked": "blocked — verification environment unavailable",

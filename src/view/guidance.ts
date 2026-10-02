@@ -9,6 +9,7 @@ export function nextAction(items:readonly QueueItem[],teams:readonly TeamView[],
  if(data.warnings.length)return make('Project data needs attention',data.warnings[0]!,'harness doctor','#attention');
  if(data.ordinary?.reason)return make('Inspect the stopped run',data.ordinary.reason,'harness guide','#attention');
  if(data.ordinary?.live||teams.some(t=>t.live))return make('Work is in progress','Select an agent to inspect its current assignment and recorded activity.','harness look','#office');
+ const candidate=data.stages?.[0];if(candidate)return make(candidate.status==='applying'?'Recover staged application':'Review the staged candidate',`${candidate.task}: automated checks passed; ${candidate.manual} manual observations remain attached to final review.`, `harness stage ${candidate.status==='applying'?'apply':'review'} ${quote(candidate.id)}`,'#review');
  if(data.continuation&&data.continuation.status!=='complete')return make('Continuation: '+data.continuation.status,data.continuation.message,'harness continue status','#journey');
  if(data.plan?.status==='interrupted'||data.plan?.error)return make('Resume the saved plan',data.plan.error??'Your planning documents are retained. Continue from the saved conversation.','harness plan resume','#journey');
  const stopped=teams.find(t=>/interrupted|recover|stopped|aborting|applying/.test(t.status)&&!t.live);

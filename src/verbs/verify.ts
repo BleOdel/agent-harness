@@ -1,7 +1,7 @@
 import {assertProductCurrent} from "../product/spec.ts";
 import {recordDiagnostics,type Diagnostic} from "../product/report.ts";
 import {readFeatures} from "../features.ts";
-import {requireChecks,verifyAcceptance} from "../acceptance/checks.ts";
+import {requireStagingChecks,verifyAcceptance,verifyAutomatedAcceptance} from "../acceptance/checks.ts";
 import {assertLiveBaseline} from "../workspace/candidate.ts";
 /** Run project diagnostics without a builder, provider call or source application. */
 import { randomUUID } from 'node:crypto';
@@ -26,7 +26,7 @@ export async function verify(project: string, args: readonly string[] = []): Pro
   if(acceptance&&!product)throw new OperatorError('Approve a product specification first.','Run harness product setup.');
   const features=acceptance?await readFeatures(project):undefined;
   const tasks=features?.ok?features.features.filter(t=>t.priority!=='wont').map(t=>t.id):[];
-  const approved=acceptance?await requireChecks(project,tasks):undefined;
+  const approved=acceptance?await requireStagingChecks(project,tasks):undefined;
   const config = loadConfig({ ...process.env, HARNESS_PROJECT: project }), profile = await readProfile(project), adapter = getAdapter(profile.adapter);
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'harness-local-verification-')));
   try {
@@ -59,7 +59,7 @@ export async function verify(project: string, args: readonly string[] = []): Pro
    }
    await assertLiveBaseline(project,source);
    await recordDiagnostics(project,source.digest,diagnostics,runtime);
-   if(approved){const result=await verifyAcceptance(project,source,tasks,config,approved);result.summaries.forEach(say);await assertLiveBaseline(project,source);}
+   if(approved){const result=await (approved.manifest.cases.some(c=>c.kind==='manual')?verifyAutomatedAcceptance:verifyAcceptance)(project,source,tasks,config,approved);result.summaries.forEach(say);await assertLiveBaseline(project,source);}
    if (retain) {
     const producer=`verify-${randomUUID()}`, details={version:1,producer,source:source.digest,profile,capabilities,environment:environment.key}, identity=sha256(JSON.stringify(details));
     await saveJson(await stateRoot(project),`${producer}.json`,details);

@@ -32,7 +32,7 @@ import {taskDigest} from '../src/acceptance/draft.ts';
 import {continueCommand,continuationSnapshot} from '../src/verbs/continue.ts';
 import {saveContinuation,readContinuation} from '../src/workflow/store.ts';
 import {emptyWorkspace} from '../src/view/workspace.ts';import {nextAction} from '../src/view/guidance.ts';
-test('the real command reconciles completed work and manual evidence before dispatching any model',async()=>{
+test('the real command reconciles completed work and keeps manual designs pending approval',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'continue-command-')),project=root+'/app';await mkdir(project);
  const feature={id:'author',title:'Author UI',priority:'must' as const,status:'done' as const,dependsOn:[],criteria:['Read with a screen reader']};
  const output:string[]=[],io={write:(s:string)=>output.push(s),ask:async()=>assert.fail('No question or model dispatch')};
@@ -44,10 +44,7 @@ test('the real command reconciles completed work and manual evidence before disp
   await writeFile(project+'/features.json',JSON.stringify([{...feature,status:'todo'}]));
   await mkdir(project+'-harness/acceptance',{recursive:true});
   await writeFile(project+'-harness/acceptance/preparation.json',JSON.stringify({taskId:'author',taskDigest:taskDigest(feature),state:{blueprint:{cases:[{id:'screen-reader',kind:'manual',description:feature.criteria[0]}]}}}));
-  assert.equal((await continuationSnapshot(project,'author')).checks,'blocked');
-  await continueCommand(project,['author','--renew'],io);
-  const saved=(await readContinuation(project))!;assert.equal(saved.status,'attention');assert.equal(saved.attempts,0);assert.match(saved.message,/screen reader/);
-  const d=emptyWorkspace();d.continuation=saved;assert.equal(nextAction([],[],[],d).title,'Continuation: attention');
+  assert.equal((await continuationSnapshot(project,'author')).checks,'missing');
   assert.equal(await readFile(project+'/features.json','utf8'),JSON.stringify([{...feature,status:'todo'}]));
  }finally{process.exitCode=priorExit;await rm(root,{recursive:true,force:true});}
 });
@@ -80,4 +77,9 @@ test('valid existing task IDs and oversized diagnoses remain readable through bo
  const s={...state(),task:'Story_Core.v1'};
  await driveContinuation(s,{snapshot:async()=>({done:false,checks:'blocked',reason:'x'.repeat(40000)}),prepare:async()=>assert.fail(),review:async()=>assert.fail(),build:async()=>assert.fail(),save:async s=>{parseContinuation(s);},write:()=>{}});
  assert.equal(s.message.length,10000);assert.equal(s.events[0]!.message.length,4000);assert.equal(s.status,'attention');
+});
+
+test('staged delivery pauses for final review and repeated continuation never rebuilds it',async()=>{
+ let candidate=false,builds=0;const s=state(),services:ContinueServices={snapshot:async()=>({done:false,checks:'approved',...(candidate?{stage:'r12'}:{})}),prepare:async()=>assert.fail(),review:async()=>assert.fail(),build:async()=>{builds++;candidate=true;},save:async()=>{},write:()=>{}};
+ await driveContinuation(s,services);assert.equal(s.status,'approval');assert.match(s.message,/stage review r12/);await driveContinuation(s,services);assert.equal(builds,1);assert.equal(s.attempts,1);
 });

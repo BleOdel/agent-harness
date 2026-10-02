@@ -129,7 +129,7 @@ export async function look(project: string): Promise<void> {
       + (measured.length === runs.length ? "" : ` across ${String(measured.length)} measured`)));
   say();
   for (const run of runs.slice(-8)) {
-    const marker = run.outcome === "applied" ? "+" : run.outcome === "no-changes" ? "=" : "!";
+    const marker = run.outcome === "applied" ? "+" : run.outcome === "no-changes" ? "=" : run.outcome === "staged" ? "~" : "!";
     say(`  ${marker} ${pad(run.id, 5)} ${localTime(run.at)}  ${pad(run.outcome, 12)} ${clip(run.goal, 44)}`);
   }
   if (runs.length > 8) say(`  ... ${String(runs.length - 8)} earlier runs`);

@@ -1,3 +1,4 @@
+import {listStages,assertStageCurrent,assertStageReview} from '../staging/store.ts';
 import {caseKind} from '../acceptance/evidence-kind.ts';
 import {browserChecks} from './evidence/browser.ts';
 import {performanceReport,type PerformanceReport} from '../performance/report.ts';
@@ -13,7 +14,7 @@ import {getAdapter} from '../adapters/registry.ts';
 import {sourceFiles} from '../workspace/candidate.ts';
 import {harnessDirectory} from '../record/record.ts';
 import {canonicalProject} from '../workspace/writer-lock.ts';
-import {requireChecks,assertAcceptanceProof} from '../acceptance/checks.ts';
+import {requireStagingChecks,assertAcceptanceProof} from '../acceptance/checks.ts';
 import {readProduct,assertProductCurrent,productRoot,verificationPlan} from './spec.ts';
 import {collectEvidence} from './evidence/desktop.ts';
 import {evidenceStatus,type EvidenceRecord} from './evidence/schema.ts';
@@ -68,7 +69,7 @@ export async function productReport(project:string):Promise<ProductReport>{
   }
  }catch(e){checks.push({id:'diagnostics',status:'failed',detail:(e as Error).message,next:'harness product verify'});}
  try{
-  const approval=await requireChecks(project,tasks.map(t=>t.id));
+  const approval=await requireStagingChecks(project,tasks.map(t=>t.id));
   const root=path.join(harnessDirectory(project),'acceptance/results');
   const files=await readdir(root).catch(e=>{if(absent(e))return [];throw e;});
   const results=[];
@@ -83,7 +84,11 @@ export async function productReport(project:string):Promise<ProductReport>{
     if(!required.every(c=>caseKind(c)==='browser'?last.browserObservations?.some((o:any)=>o.case===c.id&&o.source===current.source&&o.status==='passed'):caseKind(c)==='manual'?false:c.steps.every((step,i)=>last.observations?.some((o:any)=>o.case===c.id&&o.step===i+1&&o.exitCode===step.exitCode&&!o.timedOut))))throw Error(`Acceptance observations incomplete for ${task.id}.`);
     await assertAcceptanceProof(project,{directory:project,digest:current.source,files:{},exclusions:current.exclusions},[task.id],{approvalDigest:approval.digest,candidateDigest:current.source,evidencePath:path.join(root,last.file)});status='passed';
    }
-   checks.push({id:`acceptance:${task.id}`,status,detail:last?`${last.outcome}: ${last.file}`:'Needs evidence for the current source and approved checks.',next:'harness product verify'});
+   if(last?.outcome==='automated-passed'){
+    const stage=(await listStages(project)).find(s=>s.status==='applied'&&s.tasks.includes(task.id)&&s.candidate.digest===current.source&&s.acceptance.approvalDigest===approval.digest);
+    if(stage){await assertStageCurrent(project,stage,true);await assertStageReview(stage);status='passed';}
+   }
+   checks.push({id:`acceptance:${task.id}`,status,detail:last?`${last.outcome}${last.outcome==='automated-passed'&&status==='passed'?' plus candidate-bound operator review':''}: ${last.file}`:'Needs evidence for the current source and approved checks.',next:'harness product verify'});
   }
  }catch(e){checks.push({id:'acceptance',status:'missing',detail:(e as Error).message,next:'harness checks setup'});}
  let browser:Awaited<ReturnType<typeof browserChecks>>|undefined;

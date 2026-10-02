@@ -56,6 +56,7 @@ export async function withWriter<T>(project: string, command: string, action: ()
   const lease = await acquireWriter(project, command);
   try {
     if (!allowPendingApplication && await exists(`${lease.project}-harness/application.json`)) throw new OperatorError("An application requires recovery before another writer may start.", "Use harness team recover <run-id> (or --rollback). The pending application.json identifies the run.");
+    if (command !== 'stage apply' && await exists(`${lease.project}-harness/staged-application.json`)) throw new OperatorError('A staged application requires recovery before another writer may start.', 'Run harness stage apply <id>; staged-application.json identifies the candidate.');
     return await context.run(lease, action);
   } finally { await lease.release(); }
 }

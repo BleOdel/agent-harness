@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --experimental-strip-types
+import {stageCommand} from './verbs/stage.ts';
 import {continueCommand} from './verbs/continue.ts';
 import {performanceCommand} from './verbs/performance.ts';
 import {securityCommand} from './verbs/security.ts';
@@ -64,6 +65,7 @@ const USAGE = [
   "  harness product setup      protect product requirements and choose verification",
   "  harness product report     current evidence and remaining gaps (--json available)",
   "  harness product verify     guide missing evidence with execution budget previews",
+  "  harness stage             inspect, preview and approve retained candidates",
   "  harness product verify --checks  explicit offline diagnostics and acceptance",
   "  harness product assess     record human observations for the current source",
   "  harness worktree setup     create a separate task branch (optional)",
@@ -137,6 +139,7 @@ async function main(): Promise<void> {
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
 
   switch (verb) {
+    case "stage": return stageCommand(project,rest);
     case "continue": return continueCommand(project,rest);
     case "worktree": return worktreeCommand(project,rest);
     case "performance": return performanceCommand(project,rest);

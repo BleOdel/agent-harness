@@ -624,6 +624,7 @@ Run them inside your project.
 | `harness view --serve` | the same page, watching a run as it happens |
 | `harness undo <run-id>` | put it back |
 | `harness continue [task]` | carry one saved task through preparation, explicit approval and build; bounded recovery |
+| `harness stage list / inspect / preview / review / apply / reject` | review a retained candidate and record exact-source human observations |
 | `harness continue status` | inspect retained progress and the decision needed |
 | `harness run [--max N]` | work items until one needs you |
 | `harness commit [<run-id>]` | commit what a run applied — never pushes |
@@ -765,10 +766,10 @@ and unsupported capability promises before generation.
   before application. A browser case cannot contain command steps.
 - **Manual** cases retain observation instructions without generating code. Approving
   their design does not create evidence: unresolved manual cases block automatic
-  work/application. Unsupported browser actions stop with a saved capability gap;
+  application, but allow a staged build and final human review. Unsupported browser actions stop with a saved capability gap;
   they do not spend format-repair attempts or become HTTP substitutes. The current
-  lane does not support clipboard/download assertions, interception, multiple browser
-  contexts or full human accessibility assessment. Revising these observations
+  lane supports the documented Chromium actions in BROWSER.md; actual screen-reader
+  announcements still require human observation. Revising these observations
   requires an explicit verification-plan review, not waiving a criterion.
 
 Unapproved legacy outlines explicitly labelled as browser evidence are rerouted
@@ -2117,7 +2118,7 @@ For the findings, design decisions and remaining scenario-runner work, see
 
 `harness continue [task-id]` follows one accepted task from saved requirements to
 check preparation, an explicit review of checks/interface choices, implementation,
-verification and application. It uses the existing project writer lock and all
+verification and a retained candidate for your final review. It uses the existing project writer lock and all
 existing gates. The dashboard shows the last saved status and diagnosis.
 
 ```sh
@@ -2129,8 +2130,8 @@ Recognized transient preparation failures retry once per saved stage within the
 same request/time allowance. Authentication, quota, unknown errors and capability
 or contract decisions stop with retained details. An implementation timeout resumes
 its retained checkpoint once, within the build-dispatch limit; every gate runs
-again. Test/acceptance failures still receive the existing bounded builder repair
-policy. An unresolved failure is not silently approved or retried indefinitely.
+again. Test failures retain the bounded builder repair policy; staged acceptance failures
+can use one remaining implementation attempt. An unresolved failure is not silently approved or retried indefinitely.
 
 The preparation deadline and consumed request count survive controller restarts.
 `harness continue` reuses the remaining allowance. `harness continue --renew`
@@ -2140,10 +2141,62 @@ their existing agent/gate timeouts, separately from preparation's time limit; th
 is neither a whole-project wall-clock limit nor a dollar-cost cap. Provider usage
 remains an estimate and may be incomplete.
 
-Approvals, scope changes, missing credentials, unsupported required manual evidence
-and exhausted budgets still need a decision. Manual blockers in the saved outline
-are reported before model work. This release controls one task per continuation;
+Approvals, scope changes, missing credentials, unsupported browser actions
+and exhausted budgets still need a decision. Approved manual requirements are
+retained for final observation rather than blocking all implementation. This release controls one task per continuation;
 it does not yet implement unattended whole-project delivery or background scheduling.
 A terminated process resumes when `harness continue` is invoked; it does not
-restart itself. Source changes are applied only through the existing work gate,
+restart itself. Source changes are applied only after staged final approval,
 and nothing is committed, pushed or published by the controller.
+
+### Review a staged result
+
+`harness continue` builds with staged delivery. `harness work --stage <task>` uses
+the same path directly; ordinary `work` also stages automatically when approved
+checks include manual observations. Other ordinary work retains its existing
+apply-after-verification behaviour. Test gates, independent source review and all
+command/Chromium acceptance checks still run. A manual expectation never becomes
+an automatic pass. The source reviewer judges implementation support while those
+specific human observations remain pending.
+
+```sh
+harness stage list
+harness stage inspect r12
+harness stage preview r12
+# Use the browser and assistive technology, then Ctrl+C to stop the preview.
+harness stage review r12
+```
+
+The preview currently supports dependency-free Node web servers with one startup
+entry/database variable already selected in approved browser journeys. It runs in
+a network-disabled Linux container with read-only source, temporary data, resource
+limits and a 30-minute lifetime. A loopback bridge exposes it to your own browser
+and screen reader; candidate code never runs on the host. Keep that terminal open
+while reviewing. Preview data is reset on every launch, and the preview address is
+not your deployed site. Other platforms or dependencyful web previews are not yet
+provided by this lane; their candidates remain retained.
+
+Final review asks which tools you used, what happened for each manual requirement,
+and whether each passed. Report limitations honestly. For browser/manual tasks a
+matching preview receipt is required. Observations are operator attestations,
+not independently established proof that a screen reader spoke. Successful
+observations are checkpointed while completing the checklist. A final confirmation
+applies the exact candidate; choosing no retains it. Source, requirements, approved
+checks and execution changes invalidate reuse. `harness stage apply <id>` applies
+an already-reviewed candidate without another model call. It does not waive missing
+observations or approve a candidate implicitly.
+
+If observations fail, return the candidate for repair through the review prompt or
+`harness stage reject <id>`. A stale pending candidate can instead be removed from
+the queue with `harness stage discard <id>`; its source remains retained. Feedback becomes a retained implementation checkpoint.
+`harness continue` then uses the remaining build allowance, and a changed candidate
+requires fresh checks and observations. An exhausted allowance requires explicit
+`--renew`. Pending candidates are never rebuilt just because you run continue again.
+
+Application saves an intent and before/after recovery files before writing. After
+an interruption, other harness writers stop; use `harness stage apply <id>` to
+finish the same intent. Recovery refuses unrelated live edits, changed expectations
+or an altered candidate. Successful application has a normal run ID and supports
+`harness undo <run-id>`. Task completion alone is not complete product readiness;
+product reports distinguish automated evidence plus candidate-bound operator review
+and still require current-source evidence for the other product obligations.

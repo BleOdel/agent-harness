@@ -119,7 +119,10 @@ export async function acceptanceTaskScope(project:string,tasks:readonly string[]
  const saved=approval??await readApproval(project),features=await readFeatures(project);
  return saved&&features?.ok?regressionTasks(features.features,tasks,saved.manifest):[...tasks];
 }
-export async function requireChecks(project:string,tasks:readonly string[]):Promise<Approval>{
+export const requireChecks = (project:string,tasks:readonly string[]) => requireApprovedChecks(project,tasks,false);
+/** Manual requirements remain pending; this entry point cannot authorize application. */
+export const requireStagingChecks = (project:string,tasks:readonly string[]) => requireApprovedChecks(project,tasks,true);
+async function requireApprovedChecks(project:string,tasks:readonly string[],staging:boolean):Promise<Approval>{
  await assertProductCurrent(project);
  const approved=await readApproval(project);
  if(!approved)throw new OperatorError("Acceptance checks have not been approved for this project.","Run harness checks to prepare and review expected application behaviour, then approve the checks. No model work has started.");
@@ -132,7 +135,7 @@ export async function requireChecks(project:string,tasks:readonly string[]):Prom
   if (!task || taskDigest(task) !== c.taskDigest) throw new OperatorError(`Approved checks for ${c.tasks[0]} describe older requirements.`, "Run harness checks setup to draft and review checks for the current task.");
  }
  const manual=approved.manifest.cases.filter(c=>caseKind(c)==='manual'&&(c.tasks.includes('*')||c.tasks.some(t=>tasks.includes(t))));
- if(manual.length)throw new OperatorError('Required manual evidence is unresolved: '+manual.map(c=>c.id).join(', '),'Manual expectations are not successful evidence. Revise the verification plan or provide a supported automated journey before automatic application; requirements cannot be waived by approving this draft.');
+ if(manual.length&&!staging)throw new OperatorError('Required manual evidence is unresolved: '+manual.map(c=>c.id).join(', '),'Manual expectations are not successful evidence. Revise the verification plan or provide a supported automated journey before automatic application; requirements cannot be waived by approving this draft.');
  return approved;
 }
 export async function assertApprovalCurrent(project:string,expected:Approval):Promise<void>{
@@ -155,17 +158,31 @@ export class AcceptanceFailure extends OperatorError {
 
 /** The caller is trusted host code; a candidate never receives this evidence directory. */
 export async function assertAcceptanceProof(project: string, candidate: Snapshot, tasks: readonly string[], proof?: AcceptanceProof): Promise<void> {
+  return assertProof(project,candidate,tasks,proof,false);
+}
+export async function assertAutomatedAcceptanceProof(project:string,candidate:Snapshot,tasks:readonly string[],proof?:AcceptanceProof):Promise<void>{
+  return assertProof(project,candidate,tasks,proof,true);
+}
+async function assertProof(project:string,candidate:Snapshot,tasks:readonly string[],proof:AcceptanceProof|undefined,staging:boolean):Promise<void>{
   if (!proof) throw new OperatorError("Application requires approved acceptance evidence.", "Run verification before applying this candidate.");
-  const approved = await requireChecks(project, tasks);
+  const approved = await requireApprovedChecks(project, tasks, staging);
   tasks=await acceptanceTaskScope(project,tasks,approved);
   const root = path.join(harnessDirectory(await realpath(project)), "acceptance", "results");
   if (path.dirname(proof.evidencePath) !== root || !/^[a-f0-9-]+\.json$/u.test(path.basename(proof.evidencePath))) throw new OperatorError("Invalid acceptance evidence location.");
   const evidence = JSON.parse(await readArtifact(root, path.basename(proof.evidencePath)) ?? "null");
-  if (!evidence || evidence.version !== 1 || evidence.outcome !== "passed"
+  if (!evidence || evidence.version !== 1 || evidence.outcome !== (staging ? "automated-passed" : "passed")
     || evidence.project !== await realpath(project) || evidence.approvalDigest !== approved.digest
     || evidence.approvalDigest !== proof.approvalDigest || evidence.candidateDigest !== candidate.digest
     || proof.candidateDigest !== candidate.digest || !Array.isArray(evidence.tasks)
     || tasks.some(t => !evidence.tasks.includes(t))) throw new OperatorError("Acceptance evidence does not cover the current candidate and approved checks.");
+  if(staging){
+    const selected=approved.manifest.cases.filter(c=>c.tasks.includes('*')||c.tasks.some(t=>tasks.includes(t)));
+    if(JSON.stringify(evidence.manualPending)!==JSON.stringify(selected.filter(c=>caseKind(c)==='manual').map(c=>c.id)))throw new OperatorError('Automated evidence lost pending manual requirements.');
+    for(const c of selected.filter(c=>caseKind(c)==='command'))for(const [index,step] of c.steps.entries()){
+      const o=evidence.observations?.filter((v:{case:string;step:number})=>v.case===c.id&&v.step===index+1);
+      if(o?.length!==1||o[0].timedOut||o[0].exitCode!==step.exitCode)throw new OperatorError('Automated evidence has incomplete command observations.');
+    }
+  }
   for(const check of approved.manifest.cases.filter(c=>caseKind(c)==='browser'&&(c.tasks.includes('*')||c.tasks.some(t=>tasks.includes(t)))))await assertBrowserEvidence(project,check,approved.browserRuntime,candidate.digest,evidence.browserObservations);
   if (candidate.executionDigest) assertExecutionPin(evidence.execution);
   if (candidate.executionDigest && (proof.executionDigest !== candidate.executionDigest || evidence.execution?.digest !== candidate.executionDigest)) throw new OperatorError("Acceptance evidence does not match the candidate execution environment.");
@@ -173,10 +190,16 @@ export async function assertAcceptanceProof(project: string, candidate: Snapshot
 }
 
 export async function verifyAcceptance(project: string, candidate: Snapshot, tasks: readonly string[], config: Config, approved: Approval, execution?: ExecutionPin): Promise<AcceptanceResult> {
+  return verifyApproved(project,candidate,tasks,config,approved,execution,false);
+}
+export async function verifyAutomatedAcceptance(project:string,candidate:Snapshot,tasks:readonly string[],config:Config,approved:Approval,execution?:ExecutionPin):Promise<AcceptanceResult>{
+  return verifyApproved(project,candidate,tasks,config,approved,execution,true);
+}
+async function verifyApproved(project:string,candidate:Snapshot,tasks:readonly string[],config:Config,approved:Approval,execution:ExecutionPin|undefined,staging:boolean):Promise<AcceptanceResult>{
   project = await realpath(project);
   await assertApprovalCurrent(project, approved);
   tasks=await acceptanceTaskScope(project,tasks,approved);
-  await requireChecks(project,tasks);
+  await requireApprovedChecks(project,tasks,staging);
   assertServerRuntimes(approved.manifest);
   await assertSnapshot(candidate);
   if (execution) await assertExecutionCompatible(execution, project, config, execution.settings.testCommand);
@@ -188,7 +211,7 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
   const browserObservations:{case:string;run:string;source?:string;status:string}[]=[];
   const observations: { runner?: ReturnType<typeof dockerRunner.evidence>; case: string; step: number; exitCode: number | null; timedOut: boolean; stdoutHash: string; stdoutPreview: string; stderrTail: string; files: Record<string, string | null> }[] = [];
   const save = async (outcome: "passed" | "failed", error?: string) => atomicWrite(proof.evidencePath, JSON.stringify({
-    version: 1, at: new Date().toISOString(), project, ...proof, execution, adapter: adapter.reference, runner: dockerRunner.reference, image: config.imageId, environmentKey, tasks, outcome, observations, browserObservations, ...(error ? { error } : {}),
+    version: 1, at: new Date().toISOString(), project, ...proof, execution, adapter: adapter.reference, runner: dockerRunner.reference, image: config.imageId, environmentKey, tasks, outcome: outcome === "passed" && staging ? "automated-passed" : outcome, ...(staging ? {manualPending:approved.manifest.cases.filter(c=>caseKind(c)==='manual'&&(c.tasks.includes('*')||c.tasks.some(t=>tasks.includes(t)))).map(c=>c.id)} : {}), observations, browserObservations, ...(error ? { error } : {}),
   }, null, 2) + "\n");
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-acceptance-")));
   const base: SandboxLayout = {
@@ -208,6 +231,7 @@ export async function verifyAcceptance(project: string, candidate: Snapshot, tas
     const selected = approved.manifest.cases.filter(c => c.tasks.includes("*") || tasks.some(t => c.tasks.includes(t)));
     if (!selected.length) throw new OperatorError("No approved acceptance cases apply to this work.");
     for (const [index, check] of selected.entries()) {
+      if(caseKind(check)==='manual'&&staging){summaries.push(`manual: ${check.id} awaits operator observation of this candidate`);continue;}
       if(caseKind(check)==='manual')throw new OperatorError(`${check.id}: manual evidence is unresolved.`);
       if(caseKind(check)==='browser'){
         if(!approved.browserRuntime)throw new OperatorError('Missing approved browser runtime.');

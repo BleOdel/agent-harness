@@ -1,3 +1,4 @@
+import {pendingStage} from '../staging/store.ts';
 import {guideTorch} from "../guide/torch.ts";
 import {guideMetal} from "../guide/metal.ts";
 import {guideApple} from "../guide/apple.ts";
@@ -102,18 +103,24 @@ export async function guide(configuredProject: string, io: Dialogue = terminalDi
           const list = await readFeatures(project);
           if (list && !list.ok) throw new OperatorError(list.reason);
           if (list?.features.length) {
+            const staged=await pendingStage(project);
+            if(staged){
+              actions.push({label:`Inspect staged result: ${staged.task}`,run:()=>run('stage','inspect',staged.id)});
+              if(staged.status==='pending')actions.push({label:'Open isolated preview for final review',run:()=>run('stage','preview',staged.id)});
+              actions.push({label:staged.status==='applying'?'Recover staged application':'Record final observations and approve result',run:()=>run('stage',staged.status==='applying'?'apply':'review',staged.id)});
+            }
             const history = await readRecord(project);
             const next = chooseNext(list.features, id => history.runs.filter(r => r.goal === id).at(-1)?.outcome).next;
-            if (next) actions.push({ label: `Build or resume next: ${next.title}`, async run() {
+            if (next&&!staged) actions.push({ label: `Build or resume next: ${next.title}`, async run() {
               io.write(`${next.title}: ${next.criteria.join("; ")}`);
               const status = await readiness(project);
               if (!status.ready) { for (const c of status.checks.filter(c => c.status === "missing" || c.status === "blocked")) io.write(c.message); io.write(`Next: ${status.next}`); return; }
               const config = loadConfig({ ...process.env, HARNESS_PROJECT: project });
-              io.write(`Success applies this item to ${project}. It does not commit or publish it.`);
+              io.write(`Success retains a verified candidate for your final review. It does not apply, commit or publish it.`);
               io.write(`Up to two builder attempts; ${config.agentTimeoutMs / 1000}s per model call, ${config.gateTimeoutMs / 1000}s per check. Provider cost is unknown until reported.`);
-              await run("work", next.id);
+              await run("work", "--stage", next.id);
             } });
-            else io.write("No eligible next item. Review status for completed, deferred or blocked work.");
+            else if(!staged) io.write("No eligible next item. Review status for completed, deferred or blocked work.");
             actions.push({ label: "Continue saved work (prepare, review and build)", run: () => run("continue") });
             actions.push({ label: "Prepare or resume acceptance checks (bounded)", run: () => run("checks", "prepare") });
             actions.push({ label: "Review a saved check draft", run: () => run("checks", "review") });

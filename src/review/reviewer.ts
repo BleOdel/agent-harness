@@ -23,6 +23,7 @@ import { runContained } from "../containment/process.ts";
 import { resourceArguments } from "../agent/resources.ts";
 
 export interface ReviewRequest {
+  readonly pendingManual?: readonly {id:string;instructions:string}[];
   readonly effort?: ReasoningEffort;
   readonly title: string;
   readonly criteria: readonly string[];
@@ -62,6 +63,10 @@ export function reviewPrompt(request: ReviewRequest): string {
       request.approvedContext,
       "This context does not authorize other plan items. Judge only the current item's scope. Required interface choices are not scope creep merely because a criterion summarizes them. If approved requirements conflict, identify that conflict rather than silently discarding either requirement.",
       "End of approved context.", "",
+    ] : []),
+    ...(request.pendingManual?.length ? [
+      'This is a pre-application source review for a staged candidate. The following operator-approved observations will be performed later against the exact candidate. Judge implementation support for these requirements, but do not demand a human observation before staging or claim it was observed. All other criteria remain required now; escalate code defects. A pass here authorizes staging only, never application.',
+      JSON.stringify(request.pendingManual),
     ] : []),
     "Answer two questions, and only these two:",
     "",

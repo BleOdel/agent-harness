@@ -11,7 +11,7 @@ export interface ContinueState {
  checkLimits?:CheckLimits;checkRequestBase?:number;checkDeadline?:number;
  attempts:number;maxBuilds:number;recoveries:number;events:{at:string;stage:string;message:string}[];
 }
-export interface ContinueSnapshot {done:boolean;checks:'missing'|'approved'|'blocked';reason?:string;}
+export interface ContinueSnapshot {stage?:string;done:boolean;checks:'missing'|'approved'|'blocked';reason?:string;}
 export interface ContinueServices {
  snapshot:()=>Promise<ContinueSnapshot>;
  prepare:()=>Promise<'ready'|'paused'|'blocked'>;
@@ -29,6 +29,7 @@ export async function driveContinuation(state:ContinueState,s:ContinueServices):
  try{
   for(;;){
    const snap=await s.snapshot();
+   if(snap.stage){await set('approval','staged',`Candidate ${snap.stage} passed automated checks and awaits final review. Preview: harness stage preview ${snap.stage}. Record observations and apply: harness stage review ${snap.stage}. No rebuild or model request is needed.`);return state;}
    if(snap.done){await set('complete','review','Task is complete. Review the applied result and retained evidence. Nothing was published.');return state;}
    if(snap.checks==='blocked'){await set('attention','decision',snap.reason??'The approved verification requirements need a decision.');return state;}
    if(snap.checks==='missing'){
@@ -51,7 +52,9 @@ export async function driveContinuation(state:ContinueState,s:ContinueServices):
     }
     throw error;
    }
-   if(!(await s.snapshot()).done){await set('attention','build','The build returned without completing the task. Inspect its retained result before continuing.');return state;}
+   const after=await s.snapshot();
+   if(after.stage)continue;
+   if(!after.done){await set('attention','build','The build returned without completing the task. Inspect its retained result before continuing.');return state;}
   }
  }catch(error){
   await set(error instanceof ImplementationInterrupted?'paused':'attention','diagnosis',`${(error as Error).message}${error instanceof OperatorError&&error.remedy?'\n'+error.remedy:''}`);return state;

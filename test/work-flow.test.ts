@@ -597,3 +597,36 @@ for (const mode of ["resume", "resume-wrong"]) test(`browser evidence reaches re
   else {assert.notEqual(result.code,0);assert.match(result.text,/acceptance/);}
  }finally{await f.close();}
 });
+
+test('staged work runs all gates but waits for exact final review; rejection creates a repair checkpoint',async()=>{
+ const f=await fixture([item('api')],'changed');
+ try{
+  const result=await f.run('work','--stage','api');assert.equal(result.code,0,result.text);assert.match(result.text,/Staged as r1/);
+  assert.equal(await readFile(path.join(f.project,'app.js'),'utf8'),'export const value = 1;\n');
+  assert.deepEqual((await f.calls()).map(c=>c.kind),['builder','gate','reviewer','acceptance']);
+  assert.equal((await readRecord(f.project)).runs[0]!.outcome,'staged');
+  const again=await f.run('work','api');assert.notEqual(again.code,0);assert.match(again.text,/awaiting final review/);
+  const apply=await f.run('stage','apply','r1');assert.notEqual(apply.code,0);assert.match(apply.text,/review/);
+  const {rejectStage}=await import('../src/verbs/stage.ts');await rejectStage(f.project,'r1','The keyboard focus is lost after saving.');
+  const c=await findWorkCheckpoint(f.project,'api');assert.ok(c);assert.match(c.instruction,/keyboard focus/);assert.match(c.instruction,/works/);
+ }finally{await f.close();}
+});
+
+test('manual requirements stage automatically and cannot be silently counted as passing checks',async()=>{
+ const f=await fixture([item('api')],'changed');
+ try{
+  const file=path.join(f.root,'manual-checks.json');await writeFile(file,JSON.stringify({version:1,cases:[{id:'value',tasks:['api'],steps:[{command:['node','--input-type=module','-e',"import {value} from './app.js'; console.log(value)"],exitCode:0,stdout:'2\n'}]},{id:'human',kind:'manual',tasks:['api'],steps:[],manual:{instructions:'Observe speech with a screen reader.'}}]}));await approveChecks(f.project,file);
+  const result=await f.run('work','api');assert.equal(result.code,0,result.text);assert.match(result.text,/manual: human awaits/);assert.match(result.text,/Staged as r1/);
+  const stage=JSON.parse(await readFile(path.join(harnessDirectory(f.project),'staging/r1/state.json'),'utf8'));assert.equal(stage.manual.length,1);assert.equal(stage.operator,undefined);
+  const proof=JSON.parse(await readFile(stage.acceptance.evidencePath,'utf8'));assert.equal(proof.outcome,'automated-passed');assert.deepEqual(proof.manualPending,['human']);
+  assert.equal(await readFile(path.join(f.project,'app.js'),'utf8'),'export const value = 1;\n');
+ }finally{await f.close();}
+});
+
+test('staged acceptance failures receive at most one repair and never apply failing source',async()=>{
+ const f=await fixture([item('api')],'changed');try{
+  const file=path.join(f.root,'failing.json');await writeFile(file,JSON.stringify({version:1,cases:[{id:'value',tasks:['api'],steps:[{command:['node','--input-type=module','-e',"import {value} from './app.js';console.log(value)"],exitCode:0,stdout:'3\n'}]}]}));await approveChecks(f.project,file);
+  const result=await f.run('work','--stage','api');assert.notEqual(result.code,0);assert.match(result.text,/One implementation repair remains/);assert.equal((await f.calls()).filter(c=>c.kind==='builder').length,2);assert.equal((await readRecord(f.project)).runs.at(-1)!.outcome,'gate-failed');assert.ok(await findWorkCheckpoint(f.project,'api'));
+  assert.equal(await readFile(path.join(f.project,'app.js'),'utf8'),'export const value = 1;\n');
+ }finally{await f.close();}
+});

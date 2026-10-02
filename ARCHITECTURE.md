@@ -1528,12 +1528,17 @@ publication or an entire product has been approved.
 
 ```mermaid
 flowchart LR
-  Saved[Saved requirements] --> Preflight[Check prerequisites and manual obligations]
+  Saved[Saved requirements] --> Preflight[Check prerequisites and approved requirements]
   Preflight --> Prepare[Bounded check preparation and recovery]
   Prepare --> Decision[Explicit check approval]
   Decision --> Build[Build or resume checkpoint]
   Build --> Gates[Tests, review and acceptance]
-  Gates --> Applied[Apply and present result]
+  Gates --> Stage[Retain candidate and pending manual checklist]
+  Stage --> Preview[Isolated local preview]
+  Preview --> Human[Operator observations and final approval]
+  Human -->|passed and source still matches| Applied[Journal and apply exact candidate]
+  Human -->|observed failure| Feedback[Retain feedback and repair checkpoint]
+  Feedback --> Build
   Build -->|saved timeout, once| Build
   Preflight -->|decision needed| Attention[Persist diagnosis and ask user]
   Prepare -->|budget or unresolved failure| Attention
@@ -1558,3 +1563,36 @@ Graphify a required runtime dependency or claiming that it reduces token usage.
 A future Pi adapter would need pinned source freshness, a host-enforced response
 size limit, retained extraction confidence, and source verification of inferred
 relationships. Core continuation does not depend on Graphify.
+
+## Staged final review
+
+`staging/store` retains baseline and candidate snapshots outside worker mounts,
+with task controls, product/approval/execution identity, automated evidence and
+pending manual instructions. Staging has a distinct `automated-passed` result;
+it is not ordinary passing acceptance evidence. `requireStagingChecks` permits
+approved manual obligations for preparation/build only; `requireChecks` continues
+to refuse unresolved manual evidence for automatic application. An independent
+source review still checks all implementation requirements, explicitly deferring
+only the approved human observations until there is a candidate to inspect.
+
+`staging/preview` mounts immutable source into a network-disabled container with
+an ephemeral database. The host binds only 127.0.0.1 and transports browser TCP
+connections over Docker exec into container loopback; it does not execute the
+app on the host or expose provider credentials. Startup comes from one agreed
+approved browser-journey configuration. Unsupported dependency/startup arrangements
+fail explicitly. The owned-container receipt supports cleanup after interruption;
+a successful readiness probe records the exact candidate binding, not human proof.
+
+`stage review` retains per-case operator observations and final approval under that
+binding. Failed observations can create an unverified work checkpoint with feedback.
+No model can write these files; a new candidate needs new observations. `continue`
+recognizes a pending stage before dispatching another builder. The dashboard exposes
+the retained state and commands; it does not launch a preview or grant approval.
+
+`staging/apply` checks both automated evidence and the bound operator review, source
+freshness and execution compatibility, then saves a durable application intent and
+recovery snapshot. Each source replacement is atomic. Interrupted application
+accepts only the known before/after bytes, refuses unrelated edits and completes
+its record once. A pending marker blocks other writers. Successful application
+uses normal undo records. Product aggregation only accepts operator review for the
+exact current source and approved requirements, and labels the evidence accordingly.
