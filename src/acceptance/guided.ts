@@ -170,7 +170,7 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
    }
   }
   if (freshPreparation || feedback) {
-   for (const name of ['review-progress.json', 'preparation.json', 'guided-draft.json', 'simplification.json','recipe-change.json','outline-response.json']) {
+   for (const name of ['review-progress.json', 'preparation.json', 'guided-draft.json', 'simplification.json','recipe-change.json','outline-response.json','outline-planning.json']) {
     const old = await readArtifact(directory(project), name, 8 * 1024 * 1024);
     if (old) {const history = path.join(directory(project), 'review-history');await mkdir(history,{recursive:true,mode:0o700});await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}.json`),old);}
     await rm(path.join(directory(project),name),{force:true});

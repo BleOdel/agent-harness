@@ -160,8 +160,10 @@ See [Python policy and migration](PYTHON.md) and [adapter](src/adapters/python-p
 
 ```mermaid
 flowchart LR
-  W["checks prepare: saved request/time allowance"] --> P["Saved plan, criteria and source"]
-  P --> O["Behaviour outline and interface"]
+  W["checks prepare: saved request/time allowance"] --> P["Explicit bounded packet: plan, approved contracts, selected source"]
+  P --> I["No tools: save interface additions"]
+  I --> K["No tools: plan and save each criterion separately"]
+  K --> O["Host assembles inherited interface and complete coverage"]
   O --> R["Independent outline review"]
   R -->|conflict| O2["Correct outline; at most two attempts"]
   O2 --> R
@@ -188,6 +190,22 @@ flowchart LR
   S -->|all scopes reviewed| U["Operator reviews behaviours and limitations"]
   U -->|approved| A["Existing offline candidate acceptance gate"]
 ```
+
+The initial boundary is now a host-owned decomposition, not an exploratory agent
+session. `planning-context.ts` supplies exact prerequisite contracts without their
+private probe commands/expected outputs, and declares which source files were
+actually included. `planning-stages.ts` owns interface/criterion ordering, coverage
+IDs, schema limits and durable replies. Each stage is saved before the next call;
+source/context/requirements changes invalidate reuse. Planning and outline review
+have no tools or implicit local context; executable generation/review retain their
+existing read-only source access. Independent review still checks cross-criterion
+consistency. It cannot assume omitted source was inspected.
+
+This addresses the previous initial request's combined exploration, interface
+rediscovery and whole-task planning before the first usable checkpoint. Request
+receipts now distinguish input size, agent turns/tool calls, elapsed time and partial
+visible output from completed design. No thinking text is retained. A saved stage is
+not evidence that the application works; empty overall executable coverage stops.
 
 The writer-locked controller (`acceptance/workflow.ts`) retains command allowances,
 reported spend and retries outside source in `acceptance/workflow.json`. An async-local

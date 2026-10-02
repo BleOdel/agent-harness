@@ -14,3 +14,7 @@ test('an interrupted stream retains reported usage but cannot claim complete rep
  const response=new CheckResponse(),message={role:'assistant',content:[{type:'text',text:'{}'}],usage:{totalTokens:10,cost:{total:0.001}}};
  response.push(JSON.stringify({type:'turn_end',message})+'\n');response.finish();assert.equal(response.usage.totalTokens,10);assert.equal(response.complete,false);
 });
+
+test('request diagnostics retain partial visible output and tool counts but never reasoning text',()=>{
+ const r=new CheckResponse();for(const e of [{type:'message_start',message:{role:'assistant'}},{type:'message_update',assistantMessageEvent:{type:'thinking_delta',delta:'PRIVATE REASONING'}},{type:'message_update',assistantMessageEvent:{type:'text_delta',delta:'{"version":'}},{type:'tool_execution_start',toolName:'read'}])r.push(JSON.stringify(e)+'\n');r.finish();assert.equal(r.partialText,'{"version":');assert.equal(r.toolCalls,1);assert.equal(r.complete,false);assert.ok(!JSON.stringify(r).includes('PRIVATE REASONING'));
+});

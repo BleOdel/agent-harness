@@ -707,7 +707,7 @@ harness checks prepare --max-requests 20 --max-seconds 1200 --request-seconds 30
 Preparation completes one check at a time: generation, host validation, independent
 review and a saved receipt before the next check is generated. Older saved batches
 are reviewed first. Approved checks for completed prerequisites are reused by
-rerunning them on the new candidate; new outlines receive their descriptions so
+rerunning them on the new candidate; new outlines receive their exact approved interface contracts and descriptions so
 backend checks need not be reinvented for each interface task. Stale prerequisite
 approvals block application. Browser/source evidence remains separate.
 
@@ -728,31 +728,33 @@ turn events supply token counts and cost estimates; absent or interrupted report
 is explicitly incomplete, never assumed to be free. Subscription billing may differ
 from these estimates. No paid model requests are needed to run the regression tests.
 
-The model reads application source in a read-only copy, plus the accepted criteria
-and saved plan. It cannot implement the application during preparation. New outlines
-are instructed to use the fewest focused behaviours that cover the approved criteria,
-with separate ownership, privacy and irreversible-change checks where needed. This
-guidance does not remove requirements or replace human assessment of coverage.
-Actual application acceptance checks run later, offline.
+Initial planning uses an explicit host-selected packet: the saved plan and criteria,
+exact approved prerequisite contracts, source inventory, selected entry/contract
+files and runner limits. It has no exploration tools or implicit AGENTS/CLAUDE
+context. Source not included in the packet is explicitly uninspected. Oversized
+inputs stop before dispatch instead of silently dropping requirements.
 
-Preparation has two stages. First the model proposes a small behaviour outline,
-criterion coverage and one interface contract. An independent review checks that
-outline against the saved plan and existing shared contracts before any executable
-checks are generated. Up to two automatic outline corrections are independently
-reviewed; their budget also survives interruption. Then each behaviour is generated
-separately and checkpointed
-in `acceptance/preparation.json`. The request and optional guidance are saved before
-the first provider call, so even an early failure can resume without retyping.
-Initial outline replies are retained before schema validation in
-`acceptance/outline-response.json`, with immutable reply copies under
-`acceptance/outline-responses/`. An invalid outline gets one structural correction
-before independent review. An empty behaviour list cannot count as acceptance
-coverage. Both replies and the correction count survive interruption; a still
-invalid result stops for an explicit revision rather than retrying indefinitely.
-The retained reply is bound to the task, source and request. The most recently
-saved preparation/review determines which task resumes, so an older completed
-reader review cannot hide a new author preparation. Existing approved checks are
-unchanged until the operator approves a reviewed draft.
+Planning first saves only additional interface choices, then plans **one criterion
+per request**, with at most three small behaviours per criterion. The host preserves
+inherited contracts verbatim and assigns coverage IDs. Every reply and bounded
+schema-correction count is checkpointed in `acceptance/outline-planning.json`, bound
+to task, source, feedback and context. An interruption repeats only the unfinished
+stage. No command behaviours means an explicit evidence gap, never a passing check.
+Existing completed outlines and generated checks continue through their saved path.
+
+An independent review then checks the combined interface and coverage before code
+generation. Existing bounded outline corrections, per-case generation, syntax checks,
+independent reviews and operator approval still apply. Planning is unapproved design,
+not application verification; browser-only requirements need separate browser evidence.
+The newest saved preparation/review selects the task. Existing approvals are unchanged
+until the operator approves a reviewed draft.
+
+`checks status` also shows saved interface/criterion progress. Request receipts under
+`acceptance/requests/` record stage, input hash/size, model, elapsed time, tool/turn
+counts, reported usage and any partial visible assistant output. They exclude reasoning
+text; partial output is diagnostic and cannot approve a check. These private records
+can contain project context. Small stages improve recovery, but may increase call
+count; they do not guarantee a particular model response time or total cost.
 
 Initial case generation is limited to 16 KiB of JSON-encoded steps; up to 24 cases
 may be proposed. Invalid generated cases are saved with their raw response and

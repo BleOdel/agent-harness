@@ -87,6 +87,7 @@ export async function prepareChecks(project:string,io:Dialogue,limits:CheckLimit
  });
 }
 async function describeCheckProgress(project:string,write:(s:string)=>void):Promise<void>{
+ const planningRaw=await readArtifact(directory(project),'outline-planning.json',8*1024*1024);if(planningRaw){const p=JSON.parse(planningRaw);write(`Initial planning checkpoints: interface ${p.interface?'saved':'pending'}; ${p.criteria?.length??0} criterion outline(s) saved${p.pending?'; active '+p.pending.stage:''}. These are unapproved designs, not application evidence.`);}
  const raw=(await readActivePreparation(directory(project)))?.raw;if(!raw)return;
  const record=JSON.parse(raw),features=await readFeatures(project),task=features?.ok?features.features.find(t=>t.id===record.taskId):undefined;
  if(!task||!record.proposal||!record.ledger)return;

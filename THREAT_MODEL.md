@@ -739,3 +739,18 @@ authoritative. A passing row is omitted from automatic next actions; deliberate
 reruns use explicit CLI commands. Scoped accepted risk remains visibly different
 from passed testing. These observations do not authorize release or establish
 comprehensive security, production capacity or dataset suitability.
+
+## Bounded acceptance planning context
+
+Initial planning and interface review receive an explicit bounded packet and no Pi
+tools, implicit context files or prompt templates. Approved prerequisite contracts
+are inherited verbatim; private acceptance commands and expected outputs are not
+included in that packet. Source and saved documents remain untrusted data. Selected
+source is not a complete audit: omitted files and browser behaviour need separate
+evidence. Model additions cannot approve themselves; independent coverage review,
+operator approval and candidate verification remain mandatory.
+
+Owner-private request receipts retain stage/input hashes, visible assistant output,
+partial text and usage diagnostics, never reasoning deltas. Partial text is not
+accepted as completed JSON or application evidence. Receipts may contain project
+information and follow the existing local state-directory trust boundary.

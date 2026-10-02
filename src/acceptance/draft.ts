@@ -1,3 +1,4 @@
+import {atomicWrite} from '../planning/store.ts';
 import {CheckRequestInterrupted} from './request-failure.ts';
 import {checkRequestBudget,ensureCheckBudget} from './budget.ts';
 import {CheckResponse} from './response.ts';
@@ -65,8 +66,11 @@ export function draftPrompt(task: Feature, feedback = '', previous?: Proposal, o
   JSON.stringify({ task: { id: task.id, title: task.title, criteria: task.criteria.map((text, i) => ({ number: i + 1, text })), plan: task.planContext ?? 'No saved plan; use task criteria and source.' }, feedback, previous }),
  ].join('\n\n');
 }
-export async function requestCheckJson(project: string, prompt: string): Promise<unknown> {
+export interface CheckRequestOptions {tools?:'read'|'none';stage?:string;}
+export function checkToolArguments(options:CheckRequestOptions):string[]{return [...(options.tools==='none'?['--no-tools']:['--tools','read,grep']),'--no-context-files','--no-prompt-templates'];}
+export async function requestCheckJson(project: string, prompt: string, options:CheckRequestOptions={}): Promise<unknown> {
  ensureCheckBudget();
+ if(options.tools==='none'&&Buffer.byteLength(prompt)>128*1024)throw new OperatorError('Explicit planning/review packet exceeds 128 KiB. No request was sent.');
  const config = loadConfig({ ...process.env, HARNESS_PROJECT: project });
  await assertModelEffort(config.piPackageDirectory, config);
  process.stdout.write(`Model: ${modelLabel(config)}\n`);
@@ -81,13 +85,17 @@ export async function requestCheckJson(project: string, prompt: string): Promise
   const agentDirectory = await privateAgentDirectory(config.agentDirectory, path.join(root, 'agent'));
   const layout: SandboxLayout = { dockerExecutable: config.dockerExecutable, imageId: config.imageId, containerName: `harness-check-draft-${path.basename(root).toLowerCase()}`, workDirectory: baseline.directory, agentDirectory, piPackageDirectory: config.piPackageDirectory, purpose: 'review', user: `${process.getuid?.() ?? 501}:${process.getgid?.() ?? 20}`, ...(adapter.executionEnvironment ? { environment: adapter.executionEnvironment } : {}) };
   const runtime = '\n\nVerification runner context: Linux Docker with --network none. Non-loopback interfaces may be absent; do not rely on their presence to prove loopback binding. A non-vacuous observation of Linux /proc/net/tcp and /proc/net/tcp6 LISTEN records at the chosen server port is valid. Require an observed listener and check all matching addresses. Each step gets a separate offline container; no GUI, emulator or GPU. Project requirements (not installed toolchain evidence):\n' + JSON.stringify({ adapter: profile.adapter, runner: profile.runner, requirements: profile.requirements }) + `\nEach verification command also has a host-enforced wall-clock timeout of ${config.gateTimeoutMs} ms.`;
-  const constraints = await existingContracts(baseline.directory, Object.keys(baseline.files));
+  const constraints = options.tools==='none'?'':await existingContracts(baseline.directory, Object.keys(baseline.files));
   const requestArguments = await writeCheckRequest(baseline.directory, prompt + runtime + constraints);
-  const command = ['node', `${CONTAINER_PI_PACKAGE}/dist/cli.js`, '--print', '--mode', 'json', '--approve', '--tools', 'read,grep', '--no-session', ...resourceArguments(false), ...(config.provider ? ['--provider', config.provider] : []), ...(config.model ? ['--model', config.model] : []), '--thinking', config.effort ?? 'medium', ...requestArguments];
+  const command = ['node', `${CONTAINER_PI_PACKAGE}/dist/cli.js`, '--print', '--mode', 'json', '--approve', ...checkToolArguments(options), '--no-session', ...resourceArguments(false), ...(config.provider ? ['--provider', config.provider] : []), ...(config.model ? ['--model', config.model] : []), '--thinking', config.effort ?? 'medium', ...requestArguments];
   const allowance=await checkRequestBudget(config.agentTimeoutMs),response=new CheckResponse();
+  const started=Date.now(),receipts=path.join(harnessDirectory(project),'acceptance','requests');await mkdir(receipts,{recursive:true,mode:0o700});
+  const receiptFile=path.join(receipts,`${Date.now()}-${randomUUID()}.json`);
+  const receipt={version:1,stage:options.stage??'check-request',model:modelLabel(config),source:baseline.digest,requestDigest:createHash('sha256').update(prompt+runtime+constraints).digest('hex'),promptBytes:Buffer.byteLength(prompt+runtime+constraints),tools:options.tools??'read',timeoutMs:allowance.timeoutMs};
+  await writeFile(receiptFile,JSON.stringify({...receipt,status:'running'},null,2)+'\n',{flag:'wx',mode:0o600});
   let result;
   try {result = await withContainmentSignal(controller.signal, () => runContained(layout, buildRunArguments(layout, 'bridge', command), { timeoutMs: allowance.timeoutMs, maxOutputBytes: 8 * 1024 * 1024,onOutput:chunk=>response.push(chunk) }));}
-  finally {response.finish();await allowance.record(response.usage,response.complete&&result?.code===0&&!result.timedOut&&!result.outputLimited);}
+  finally {response.finish();await atomicWrite(receiptFile,JSON.stringify({...receipt,status:result?.timedOut?'timeout':result?.outputLimited?'output-limit':result?.code===0&&!response.failure?'returned':'interrupted',elapsedMs:Date.now()-started,turns:response.turnCount,toolCalls:response.toolCalls,usage:response.usage,reportingComplete:response.complete,assistantText:response.text,partialAssistantText:response.partialText},null,2)+'\n');await allowance.record(response.usage,response.complete&&result?.code===0&&!result.timedOut&&!result.outputLimited);}
   if(response.complete)process.stdout.write(`Provider reported: ${response.usage.totalTokens.toLocaleString('en-GB')} tokens · $${response.usage.costUsd.toFixed(4)} estimate\n`);
   else process.stdout.write('Provider usage reporting incomplete or unavailable.\n');
   if(response.failure)throw new CheckRequestInterrupted('provider',response.failure);
