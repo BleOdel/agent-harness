@@ -1,3 +1,4 @@
+import { sourceExclusion } from '../workspace/changes.ts';
 import { listWorkCheckpoints } from "../workspace/work-checkpoints.ts";
 /**
  *   show <run-id>
@@ -67,6 +68,8 @@ export async function show(project: string, argv: readonly string[]): Promise<vo
 
   for (const change of run.changes) {
     say(`--- ${change.kind}: ${change.file}`);
+    const excluded = sourceExclusion(change.file);
+    if (excluded) { say(`  (withheld: ${excluded}; retained snapshot is unchanged)`); continue; }
     const before = await read(path.join(snapshot, "before", change.file)) ?? [];
     const after = await read(path.join(snapshot, "after", change.file)) ?? [];
     for (const line of diffLines(before, after)) {

@@ -7,19 +7,19 @@
  * slowly accumulating the operator's disk.
  */
 
-import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { safePath } from "./safe-path.ts";
 import { captureBaseline, type Snapshot } from "./candidate.ts";
-import { type Change, EXCLUDED_FROM_COPY, NEVER_APPLIED } from "./changes.ts";
+import { type Change, sourceExclusion, sourceExclusions, assertChangesAreApplicable } from "./changes.ts";
 
 export interface Sandbox {
   /** The disposable copy. The only writable mount the model gets. */
   readonly workDirectory: string;
   /** Removed by `destroy`, whatever happened. */
   readonly root: string;
-  /** Top-level entries kept out of the copy. Reported, never silent. */
+  /** Relative paths kept out of the copy. Reported, never silent. */
   readonly withheld: readonly string[];
 }
 
@@ -39,9 +39,9 @@ export async function createSandbox(project: string, exclusions: readonly string
     filter: (source) => {
       const relative = path.relative(project, source);
       if (relative === "") return true;
-      const head = relative.split(path.sep)[0] ?? "";
-      if (!EXCLUDED_FROM_COPY.has(head) && !relative.split(path.sep).some(part => exclusions.includes(part))) return true;
-      if (!withheld.includes(head)) withheld.push(head);
+      const portable = relative.split(path.sep).join('/');
+      if (!sourceExclusion(portable, exclusions, true)) return true;
+      if (!withheld.includes(portable)) withheld.push(portable);
       return false;
     },
   });
@@ -76,6 +76,7 @@ export async function snapshotForRecovery(
   changes: readonly Change[],
   directory: string,
 ): Promise<Recovery> {
+  assertChangesAreApplicable(changes, copy);
   const files: string[] = [];
   for (const change of changes) {
     if (change.kind !== "added") {
@@ -104,6 +105,7 @@ export async function applyChanges(
   copy: string,
   changes: readonly Change[],
 ): Promise<void> {
+  assertChangesAreApplicable(changes, copy);
   for (const change of changes) {
     await safePath(project, change.file);
     if (change.kind !== "deleted") await safePath(copy, change.file);
@@ -125,7 +127,7 @@ export async function createRunWorkspace(project: string, exclusions: readonly s
   try {
     const baseline = await captureBaseline(project, path.join(root, "baseline"), exclusions);
     const sandbox = await createSandbox(baseline.directory);
-    const withheld = (await readdir(project)).filter(name => EXCLUDED_FROM_COPY.has(name) || NEVER_APPLIED.has(name) || exclusions.includes(name));
+    const withheld = (await sourceExclusions(project, exclusions)).map(entry => entry.path);
     return { root, baseline, sandbox: { ...sandbox, withheld } };
   } catch (error) { await rm(root, { recursive: true, force: true }); throw error; }
 }

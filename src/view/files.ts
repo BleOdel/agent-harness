@@ -14,7 +14,7 @@
 
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { EXCLUDED_FROM_COPY, NEVER_APPLIED } from "../workspace/changes.ts";
+import { sourceExclusion } from "../workspace/changes.ts";
 import type { RunRecord } from "../record/record.ts";
 import { isBinary } from "../review/diff.ts";
 
@@ -40,15 +40,14 @@ export interface ProjectTree {
   readonly omitted: number;
 }
 
-const SKIP = new Set([...EXCLUDED_FROM_COPY, ...NEVER_APPLIED]);
 
 async function walk(root: string, prefix = ""): Promise<string[]> {
   const here = path.join(root, prefix);
   const entries = await readdir(here, { withFileTypes: true }).catch(() => []);
   const found: string[] = [];
   for (const entry of entries) {
-    if (SKIP.has(entry.name)) continue;
     const relative = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
+    if (sourceExclusion(relative)) continue;
     if (entry.isDirectory()) found.push(...await walk(root, relative));
     else if (entry.isFile()) found.push(relative);
   }

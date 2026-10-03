@@ -21,3 +21,33 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+
+  operational-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Prepare pinned fixture runtimes
+        shell: bash
+        run: |
+          docker pull node:26.5.0-bookworm-slim@sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb
+          docker build -t harness-browser:smoke containers/browser
+          echo "HARNESS_DOCKER=$(command -v docker)" >> "$GITHUB_ENV"
+          echo "HARNESS_IMAGE_ID=$(docker image inspect --format '{{.Id}}' node:26.5.0-bookworm-slim@sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb)" >> "$GITHUB_ENV"
+          echo "HARNESS_BROWSER_IMAGE_ID=$(docker image inspect --format '{{.Id}}' harness-browser:smoke)" >> "$GITHUB_ENV"
+      - name: Offline provider-free operational qualification
+        run: npm run verify:smoke -- --output "${{ runner.temp }}/harness-smoke"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: harness-operational-smoke
+          path: ${{ runner.temp }}/harness-smoke
+          if-no-files-found: warn
+          retention-days: 7

@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "kind": "local-negative-controls",
+  "results": [
+    {
+      "id": "F10",
+      "file": "src/view/server.ts",
+      "test": "test/view-authority.test.ts",
+      "sourceHash": "eb28699f9bacb935aebe0f5978bab5eddb3db8425bf269ada7d0111d44a6bee2",
+      "mutation": {
+        "from": "if (!admitted(request)) {",
+        "to": "if (false) {"
+      },
+      "exitCode": 1,
+      "detected": true,
+      "summary": "\u2716 dashboard rejects foreign authority and request context before reading private routes (14.844084ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 99.945791\n\n\u2716 failing tests:\n\ntest at test/view-authority.test.ts:6:1\n\u2716 dashboard rejects foreign authority and request context before reading private routes (14.844084ms)\n  AssertionError [ERR_ASSERTION]: [\"Host\",\"attacker.invalid\"]\n  \n  200 !== 403\n  \n      at TestContext.<anonymous> (file://<implementation-copy>/test/view-authority.test.ts:41:16)\n      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: 200,\n    expected: 403,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "id": "catalog",
+      "file": "src/reliability/catalog.ts",
+      "test": "test/reliability-catalog.test.ts",
+      "sourceHash": "81af0ce29b39e9c8b5194d0d065e72c0fe938cc97dc39dba7316b4fbc32e1ce2",
+      "mutation": {
+        "from": "ui: dependencies ? stage('gap', 'Browser controller rejects runtime dependencies (F11).') : browser,",
+        "to": "ui: browser,"
+      },
+      "exitCode": 1,
+      "detected": true,
+      "summary": "\u2716 capability catalog separates complete-route gaps, recipes and unsupported platforms (1.546208ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 65.974375\n\n\u2716 failing tests:\n\ntest at test/reliability-catalog.test.ts:5:1\n\u2716 capability catalog separates complete-route gaps, recipes and unsupported platforms (1.546208ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  'limited' !== 'gap'\n  \n      at TestContext.<anonymous> (file://<implementation-copy>/test/reliability-catalog.test.ts:20:10)\n      at Test.runInAsyncScope (node:async_hooks:226:14)\n      at Test.run (node:internal/test_runner/test:1382:25)\n      at Test.start (node:internal/test_runner/test:1242:17)\n      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'limited',\n    expected: 'gap',\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "id": "registry",
+      "file": "src/reliability/registry.ts",
+      "test": "test/reliability-registry.test.ts",
+      "sourceHash": "8b9b968cdcb4dd9563f2a876c8c57059c0d989dbe0ad1c7b82538a056371cca5",
+      "mutation": {
+        "from": "if (f.status === 'verified' &&",
+        "to": "if (false &&"
+      },
+      "exitCode": 1,
+      "detected": true,
+      "summary": "\u2716 all audit findings have task owners and cannot be closed without both kinds of evidence (3.654416ms)\n\u2714 catalog provider paths refer to actual modules (2.067959ms)\n\u2139 tests 2\n\u2139 suites 0\n\u2139 pass 1\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 74.462208\n\n\u2716 failing tests:\n\ntest at test/reliability-registry.test.ts:8:1\n\u2716 all audit findings have task owners and cannot be closed without both kinds of evidence (3.654416ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n      at TestContext.<anonymous> (file://<implementation-copy>/test/reliability-registry.test.ts:19:12)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: undefined,\n    expected: /evidence/,\n    operator: 'throws',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "id": "lifecycle",
+      "file": "src/reliability/lifecycle.ts",
+      "test": "test/reliability-lifecycle.test.ts",
+      "sourceHash": "c9519f3b2f7386448a28e57b3925367dc13514d0abaeb2fc0726f103e25439c5",
+      "mutation": {
+        "from": "if (parsed.revision !== expectedRevision)",
+        "to": "if (false)"
+      },
+      "exitCode": 1,
+      "detected": true,
+      "summary": "\u2716 versioned records reject stale, incomplete and invented completion (1.219416ms)\n\u2714 record distinctions preserve limitations and exact-candidate final approval (0.375ms)\n\u2139 tests 2\n\u2139 suites 0\n\u2139 pass 1\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 66.360917\n\n\u2716 failing tests:\n\ntest at test/reliability-lifecycle.test.ts:8:1\n\u2716 versioned records reject stale, incomplete and invented completion (1.219416ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n      at TestContext.<anonymous> (file://<implementation-copy>/test/reliability-lifecycle.test.ts:15:10)\n      at Test.runInAsyncScope (node:async_hooks:226:14)\n      at Test.run (node:internal/test_runner/test:1382:25)\n      at Test.start (node:internal/test_runner/test:1242:17)\n      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: undefined,\n    expected: /Stale/,\n    operator: 'throws',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "id": "qualification",
+      "file": "src/reliability/smoke.ts",
+      "test": "test/reliability-smoke.test.ts",
+      "sourceHash": "be50e7fe5836b2bd67d1588b94c2656f8d92768dba47fa6220448ac641271ee6",
+      "mutation": {
+        "from": "&& skipped === 0",
+        "to": "&& true"
+      },
+      "exitCode": 1,
+      "detected": true,
+      "summary": "\u2716 operational qualification refuses missing runtime, incomplete output and required skips (1.024209ms)\n\u2714 smoke environment never inherits provider secrets or a real harness project (0.370458ms)\n\u2139 tests 2\n\u2139 suites 0\n\u2139 pass 1\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 86.080083\n\n\u2716 failing tests:\n\ntest at test/reliability-smoke.test.ts:8:1\n\u2716 operational qualification refuses missing runtime, incomplete output and required skips (1.024209ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  true !== false\n  \n      at TestContext.<anonymous> (file://<implementation-copy>/test/reliability-smoke.test.ts:10:207)\n      at Test.runInAsyncScope (node:async_hooks:226:14)\n      at Test.run (node:internal/test_runner/test:1382:25)\n      at Test.start (node:internal/test_runner/test:1242:17)\n      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: true,\n    expected: false,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "id": "F09",
+      "file": "src/workspace/changes.ts",
+      "test": "test/source-selection.test.ts",
+      "sourceHash": "bd6da7fbda04aedcbaa1facff3f792e7f9abed7eb4c2d82849d182c853257bea",
+      "mutation": {
+        "from": "if (privateNames.has(name) || ((name === '.env' || name.startsWith('.env.')) && !examples.has(name))) return 'private configuration path';",
+        "to": "if (false) return 'private configuration path';"
+      },
+      "exitCode": 1,
+      "detected": true,
+      "summary": "onymous> (file://<implementation-copy>/test/source-selection.test.ts:23:10)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: [ '.env.example', '.env.production', 'index.js', 'service/.aws/credentials', 'service/.env', 'service/.env.local', 'service/.env.sample', 'service/.env.staging', 'service/.env.template', 'service/.npmrc' ],\n    expected: [ '.env.example', 'index.js', 'service/.env.sample', 'service/.env.template' ],\n    operator: 'deepStrictEqual',\n    diff: 'simple'\n  }\n\ntest at test/source-selection.test.ts:46:1\n\u2716 a legacy snapshot containing newly excluded files is refused and preserved (12.852667ms)\n  AssertionError [ERR_ASSERTION]: Missing expected rejection.\n      at async TestContext.<anonymous> (file://<implementation-copy>/test/source-selection.test.ts:51:3)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: undefined,\n    expected: /selection|Frozen source/,\n    operator: 'rejects',\n    diff: 'simple'\n  }\n\ntest at test/source-selection.test.ts:55:1\n\u2716 excluded artifact names cannot be published or exported; legacy bytes remain retained (129.96675ms)\n  AssertionError [ERR_ASSERTION]: Missing expected rejection.\n      at async TestContext.<anonymous> (file://<implementation-copy>/test/source-selection.test.ts:61:3)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: undefined,\n    expected: /excluded/,\n    operator: 'rejects',\n    diff: 'simple'\n  }\n"
+    }
+  ]
+}

@@ -37,7 +37,9 @@
     "verify:macos": "node src/verify-macos.ts",
     "verify:apple": "node src/verify-apple.ts",
     "verify:metal": "node src/verify-metal.ts",
-    "verify:torch": "node src/verify-torch.ts"
+    "verify:torch": "node src/verify-torch.ts",
+    "verify:smoke": "node src/verify-smoke.ts",
+    "verify:known-defects": "HARNESS_KNOWN_DEFECTS=1 node --test test/reliability-defects.test.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -54,7 +56,8 @@
     "profiles",
     "containers/desktop",
     "containers/browser",
-    "containers/torch"
+    "containers/torch",
+    "docs/reliability"
   ],
   "dependencies": {
     "acorn": "8.18.0",

@@ -47,6 +47,7 @@ test("readiness is read-only, gives an actionable missing-config result and neve
  await init(project);const lease=await acquireWriter(project,"plan");
  try { const result=await readiness(project,{HARNESS_DOCKER:path.join(root,"absent")});
   assert.equal(result.ready,false);assert.ok(result.checks.some(c=>c.id==="writer"&&c.status==="blocked"));
+  assert.ok(result.checks.some(c=>c.id==="support-scope"&&c.status==="unknown"&&c.message.includes("dependency-free")));
   assert.match(result.next,/Wait/);assert.ok(result.checks.some(c=>c.id==="configuration"&&c.message.includes("No Docker")));
  } finally { await lease.release(); }
 }));

@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --experimental-strip-types
+import { capabilitiesCommand } from './verbs/capabilities.ts';
 import {stageCommand} from './verbs/stage.ts';
 import {continueCommand} from './verbs/continue.ts';
 import {performanceCommand} from './verbs/performance.ts';
@@ -90,6 +91,7 @@ const USAGE = [
   "  harness job list           inspect, run, resume, cancel or recover saved jobs",
   "  harness artifacts list     inspect, export or clean retained outputs",
   "  harness verify [--retain]   fresh offline tests; optionally retain build outputs",
+  "  harness capabilities [--json] implementation scope and known gaps",
   "  harness doctor [--json]     readiness and the next remedy",
   "  harness init [--python | --desktop] create a Node, Python or Linux desktop project",
   "  harness plan [<topic>]        a saved interview and draft plan",
@@ -139,6 +141,7 @@ async function main(): Promise<void> {
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
 
   switch (verb) {
+    case "capabilities": return capabilitiesCommand(rest);
     case "stage": return stageCommand(project,rest);
     case "continue": return continueCommand(project,rest);
     case "worktree": return worktreeCommand(project,rest);

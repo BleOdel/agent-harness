@@ -1,3 +1,4 @@
+import { capabilitySummary } from '../reliability/catalog.ts';
 import { modelLabel } from "../model-settings.ts";
 import { readProfile, type ProjectProfile } from "../project/profile.ts";
 import { getAdapter } from "../adapters/registry.ts";
@@ -33,6 +34,7 @@ export async function readiness(project: string, environment: NodeJS.ProcessEnv 
   try {
     profile = await readProfile(project);
     const adapter = getAdapter(profile.adapter);
+    add({ id: "support-scope", status: "unknown", message: capabilitySummary(profile.adapter.id) });
     const command = (setting(environment, "HARNESS_TEST_COMMAND") ?? adapter.defaultTestCommand.join(" ")).split(" ").filter(Boolean);
     const recipe = await adapter.recipe(project, command);
     const hasTest = command[0] !== "npm" || !!recipe.scripts?.test;

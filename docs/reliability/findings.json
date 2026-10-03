@@ -1,0 +1,646 @@
+{
+  "version": 1,
+  "auditedCommit": "1104bd1d9811bca8ebe65ed1810819a20ef35903",
+  "auditedAt": "2026-10-03",
+  "baseline": {
+    "kind": "historical-audit",
+    "tests": 911,
+    "passed": 846,
+    "skipped": 65,
+    "failed": 0,
+    "limitation": "Default test suite, not complete operational qualification."
+  },
+  "findings": [
+    {
+      "id": "F01",
+      "title": "Preparation repairs read the wrong saved state",
+      "priority": "P1",
+      "confidence": "Reproduced control flow and inspected persistence",
+      "problem": "Incremental generation stores completed case reviews in preparation.json under state.reviewLedger. The continuation retry adapter reads record.ledger, and repairSavedCheck reads review-progress.json. That latter file is normally produced after all cases finish. A case blocked during incremental preparation can therefore enter the automatic repair path and receive \u201cNo saved check review to repair\u201d; an older task\u2019s review-progress file can instead produce a stale or wrong-task diagnosis.",
+      "impact": "The advertised autonomous retry path does not cover the exact phase where users are spending most of their time. More retries or a larger model allowance do not repair this mismatch.",
+      "fix": "Introduce one task-scoped preparation operation interface: loadActiveOperation, repairActiveCase, commitResult and nextAction. Both incremental and completed-proposal phases must expose the same typed ledger. Carry task ID, operation ID, source digest and contract digest through every transition. Migrate older files through a tested adapter; never pick a file merely because it exists.",
+      "verify": "Start with two completed cases and a blocked third case; require automatic repair of the third without any review-progress file. Repeat with an unrelated old task\u2019s review-progress file present, kill during repair, resume, and verify the same operation is charged once and only the selected task changes.",
+      "refs": [
+        "src/acceptance/preparation.ts:141",
+        "src/acceptance/workflow.ts:86",
+        "src/acceptance/guided.ts:341"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-001",
+        "hr-014",
+        "hr-020",
+        "hr-024",
+        "hr-027",
+        "hr-037"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F02",
+      "title": "Browser observations can be too early",
+      "priority": "P1",
+      "confidence": "Reproduced in real Chromium",
+      "problem": "The browser driver takes text/count/request-count snapshots immediately after actions, apart from limited visibility waiting. In an offline fixture, a click scheduled a DOM update and POST 400 milliseconds later. The harness recorded Idle and zero requests, then closed the browser. A control run that waited observed Complete and one POST. Host comparison accepted the misleading zero-request observation.",
+      "impact": "Correct asynchronous interfaces can fail. More seriously, a prohibited action that happens shortly afterward can pass a negative check. Model review cannot correct a measurement primitive with the wrong timing semantics.",
+      "fix": "Add bounded eventual assertions and explicit observation windows. Positive checks should retry until the expected condition or a deadline. Negative checks need a declared quiet interval and retained network observations. Keep expected values host-owned: use a bounded observation stream or a host-driven poll/compare protocol. Separate action timeout, settling deadline and whole-journey budget. Do not add a single arbitrary sleep to every test.",
+      "verify": "Use real Chromium fixtures with delayed DOM, debounced validation, delayed unauthorized requests, optimistic saves, late failures and never-settling pages. Prove correct cases pass and deliberately delayed violations fail. Record the observation interval with the result.",
+      "refs": [
+        "src/browser/instrumentation/driver.mjs:61",
+        "src/browser/controller.ts",
+        "src/browser/schema.ts"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-001",
+        "hr-015",
+        "hr-016",
+        "hr-017",
+        "hr-037",
+        "hr-039"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F03",
+      "title": "The interface is frozen before it is executable as a test",
+      "priority": "P1",
+      "confidence": "Observed in saved project and source design",
+      "problem": "The author outline had a Content note control name without its selection mechanism, explanation-field name or validation observation. After these were supplied, the same case blocked on proving the absence of every prohibited field/tool. Free-form requirements are frozen before all required observations have usable browser anchors or an honest evidence category. Compound behaviours combine independent obligations and amplify blockers.",
+      "impact": "Routine implementation choices return to the operator as technical decisions. Acceptance preparation becomes a second software project, preventing the actual application build from starting.",
+      "fix": "Create an early feasibility pass over atomic requirements. Produce a typed interface contract for routes, accessible controls, validation and state transitions. Let the harness propose ordinary reversible UI choices within the approved product scope and present them together at the initial design checkpoint. Split functional content-note tests from the visual/source inventory of prohibited controls. Preserve each obligation and its evidence limit; moving an obligation to manual review requires a visible proposed change and final approval.",
+      "verify": "Replay the existing To Be Heard outline before any generation. It must identify every missing anchor in one report, propose a bounded complete contract, and produce a coverage map without repeated one-field-at-a-time questions. Include alternate valid UI implementations so tests do not silently prescribe unrelated design.",
+      "refs": [
+        "src/acceptance/planning-context.ts",
+        "src/acceptance/browser-design.ts:12",
+        "src/acceptance/preparation.ts:220"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-019",
+        "hr-020",
+        "hr-021",
+        "hr-027",
+        "hr-037"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F04",
+      "title": "Ordinary application and undo are not crash recoverable",
+      "priority": "P1",
+      "confidence": "Partial-write failure reproduced; remaining paths inspected",
+      "problem": "The newer staged/team application paths have recovery journals. Ordinary work still invokes sequential applyChanges before the final run/status record; ordinary undo also performs sequential writes. A synthetic unreadable second candidate file produced EACCES after the first live file had already changed, leaving a mixed tree.",
+      "impact": "A verified candidate can be partially applied without a durable pending operation that the guide knows how to recover. The safety of the user\u2019s files depends on which command path they used.",
+      "fix": "Use one transaction engine for work, stage apply, team apply, undo and managed integration. Persist intent, before/after manifests and a reserved record ID before writes. Recheck live bytes per file, atomically replace files, journal each completed step, and finish or roll back idempotently. Preserve unrelated user edits and stop on ambiguous state.",
+      "verify": "Inject a failure or kill after every file operation, metadata update and record append. After recovery the result must be exactly the original tree or exactly the verified candidate, with one history record, no lost unrelated edit and no orphaned task status.",
+      "refs": [
+        "src/verbs/work.ts:703",
+        "src/verbs/undo.ts:141",
+        "src/workspace/sandbox-lifecycle.ts:102",
+        "src/staging/apply.ts"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-001",
+        "hr-010",
+        "hr-038"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F05",
+      "title": "Partial work survives a timeout but can disappear after provider failure",
+      "priority": "P1",
+      "confidence": "Actual CLI path reproduced with a fixture provider",
+      "problem": "The resume implementation retains selected gate-failed, escalated and blocked outcomes. A provider error or nonzero agent exit takes an error outcome that bypasses that checkpoint path, after which sandbox cleanup removes the work. A fixture wrote partial source then emitted a provider error: the CLI recorded error, no checkpoint, and removed the worker directory.",
+      "impact": "Quota exhaustion, authentication failure, overload or process failure can lose the work that timeout recovery was designed to preserve. Recovery behavior depends on error classification rather than whether useful source exists.",
+      "fix": "Unify all unsuccessful exits through a finalize-and-retain operation before cleanup. Retain validated untrusted source, task/context binding, diagnosis and usage for provider errors, nonzero exits, cancellation and missing output as well as timeout. Quarantine source that cannot be safely enumerated, explain the failure, and never apply it automatically.",
+      "verify": "Inject each failure after several edits. Verify a resumable checkpoint exists, secrets/control files remain excluded, live source stays unchanged, and all gates rerun after resume. Test SIGINT and abrupt controller death separately.",
+      "refs": [
+        "src/verbs/work.ts:253",
+        "src/verbs/work.ts:463",
+        "src/workspace/work-checkpoints.ts"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-001",
+        "hr-009",
+        "hr-038"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F06",
+      "title": "Snapshot identity omits executable file mode",
+      "priority": "P2",
+      "confidence": "Reproduced with a mode-only change",
+      "problem": "Candidate identity and change detection are based on file bytes. Changing a script from mode 0644 to 0755 produced an unchanged digest and empty change list in the audit.",
+      "impact": "The candidate that was verified is not necessarily the filesystem behavior delivered to the user. A new executable permission can be dropped; permission drift can escape freshness checks. This also affects undo and worktree consistency.",
+      "fix": "Include the relevant mode bits in snapshot manifests, digests, comparison, apply and undo. Define cross-platform normalization explicitly, at least preserving the executable bit. Version the manifest and make old byte-only records readable without treating them as mode-complete evidence.",
+      "verify": "Verify a chmod-only candidate, commit/apply it, execute it, undo it and recover an interrupted mode update. Test copy-based and Git-worktree paths, and reject live mode drift before application.",
+      "refs": [
+        "src/workspace/candidate.ts:27",
+        "src/workspace/candidate.ts:92",
+        "src/workspace/changes.ts"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-001",
+        "hr-008",
+        "hr-038"
+      ],
+      "regressions": [
+        "test/reliability-defects.test.ts"
+      ],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F07",
+      "title": "Host output capture is not bounded on important paths",
+      "priority": "P1",
+      "confidence": "Unbounded capture reproduced; call sites inspected",
+      "problem": "run() has an optional output ceiling, but absent maxOutputBytes it concatenates all stdout and stderr in host memory. Important builder/reviewer/project-test call sites omit a cap. The audit captured a multi-megabyte fixture without any limit being applied.",
+      "impact": "A noisy or stuck candidate can exhaust the host controller\u2019s memory even though its container has resource limits. This can also interrupt checkpointing and cleanup.",
+      "fix": "Give all subprocesses a conservative hard default cap. Stream full permitted logs to a quota-controlled artifact sink while keeping a bounded tail for diagnostics. Apply separate limits to structured model output and human logs. On overflow, terminate owned processes, checkpoint work and surface a typed output-limit result.",
+      "verify": "Run infinite stdout/stderr, giant JSON events, split Unicode and slow-drain fixtures. Assert bounded host memory, bounded retained disk, complete cleanup and a useful saved diagnosis.",
+      "refs": [
+        "src/run.ts:42",
+        "src/run.ts:55",
+        "src/agent/pi.ts",
+        "src/review/reviewer.ts"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-001",
+        "hr-004",
+        "hr-038"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F08",
+      "title": "Builder credential exposure is broader than necessary",
+      "priority": "P1",
+      "confidence": "Confirmed configuration; documented residual risk",
+      "problem": "Ordinary work/planning mount the canonical Pi agent directory writable, while newer preparation/team paths use narrower credential snapshots. Model-enabled containers have bridge networking without a provider-only destination policy. The threat model acknowledges that a model-directed command can read credentials available in its container and send them out.",
+      "impact": "A hostile repository instruction or compromised dependency can act with broader provider access than one task needs. A disposable source tree does not by itself isolate account credentials.",
+      "fix": "Keep Pi as the agent but standardize selected-provider, short-lived credential delivery across all paths, with host-owned OAuth refresh. Prefer a host credential broker so tool execution does not receive refresh credentials. If provider transport cannot be brokered, explicitly document the residual exposure and constrain egress where feasible. Keep package acquisition separate from model/tool execution.",
+      "verify": "Use synthetic tokens to prove builders cannot read unrelated provider entries or rewrite host credentials. Verify concurrent refresh, expiry, interruption and cleanup without exposing real secrets. Record destination-policy limitations rather than claiming total exfiltration prevention.",
+      "refs": [
+        "src/containment/sandbox.ts",
+        "src/agent/credentials.ts",
+        "THREAT_MODEL.md:108",
+        "THREAT_MODEL.md:159"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-006"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F09",
+      "title": "Secret-file exclusion is incomplete",
+      "priority": "P1",
+      "confidence": "Reproduced using synthetic secret files",
+      "problem": "The source-copy exclusion rules omit root .env and .env.local, but a synthetic .env.production and nested service/.env were included in the candidate baseline.",
+      "impact": "Real project secrets may enter builder/model context, retained snapshots, diffs and artifacts even when users assume environment files are excluded.",
+      "fix": "Define a reviewed source-selection policy covering common secret patterns at every depth, plus an explicit allowlist for safe examples. Show excluded files during setup. Add a bounded preflight scanner for high-confidence credentials, with redacted findings and an explicit path-specific exception mechanism. Never silently delete originals.",
+      "verify": "Place synthetic secrets in nested environment files, key formats, generated outputs and Git-ignored locations; verify source/model/snapshot/artifact paths consistently exclude or stop for review. Confirm .env.example remains usable when intentionally allowed.",
+      "refs": [
+        "src/workspace/changes.ts:45",
+        "src/workspace/candidate.ts:30"
+      ],
+      "status": "verified",
+      "tasks": [
+        "hr-001",
+        "hr-005"
+      ],
+      "regressions": [
+        "test/source-selection.test.ts"
+      ],
+      "resolutionEvidence": [
+        {
+          "kind": "regression",
+          "path": "test/source-selection.test.ts"
+        },
+        {
+          "kind": "negative-control",
+          "path": "docs/reliability/evidence/mutation-controls.json"
+        }
+      ]
+    },
+    {
+      "id": "F10",
+      "title": "The local dashboard accepts arbitrary Host and Origin",
+      "priority": "P1",
+      "confidence": "Local HTTP fixture reproduced; browser exploit not attempted",
+      "problem": "A loopback request with Host and Origin set to untrusted.example received status 200 and the private fixture status body. Binding to 127.0.0.1 is present, but request authority is not validated. CSP also lacks frame-ancestors despite the comment that the page should not be embedded.",
+      "impact": "This leaves a local-information disclosure surface, including a possible DNS-rebinding route. Whether a particular browser permits an actual exploit depends on its network protections; this audit proves the missing server-side check, not a successful remote attack.",
+      "fix": "Validate the exact allowed Host/port, reject hostile Origin and inappropriate cross-site fetch contexts, and add frame-ancestors none. Use an unguessable local session token for privileged viewer data if the threat model includes other local/web clients. Continue escaping source content and serving outputs only by validated IDs.",
+      "verify": "Exercise hostile Host, duplicate Host, cross-site Origin, IPv4/IPv6 aliases, frame embedding and valid same-origin polling. Confirm private routes fail before any project data is rendered.",
+      "refs": [
+        "src/view/server.ts:31",
+        "src/view/server.ts:46"
+      ],
+      "status": "verified",
+      "tasks": [
+        "hr-001",
+        "hr-007",
+        "hr-032"
+      ],
+      "regressions": [
+        "test/view-authority.test.ts"
+      ],
+      "resolutionEvidence": [
+        {
+          "kind": "regression",
+          "path": "test/view-authority.test.ts"
+        },
+        {
+          "kind": "negative-control",
+          "path": "docs/reliability/evidence/mutation-controls.json"
+        }
+      ]
+    },
+    {
+      "id": "F11",
+      "title": "Staged manual review cannot finish for many normal web apps",
+      "priority": "P1",
+      "confidence": "Confirmed incompatible code paths",
+      "problem": "Browser verification and staged preview both reject package.json runtime dependencies, optional dependencies and workspaces, although the general Node builder can prepare dependencies. Final browser/manual review also requires a preview receipt bound to the exact candidate. A normal Express application can therefore build but cannot complete the supported browser verification and final review path. The narrow preview restriction is a second independent obstacle if candidate staging is otherwise possible.",
+      "impact": "The new final-review workflow works for a useful narrow prototype lane, but can trap common applications at the last step. This should be discovered before an expensive build.",
+      "fix": "Introduce preview adapters using the same prepared, pinned dependency image as verification. Preflight preview capability when accepting the plan. Support candidate-bound receipt imports from approved alternate runners where appropriate, including recorded runtime and artifact identities. Never solve this by dropping the manual requirement.",
+      "verify": "Build and review a dependency-free app, an Express app, a bundled web frontend and an unsupported workspace. Supported lanes must reach final review; unsupported ones must be rejected at setup with a concrete alternative.",
+      "refs": [
+        "src/browser/controller.ts:43",
+        "src/staging/preview.ts:31",
+        "src/staging/store.ts:78"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-028",
+        "hr-029",
+        "hr-037",
+        "hr-039"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F12",
+      "title": "Staged review and managed worktrees use incompatible evidence rules",
+      "priority": "P1",
+      "confidence": "Confirmed code-path incompatibility",
+      "problem": "Managed worktree setup/verification uses requireChecks, which rejects unresolved manual cases. Managed commit expects an ordinary passed acceptance proof, while staged application intentionally combines automated-passed evidence with a separate exact-candidate operator review.",
+      "impact": "Two independently useful features do not compose. Users may finish a legitimate staged review and still be unable to use the managed commit/merge path.",
+      "fix": "Define one aggregate evidence envelope containing automated observations, human observations, source/contract/runtime bindings and application status. Let work, stage and worktree operations consume the same policy evaluator. Keep automation-only and combined evidence distinguishable; do not relabel automated-passed as passed without the human record.",
+      "verify": "Run a web task with manual accessibility review inside a managed worktree through build, preview, review, commit, combined verification and merge. Repeat with stale manual evidence, source changes and missing runtime evidence; those variants must stop safely.",
+      "refs": [
+        "src/worktrees/controller.ts",
+        "src/acceptance/checks.ts",
+        "src/staging/store.ts"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-023",
+        "hr-030",
+        "hr-037",
+        "hr-038",
+        "hr-039"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F13",
+      "title": "PyTorch accepts structurally incomplete recovery checkpoints",
+      "priority": "P1",
+      "confidence": "Pure validator reproduction; no training started",
+      "problem": "validateTorchCheckpoint checks the presence of several dictionary keys but does not deeply validate their values against the approved model and data dimensions. The audit passed malformed classifier checkpoints with null model tensors, empty optimizer slots, invalid scheduler/RNG content and an empty sampler order; malformed k-means centroids also passed.",
+      "impact": "The host may retain a checkpoint as complete recovery state even though restoring it fails or optimizer history is missing. A newly retained bad checkpoint can replace the active recovery checkpoint reference, although older artifacts remain retained.",
+      "fix": "Validate tensor dtype/shape/finite values, exact parameter coverage, optimizer moments and step counters, scheduler state, RNG encoding, sample permutation and data identity against the approved training spec. Validate k-means dimensions and centers. Advance the retained checkpoint only after validation; keep the previous known-good checkpoint. Add an isolated load/continue check where useful.",
+      "verify": "Reject missing moments, null tensors, wrong dimensions, truncated RNG, inconsistent cursor/step and empty data order. Compare interrupted/resumed execution with uninterrupted execution at the documented tolerance and prove malformed candidates never replace the last valid recovery point.",
+      "refs": [
+        "src/torch/schema.ts:32",
+        "src/torch/recipe.ts",
+        "src/jobs/controller.ts"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-001",
+        "hr-011",
+        "hr-012",
+        "hr-042"
+      ],
+      "regressions": [
+        "test/reliability-defects.test.ts"
+      ],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F14",
+      "title": "GitHub delivery can remain blocked after a definitive rejected request",
+      "priority": "P2",
+      "confidence": "Reproduced using a fake GitHub client",
+      "problem": "Release delivery records creationAttempted before POST and treats a later missing remote release as an unknown prior outcome. A definite 403 was reduced to a generic failure, so correcting permission and retrying still reported unknown outcome rather than retrying. Asset attempts use a similar pattern.",
+      "impact": "Conservative duplicate prevention becomes a permanent operational dead end even when the server explicitly rejected the request without creating a release.",
+      "fix": "Preserve typed HTTP status and transport outcome. Retry only confirmed non-mutating rejections after revalidation. Keep reconciliation for timeout/disconnection/unknown outcome. Provide an audited resolve-outcome operation for genuinely ambiguous attempts; reconcile by remote IDs, tag and asset digest before creating anything.",
+      "verify": "Cover definite authorization/validation rejection, transient limits, timeout-before-response, successful-but-response-lost, partial asset upload and operator resolution. Assert no duplicate release or mismatched asset can be published.",
+      "refs": [
+        "src/releases/github.ts:47",
+        "src/releases/github.ts:73",
+        "src/releases/github.ts:80"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-001",
+        "hr-013",
+        "hr-036"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F15",
+      "title": "Green default CI omits important operational paths",
+      "priority": "P1",
+      "confidence": "Fresh baseline and opt-in integration runs",
+      "problem": "The fresh baseline produced 846 passes and 65 skips. Push CI runs npm check but does not enable most runtime integration suites. A real opt-in asset-helper test then failed: its server-only expected directory contains only server.mjs, while the current helper also installs http.mjs and http-bytes.mjs. The failure had remained hidden by the skip. This stale fixture is separate from a runtime parser failure.",
+      "impact": "Hundreds of unit tests can stay green while cross-feature workflows and installed runtimes drift. Historical milestone receipts are not a release qualification for today\u2019s commit.",
+      "fix": "Make a credential-free Linux Docker/browser integration subset mandatory on changes to relevant modules. Add targeted macOS/native and training qualification jobs where infrastructure exists, with explicit unsupported/untested status elsewhere. Reserve live-model evaluations for bounded scheduled or release-gate runs. Treat an unexpectedly skipped required suite as failure, and repair the stale asset fixture without weakening its leak/missing-asset checks.",
+      "verify": "Require a release matrix that names commit, runtime pin, tests executed and skips. Introduce deliberate regressions in browser timing, recovery and combined staged/worktree flows; at least one required CI job must detect each.",
+      "refs": [
+        ".github/workflows/check.yml",
+        ".github/workflows/verify.yml",
+        "test/asset-helper-docker.test.ts:20",
+        "src/acceptance/server-runtime.ts:25"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-001",
+        "hr-002",
+        "hr-041",
+        "hr-042",
+        "hr-044"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F16",
+      "title": "Explicit preparation commands still require a terminal",
+      "priority": "P2",
+      "confidence": "Reproduced before any model request",
+      "problem": "checks prepare constructs terminalDialogue unconditionally. Running the explicit command without a TTY exits with \u201cThe guide needs a terminal\u201d and tells the caller to use explicit commands in scripts. Most saved preparation needs no question, yet an automation client must emulate a terminal.",
+      "impact": "The CLI cannot serve cleanly as a stable agent/controller API, and the remedy contradicts the command being used.",
+      "fix": "Separate the noninteractive operation from its interactive adapter. Accept a task ID and budget in explicit preparation commands, emit structured events/JSON status, and return a typed approval-required result if a real decision is reached. Preserve interactive prompts for guide and explicit review.",
+      "verify": "Drive a saved preparation and resumable failure through pipes without a PTY. Assert zero implicit approvals, stable exit/status codes, parseable progress, and no prompt deadlock.",
+      "refs": [
+        "src/verbs/checks.ts:75",
+        "src/guide/dialogue.ts:6"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-025"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F17",
+      "title": "The dashboard is a viewer rather than the workflow control surface",
+      "priority": "P2",
+      "confidence": "Confirmed design limitation",
+      "problem": "The dashboard intentionally exposes only GET routes. It displays rich office activity, saved documents and copyable commands, but cannot resolve a decision, grant an allowance or record final review. Guidance can prioritize a saved continuation diagnosis even after another command changes preparation state.",
+      "impact": "The user still switches between terminal, dashboard and this chat to operate the system. Attractive visualization has outpaced task navigation and recovery UX.",
+      "fix": "Keep read-only viewing as a mode, and add an explicitly authenticated local controller UI using the same typed operations as the CLI. Show one current task state, next action, remaining allowance, proposed decisions and evidence. Add approve/reject/pause/renew actions with exact candidate/contract binding and CSRF protection. Recompute current state from validated receipts rather than treating an old message as authoritative.",
+      "verify": "Complete a small project through the UI without copying commands or logs. Exercise stale tabs, simultaneous CLI/UI actions, double-clicked approval and unauthorized cross-origin requests. Observer mode must remain unable to mutate.",
+      "refs": [
+        "src/view/server.ts:12",
+        "src/view/guidance.ts:13",
+        "src/view/workspace.ts:67",
+        "src/workflow/store.ts"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-025",
+        "hr-031",
+        "hr-032",
+        "hr-037"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F18",
+      "title": "Review invalidation is broader than necessary",
+      "priority": "P2",
+      "confidence": "Confirmed digest design and recent run evidence",
+      "problem": "A per-case scope digest includes the full contract, coverage and all case descriptions. A small unrelated interface change therefore invalidates peer reviews. The content-note clarification retained two generated cases but required both reviews again. Some specialized migration paths rebind selected unchanged receipts, but this is not a general dependency model.",
+      "impact": "Small corrections cause repeated token use and latency. Users experience re-review as going in circles even when source and useful checks are saved.",
+      "fix": "Represent contract sections and observations with stable IDs and explicit dependencies. A receipt should bind its case bytes, the referenced contract subset, requirement IDs, helper version and runner semantics. Perform a reviewed migration that invalidates only affected receipts. Any changed expected result must invalidate its dependent proof; do not simply copy new hashes onto old reviews.",
+      "verify": "Change a content-note label and require only dependent checks to refresh. Change a shared ownership rule or browser observation semantics and require all dependent checks to refresh. Verify old receipts cannot be replayed on changed expectations.",
+      "refs": [
+        "src/acceptance/scoped-review.ts:28",
+        "src/acceptance/preparation.ts:66",
+        "src/acceptance/outline-patch.ts"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-017",
+        "hr-022"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F19",
+      "title": "Budgets constrain requests and time but not useful progress or total spend",
+      "priority": "P2",
+      "confidence": "Confirmed configuration and workflow behavior",
+      "problem": "Preparation has request and wall-clock limits; continuation adds a build-dispatch count and one timeout recovery. It explicitly has no dollar cap. Reported token/cost totals may be incomplete. The author task\u2019s current workflow records 18 bounded runs, 39 requests, 819,170 reported tokens and about $6.97, with incomplete reporting in six runs, while only two of 25 cases are generated and reviewed.",
+      "impact": "Each invocation is bounded, but repeated renewals can still spend indefinitely without converging. A request may involve multiple agent turns, and two build dispatches are not an end-to-end ten-minute bound.",
+      "fix": "Add a project/task budget ledger spanning planning, check preparation, implementation, review and repairs. Track progress fingerprints and repeated failure classes; stop on non-convergence with a concrete design remedy. Support soft estimated spend caps and hard request/time/token caps where the provider exposes enforceable limits, with conservative handling of unknown usage. Allow an operator-approved overnight/session allowance instead of frequent manual renewal.",
+      "verify": "Replay repeated format errors, provider interruptions and no-progress repairs. Prove the cumulative policy stops them, successful checkpoints remain reusable, and status distinguishes wall time, reported tokens, cached input, estimated charges and unavailable billing information.",
+      "refs": [
+        "src/acceptance/budget.ts:5",
+        "src/acceptance/workflow.ts",
+        "src/workflow/controller.ts",
+        "src/verbs/continue.ts"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-026",
+        "hr-027",
+        "hr-037",
+        "hr-043"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F20",
+      "title": "Capability limits are discovered too late",
+      "priority": "P1",
+      "confidence": "Confirmed cross-lane readiness gaps",
+      "problem": "The main project adapters are Node/npm and single-package Python on Docker. Browser, native, desktop and ML features are separate specialized lanes. In addition, sensitive-product readiness requires security and performance evidence, but those assessment recipes are bounded dependency-free Node API implementations. Some Python/desktop/ML or dependency-bearing products can be selected without a supported path to all required evidence.",
+      "impact": "The harness can accept a product whose completion policy it cannot satisfy. Missing capabilities then appear after expensive planning/build work, looking like unexpected bugs.",
+      "fix": "Create one capability registry used by planning, doctor, check design, preview, product readiness and release. Each capability should state supported adapter/runtime, dependency policy, evidence types, limits and last qualification. Compute an end-to-end feasibility plan before accepting work. Unsupported requirements must be shown early with an explicit alternative or deferred scope. The registry does not supply missing evidence: implement adapter-aware dependency inventory with a pinned vulnerability scanner/feed, or a supported reviewed evidence-import path, plus domain-appropriate security and performance providers. Current dependency-review modes have no successful scanner path.",
+      "verify": "Build a matrix of CLI, API, web, Python, desktop and ML projects with/without dependencies and sensitive consequences. Every selected required evidence row must have a supported provider or be rejected before dispatch. No platform\u2019s pass may satisfy another platform silently.",
+      "refs": [
+        "src/adapters/registry.ts:8",
+        "src/runners/docker.ts:34",
+        "src/product/report.ts:103",
+        "src/product/report.ts:105",
+        "src/security/controller.ts:26",
+        "src/security/schema.ts:11"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-003",
+        "hr-019",
+        "hr-028",
+        "hr-031",
+        "hr-034",
+        "hr-035",
+        "hr-039",
+        "hr-040",
+        "hr-041",
+        "hr-042"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F21",
+      "title": "Fixed platform demonstrations are not general application support",
+      "priority": "P2",
+      "confidence": "Source review and historical local receipts",
+      "problem": "The harness has useful desktop GUI, macOS-native, numeric ML, PyTorch CPU and Metal workflows. These do not equal a general Swift/Kotlin/Windows agent builder, arbitrary model training or production LLM fine-tuning. Android/iOS/Windows/CUDA remain gaps. A retained Mac PyTorch MPS compatibility probe failed; a successful separate Metal recipe does not establish PyTorch-on-Metal support.",
+      "impact": "Broad feature lists can create expectations that exceed what the main agent path can build, verify and recover. This is a product-definition issue as much as an implementation issue.",
+      "fix": "Publish a tested support matrix with four distinct levels: generic build adapter, specialized recipe, diagnostic only and unsupported. Give each supported lane a reference project and reproducible qualification. Prioritize reliability of Node/Python/web before expanding native/mobile/CUDA. Add new lanes only when planning, build, validation, preview, recovery and delivery are connected.",
+      "verify": "For each claimed lane, run a complete reference project from accepted requirements to inspectable output, including one injected failure. Label historical receipts with their date/runtime and rerun them before promoting the capability.",
+      "refs": [
+        "src/adapters/registry.ts",
+        "NATIVE.md",
+        "MACOS_NATIVE.md",
+        "METAL.md",
+        "PYTORCH.md",
+        "DEFERRED_IMPLEMENTATION.md"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-003",
+        "hr-035",
+        "hr-040",
+        "hr-041",
+        "hr-042",
+        "hr-044"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F22",
+      "title": "Skills and model review need outcome evaluation",
+      "priority": "P2",
+      "confidence": "Architecture assessment; not a claim that skills are ineffective",
+      "problem": "Skill bundles and independent reviews are available, but their presence and passing schema tests do not establish that they improve complete builds. A separate reviewer using the same model family may repeat shared blind spots. Model-reported blockers are useful diagnoses, not proof that a requirement is impossible.",
+      "impact": "The system has many local safeguards but lacks a published measure of successful low-intervention delivery across representative projects and providers.",
+      "fix": "Maintain a small versioned evaluation corpus with known requirements and seeded failures. Compare task completion, human interventions, elapsed time, reported spend, false acceptance and recovery success across model/skill configurations. Use trusted deterministic checks first, independent review for genuine semantic judgment, and an evidence-based default model policy. Keep Pi as the common agent interface.",
+      "verify": "Run at least several representative projects with multiple repetitions before claiming a success rate. Publish denominators and failures. Include the actual To Be Heard journey, not only minimal happy-path fixtures; no statistical reliability claim should be based on one successful run.",
+      "refs": [
+        "src/project/skills.ts",
+        "src/review/reviewer.ts",
+        "src/model-settings.ts",
+        "SKILLS_ASSESSMENT.md"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-021",
+        "hr-043"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F23",
+      "title": "State and implementation complexity make local fixes hard to integrate",
+      "priority": "P2",
+      "confidence": "Measured source structure and repeated cross-feature defects",
+      "problem": "The audited tree contains 272 TypeScript source files, about 19,788 TypeScript lines and 161 test files. Acceptance alone spans 30 modules. Many persisted JSON formats and command-specific controllers encode overlapping lifecycle rules. More than 1,100 source lines exceed 240 characters; this does not prove bugs, but makes control-flow review and precise changes harder.",
+      "impact": "Features can pass their own tests while disagreeing about approval, evidence, recovery or the current operation. Repeated patching moves failures to adjacent paths instead of establishing shared invariants.",
+      "fix": "Consolidate around task, operation, candidate, evidence and decision records with versioned schemas. Define state transitions and side effects centrally, share lifecycle/admission/transaction services, and format safety-critical modules for readability. Refactor incrementally behind existing tests rather than performing an unverified rewrite. Add invariants and cross-feature tests before moving code.",
+      "verify": "Trace every mutating command through the common operation model. Schema migrations must be idempotent and retain old records. Kill/restart, parallel command and feature-composition tests must exercise shared services, not only mocked adapters.",
+      "refs": [
+        "src/workflow/controller.ts",
+        "src/acceptance/workflow.ts",
+        "src/team/controller.ts",
+        "src/staging/apply.ts",
+        "src/worktrees/controller.ts"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-018",
+        "hr-023",
+        "hr-024",
+        "hr-027",
+        "hr-038",
+        "hr-040"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F24",
+      "title": "Release identity is not yet product build provenance",
+      "priority": "P2",
+      "confidence": "Confirmed documented limitation",
+      "problem": "GitHub delivery checks that the nominated commit exists and the uploaded artifact matches its retained digest. It does not prove that the artifact was built from that commit or that the product\u2019s required evidence is complete. The current release body accurately limits its certification claim.",
+      "impact": "A successful upload is useful transfer evidence, but must not be presented as a verified product release from the selected source. Signing, notarization and complete installer assembly are also separate obligations.",
+      "fix": "Separate diagnostic export from product publication. For a product release, bind source tree and commit, approved product requirements, candidate identity, build command/runtime, artifact digest and required evidence report in a provenance manifest. Enforce required signing/packaging only for the actual chosen destination and keep unsupported requirements explicit.",
+      "verify": "Reject mismatched artifact-to-source identity, stale evidence and missing required companion/signature files before upload. Preserve an explicitly labeled diagnostic export route without pretending it is product certification.",
+      "refs": [
+        "src/releases/controller.ts:11",
+        "src/releases/github.ts:54",
+        "RELEASES.md"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-036"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    },
+    {
+      "id": "F25",
+      "title": "Evidence retention lacks a complete storage lifecycle",
+      "priority": "P2",
+      "confidence": "Measured saved state and inspected retention design",
+      "problem": "The To Be Heard review-history directory already contains 483 JSON files totaling 174,770,879 bytes. Full snapshots are useful for recovery, but acceptance history, raw responses and resumable candidates need an explicit retention/compaction policy beyond individual file bounds and output artifact quotas.",
+      "impact": "Long-running projects accumulate repeated contracts and proposals, making diagnosis and backups harder and potentially consuming significant disk. Automatically deleting history would introduce a different risk: losing the evidence needed to validate or recover an approval.",
+      "fix": "Use content-addressed immutable blobs with small operation references and a reachability-aware retention service. Pin approved checks, application/undo records and active recovery checkpoints. Offer a dry-run cleanup report for unreachable drafts and expired diagnostics; record exactly what was removed. Include remaining disk and retained-state size in readiness.",
+      "verify": "Generate many interrupted/renewed operations, compact them, and verify every active approval, resume, apply and undo remains valid. Simulate disk-full during a checkpoint and show that the previous durable state survives. No destructive cleanup is authorized by this audit.",
+      "refs": [
+        "src/acceptance/guided.ts:174",
+        "src/planning/store.ts",
+        "src/artifacts/store.ts"
+      ],
+      "status": "open",
+      "tasks": [
+        "hr-033"
+      ],
+      "regressions": [],
+      "resolutionEvidence": []
+    }
+  ]
+}

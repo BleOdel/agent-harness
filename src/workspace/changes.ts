@@ -106,6 +106,36 @@ export const NEVER_APPLIED = new Set([
   "__pycache__",
 ]);
 
+/** Path policy only: safe examples must contain placeholders, never real credentials. */
+export function sourceExclusion(relative: string, exclusions: readonly string[] = [], includeGenerated = false): string | undefined {
+  const parts = relative.split('/');
+  const privateNames = new Set(['.git', '.harness', '.secure-harness', '.ssh', '.aws', '.gnupg', '.npmrc', '.netrc']);
+  const examples = new Set(['.env.example', '.env.sample', '.env.template']);
+  for (const part of parts) {
+    const name = part.toLowerCase();
+    if (privateNames.has(name) || ((name === '.env' || name.startsWith('.env.')) && !examples.has(name))) return 'private configuration path';
+    if (exclusions.includes(part)) return 'operator/adapter exclusion';
+    if (!includeGenerated && NEVER_APPLIED.has(part)) return 'generated output';
+  }
+  if (EXCLUDED_FROM_COPY.has(parts[0] ?? '')) return 'host control path';
+  return undefined;
+}
+
+/** Enumerate names and reasons without opening excluded content or following links. */
+export async function sourceExclusions(root: string, exclusions: readonly string[] = []): Promise<{path: string; reason: string}[]> {
+  const found: {path: string; reason: string}[] = [];
+  async function walk(prefix = ''): Promise<void> {
+    for (const entry of await readdir(path.join(root, prefix), { withFileTypes: true })) {
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      const reason = sourceExclusion(relative, exclusions);
+      if (reason) found.push({path: relative, reason});
+      else if (entry.isDirectory()) await walk(relative);
+    }
+  }
+  await walk();
+  return found.sort((a, b) => a.path.localeCompare(b.path));
+}
+
 /** Stands in for content that is never read, so a symlink can differ from a file. */
 const SYMLINK = "\u0000symlink";
 
@@ -125,11 +155,8 @@ export async function fingerprintTree(root: string, prefix = "", exclusions: rea
     return found;
   }
   for (const entry of entries) {
-    if (prefix === "" && EXCLUDED_FROM_COPY.has(entry.name)) continue;
-    // At any depth, not only the top: a monorepo has a node_modules under
-    // every package.
-    if (NEVER_APPLIED.has(entry.name) || exclusions.includes(entry.name)) continue;
     const relative = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
+    if (sourceExclusion(relative, exclusions)) continue;
     if (entry.isDirectory()) {
       for (const [key, value] of await fingerprintTree(root, relative, exclusions)) found.set(key, value);
     } else {
@@ -202,6 +229,8 @@ export function assertChangesAreApplicable(changes: readonly Change[], copy: str
     if (relative.startsWith("..") || path.isAbsolute(relative)) {
       throw new BoundaryViolation(`${change.file} resolves outside the project.`, change.file);
     }
+    const excluded = sourceExclusion(change.file);
+    if (excluded) throw new BoundaryViolation(`${change.file} is excluded: ${excluded}; the harness never applies it.`, change.file);
     const segments = change.file.split("/");
     const head = segments[0] ?? "";
     if (EXCLUDED_FROM_COPY.has(head)) {

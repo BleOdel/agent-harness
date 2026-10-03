@@ -1,0 +1,10 @@
+import { mkdtemp } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { operationalSmoke } from './reliability/smoke.ts';
+const args = process.argv.slice(2);
+if (args.length && (args.length !== 2 || args[0] !== '--output' || !args[1])) throw Error('Use npm run verify:smoke -- [--output directory]');
+const directory = args[1] ? path.resolve(args[1]) : await mkdtemp(path.join(os.tmpdir(), 'harness-qualification-'));
+const passed = await operationalSmoke(directory);
+console.log(`Operational smoke: ${passed ? 'passed' : 'not qualified'}. Evidence: ${directory}`);
+if (!passed) process.exitCode = 1;

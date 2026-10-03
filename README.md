@@ -2200,3 +2200,7 @@ or an altered candidate. Successful application has a normal run ID and supports
 `harness undo <run-id>`. Task completion alone is not complete product readiness;
 product reports distinguish automated evidence plus candidate-bound operator review
 and still require current-source evidence for the other product obligations.
+
+## Reliability and supported scope
+
+Run `harness capabilities [--json]` for the current implementation scope and known lifecycle gaps. This does not launch tools or contact a model. Doctor and acceptance planning share the same support summary. See [the reliability implementation plan](docs/reliability/README.md) for task status, audit findings, operational smoke CI and migration rules.

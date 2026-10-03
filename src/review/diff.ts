@@ -13,7 +13,7 @@
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type { Change } from "../workspace/changes.ts";
+import { sourceExclusion, type Change } from "../workspace/changes.ts";
 
 const MAX_FILE_LINES = 1_500;
 const MAX_TOTAL_LINES = 4_000;
@@ -88,6 +88,8 @@ export async function renderDiff(
 
   for (const change of changes) {
     const header = `--- ${change.kind}: ${change.file}`;
+    const excluded = sourceExclusion(change.file);
+    if (excluded) { sections.push(`${header}\n  (withheld: ${excluded})`); continue; }
     if (budget <= 0) {
       sections.push(`${header}\n  (omitted: the diff exceeded ${String(MAX_TOTAL_LINES)} lines)`);
       continue;

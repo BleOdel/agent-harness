@@ -1,3 +1,4 @@
+import {sourceExclusion} from '../workspace/changes.ts';
 /** Controller-owned blobs and provenance. Workers never mount this store. */
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, readdir, readFile, realpath, unlink, open } from 'node:fs/promises';
@@ -43,6 +44,7 @@ export async function listArtifacts(project:string):Promise<Artifact[]> {
 }
 export async function putArtifact(project:string,name:string,bytes:Buffer,provenance:Provenance):Promise<Artifact> {
  if(!artifactName(name))throw new OperatorError('Invalid artifact name/path.');
+ if(sourceExclusion(name,[],true))throw new OperatorError('Artifact path is excluded by the source-selection policy.');
  if(bytes.length>ARTIFACT_LIMITS.file)throw new OperatorError('Artifact exceeds 32 MiB limit.');
  const root=await store(project), manifests=await listArtifacts(project);
  if(manifests.length>=ARTIFACT_LIMITS.manifests)throw new OperatorError('Artifact retention limit reached. Use harness artifacts cleanup after releasing finished jobs.');
@@ -57,6 +59,7 @@ export async function putArtifact(project:string,name:string,bytes:Buffer,proven
 }
 export async function artifactBytes(project:string,id:string):Promise<Buffer>{
  const a=(await listArtifacts(project)).find(a=>a.id===id);if(!a)throw new OperatorError(`Unknown artifact ${id}. Use harness artifacts list.`);
+ if(sourceExclusion(a.name,[],true))throw new OperatorError('Artifact withheld by source-selection policy; retained bytes are unchanged.');
  const root=await store(project),file=await safePath(root,`blobs/${a.sha256}`),stat=await lstat(file);
  if(stat.size!==a.size)throw new OperatorError('Artifact size/hash mismatch; blob is corrupt.');
  const bytes=await readFile(file);if(sha256(bytes)!==a.sha256)throw new OperatorError('Artifact hash mismatch; blob is corrupt.');return bytes;

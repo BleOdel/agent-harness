@@ -1,3 +1,4 @@
+import {sourceExclusion} from '../workspace/changes.ts';
 import {listStages} from '../staging/store.ts';
 import {parseContinuation} from '../workflow/store.ts';
 import type {ContinueState} from '../workflow/controller.ts';
@@ -44,7 +45,7 @@ export interface WorkspaceInfo {
 export const emptyWorkspace=():WorkspaceInfo=>({warnings:[],documents:[],outputs:[],releases:[],reviews:[]});
 export async function readOutput(project:string,id:string):Promise<{name:string;bytes:Buffer}>{
  if(!OUTPUT_ID.test(id))throw Error('Invalid output ID');const root=harnessDirectory(await realpath(project));
- const a=parseArtifact(await json(root,`artifacts/manifests/${id}.json`));if(a.id!==id)throw Error('Output identity mismatch');
+ const a=parseArtifact(await json(root,`artifacts/manifests/${id}.json`));if(sourceExclusion(a.name,[],true))throw Error('Output withheld by source-selection policy; retained bytes are unchanged.');if(a.id!==id)throw Error('Output identity mismatch');
  const data=await bytes(root,`artifacts/blobs/${a.sha256}`,32*1024*1024);
  if(!data||data.length!==a.size||hash(data)!==a.sha256)throw Error('Output bytes no longer match the retained manifest');
  return {name:path.basename(a.name),bytes:data};
@@ -54,6 +55,7 @@ async function stagedDiff(root:string,before:Snapshot,after:Snapshot):Promise<Fi
  const files=[...new Set([...Object.keys(before.files),...Object.keys(after.files)])].filter(f=>before.files[f]!==after.files[f]).sort();
  const result:FileDiff[]=[];
  for(const file of files.slice(0,40)){
+  const excluded=sourceExclusion(file);if(excluded){result.push({file,kind:'unavailable',lines:[],note:`Withheld: ${excluded}; retained snapshot is unchanged.`});continue;}
   const read=async(s:Snapshot)=>{if(!s.files[file])return '';const rel=path.relative(root,path.join(await realpath(s.directory),file));const data=await bytes(root,rel,64*1024);if(!data||hash(data)!==s.files[file])throw Error('Retained diff bytes changed or are unavailable');const text=data.toString('utf8');if(text.split('\n').length>1500)throw Error('Diff line limit exceeded');return isBinary(text)?undefined:text;};
   try{const a=await read(before),b=await read(after);result.push({file,kind:!before.files[file]?'added':!after.files[file]?'deleted':'modified',lines:a===undefined||b===undefined?[]:diffLines(a.split('\n'),b.split('\n')).filter(l=>/^[+-]/.test(l)).slice(0,600),note:'Retained staging comparison; maximum 600 changed lines per file. Binary and oversized files require CLI inspection.'});}
   catch{result.push({file,kind:'unavailable',lines:[],note:'Diff unavailable: snapshot is missing, changed, oversized or unsafe. Inspect before applying.'});}

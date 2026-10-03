@@ -14,7 +14,7 @@
  * nothing reaching a repository that was not proved and decided.
  */
 
-import { createServer, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
 export interface ServerRoutes {
@@ -28,6 +28,21 @@ export interface ServerRoutes {
 
 export const LOOPBACK = "127.0.0.1";
 
+/** Loopback binding alone does not stop a foreign hostname resolving to this server. */
+function admitted(request: IncomingMessage): boolean {
+  const port = request.socket.localPort;
+  if (port === undefined) return false;
+  const authority = port === 80 ? LOOPBACK : `${LOOPBACK}:${port}`;
+  const count = (name: string): number => request.rawHeaders.filter((header, index) =>
+    index % 2 === 0 && header.toLowerCase() === name).length;
+  if (count('host') !== 1 || request.headers.host !== authority) return false;
+  if (count('origin') > 1 || (request.headers.origin !== undefined && request.headers.origin !== `http://${authority}`)) return false;
+  if (count('sec-fetch-site') > 1) return false;
+  const site = request.headers['sec-fetch-site'];
+  if (site !== undefined && site !== 'none' && site !== 'same-origin') return false;
+  return request.url?.startsWith('/') === true && !request.url.startsWith('//');
+}
+
 export function createViewServer(routes: ServerRoutes): Server {
   return createServer((request, response) => {
     const send = (code: number, type: string, body: string|Buffer, headers:Record<string,string>={}): void => {
@@ -38,17 +53,22 @@ export function createViewServer(routes: ServerRoutes): Server {
         // Nothing here is meant to be embedded anywhere, and the page
         // carries file contents from a project a model has been writing in.
         "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
         // connect-src is required, and its absence is not a small
         // omission: default-src 'none' governs it, so the page loaded, the
         // polling script ran, and every request was blocked by this very
         // header. The banner then hid itself, which looked exactly like a
         // run that was not happening.
         "content-security-policy":
-          "default-src 'none'; img-src data:; connect-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'",
+          "default-src 'none'; img-src data:; connect-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
       });
       response.end(body);
     };
 
+    if (!admitted(request)) {
+      send(403, "text/plain; charset=utf-8", "Use this dashboard's local address.\n");
+      return;
+    }
     if (request.method !== "GET") {
       send(405, "text/plain; charset=utf-8", "This server answers GET only. It has no route that writes.\n");
       return;

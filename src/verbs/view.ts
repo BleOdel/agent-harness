@@ -1,3 +1,4 @@
+import { sourceExclusion } from '../workspace/changes.ts';
 import {readWorkspace,readOutput} from '../view/workspace.ts';
 import { officeModel, renderOffice } from "../view/office.ts";
 /**
@@ -36,6 +37,8 @@ async function read(file: string): Promise<string | undefined> {
 }
 
 async function fileDiff(snapshot: string, file: string, kind: string): Promise<FileDiff> {
+  const excluded = sourceExclusion(file);
+  if (excluded) return {file, kind, lines: [], note: `Withheld: ${excluded}; retained snapshot is unchanged.`};
   const [before, after] = await Promise.all([
     read(path.join(snapshot, "before", file)),
     read(path.join(snapshot, "after", file)),

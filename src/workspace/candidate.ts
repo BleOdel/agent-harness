@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { copyFile, lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { checkLimits, type Limits } from "../gates/limits.ts";
-import { assertChangesAreApplicable, BoundaryViolation, type Change, EXCLUDED_FROM_COPY, NEVER_APPLIED } from "./changes.ts";
+import { assertChangesAreApplicable, BoundaryViolation, type Change, sourceExclusion } from "./changes.ts";
 
 export interface Snapshot {
   readonly productDigest?: string;
@@ -27,8 +27,8 @@ const hash = (bytes: string | Buffer): string => createHash("sha256").update(byt
 export async function sourceFiles(root: string, prefix = "", exclusions: readonly string[] = []): Promise<Record<string, string>> {
   const found: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const entry of await readdir(path.join(root, prefix), { withFileTypes: true })) {
-    if (exclusions.includes(entry.name) || NEVER_APPLIED.has(entry.name) || (prefix === "" && (EXCLUDED_FROM_COPY.has(entry.name) || entry.name === ".harness-claim.json"))) continue;
     const relative = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
+    if (sourceExclusion(relative, exclusions) || relative === '.harness-claim.json') continue;
     const file = path.join(root, relative);
     const stat = await lstat(file);
     if (stat.isSymbolicLink() || (stat.isFile() && stat.nlink !== 1) || (!stat.isDirectory() && !stat.isFile())) {
@@ -73,7 +73,7 @@ export async function captureBaseline(project: string, directory: string, exclus
   return baseline;
 }
 export async function assertSnapshot(snapshot: Snapshot): Promise<void> {
-  if (snapshot.digest !== digestOf(await sourceFiles(snapshot.directory, "", snapshot.exclusions))) throw new Error("Frozen source changed after capture.");
+  if (snapshot.digest !== digestOf(await sourceFiles(snapshot.directory, "", snapshot.exclusions))) throw new Error("Frozen source changed after capture or its source-selection policy changed. Retained source is unchanged; review exclusions before preparing a new snapshot.");
 }
 export async function assertLiveBaseline(project: string, baseline: Snapshot): Promise<void> {
   if ((await assertProductCurrent(project))?.digest !== baseline.productDigest) throw new Error("Product specification changed during this run. Re-run from the current baseline.");

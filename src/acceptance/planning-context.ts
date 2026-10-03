@@ -1,3 +1,4 @@
+import { capabilitySummary } from '../reliability/catalog.ts';
 import {browserDesignPrompt} from './browser-design.ts';
 import {createHash} from 'node:crypto';import path from 'node:path';import {mkdir,readFile} from 'node:fs/promises';import type {Feature} from '../features.ts';import {readApproval,acceptanceTaskScope} from './checks.ts';import {readProfile} from '../project/profile.ts';import {getAdapter} from '../adapters/registry.ts';import {sourceFiles} from '../workspace/candidate.ts';import {safePath} from '../workspace/safe-path.ts';import {readArtifact,atomicWrite} from '../planning/store.ts';import {harnessDirectory} from '../record/record.ts';import {requestCheckJson,taskDigest} from './draft.ts';import {planInStages,type PlanningContext,type OutlinePlanning} from './planning-stages.ts';import type {Proposal} from './draft.ts';import {OperatorError} from '../verbs/io.ts';
 export async function planningContext(project:string,task:Feature):Promise<PlanningContext>{
@@ -10,6 +11,7 @@ export async function planningContext(project:string,task:Feature):Promise<Plann
 }
 export async function prepareOutline(project:string,task:Feature,source:string,feedback:string,previous:Proposal|undefined,issues:readonly string[],progress:(s:string)=>void){
  const context=await planningContext(project,task),prior=previous?{contract:previous.contract,coverage:previous.coverage,behaviours:previous.manifest.cases.map(c=>({id:c.id,description:c.description}))}:undefined;
+ progress('Implementation scope: '+capabilitySummary(JSON.parse(context.runtime).adapter.id));
  const identity=createHash('sha256').update(JSON.stringify({policy:3,task:taskDigest(task),source,context,feedback,prior,issues})).digest('hex'),directory=path.join(harnessDirectory(project),'acceptance');
  const file='outline-planning.json',raw=await readArtifact(directory,file,8*1024*1024),old=raw?JSON.parse(raw) as OutlinePlanning:undefined;await mkdir(directory,{recursive:true,mode:0o700});
  const save=(state:OutlinePlanning)=>atomicWrite(path.join(directory,file),JSON.stringify(state,null,2)+'\n');

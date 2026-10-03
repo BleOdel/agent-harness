@@ -2,7 +2,7 @@
 import {lstat,mkdir,mkdtemp,readdir,realpath,rename,rm,rmdir,open} from 'node:fs/promises';
 import path from 'node:path';
 import {assertSnapshot,captureBaseline,copySource,sourceFiles,type Snapshot} from './candidate.ts';
-import {EXCLUDED_FROM_COPY,NEVER_APPLIED} from './changes.ts';
+import {sourceExclusion} from './changes.ts';
 import {atomicBytes,syncDirectory} from './atomic.ts';
 import {harnessDirectory} from '../record/record.ts';
 import {readArtifact} from '../planning/store.ts';
@@ -24,8 +24,9 @@ const remedy='Saved work was retained. Restore the original inputs, or use harne
 async function boundedSource(directory:string,exclusions:readonly string[]):Promise<void>{
  let bytes=0,count=0;
  async function walk(prefix=''):Promise<void>{for(const entry of await readdir(path.join(directory,prefix),{withFileTypes:true})){
-  if(exclusions.includes(entry.name)||NEVER_APPLIED.has(entry.name)||(!prefix&&(EXCLUDED_FROM_COPY.has(entry.name)||entry.name==='.harness-claim.json')))continue;
-  const relative=prefix?`${prefix}/${entry.name}`:entry.name,stat=await lstat(path.join(directory,relative));
+  const relative=prefix?`${prefix}/${entry.name}`:entry.name;
+  if(sourceExclusion(relative,exclusions)||relative==='.harness-claim.json')continue;
+  const stat=await lstat(path.join(directory,relative));
   if(stat.isSymbolicLink()||(!stat.isFile()&&!stat.isDirectory())||(stat.isFile()&&stat.nlink!==1))throw new OperatorError(`Cannot checkpoint ${relative}: symlink, hard link or special file.`);
   if(stat.isDirectory())await walk(relative);
   else {bytes+=stat.size;if(++count>10000||stat.size>8*1024*1024||bytes>64*1024*1024)throw new OperatorError('Partial source exceeds checkpoint limits (10,000 files, 8 MiB per file, 64 MiB total).');}
