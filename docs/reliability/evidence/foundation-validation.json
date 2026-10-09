@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "kind": "local-foundation-validation",
+  "at": "2026-10-09T10:51:40.943283+00:00",
+  "source": {
+    "baseCommit": "63e613a0e8a29063193e18c096b32a1cc24032d0",
+    "state": "disposable uncommitted overlay",
+    "codeTreeSha256": "d5c68fddc850c1d18f55a9103bd811d46af06a4adbcb19b623f9528ba772b72c",
+    "hashDefinition": "SHA256 of compact sorted JSON path-to-SHA256 map for src/**, test/**, package.json, package-lock.json and tsconfig.json; documentation excluded.",
+    "changedCode": {
+      "src/reliability/lifecycle.ts": "cb63543b728f1cca7612635a757768f4a243bd8bda27e295dc31493c5c55d00c",
+      "src/reliability/registry.ts": "0fc0824ba08d7248060c0eb3337e9abc56c7fc6228f4bae7c20c36d91bb9ca45",
+      "src/reliability/compatibility.ts": "1781a7f710424244f6689224b5747af8b40bdc891e554df278b1d286e55d22d9",
+      "test/lifecycle-storage.test.ts": "fb45e9ea8f844c3b454e8df1ab0cbcc9c4577af1aaabfb1f28b8a489b938368b",
+      "test/reliability-defects.test.ts": "1541b5bd73483b384c681cb8da0040027699f0c5308cdc32749a54bcdc54072b",
+      "test/reliability-registry.test.ts": "a293079bc3dc5684ea1b8c7bde0e2c40fe37c7d4d7c5e501682fc68c9fcf30cc",
+      "test/work-flow.test.ts": "c2ff1153d6c684366eb9c54a35f6c30852d06f1dea21d028ed6d3d3fb1a63029",
+      "test/fixtures/lifecycle-legacy.json": "2afa36319c94957fe79a79a59db3efa91d65f0338227e69a9f6e687829af3d8e",
+      "package.json": "9c8841311ca051c65195419bf8b420793e56e5fc1357b59166f61aa4b578e76a"
+    }
+  },
+  "runtime": {
+    "host": "Darwin",
+    "architecture": "arm64",
+    "node": "v26.5.0",
+    "providers": "none; empty isolated credentials and local fake provider processes only"
+  },
+  "requiredCheck": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "tests": 938,
+    "passed": 863,
+    "failed": 0,
+    "skipped": 75,
+    "limitation": "Known-defect and optional platform lanes are visibly skipped. Skips are not qualification. The later registry artifact-link assertion is separately validated."
+  },
+  "knownDefects": {
+    "command": "HARNESS_KNOWN_DEFECTS=1 HARNESS_VERIFY_BROWSER=1 node --test --test-reporter=tap --test-name-pattern=^F[0-9] test/reliability-defects.test.ts test/work-flow.test.ts",
+    "runtime": "host Node; F02 uses the smoke browser image; fake GitHub and provider transports never contact real services",
+    "exitCode": 1,
+    "tests": 10,
+    "passed": 0,
+    "failed": 10,
+    "skipped": 0,
+    "reproduced": [
+      "F01",
+      "F02",
+      "F04",
+      "F05",
+      "F06",
+      "F07",
+      "F13",
+      "F14",
+      "F16",
+      "F18"
+    ],
+    "qualifies": false,
+    "evidence": "docs/reliability/evidence/foundation-known-defects.tap"
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-09T10:49:53.790Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "06bf3e28082e44d16367ea8725041b4d7a2ccf4b45693688bf284f919dd28493",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 12,
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-09T10:50:21.485Z"
+  },
+  "requiredRegressions": [
+    "test/source-selection.test.ts",
+    "test/view-authority.test.ts"
+  ],
+  "negativeControls": "docs/reliability/evidence/foundation-mutation-controls.json",
+  "limitations": [
+    "No live blog state or credentials were read or changed.",
+    "Native, mobile, Windows and ML runtime qualification was not executed in this batch.",
+    "Legacy archive fixtures validate inspection envelopes, not complete legacy controller admission.",
+    "The new lifecycle store is an opt-in boundary; current controllers still own their original stores.",
+    "The registry is an audit index, not an evidence authorization service."
+  ]
+}

@@ -11,7 +11,7 @@
  * neither, and it is not the harness's decision.
  */
 
-import { spawn } from "node:child_process";
+import {run,OutputLimitError} from "./run.ts";
 
 export interface GitResult {
   readonly code: number | null;
@@ -19,16 +19,11 @@ export interface GitResult {
   readonly stderr: string;
 }
 
-export function git(project: string, args: readonly string[]): Promise<GitResult> {
-  return new Promise((resolve, reject) => {
-    const child = spawn("git", ["-C", project, ...args], { stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString("utf8"); });
-    child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString("utf8"); });
-    child.once("error", reject);
-    child.once("close", (code) => { resolve({ code, stdout, stderr }); });
-  });
+export async function git(project: string, args: readonly string[]): Promise<GitResult> {
+  const result=await run('git',['-C',project,...args],{timeoutMs:120000});
+  if(result.outputLimited)throw new OutputLimitError('Git output-limit: partial results cannot be used.');
+  if(result.timedOut)throw Error('Git timed out; partial results cannot be used.');
+  return result;
 }
 
 export async function isRepository(project: string): Promise<boolean> {

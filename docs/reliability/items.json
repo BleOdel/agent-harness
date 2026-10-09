@@ -3,7 +3,7 @@
     "id": "hr-001",
     "title": "Turn audit reproductions into a failure registry",
     "priority": "must",
-    "status": "doing",
+    "status": "done",
     "criteria": [
       "Record every audit finding with its reproducible trigger or explicit inspection-only status, affected behavior, regression location and current qualification result.",
       "Port deterministic reproductions into the collected test layout; use failing tests on the fix branch or an explicitly separate known-defect lane, never a passing assertion that celebrates broken behavior.",
@@ -55,7 +55,7 @@
     "id": "hr-004",
     "title": "Bound process output and retain useful failure evidence",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Apply a finite default to every captured process stream and structured reply; require an explicit bounded override rather than an unlimited omission.",
       "Stream diagnostics to quota-controlled storage, retain a bounded tail and report truncation without treating a truncated reply as valid JSON or evidence.",
@@ -319,7 +319,7 @@
     "id": "hr-018",
     "title": "Define common task, operation, candidate, evidence and decision records",
     "priority": "must",
-    "status": "doing",
+    "status": "done",
     "criteria": [
       "Define versioned IDs and strict readers for the five shared concepts, plus typed outcomes for interruption, capability gap, requirement conflict, rejected candidate and pending application.",
       "Specify legal transitions, immutable bindings, request reservation and expected-version writes; a process exit alone cannot imply task completion.",

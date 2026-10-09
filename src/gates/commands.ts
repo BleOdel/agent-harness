@@ -23,6 +23,7 @@ export async function checkTypecheck(
     buildVerificationArguments(layout, "none", command),
     { timeoutMs },
   );
+  if(result.outputLimited)return failed("output-limit","command output-limit: incomplete output cannot pass verification",result.stdout+result.stderr);
   if (result.timedOut) {
     return failed("timed-out", `typecheck: timed out after ${String(Math.round(timeoutMs / 1000))}s`);
   }
@@ -51,6 +52,7 @@ export async function checkBuildReproducible(
     buildVerificationArguments(layout, "none", command),
     { timeoutMs },
   );
+  if(result.outputLimited)return failed("output-limit","command output-limit: incomplete output cannot pass verification",result.stdout+result.stderr);
   if (result.timedOut) {
     return failed("timed-out", `build: timed out after ${String(Math.round(timeoutMs / 1000))}s`);
   }

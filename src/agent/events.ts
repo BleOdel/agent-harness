@@ -1,3 +1,4 @@
+import {OutputLimitError} from '../run.ts';
 /**
  * Pi's JSON event stream, turned into something the operator can read and
  * the record can keep.
@@ -78,13 +79,12 @@ export class EventStream {
 
   /** Feeds a chunk, returning text to show the operator. */
   push(chunk: string): string {
-    this.buffer += chunk;
-    const lines = this.buffer.split("\n");
-    this.buffer = lines.pop() ?? "";
-    let out = "";
-    for (const line of lines) {
-      if (line.trim() === "") continue;
-      out += this.line(line);
+    let out="",offset=0;
+    while(offset<chunk.length){
+      const newline=chunk.indexOf('\n',offset),end=newline<0?chunk.length:newline;
+      if(Buffer.byteLength(this.buffer)+Buffer.byteLength(chunk.slice(offset,end))>1024*1024){this.buffer="";throw new OutputLimitError('Agent event frame exceeds 1 MiB limit.');}
+      this.buffer+=chunk.slice(offset,end);offset=end+1;
+      if(newline>=0){const line=this.buffer;this.buffer="";if(line.trim())out+=this.line(line);}
     }
     return out;
   }
@@ -107,20 +107,28 @@ export class EventStream {
     } catch {
       // Not JSON. Pi prints warnings and startup notices as plain text,
       // and swallowing them is how a diagnosable failure becomes silence.
-      this.unparsed.push(line);
+      this.unparsed.push(line.length>16000?line.slice(-16000):line);
+      while(this.unparsed.length>256||Buffer.byteLength(this.unparsed.join('\n'))>65536)this.unparsed.shift();
       return `${line}\n`;
     }
+    if(!event||typeof event!=="object"||Array.isArray(event))return "";
     if (event.type === "message_end" || event.type === "turn_end") {
       const message = event.message as Record<string, unknown> | undefined;
       if (message?.stopReason === "error" || message?.stopReason === "aborted") this.modelFailure = typeof message.errorMessage === "string" ? message.errorMessage : "Provider did not complete the turn.";
     }
     if (event.type === "tool_execution_start" && event.toolName === "read" && typeof event.toolCallId === "string") {
       const file = (event.args as Record<string, unknown> | undefined)?.path;
-      if (typeof file === "string" && file.startsWith("/opt/skills/") && !file.split("/").includes("..")) this.pendingReads.set(event.toolCallId, file.slice("/opt/skills/".length));
+      if (typeof file === "string" && file.startsWith("/opt/skills/") && !file.split("/").includes("..")) {
+        if(this.pendingReads.size>=1024||event.toolCallId.length>512||file.length>4096)throw new OutputLimitError('Pending skill-read limit exceeded.');
+        this.pendingReads.set(event.toolCallId, file.slice("/opt/skills/".length));
+      }
     }
     if (event.type === "tool_execution_end" && typeof event.toolCallId === "string") {
       const file = this.pendingReads.get(event.toolCallId);
-      if (file && event.isError === false) this.observedReads.add(file);
+      if (file && event.isError === false) {
+        if(this.observedReads.size>=1024&&!this.observedReads.has(file))throw new OutputLimitError('Observed skill-read limit exceeded.');
+        this.observedReads.add(file);
+      }
       this.pendingReads.delete(event.toolCallId);
     }
     switch (event.type) {

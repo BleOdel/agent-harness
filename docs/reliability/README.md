@@ -16,7 +16,7 @@ Hosted CI prepares the pinned Node and browser runtimes, executes the same comma
 
 ## Known defects and closing findings
 
-`npm run verify:known-defects` is an explicit, non-qualifying lane. Its tests assert desired safe behavior, so existing known defects fail. Default npm tests list those cases as skipped with a reason; they never count them as fixed. Move each regression into required tests as its implementation task lands. The known-defect lane currently ports mode identity and incomplete checkpoint rejection. Nested secret exclusion now runs as a required regression; the other reproductions remain in the audit record until ported with their associated fixes.
+`npm run verify:known-defects` is an explicit, non-qualifying lane. Its tests assert desired safe behavior, so existing known defects fail. Default npm tests list those cases as skipped with a reason; they never count them as fixed. Move each regression into required tests as its implementation task lands. The lane ports preparation-owner selection, browser timing, partial application, provider interruption, mode identity, checkpoint rejection, release retry, noninteractive preparation and peer-review invalidation. The browser test additionally requires HARNESS_VERIFY_BROWSER=1 and the installed immutable browser image configuration; a skipped browser reproduction is unexecuted, never fixed. Nested secret exclusion, dashboard authority and default output capture run as required regressions.
 
 A finding can be marked verified only with a retained positive regression and a deliberately restored-defect control. The registry validates structure and links; it is not a cryptographic proof that an arbitrary linked result is trustworthy. Source/runtime-bound qualification and evidence admission remain separate gates.
 
@@ -31,3 +31,22 @@ Source copies, candidate snapshots, retained-source checks, review diffs and das
 Direct application refuses excluded paths. Retained diffs with newly excluded paths are withheld from display; original recovery files remain on disk. New artifacts using excluded paths are refused and old such artifacts cannot be previewed or exported; their retained bytes are preserved. A legacy snapshot whose identity included newly excluded paths is refused for reuse and requires review before fresh preparation. No old snapshot is silently rewritten or upgraded.
 
 This is a filename policy, not a claim to find secrets embedded in ordinary source or approved example files. High-confidence bounded content scanning, explicit exception approval and richer quarantine migration are remaining hr-005 work. Do not place real credentials in sample files. Executable metadata migration remains hr-008 and must cover apply, undo and old receipts together.
+
+## Reading the audit status
+
+Registry version 2 separates four qualification states: `inspection-only` (a documented boundary/gap without a fresh runtime reproduction), `unexecuted` (a regression exists but has not run), `reproduced` (the desired-behavior regression fails), and `fixed` (regression and negative-control evidence accompany closure). Version 1 remains readable without inventing new qualification fields. A fresh run does not overwrite the historical audit baseline.
+
+`evidence/foundation-validation.json` records source-file hashes, the baseline commit, runtime identities, commands and results. `evidence/foundation-known-defects.tap` retains the failing audit run. Its nonzero exit is expected and **does not qualify the harness as passing**. No provider credentials or model requests are used. Nine reproduced findings remain open; the backlog owns their fixes. Inspection-only entries retain a trigger/verification strategy and limitations rather than artificial tests that assert bugs exist.
+
+
+## Captured output and overflow recovery
+
+All `run()` callers have a combined stdout/stderr default of 8 MiB. Explicit overrides must be finite integers from 1 byte through 64 MiB. Git and verification launchers use this runner too; incomplete Git results and verification reports are refused. Launchers have a 30-minute process timeout. Agent event frames are capped at 1 MiB, retained warning text at 64 KiB, and skill-read metadata at 1,024 entries. RPC framing retains its existing separate bounds. Interactive inherited terminal output and the streaming preview proxy are not accumulated as captured replies.
+
+Overflow produces a non-successful `output-limit` result even if the child happened to exit zero. Diagnostic head/tail text cannot become a completion claim, reviewer verdict or passing gate. On POSIX the runner stops its owned process group; Docker paths additionally require confirmed container cleanup. No process-name matching is used. Windows descendant termination is not qualified by this local evidence.
+
+Ordinary builders stream permitted raw output into exclusive mode-0600 files under the project's harness sidecar, `diagnostics/<run-id>/builder-<attempt>.log`. Each file is bounded by the same 8 MiB quota (at most two builder attempts per ordinary run). These private diagnostics may contain model/tool text; they are not approval evidence. Disk failures also fail closed. Total accumulated sidecar retention across runs remains hr-025.
+
+After confirmed termination, builder overflow saves unverified source before cleanup and records a resume command. Resume runs all gates again. If checkpoint creation fails, or worker shutdown cannot be confirmed, both original source and controller workspace paths are recorded and retained; these are **not** safe checkpoints. Confirm worker termination before inspecting/recovering them. No incomplete work is applied. Other provider-error and cancellation recovery remains hr-009; this change does not claim to fix F05.
+
+`evidence/output-limit-validation.json` records the current F07 qualification; `evidence/output-limit-controls.json` records deliberately restored defects. Historical foundation results remain unchanged. Each fixed finding links its own execution receipt, so later fixes do not retroactively change the original audit run.

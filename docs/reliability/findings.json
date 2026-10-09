@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "auditedCommit": "1104bd1d9811bca8ebe65ed1810819a20ef35903",
   "auditedAt": "2026-10-03",
   "baseline": {
@@ -34,8 +34,17 @@
         "hr-027",
         "hr-037"
       ],
-      "regressions": [],
-      "resolutionEvidence": []
+      "regressions": [
+        "test/reliability-defects.test.ts"
+      ],
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "reproduced",
+        "trigger": "Store a preparation-owned failed case with passing peer receipts, then request targeted repair without review-progress.json.",
+        "regression": "test/reliability-defects.test.ts",
+        "execution": "docs/reliability/evidence/foundation-validation.json",
+        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix. Synthetic preparation envelope reproduces owner selection; migration and interrupted repair need fuller controller fixtures in hr-014."
+      }
     },
     {
       "id": "F02",
@@ -60,8 +69,17 @@
         "hr-037",
         "hr-039"
       ],
-      "regressions": [],
-      "resolutionEvidence": []
+      "regressions": [
+        "test/reliability-defects.test.ts"
+      ],
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "reproduced",
+        "trigger": "Click a real Chromium fixture whose visible result changes 750 ms later; require the expected completion within the journey timeout.",
+        "regression": "test/reliability-defects.test.ts",
+        "execution": "docs/reliability/evidence/foundation-validation.json",
+        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix. This port covers delayed positive DOM observation; delayed negative-request windows remain part of the implementation task."
+      }
     },
     {
       "id": "F03",
@@ -86,7 +104,14 @@
         "hr-037"
       ],
       "regressions": [],
-      "resolutionEvidence": []
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "inspection-only",
+        "trigger": "Replay the existing To Be Heard outline before any generation. It must identify every missing anchor in one report, propose a bounded complete contract, and produce a coverage map without repeated one-field-at-a-time questions. Include alternate valid UI implementations so tests do not silently prescribe unrelated design.",
+        "regression": null,
+        "execution": null,
+        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence."
+      }
     },
     {
       "id": "F04",
@@ -109,8 +134,17 @@
         "hr-010",
         "hr-038"
       ],
-      "regressions": [],
-      "resolutionEvidence": []
+      "regressions": [
+        "test/reliability-defects.test.ts"
+      ],
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "reproduced",
+        "trigger": "Apply two files where the second selected source is absent; require both live files to retain original bytes after rejection.",
+        "regression": "test/reliability-defects.test.ts",
+        "execution": "docs/reliability/evidence/foundation-validation.json",
+        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix."
+      }
     },
     {
       "id": "F05",
@@ -132,8 +166,17 @@
         "hr-009",
         "hr-038"
       ],
-      "regressions": [],
-      "resolutionEvidence": []
+      "regressions": [
+        "test/work-flow.test.ts"
+      ],
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "reproduced",
+        "trigger": "Run the actual work controller with a local fake Docker/provider process that edits app.js and emits a transport error; require retained partial source.",
+        "regression": "test/work-flow.test.ts",
+        "execution": "docs/reliability/evidence/foundation-validation.json",
+        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix."
+      }
     },
     {
       "id": "F06",
@@ -158,7 +201,14 @@
       "regressions": [
         "test/reliability-defects.test.ts"
       ],
-      "resolutionEvidence": []
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "reproduced",
+        "trigger": "Change only executable mode from 0644 to 0755; require candidate identity to change.",
+        "regression": "test/reliability-defects.test.ts",
+        "execution": "docs/reliability/evidence/foundation-validation.json",
+        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix."
+      }
     },
     {
       "id": "F07",
@@ -175,14 +225,42 @@
         "src/agent/pi.ts",
         "src/review/reviewer.ts"
       ],
-      "status": "open",
+      "status": "verified",
       "tasks": [
         "hr-001",
         "hr-004",
         "hr-038"
       ],
-      "regressions": [],
-      "resolutionEvidence": []
+      "regressions": [
+        "test/run-output.test.ts",
+        "test/events.test.ts",
+        "test/work-flow.test.ts"
+      ],
+      "resolutionEvidence": [
+        {
+          "kind": "regression",
+          "path": "test/run-output.test.ts"
+        },
+        {
+          "kind": "regression",
+          "path": "test/events.test.ts"
+        },
+        {
+          "kind": "regression",
+          "path": "test/work-flow.test.ts"
+        },
+        {
+          "kind": "negative-control",
+          "path": "docs/reliability/evidence/output-limit-controls.json"
+        }
+      ],
+      "qualification": {
+        "state": "fixed",
+        "trigger": "Emit a bounded 16 MiB stdout flood with no explicit output ceiling; require the proposed default capture bound to stop it.",
+        "regression": "test/run-output.test.ts",
+        "execution": "docs/reliability/evidence/output-limit-validation.json",
+        "limitation": "Local macOS arm64 process tests and Linux arm64 operational smoke only. Interactive terminal output is not captured; Windows process-tree behavior is unqualified. Project-wide diagnostic retention remains hr-025; broader provider interruption recovery remains hr-009."
+      }
     },
     {
       "id": "F08",
@@ -204,7 +282,14 @@
         "hr-006"
       ],
       "regressions": [],
-      "resolutionEvidence": []
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "inspection-only",
+        "trigger": "Use synthetic tokens to prove builders cannot read unrelated provider entries or rewrite host credentials. Verify concurrent refresh, expiry, interruption and cleanup without exposing real secrets. Record destination-policy limitations rather than claiming total exfiltration prevention.",
+        "regression": null,
+        "execution": null,
+        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence."
+      }
     },
     {
       "id": "F09",
@@ -236,7 +321,14 @@
           "kind": "negative-control",
           "path": "docs/reliability/evidence/mutation-controls.json"
         }
-      ]
+      ],
+      "qualification": {
+        "state": "fixed",
+        "trigger": "Place synthetic secrets in nested environment files, key formats, generated outputs and Git-ignored locations; verify source/model/snapshot/artifact paths consistently exclude or stop for review. Confirm .env.example remains usable when intentionally allowed.",
+        "regression": "test/source-selection.test.ts",
+        "execution": "docs/reliability/evidence/foundation-validation.json",
+        "limitation": "Fixed only at the recorded audit scope. Original negative controls remain historical; regression rerun is local."
+      }
     },
     {
       "id": "F10",
@@ -269,7 +361,14 @@
           "kind": "negative-control",
           "path": "docs/reliability/evidence/mutation-controls.json"
         }
-      ]
+      ],
+      "qualification": {
+        "state": "fixed",
+        "trigger": "Exercise hostile Host, duplicate Host, cross-site Origin, IPv4/IPv6 aliases, frame embedding and valid same-origin polling. Confirm private routes fail before any project data is rendered.",
+        "regression": "test/view-authority.test.ts",
+        "execution": "docs/reliability/evidence/foundation-validation.json",
+        "limitation": "Fixed only at the recorded audit scope. Original negative controls remain historical; regression rerun is local."
+      }
     },
     {
       "id": "F11",
@@ -293,7 +392,14 @@
         "hr-039"
       ],
       "regressions": [],
-      "resolutionEvidence": []
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "inspection-only",
+        "trigger": "Build and review a dependency-free app, an Express app, a bundled web frontend and an unsupported workspace. Supported lanes must reach final review; unsupported ones must be rejected at setup with a concrete alternative.",
+        "regression": null,
+        "execution": null,
+        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence."
+      }
     },
     {
       "id": "F12",
@@ -318,7 +424,14 @@
         "hr-039"
       ],
       "regressions": [],
-      "resolutionEvidence": []
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "inspection-only",
+        "trigger": "Run a web task with manual accessibility review inside a managed worktree through build, preview, review, commit, combined verification and merge. Repeat with stale manual evidence, source changes and missing runtime evidence; those variants must stop safely.",
+        "regression": null,
+        "execution": null,
+        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence."
+      }
     },
     {
       "id": "F13",
@@ -344,7 +457,14 @@
       "regressions": [
         "test/reliability-defects.test.ts"
       ],
-      "resolutionEvidence": []
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "reproduced",
+        "trigger": "Supply a serialized classifier checkpoint with null tensors and empty optimizer state; require rejection.",
+        "regression": "test/reliability-defects.test.ts",
+        "execution": "docs/reliability/evidence/foundation-validation.json",
+        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix."
+      }
     },
     {
       "id": "F14",
@@ -366,8 +486,17 @@
         "hr-013",
         "hr-036"
       ],
-      "regressions": [],
-      "resolutionEvidence": []
+      "regressions": [
+        "test/reliability-defects.test.ts"
+      ],
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "reproduced",
+        "trigger": "Use an in-memory GitHub client that definitively refuses draft creation with 403, restore permission and retry the approved draft.",
+        "regression": "test/reliability-defects.test.ts",
+        "execution": "docs/reliability/evidence/foundation-validation.json",
+        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix."
+      }
     },
     {
       "id": "F15",
@@ -393,7 +522,14 @@
         "hr-044"
       ],
       "regressions": [],
-      "resolutionEvidence": []
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "inspection-only",
+        "trigger": "Require a release matrix that names commit, runtime pin, tests executed and skips. Introduce deliberate regressions in browser timing, recovery and combined staged/worktree flows; at least one required CI job must detect each.",
+        "regression": null,
+        "execution": null,
+        "limitation": "Required local Docker/Chromium smoke runs separately; other platform lanes and hosted CI are not qualified by the default suite."
+      }
     },
     {
       "id": "F16",
@@ -412,8 +548,17 @@
       "tasks": [
         "hr-025"
       ],
-      "regressions": [],
-      "resolutionEvidence": []
+      "regressions": [
+        "test/reliability-defects.test.ts"
+      ],
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "reproduced",
+        "trigger": "Invoke explicit checks prepare with stdin closed and an empty isolated project; require project validation without demanding a terminal.",
+        "regression": "test/reliability-defects.test.ts",
+        "execution": "docs/reliability/evidence/foundation-validation.json",
+        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix."
+      }
     },
     {
       "id": "F17",
@@ -438,7 +583,14 @@
         "hr-037"
       ],
       "regressions": [],
-      "resolutionEvidence": []
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "inspection-only",
+        "trigger": "Complete a small project through the UI without copying commands or logs. Exercise stale tabs, simultaneous CLI/UI actions, double-clicked approval and unauthorized cross-origin requests. Observer mode must remain unable to mutate.",
+        "regression": null,
+        "execution": null,
+        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence."
+      }
     },
     {
       "id": "F18",
@@ -459,8 +611,17 @@
         "hr-017",
         "hr-022"
       ],
-      "regressions": [],
-      "resolutionEvidence": []
+      "regressions": [
+        "test/reliability-defects.test.ts"
+      ],
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "reproduced",
+        "trigger": "Edit only an unrelated peer description; require the selected case code-review digest to remain unchanged.",
+        "regression": "test/reliability-defects.test.ts",
+        "execution": "docs/reliability/evidence/foundation-validation.json",
+        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix."
+      }
     },
     {
       "id": "F19",
@@ -485,7 +646,14 @@
         "hr-043"
       ],
       "regressions": [],
-      "resolutionEvidence": []
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "inspection-only",
+        "trigger": "Replay repeated format errors, provider interruptions and no-progress repairs. Prove the cumulative policy stops them, successful checkpoints remain reusable, and status distinguishes wall time, reported tokens, cached input, estimated charges and unavailable billing information.",
+        "regression": null,
+        "execution": null,
+        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence."
+      }
     },
     {
       "id": "F20",
@@ -518,7 +686,14 @@
         "hr-042"
       ],
       "regressions": [],
-      "resolutionEvidence": []
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "inspection-only",
+        "trigger": "Build a matrix of CLI, API, web, Python, desktop and ML projects with/without dependencies and sensitive consequences. Every selected required evidence row must have a supported provider or be rejected before dispatch. No platform\u2019s pass may satisfy another platform silently.",
+        "regression": null,
+        "execution": null,
+        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence."
+      }
     },
     {
       "id": "F21",
@@ -547,7 +722,14 @@
         "hr-044"
       ],
       "regressions": [],
-      "resolutionEvidence": []
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "inspection-only",
+        "trigger": "For each claimed lane, run a complete reference project from accepted requirements to inspectable output, including one injected failure. Label historical receipts with their date/runtime and rerun them before promoting the capability.",
+        "regression": null,
+        "execution": null,
+        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence."
+      }
     },
     {
       "id": "F22",
@@ -570,7 +752,14 @@
         "hr-043"
       ],
       "regressions": [],
-      "resolutionEvidence": []
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "inspection-only",
+        "trigger": "Run at least several representative projects with multiple repetitions before claiming a success rate. Publish denominators and failures. Include the actual To Be Heard journey, not only minimal happy-path fixtures; no statistical reliability claim should be based on one successful run.",
+        "regression": null,
+        "execution": null,
+        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence."
+      }
     },
     {
       "id": "F23",
@@ -598,7 +787,14 @@
         "hr-040"
       ],
       "regressions": [],
-      "resolutionEvidence": []
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "inspection-only",
+        "trigger": "Trace every mutating command through the common operation model. Schema migrations must be idempotent and retain old records. Kill/restart, parallel command and feature-composition tests must exercise shared services, not only mocked adapters.",
+        "regression": null,
+        "execution": null,
+        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence."
+      }
     },
     {
       "id": "F24",
@@ -619,7 +815,14 @@
         "hr-036"
       ],
       "regressions": [],
-      "resolutionEvidence": []
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "inspection-only",
+        "trigger": "Reject mismatched artifact-to-source identity, stale evidence and missing required companion/signature files before upload. Preserve an explicitly labeled diagnostic export route without pretending it is product certification.",
+        "regression": null,
+        "execution": null,
+        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence."
+      }
     },
     {
       "id": "F25",
@@ -640,7 +843,15 @@
         "hr-033"
       ],
       "regressions": [],
-      "resolutionEvidence": []
+      "resolutionEvidence": [],
+      "qualification": {
+        "state": "inspection-only",
+        "trigger": "Generate many interrupted/renewed operations, compact them, and verify every active approval, resume, apply and undo remains valid. Simulate disk-full during a checkpoint and show that the previous durable state survives. No destructive cleanup is authorized by this audit.",
+        "regression": null,
+        "execution": null,
+        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence."
+      }
     }
-  ]
+  ],
+  "qualificationReport": "docs/reliability/evidence/foundation-validation.json"
 }

@@ -26,6 +26,7 @@ export type FailureKind =
   | "claim-mismatch"
   | "too-large"
   | "timed-out"
+  | "output-limit"
   | "review-escalated"
   | "boundary"
   | "environment-blocked";

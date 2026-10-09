@@ -71,6 +71,9 @@ export type OperationEvent =
 
 /** Pure compare-and-swap transition; durable stores must publish it atomically under their writer lock. */
 export function transitionOperation(raw: OperationRecord, expectedRevision: number, event: OperationEvent): OperationRecord {
+  const eventFields: Record<string,string[]> = {start:[],reserve:['requestId'],pause:['outcome'],attention:['outcome'],advance:['phase'],finish:['evidence']};
+  if (!event || typeof event.type !== 'string' || !Object.hasOwn(eventFields,event.type)) throw Error('Unknown operation event.');
+  object(event,['type',...eventFields[event.type]!]);
   const parsed = parseLifecycleRecord(raw);
   if (parsed.kind !== 'operation') throw Error('Expected operation record.');
   if (parsed.revision !== expectedRevision) throw Error('Stale operation revision.');

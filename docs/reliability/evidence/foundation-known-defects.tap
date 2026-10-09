@@ -1,0 +1,225 @@
+TAP version 13
+# Subtest: F06 executable mode changes candidate identity
+not ok 1 - F06 executable mode changes candidate identity
+  ---
+  duration_ms: 6.1255
+  type: 'test'
+  location: '<harness-source>/test/reliability-defects.test.ts:11:1'
+  failureType: 'testCodeFailure'
+  error: 'chmod-only source drift must invalidate candidate identity'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '3f432bff0b0c06fbbff7ab85cfb1f937040522bf882e16f7b5ea9352901a8ff7'
+  actual: '3f432bff0b0c06fbbff7ab85cfb1f937040522bf882e16f7b5ea9352901a8ff7'
+  operator: 'notStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file://<harness-source>/test/reliability-defects.test.ts:19:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+# Subtest: F13 incomplete serialized classifier checkpoint is rejected
+not ok 2 - F13 incomplete serialized classifier checkpoint is rejected
+  ---
+  duration_ms: 0.371292
+  type: 'test'
+  location: '<harness-source>/test/reliability-defects.test.ts:23:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file://<harness-source>/test/reliability-defects.test.ts:30:10)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1382:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+    Test.postRun (node:internal/test_runner/test:1522:19)
+    Test.run (node:internal/test_runner/test:1447:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+# Subtest: F01 targeted repair can resume a preparation-owned failed scope
+not ok 3 - F01 targeted repair can resume a preparation-owned failed scope
+  ---
+  duration_ms: 6.383834
+  type: 'test'
+  location: '<harness-source>/test/reliability-defects.test.ts:45:1'
+  failureType: 'testCodeFailure'
+  error: 'No saved check review to repair.'
+  code: 'ERR_TEST_FAILURE'
+  name: 'OperatorError'
+  stack: |-
+    repairSavedCheck (file://<harness-source>/src/acceptance/guided.ts:343:16)
+    async TestContext.<anonymous> (file://<harness-source>/test/reliability-defects.test.ts:54:3)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: F04 a failed ordinary apply preserves every live file
+not ok 4 - F04 a failed ordinary apply preserves every live file
+  ---
+  duration_ms: 3.059917
+  type: 'test'
+  location: '<harness-source>/test/reliability-defects.test.ts:58:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    a late source read failure must not partially apply
+    
+    'after' !== 'before'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'before'
+  actual: 'after'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file://<harness-source>/test/reliability-defects.test.ts:66:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: F07 subprocess output is bounded by default
+not ok 5 - F07 subprocess output is bounded by default
+  ---
+  duration_ms: 56.916292
+  type: 'test'
+  location: '<harness-source>/test/reliability-defects.test.ts:70:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the proposed default capture ceiling must stop a bounded 16 MiB flood
+    + actual - expected
+    
+    + undefined
+    - true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file://<harness-source>/test/reliability-defects.test.ts:72:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: F14 confirmed remote permission denial can be retried without resetting release state
+not ok 6 - F14 confirmed remote permission denial can be retried without resetting release state
+  ---
+  duration_ms: 202.097083
+  type: 'test'
+  location: '<harness-source>/test/reliability-defects.test.ts:75:1'
+  failureType: 'testCodeFailure'
+  error: 'Previous creation outcome is unknown. Reconcile later; automatic duplicate creation is refused.'
+  code: 'ERR_TEST_FAILURE'
+  name: 'OperatorError'
+  stack: |-
+    fail (file://<harness-source>/src/releases/github.ts:10:37)
+    file://<harness-source>/src/releases/github.ts:73:62
+    async withWriter (file://<harness-source>/src/workspace/writer-lock.ts:60:12)
+    async TestContext.<anonymous> (file://<harness-source>/test/reliability-defects.test.ts:91:17)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: F16 explicit preparation without a terminal reaches project validation
+not ok 7 - F16 explicit preparation without a terminal reaches project validation
+  ---
+  duration_ms: 223.393209
+  type: 'test'
+  location: '<harness-source>/test/reliability-defects.test.ts:94:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input was expected to not match the regular expression /needs a terminal/i. Input:
+    
+    '\n' +
+      'The guide needs a terminal.\n' +
+      '\n' +
+      'Use harness doctor --json and the explicit commands in scripts.\n'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    
+    The guide needs a terminal.
+    
+    Use harness doctor --json and the explicit commands in scripts.
+    
+  operator: 'doesNotMatch'
+  stack: |-
+    TestContext.<anonymous> (file://<harness-source>/test/reliability-defects.test.ts:100:46)
+    process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: F18 an unrelated peer description does not invalidate a case code review
+not ok 8 - F18 an unrelated peer description does not invalidate a case code review
+  ---
+  duration_ms: 0.25075
+  type: 'test'
+  location: '<harness-source>/test/reliability-defects.test.ts:103:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + '1e1c5ded2a11cec92d4b5db582dd36e6832b516d1fe478cc3dfd30c4ab44e42b'
+    - '05200e79b8dede7e7bc6d5eb85a15c0ac4bc9d889cf37122dcc3da9e600526b0'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '05200e79b8dede7e7bc6d5eb85a15c0ac4bc9d889cf37122dcc3da9e600526b0'
+  actual: '1e1c5ded2a11cec92d4b5db582dd36e6832b516d1fe478cc3dfd30c4ab44e42b'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file://<harness-source>/test/reliability-defects.test.ts:105:9)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1382:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+    Test.postRun (node:internal/test_runner/test:1522:19)
+    Test.run (node:internal/test_runner/test:1447:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: F02 Chromium waits for an asynchronously rendered expected result
+not ok 9 - F02 Chromium waits for an asynchronously rendered expected result
+  ---
+  duration_ms: 1990.577
+  type: 'test'
+  location: '<harness-source>/test/reliability-defects.test.ts:111:1'
+  failureType: 'testCodeFailure'
+  error: 'acceptance ui: Step 3: exact text differs.'
+  code: 'ERR_TEST_FAILURE'
+  name: 'OperatorError'
+  stack: |-
+    verifyApproved (file://<harness-source>/src/acceptance/checks.ts:277:11)
+    async TestContext.<anonymous> (file://<harness-source>/test/reliability-defects.test.ts:120:15)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: F05 provider interruption preserves useful unverified implementation
+not ok 10 - F05 provider interruption preserves useful unverified implementation
+  ---
+  duration_ms: 801.658875
+  type: 'test'
+  location: '<harness-source>/test/work-flow.test.ts:634:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    useful files must survive provider interruption
+    
+    undefined !== 'r1'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'r1'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file://<harness-source>/test/work-flow.test.ts:642:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 0
+# fail 10
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2678.94375

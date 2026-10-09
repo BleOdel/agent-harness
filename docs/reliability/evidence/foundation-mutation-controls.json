@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "kind": "local-negative-controls",
+  "results": [
+    {
+      "control": "strict-transition-fields",
+      "file": "src/reliability/lifecycle.ts",
+      "selectedTest": "invalid transitions",
+      "exitCode": 1,
+      "detected": true,
+      "restored": true
+    },
+    {
+      "control": "operation-binding-cas",
+      "file": "src/reliability/compatibility.ts",
+      "selectedTest": "two actual writers",
+      "exitCode": 1,
+      "detected": true,
+      "restored": true
+    },
+    {
+      "control": "legacy-digest",
+      "file": "src/reliability/compatibility.ts",
+      "selectedTest": "legacy archives",
+      "exitCode": 1,
+      "detected": true,
+      "restored": true
+    },
+    {
+      "control": "canonical-owner",
+      "file": "src/reliability/compatibility.ts",
+      "selectedTest": "project aliases",
+      "exitCode": 1,
+      "detected": true,
+      "restored": true
+    },
+    {
+      "control": "registry-execution",
+      "file": "src/reliability/registry.ts",
+      "selectedTest": "qualification distinguishes",
+      "exitCode": 1,
+      "detected": true,
+      "restored": true
+    }
+  ]
+}

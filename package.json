@@ -39,7 +39,7 @@
     "verify:metal": "node src/verify-metal.ts",
     "verify:torch": "node src/verify-torch.ts",
     "verify:smoke": "node src/verify-smoke.ts",
-    "verify:known-defects": "HARNESS_KNOWN_DEFECTS=1 node --test test/reliability-defects.test.ts"
+    "verify:known-defects": "HARNESS_KNOWN_DEFECTS=1 node --test --test-name-pattern=\"^F[0-9]\" test/reliability-defects.test.ts test/work-flow.test.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

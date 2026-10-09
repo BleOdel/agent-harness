@@ -1,0 +1,174 @@
+{
+  "version": 1,
+  "kind": "local-output-limit-validation",
+  "at": "2026-10-09T16:08:43.302222+00:00",
+  "status": "passed",
+  "source": {
+    "baseCommit": "63e613a0e8a29063193e18c096b32a1cc24032d0",
+    "state": "disposable uncommitted overlay",
+    "codeTreeSha256": "61ee74af3c947447fbd74ea8e6645f6e246efe7ae46940205c71dd4990c8b63b",
+    "hashDefinition": "SHA256 of compact sorted JSON path-to-SHA256 map for src/**, test/**, package.json, package-lock.json and tsconfig.json; documentation excluded.",
+    "changedCode": {
+      "src/agent/events.ts": "77c00f8c1804959d59d206661ec989e49ff9a44787224f28bd9e13b4801e1502",
+      "src/agent/execute.ts": "a7f8543ac691e2e030e0e8c7c94680ca965b989bdd422dd18052d3438f43b33f",
+      "src/agent/pi.ts": "245e44c5c11a92733d706f8d2e76c8587760e606c74e1e599761ff7c0efb96ac",
+      "src/attribution.ts": "d96835a485e14a595aa87e6ff7f0ea84d19d001646122c0b6c8b711b57d6af01",
+      "src/containment/stop.ts": "50092d3d5f74b11a2660a00de1a03191e233cb50ef95d7498d1f48b4382a1b42",
+      "src/gates/commands.ts": "b3149a9272a4e21341c186c4564937b1d0d06e174b8c5ce264cba3228cae110d",
+      "src/gates/gate.ts": "2da8b763dd2fffc6c5d4f0156afa3d9575675f2ef445ef1b1624b000a004e635",
+      "src/gates/tests.ts": "6259301c8930b5b77e55db2c1bd9bff68f29e3a34f0a76ab7e3e1c052959e2e8",
+      "src/git.ts": "1470cdcae201adb317ef0a005031f8671a7f69a28dce39f71e516943b79429c5",
+      "src/record/record.ts": "d2a31eaea38f579f65c7c8bd236250b608799546889986eaa810559426d2918c",
+      "src/review/reviewer.ts": "4dcc6843964bf9c5cc7f7953b063ddd12e6ab20809f9c756a94532d8394a9054",
+      "src/run.ts": "6f388ff72f9c677e9c6e07ee2f3cb3182194b06e0d47ebfc40daf653e49b04d0",
+      "src/verbs/work.ts": "2b9c7a2985dcf6c1f091b433c0419fa08982ca3c9e7c02c94870ee106210db47",
+      "src/verification-process.ts": "81626b563e3bc56c4b65ae6bd02bb61d8e2ce4127e1e79339b2fa6b66a78c529",
+      "src/verify-adapters.ts": "55fe180dac6bbe535fbb018e53a4bad00ce42480f39b99ac366546663fa44196",
+      "src/verify-boundary.ts": "ff8b6b0a89cc50a6369bb1d59d36b76ee057523e97e164820ac6e36ac072d130",
+      "src/verify-candidates.ts": "b8c8111f1abd8869b03474ed4009a3cc7eb13e338ccf8ba716a829aa7357810c",
+      "src/verify-desktop.ts": "d0165160f5cf513dc2e888ad0cfca76a59663c7b95f85dbf1fcc78108082de81",
+      "src/verify-gates.ts": "4e6b74f0b72a33702bf3730090fb0f489c50e884f969a7f53e272c99d555b02c",
+      "src/verify-hardening.ts": "3d17d27f9c7131e95ab31795083b99e71ad44c74beb5b86702a390fa34d5795a",
+      "src/verify-jobs.ts": "b9d3ba8183a4d9890f592908be3727f77e4e5589ef42be927e0988d61bfe2729",
+      "src/verify-ml.ts": "c93f5dfa0f9a6f71f03ea5f848733820a5185b59a6f7c13da8955815f6681c16",
+      "src/verify-planning.ts": "c9033befcbbbe91e4623372cb2c1c35d068bd9620c538790e023faecab49c387",
+      "src/verify-python.ts": "5bff35704eedc4bbcdb9951ebc85488ef38337bfae06e59418c3ca0f10211f8b",
+      "src/verify-releases.ts": "29bdbb0c590a0edefa4b558f84f5cd17586df5f8d8cf702af0c70d4a50eb5083",
+      "src/verify-team.ts": "99bdac573b1db89facfeae4e7a31d072be8db41349a627525f3927bc93c72334",
+      "src/verify-torch.ts": "f639f6fe45cf8f28136bbdcf36c84583a4566449b02a9211b9157c1ce12e6972",
+      "test/events.test.ts": "dbebfd800c1bc3316c487b0abd24d72f4e611bd8d3c13d1bef1fa0f8901c637a",
+      "test/git-output.test.ts": "2a819d7c1b37640e988145b144c3c568ea28f1a993ff41c8d3f6cd4743e4e18a",
+      "test/reliability-defects.test.ts": "e2840736456d4cc0183c8fe7942cedbf9fe01033149bdb2b9305afdaca0f8991",
+      "test/reliability-registry.test.ts": "620845bc785f6348ce4b7612f30c73cd047a6eefedb5ee2c40a5aa6204ee657a",
+      "test/run-output.test.ts": "ba8ce9ea19d0775693d4bdeb0998d683def76817e5606e497933f5048eea475d",
+      "test/work-flow.test.ts": "770d3efd8831a9eea274760c52e4787998f2a6b5774c6c33c653236e7e417294"
+    }
+  },
+  "runtime": {
+    "host": "Darwin",
+    "architecture": "arm64",
+    "node": "v26.5.0",
+    "providers": "none; fake processes and isolated fixtures only"
+  },
+  "requiredCheck": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "tests": 953,
+    "pass": 879,
+    "fail": 0,
+    "skipped": 74,
+    "cancelled": 0,
+    "limitation": "Known defects and optional runtime lanes remain explicitly skipped; skips are not qualification."
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-09T16:07:01.671Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "fe8c1c392d4d6bfcaeca1f37898ec3179c81c5cffd029b5cda664143418f2f06",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 12,
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-09T16:07:51.754Z"
+  },
+  "requiredRegressions": [
+    "test/run-output.test.ts",
+    "test/events.test.ts",
+    "test/git-output.test.ts",
+    "test/work-flow.test.ts"
+  ],
+  "negativeControls": "docs/reliability/evidence/output-limit-controls.json",
+  "memoryObservations": {
+    "node": "v26.5.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "peakRssKiB": 164944,
+    "results": [
+      {
+        "iteration": 1,
+        "outputLimited": true,
+        "code": 1,
+        "timedOut": false,
+        "retainedBytes": 4194304,
+        "rssBefore": 76972032,
+        "rssAfter": 129302528
+      },
+      {
+        "iteration": 2,
+        "outputLimited": true,
+        "code": 1,
+        "timedOut": false,
+        "retainedBytes": 4194304,
+        "rssBefore": 125009920,
+        "rssAfter": 151814144
+      },
+      {
+        "iteration": 3,
+        "outputLimited": true,
+        "code": 1,
+        "timedOut": false,
+        "retainedBytes": 4194304,
+        "rssBefore": 136970240,
+        "rssAfter": 162119680
+      },
+      {
+        "iteration": 4,
+        "outputLimited": true,
+        "code": 1,
+        "timedOut": false,
+        "retainedBytes": 4194304,
+        "rssBefore": 160006144,
+        "rssAfter": 164511744
+      },
+      {
+        "iteration": 5,
+        "outputLimited": true,
+        "code": 1,
+        "timedOut": false,
+        "retainedBytes": 4194304,
+        "rssBefore": 162398208,
+        "rssAfter": 164675584
+      }
+    ]
+  },
+  "remainingProviderDefect": {
+    "finding": "F05",
+    "command": "HARNESS_KNOWN_DEFECTS=1 node --test --test-name-pattern=^F05 test/work-flow.test.ts",
+    "exitCode": 1,
+    "qualifies": false,
+    "observation": "Ordinary provider error still lacks an implementation checkpoint; hr-009 stays open."
+  },
+  "limitations": [
+    "Windows process-tree termination and native/mobile/ML runtime qualification were not executed.",
+    "Diagnostic quotas are per process/run; cumulative retention across projects remains hr-025.",
+    "Memory figures are observations of five local runs, not a fixed bound on total V8 RSS. Captured bytes, event frames and disk writes have hard caps.",
+    "No provider requests, credentials, blog state, dependencies or Git history were changed.",
+    "Unconfirmed worker cleanup retains original workspace paths, not a verified checkpoint; operator recovery must first confirm worker termination."
+  ]
+}

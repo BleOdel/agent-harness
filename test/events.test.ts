@@ -117,3 +117,11 @@ test("each completed turn is announced as it happens", async () => {
   stream.finish();
   assert.deepEqual(seen, [1, 2], "one call per turn, with the running count");
 });
+
+test('event frames and warning retention stay bounded across chunks',()=>{
+ const events=new EventStream();
+ assert.throws(()=>events.push('x'.repeat(2*1024*1024)),/limit/i);
+ assert.equal(events.finish(),'');
+ const warnings=new EventStream();for(let i=0;i<10000;i++)warnings.push('warning '+i+'x'.repeat(200)+'\n');
+ assert.ok(Buffer.byteLength(warnings.unparsed.join('\n'))<=65536);
+});

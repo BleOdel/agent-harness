@@ -12,7 +12,7 @@
  * Exit 0 only when every probe behaved as the threat model claims.
  */
 
-import { spawn } from "node:child_process";
+import {run as runBounded} from "./run.ts";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { realpath } from "node:fs/promises";
 import os from "node:os";
@@ -21,21 +21,10 @@ import { buildRunArguments, CONTAINER_WORK, type SandboxLayout } from "./contain
 import { BOUNDARY_FAILURES, probeScript } from "./containment/probe.ts";
 import { applyConfigFile } from "./config.ts";
 
-function run(
-  executable: string,
-  args: readonly string[],
-): Promise<{ code: number | null; stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(executable, [...args], { stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => child.kill("SIGKILL"), 120_000);
-    timer.unref();
-    child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString("utf8"); });
-    child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString("utf8"); });
-    child.once("error", reject);
-    child.once("close", (code) => { clearTimeout(timer); resolve({ code, stdout, stderr }); });
-  });
+async function run(executable:string,args:readonly string[]) {
+ const result=await runBounded(executable,args,{timeoutMs:120000});
+ if(result.outputLimited||result.timedOut)throw Error('Boundary probe output is incomplete.');
+ return result;
 }
 
 function fail(message: string): never {

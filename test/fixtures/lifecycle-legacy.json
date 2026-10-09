@@ -1,0 +1,26 @@
+[
+  {
+    "owner": "features",
+    "original": "[\n  {\n    \"id\": \"task-1\",\n    \"title\": \"Example\",\n    \"criteria\": [\n      \"Observe the value.\"\n    ],\n    \"priority\": \"must\",\n    \"status\": \"todo\"\n  }\n]\n"
+  },
+  {
+    "owner": "preparation",
+    "original": "{\n  \"version\": 1,\n  \"taskId\": \"task-1\",\n  \"taskDigest\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"sourceDigest\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"state\": {\n    \"version\": 1,\n    \"blueprint\": {\n      \"version\": 1,\n      \"contract\": \"Example interface\",\n      \"coverage\": [],\n      \"cases\": []\n    },\n    \"cases\": []\n  }\n}\n"
+  },
+  {
+    "owner": "review-progress",
+    "original": "{\n  \"version\": 1,\n  \"taskId\": \"task-1\",\n  \"taskDigest\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"sourceDigest\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"proposal\": {\n    \"version\": 1,\n    \"contract\": \"Example\",\n    \"manifest\": {\n      \"version\": 1,\n      \"cases\": []\n    },\n    \"coverage\": []\n  },\n  \"ledger\": {\n    \"version\": 1,\n    \"entries\": []\n  }\n}\n"
+  },
+  {
+    "owner": "implementation",
+    "original": "{\n  \"version\": 1,\n  \"runId\": \"r1\",\n  \"goal\": \"task-1\",\n  \"attempt\": 1,\n  \"status\": \"available\",\n  \"partial\": {\n    \"digest\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n    \"files\": {\n      \"app.js\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n    }\n  },\n  \"baseline\": {\n    \"digest\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n  }\n}\n"
+  },
+  {
+    "owner": "stage",
+    "original": "{\n  \"version\": 1,\n  \"id\": \"r2\",\n  \"task\": \"task-1\",\n  \"status\": \"pending\",\n  \"candidate\": {\n    \"digest\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n    \"files\": {\n      \"app.js\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n    }\n  },\n  \"manual\": [\n    {\n      \"id\": \"appearance\",\n      \"instructions\": \"Review appearance.\"\n    }\n  ]\n}\n"
+  },
+  {
+    "owner": "team",
+    "original": "{\n  \"version\": 1,\n  \"runId\": \"team-fixture\",\n  \"seq\": 1,\n  \"status\": \"running\",\n  \"plan\": {\n    \"version\": 1,\n    \"roles\": [],\n    \"tasks\": []\n  },\n  \"baseline\": {\n    \"digest\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n  }\n}\n"
+  }
+]

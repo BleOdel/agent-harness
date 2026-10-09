@@ -207,6 +207,7 @@ export async function review(layout: SandboxLayout, request: ReviewRequest): Pro
     { timeoutMs: request.timeoutMs },
   );
 
+  if (result.outputLimited) return {verdict:"escalate",unmet:[],unaccounted:[],notes:[],failure:"the reviewer exceeded its output limit; partial output is not a verdict"};
   if (result.timedOut) {
     return { verdict: "escalate", unmet: [], unaccounted: [], notes: [], failure: "the reviewer timed out" };
   }

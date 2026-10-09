@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "allRestored": true,
+  "controls": [
+    {
+      "control": "git-capture-cap",
+      "file": "src/git.ts",
+      "mutation": "{timeoutMs:120000} \u2192 {timeoutMs:120000,maxOutputBytes:64*1024*1024}",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern=Git capture",
+        "test/git-output.test.ts"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "seconds": 0.57,
+      "diagnostics": "\u2716 Git capture refuses overflow instead of returning partial changed paths (441.939ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 526.154458\n\n\u2716 failing tests:\n\ntest at test/git-output.test.ts:8:1\n\u2716 Git capture refuses overflow instead of returning partial changed paths (441.939ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  2 !== 0\n  \n      at TestContext.<anonymous> (file:///Users/blessingodeleye/Documents/Codex/2026-09-08/github-projects-listed-chatgpt-conversation-6a9eb4e0/work/harness-output-limits/test/git-output.test.ts:14:10)\n      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 2,\n    expected: 0,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "control": "verification-partial-rejection",
+      "file": "src/verification-process.ts",
+      "mutation": "if(result.outputLimited||result.timedOut) \u2192 if(false)",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern=verification launchers",
+        "test/run-output.test.ts"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "seconds": 0.2,
+      "diagnostics": "\u2716 verification launchers reject oversized reports even when the child exits zero (72.522625ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 160.328333\n\n\u2716 failing tests:\n\ntest at test/run-output.test.ts:71:1\n\u2716 verification launchers reject oversized reports even when the child exits zero (72.522625ms)\n  AssertionError [ERR_ASSERTION]: Missing expected rejection.\n      at async TestContext.<anonymous> (file:///Users/blessingodeleye/Documents/Codex/2026-09-08/github-projects-listed-chatgpt-conversation-6a9eb4e0/work/harness-output-limits/test/run-output.test.ts:73:2)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: undefined,\n    expected: /output-limit/,\n    operator: 'rejects',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "control": "default-capture-cap",
+      "file": "src/run.ts",
+      "mutation": "DEFAULT_OUTPUT_BYTES=8*1024*1024 \u2192 DEFAULT_OUTPUT_BYTES=64*1024*1024",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern=F07",
+        "test/run-output.test.ts"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "seconds": 0.17,
+      "diagnostics": "\u2716 F07 subprocess output is bounded by default (57.028208ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 131.567583\n\n\u2716 failing tests:\n\ntest at test/run-output.test.ts:59:1\n\u2716 F07 subprocess output is bounded by default (57.028208ms)\n  AssertionError [ERR_ASSERTION]: the proposed default capture ceiling must stop a bounded 16 MiB flood\n  + actual - expected\n  \n  + undefined\n  - true\n  \n      at TestContext.<anonymous> (file:///Users/blessingodeleye/Documents/Codex/2026-09-08/github-projects-listed-chatgpt-conversation-6a9eb4e0/work/harness-output-limits/test/run-output.test.ts:61:9)\n      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: undefined,\n    expected: true,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "control": "event-frame-cap",
+      "file": "src/agent/events.ts",
+      "mutation": ">1024*1024){this.buffer \u2192 >64*1024*1024){this.buffer",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern=event frames",
+        "test/events.test.ts"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "seconds": 0.12,
+      "diagnostics": "\u2716 event frames and warning retention stay bounded across chunks (1.645833ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 83.697625\n\n\u2716 failing tests:\n\ntest at test/events.test.ts:121:1\n\u2716 event frames and warning retention stay bounded across chunks (1.645833ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n      at TestContext.<anonymous> (file:///Users/blessingodeleye/Documents/Codex/2026-09-08/github-projects-listed-chatgpt-conversation-6a9eb4e0/work/harness-output-limits/test/events.test.ts:123:9)\n      at Test.runInAsyncScope (node:async_hooks:226:14)\n      at Test.run (node:internal/test_runner/test:1382:25)\n      at Test.start (node:internal/test_runner/test:1242:17)\n      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: undefined,\n    expected: /limit/i,\n    operator: 'throws',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "control": "diagnostic-disk-quota",
+      "file": "src/run.ts",
+      "mutation": "const bytes=b.subarray(0,limit-diskBytes) \u2192 const bytes=b",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern=exclusive diagnostic",
+        "test/run-output.test.ts"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "seconds": 0.17,
+      "diagnostics": "\u2716 exclusive diagnostic storage is private and quota bounded on both streams (56.355625ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 127.378375\n\n\u2716 failing tests:\n\ntest at test/run-output.test.ts:27:1\n\u2716 exclusive diagnostic storage is private and quota bounded on both streams (56.355625ms)\n  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n  \n    assert.ok(info.size<=4096)\n  \n      at TestContext.<anonymous> (file:///Users/blessingodeleye/Documents/Codex/2026-09-08/github-projects-listed-chatgpt-conversation-6a9eb4e0/work/harness-output-limits/test/run-output.test.ts:33:74)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: false,\n    expected: true,\n    operator: '==',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "control": "builder-checkpoint",
+      "file": "src/verbs/work.ts",
+      "mutation": "if(agent.outputLimited) \u2192 if(false && agent.outputLimited)",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern=builder event-overflow",
+        "test/work-flow.test.ts"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "seconds": 1.05,
+      "diagnostics": "\u2716 builder event-overflow retains source before cleanup and never parses a success claim (810.466875ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 1008.538084\n\n\u2716 failing tests:\n\ntest at test/work-flow.test.ts:647:56\n\u2716 builder event-overflow retains source before cleanup and never parses a success claim (810.466875ms)\n  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /output.limit/i. Input:\n  \n  'item: api: api\\n' +\n    'sandbox: /private/var/folders/mm/dsnrrk_n6tn_29z7svvrbsj80000gn/T/harness-work-8DVAoS/work\\n' +\n    'withheld from the copy: features.json\\n' +\n    'environment: node-npm@1 on docker@1 (arm64)\\n' +\n    'skills available to builder: none\\n' +\n    'Model: fixture/fixture \u00b7 reasoning medium\\n' +\n    '\\n' +\n    'model: no usage reported\\n' +\n    '\\n' +\n    'agent: exited 1\\n'\n  \n      at TestContext.<anonymous> (file:///Users/blessingodeleye/Documents/Codex/2026-09-08/github-projects-listed-chatgpt-conversation-6a9eb4e0/work/harness-output-limits/test/work-flow.test.ts:653:80)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'item: api: api\\nsandbox: /private/var/folders/mm/dsnrrk_n6tn_29z7svvrbsj80000gn/T/harness-work-8DVAoS/work\\nwithheld from the copy: features.json\\nenvironment: node-npm@1 on docker@1 (arm64)\\nskills available to builder: none\\nModel: fixture/fixture \u00b7 reasoning medium\\n\\nmodel: no usage reported\\n\\nagent: exited 1\\n',\n    expected: /output.limit/i,\n    operator: 'match',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "control": "checkpoint-fallback",
+      "file": "src/verbs/work.ts",
+      "mutation": "retainWorkspace=true;\n          throw \u2192 retainWorkspace=false;\n          throw",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern=an overflow checkpoint failure",
+        "test/work-flow.test.ts"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "seconds": 0.94,
+      "diagnostics": "\u2716 an overflow checkpoint failure retains the original stopped workspace and a recovery record (750.38ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 902.8035\n\n\u2716 failing tests:\n\ntest at test/work-flow.test.ts:667:1\n\u2716 an overflow checkpoint failure retains the original stopped workspace and a recovery record (750.38ms)\n  Error: ENOENT: no such file or directory, open '/private/var/folders/mm/dsnrrk_n6tn_29z7svvrbsj80000gn/T/harness-work-fDk1IX/work/app.js'\n      at async open (node:internal/fs/promises:1360:25)\n      at async readFile (node:internal/fs/promises:2149:14)\n      at async TestContext.<anonymous> (file:///Users/blessingodeleye/Documents/Codex/2026-09-08/github-projects-listed-chatgpt-conversation-6a9eb4e0/work/harness-output-limits/test/work-flow.test.ts:675:16)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    errno: -2,\n    code: 'ENOENT',\n    syscall: 'open',\n    path: '/private/var/folders/mm/dsnrrk_n6tn_29z7svvrbsj80000gn/T/harness-work-fDk1IX/work/app.js'\n  }\n"
+    }
+  ]
+}

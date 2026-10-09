@@ -17,11 +17,12 @@ import {
   type SandboxLayout,
 } from "../containment/sandbox.ts";
 import { type AgentUsage, EventStream } from "./events.ts";
-import { type RunResult } from "../run.ts";
+import { OutputLimitError, type RunResult } from "../run.ts";
 import { runContained } from "../containment/process.ts";
 import { resourceArguments } from "./resources.ts";
 
 export interface AgentRequest {
+  readonly diagnosticFile?: string;
   readonly effort?: ReasoningEffort;
   readonly goal: string;
   readonly provider: string | undefined;
@@ -68,11 +69,11 @@ export async function runAgent(
   await assertModelEffort(layout.piPackageDirectory, request);
   const events = new EventStream();
   events.onTurn = onTurn;
-  const result = await runContained(
+  let result = await runContained(
     layout,
     dockerRunner.prepare(layout, "bridge", buildAgentCommand(request)).args,
-    { timeoutMs: request.timeoutMs, onOutput: (chunk) => { onOutput(events.push(chunk)); } },
+    { timeoutMs: request.timeoutMs, ...(request.diagnosticFile ? {diagnosticFile:request.diagnosticFile} : {}), onOutput: (chunk) => { onOutput(events.push(chunk)); } },
   );
-  onOutput(events.finish());
+  if(!result.outputLimited){try{onOutput(events.finish());}catch(error){if(!(error instanceof OutputLimitError))throw error;result={...result,code:1,outputLimited:true,termination:'output-limit'};}}
   return { ...result, usage: { ...events.current(), requestedEffort: request.effort ?? "medium" }, observedReads: events.skillReads(), providerError: events.failure() };
 }

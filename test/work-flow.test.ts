@@ -630,3 +630,67 @@ test('staged acceptance failures receive at most one repair and never apply fail
   assert.equal(await readFile(path.join(f.project,'app.js'),'utf8'),'export const value = 1;\n');
  }finally{await f.close();}
 });
+
+test('F05 provider interruption preserves useful unverified implementation', {skip:process.env.HARNESS_KNOWN_DEFECTS!=='1'},async()=>{
+ const f=await fixture([item('api')],'provider-error');
+ try{
+  const docker=await readFile(f.env.HARNESS_DOCKER!,'utf8');
+  await writeFile(f.env.HARNESS_DOCKER!,docker.replace("const blocked = mode",`if(mode === 'provider-error') { fs.writeFileSync(path.join(work,'app.js'),'export const value = 2;\\n');console.log(JSON.stringify({type:'message_end',message:{role:'assistant',stopReason:'error',errorMessage:'fixture transport disconnected'}}));process.exit(1); }\n const blocked = mode`));
+  const result=await f.run('work','api');assert.notEqual(result.code,0);assert.match(result.text,/fixture transport disconnected/);
+  assert.equal(await readFile(f.project+'/app.js','utf8'),'export const value = 1;\n');
+  const run=(await readRecord(f.project)).runs[0]!;
+  assert.equal(run.implementationCheckpoint,run.id,'useful files must survive provider interruption');
+  assert.equal(await readFile(harnessDirectory(f.project)+`/implementation/${run.id}/source/app.js`,'utf8'),'export const value = 2;\n');
+ }finally{await f.close();}
+});
+
+for(const mode of ['output-overflow','event-overflow'])test(`builder ${mode} retains source before cleanup and never parses a success claim`,async()=>{
+ const f=await fixture([item('api')],'changed');f.env.FLOW_MODE=mode;
+ try{
+  const docker=await readFile(f.env.HARNESS_DOCKER!,'utf8');
+  const flood=mode==='event-overflow'?`process.stdout.write('x'.repeat(2*1024*1024));`:`for(let i=0;i<256;i++)process.stdout.write(JSON.stringify({type:'ignored',text:'x'.repeat(65535)})+'\\n');`;
+  await writeFile(f.env.HARNESS_DOCKER!,docker.replace('const blocked = mode',`if(mode === '${mode}') {fs.writeFileSync(path.join(work,'app.js'),'export const value = 2;\\n');${flood}setInterval(()=>{},1000);return;}\nconst blocked = mode`));
+  const result=await f.run('work','api');assert.notEqual(result.code,0);assert.match(result.text,/output.limit/i);
+  const run=(await readRecord(f.project)).runs[0]!;assert.equal(run.interruption,'output-limit');assert.equal(run.implementationCheckpoint,run.id);
+  assert.equal(await readFile(harnessDirectory(f.project)+`/implementation/${run.id}/source/app.js`,'utf8'),'export const value = 2;\n');
+  assert.equal(await readFile(f.project+'/app.js','utf8'),'export const value = 1;\n');
+  assert.deepEqual((await f.calls()).map(c=>c.kind),['builder']);
+  const log=harnessDirectory(f.project)+`/diagnostics/${run.id}/builder-1.log`;
+  const {stat}=await import('node:fs/promises');assert.ok((await stat(log)).size<=8*1024*1024);assert.equal((await stat(log)).mode&0o777,0o600);
+  f.env.FLOW_MODE='resume';const resumed=await f.run('work','--resume',run.id);assert.equal(resumed.code,0,resumed.text);
+  assert.equal((await readRecord(f.project)).runs.at(-1)!.outcome,'applied');
+  for(const kind of ['gate','reviewer','acceptance'])assert.ok((await f.calls()).some(c=>c.kind===kind),kind);
+  assert.equal(await readFile(f.project+'/app.js','utf8'),'export const value = 2;\n');
+ }finally{await f.close();}
+});
+
+test('an overflow checkpoint failure retains the original stopped workspace and a recovery record',async()=>{
+ const f=await fixture([item('api')],'checkpoint-overflow');let retained:{source:string;controller:string}|undefined;
+ try{
+  const docker=await readFile(f.env.HARNESS_DOCKER!,'utf8');
+  await writeFile(f.env.HARNESS_DOCKER!,docker.replace('const blocked = mode',`if(mode === 'checkpoint-overflow') {fs.writeFileSync(path.join(work,'app.js'),'export const value = 2;\\n');fs.symlinkSync('app.js',path.join(work,'bad-link'));process.stdout.write('x'.repeat(2*1024*1024));setInterval(()=>{},1000);return;}\nconst blocked = mode`));
+  const result=await f.run('work','api');assert.notEqual(result.code,0);assert.match(result.text,/checkpoint creation failed/);
+  const run=(await readRecord(f.project)).runs[0]!;retained=run.retainedWorkspace;
+  assert.equal(run.interruption,'output-limit');assert.ok(retained);assert.equal(run.implementationCheckpoint,undefined);
+  assert.equal(await readFile(retained.source+'/app.js','utf8'),'export const value = 2;\n');
+  assert.equal(await readFile(f.project+'/app.js','utf8'),'export const value = 1;\n');
+ }finally{
+  if(retained){assert.match(path.basename(path.dirname(retained.source)),/^harness-work-/);assert.match(path.basename(retained.controller),/^harness-controller-/);await rm(path.dirname(retained.source),{recursive:true,force:true});await rm(retained.controller,{recursive:true,force:true});}
+  await f.close();
+ }
+});
+
+test('overflow with unconfirmed container cleanup retains source without claiming a checkpoint',async()=>{
+ const f=await fixture([item('api')],'cleanup-overflow');let retained:{source:string;controller:string}|undefined;
+ try{
+  const docker=await readFile(f.env.HARNESS_DOCKER!,'utf8');
+  await writeFile(f.env.HARNESS_DOCKER!,docker.replace("if (args[0] === 'rm') process.exit(0);", "if (args[0] === 'rm') {if(fs.existsSync(process.env.FLOW_LOG) && fs.readFileSync(process.env.FLOW_LOG,'utf8').includes('builder')){console.error('fixture cleanup unavailable');process.exit(1);}process.exit(0);}").replace('const blocked = mode',`if(mode === 'cleanup-overflow') {fs.writeFileSync(path.join(work,'app.js'),'export const value = 2;\\n');process.stdout.write('x'.repeat(2*1024*1024));setInterval(()=>{},1000);return;}\nconst blocked = mode`));
+  const result=await f.run('work','api');assert.notEqual(result.code,0);assert.match(result.text,/cleanup unavailable/);
+  const run=(await readRecord(f.project)).runs[0]!;assert.ok(run,'interruption must be recorded');retained=run.retainedWorkspace;
+  assert.ok(retained);assert.equal(run.implementationCheckpoint,undefined);
+  assert.equal(await readFile(retained.source+'/app.js','utf8'),'export const value = 2;\n');
+ }finally{
+  if(retained){assert.match(path.basename(path.dirname(retained.source)),/^harness-work-/);assert.match(path.basename(retained.controller),/^harness-controller-/);await rm(path.dirname(retained.source),{recursive:true,force:true});await rm(retained.controller,{recursive:true,force:true});}
+  await f.close();
+ }
+});

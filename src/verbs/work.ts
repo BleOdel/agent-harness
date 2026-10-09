@@ -210,6 +210,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
   const adapter = getAdapter((await readProfile(project)).adapter);
   const workspace = await createRunWorkspace(project, adapter.source.generatedDirectories);
   const { sandbox } = workspace;
+  let retainWorkspace = false;
   let baseline = workspace.baseline;
   let execution: ExecutionPin | undefined;
   const observedReads = new Set<string>();
@@ -413,6 +414,8 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       await mark("building");
       await assertExecutionCompatible(execution!, project, config, testCommand);
       await assertSkillBundles(path.join(harnessDirectory(project), "executions", runId, "skills"), execution!.skills);
+      const diagnosticsDirectory=path.join(harnessDirectory(project),'diagnostics',runId);
+      await mkdir(diagnosticsDirectory,{recursive:true,mode:0o700});
       workerStopped = false;
       const built = await executeAndSubmit(
         layout,
@@ -423,6 +426,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
           effort: config.effort ?? "medium",
           timeoutMs: config.agentTimeoutMs,
           skills: execution!.skills.length > 0,
+          diagnosticFile:path.join(diagnosticsDirectory,`builder-${attempt}.log`),
         },
         (chunk) => process.stdout.write(chunk),
         (usage) => {
@@ -448,6 +452,18 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       say("");
       say(describeUsage(spent));
 
+      if(agent.outputLimited){
+        const diagnostic=`Output-limit: ${agent.outputProblem ?? "captured process output or an event frame exceeded its bound"}. Diagnostics: ${agent.diagnosticFile ?? diagnosticsDirectory}`;
+        let saved;
+        try{saved=await saveWorkCheckpoint(project,runId,sandbox.workDirectory,{...checkpointInputs,attempt,instruction});}
+        catch(error){
+          // The worker is confirmed stopped. Never destroy the only useful source after a new cutoff.
+          retainWorkspace=true;
+          throw await stop('error','agent: output-limit; checkpoint creation failed',`${diagnostic}\n${(error as Error).message}\nUnverified source retained: ${sandbox.workDirectory}. Controller workspace: ${workspace.root}. Nothing was applied.`,{interruption:'output-limit',retainedWorkspace:{source:sandbox.workDirectory,controller:workspace.root}});
+        }
+        if(checkpoint)await retireWorkCheckpoint(checkpoint,'superseded',runId);
+        throw await stop('error','agent: output-limit; unverified partial work saved',`${diagnostic}\nSaved source: ${path.join(saved.directory,'source')}\nContinue with: harness work --resume ${runId}. Nothing was applied.`,{interruption:'output-limit',implementationCheckpoint:runId});
+      }
       if (agent.timedOut) {
         let saved;
         try {
@@ -760,6 +776,12 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       return;
     }
   } catch (error) {
+    if(!recorded&&!workerStopped&&!applicationStarted&&attempts>0){
+      retainWorkspace=true;
+      throw await stop('error',`Builder termination could not be confirmed: ${(error as Error).message}`,
+        `Unverified source retained: ${sandbox.workDirectory}. Controller workspace: ${workspace.root}. Confirm the worker has stopped before inspecting or recovering this source. Nothing was applied.`,
+        {retainedWorkspace:{source:sandbox.workDirectory,controller:workspace.root}});
+    }
     // A failed verifier cannot write the original worker source. Preserve that source
     // even when a gate/reviewer throws instead of returning a structured failure.
     // Never snapshot an unconfirmed live builder or imply recovery after partial apply.
@@ -769,10 +791,10 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
     }
     throw error;
   } finally {
-    // Every path, including a crash. A sandbox that survives a failure is
-    // a stale copy the operator will one day mistake for the project.
+    // Remove stopped disposable work only after preservation succeeds. An explicitly
+    // recorded recovery workspace stays unverified and must not be mistaken for live source.
     clearInterval(beat);
-    await destroyRunWorkspace(workspace);
+    if(!retainWorkspace)await destroyRunWorkspace(workspace);
     // And the run marker, so a watching page does not show this as still
     // going. A kill -9 skips this, which is what the heartbeat is for.
     await clearStatus(project).catch(() => undefined);

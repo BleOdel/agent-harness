@@ -77,6 +77,7 @@ export async function runTestGate(
   } finally { await rm(instrumentation, { recursive: true, force: true }); }
   const executed = await assertionsExecuted(layout.workDirectory);
 
+  if(result.outputLimited)return failed("output-limit","command output-limit: incomplete output cannot pass verification",result.stdout+result.stderr);
   if (result.timedOut) {
     return failed(
       "timed-out",
