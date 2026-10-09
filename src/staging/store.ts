@@ -56,16 +56,16 @@ export async function readStage(project:string,id:string):Promise<Stage>{
 export async function listStages(p:string):Promise<Stage[]>{const ids=await readdir(root(p)).catch((e:NodeJS.ErrnoException)=>{if(e.code==='ENOENT')return [];throw e;});return Promise.all(ids.filter(id=>/^r[1-9][0-9]*$/.test(id)).sort((a,b)=>Number(b.slice(1))-Number(a.slice(1))).map(id=>readStage(p,id)));}
 export async function pendingStage(p:string,task?:string):Promise<Stage|undefined>{return (await listStages(p)).find(s=>['pending','applying'].includes(s.status)&&(!task||s.task===task));}
 export async function assertStageCurrent(project:string,s:Stage,partialApplication=false):Promise<void>{
- await assertSnapshot(s.candidate);await assertSnapshot(s.baseline);
+ await assertSnapshot(s.candidate,partialApplication);await assertSnapshot(s.baseline,partialApplication);
  for(const snapshot of [s.baseline,s.candidate]){
-  const files=await sourceFiles(snapshot.directory,'',snapshot.exclusions);
+  const files=await sourceFiles(snapshot.directory,'',snapshot.exclusions,snapshot.identityVersion??1);
   if(JSON.stringify(Object.entries(files).sort())!==JSON.stringify(Object.entries(snapshot.files).sort()))throw new OperatorError('Staged file manifest changed.');
  }
  const changes=[...new Set([...Object.keys(s.baseline.files),...Object.keys(s.candidate.files)])].filter(f=>s.baseline.files[f]!==s.candidate.files[f]).sort().map(file=>({file,kind:s.candidate.files[file]===undefined?'deleted':s.baseline.files[file]===undefined?'added':'modified',symlink:false}));
  if(JSON.stringify(changes)!==JSON.stringify(s.candidate.changes))throw new OperatorError('Staged change set does not match frozen source.');
  if(s.candidate.executionDigest){if(!s.execution)throw new OperatorError('Missing staged execution identity.');assertExecutionPin(s.execution);if(s.execution.digest!==s.candidate.executionDigest)throw new OperatorError('Staged execution identity changed.');}
  if(!partialApplication)await assertLiveBaseline(project,s.baseline);
- await assertAutomatedAcceptanceProof(project,s.candidate,s.tasks,s.acceptance);
+ await assertAutomatedAcceptanceProof(project,s.candidate,s.tasks,s.acceptance,partialApplication);
  const a=await requireStagingChecks(project,s.tasks),manual=a.manifest.cases.filter(c=>caseKind(c)==='manual'&&(c.tasks.includes('*')||c.tasks.some(t=>s.tasks.includes(t)))).map(c=>({id:c.id,instructions:c.manual!.instructions}));
  if(JSON.stringify(manual)!==JSON.stringify(s.manual))throw new OperatorError('Staged manual requirements changed.');
 }

@@ -1,3 +1,4 @@
+import {contentDigest} from '../workspace/file-identity.ts';
 import {readProfile} from '../project/profile.ts';
 import {randomUUID} from 'node:crypto';
 import {lstat,readFile,readdir,realpath,rename,rm} from 'node:fs/promises';
@@ -26,7 +27,7 @@ export async function listTorch(project:string){return (await readdir(await torc
 export async function assertTorchSource(project:string,a:TorchApproval,holdout:TorchRow[]){
  const files=await sourceFiles(project,'',['.venv','__pycache__','.harness-python','dist','build']),ids=new Set(holdout.map(r=>r.id));
  for(const [file,digest] of Object.entries(files)){
-  if(digest===a.sourceHash)throw Error('Move the dataset outside project source.');
+  if(contentDigest(digest)===a.sourceHash)throw Error('Move the dataset outside project source.');
   if(file.endsWith('.json')){let rows:any;try{const raw=JSON.parse(await readFile(path.join(project,file),'utf8'));rows=Array.isArray(raw)?raw:raw.rows;}catch{continue;}
    if(Array.isArray(rows)&&rows.some(r=>r&&ids.has(r.id)&&Array.isArray(r.x)))throw Error('Protected holdout rows found in project source.');}
  }

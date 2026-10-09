@@ -1,3 +1,4 @@
+import {identityMode,contentDigest} from '../workspace/file-identity.ts';
 /** Merge a candidate's own ancestry into current staging without changing either input. */
 import { chmod, lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -12,16 +13,18 @@ const text = (bytes: Buffer): string | undefined => {
 export async function integrateCandidate(base: Snapshot, candidate: Snapshot, current: Snapshot, destination: string, contracts: readonly string[], sharedInputs: readonly string[] = ["package.json", "package-lock.json", "npm-shrinkwrap.json"]): Promise<Integration> {
   if (base.executionDigest !== current.executionDigest || candidate.executionDigest !== current.executionDigest) throw new Error("Integration environment identity differs between source snapshots.");
   if (base.productDigest !== current.productDigest || candidate.productDigest !== current.productDigest) throw new Error("Integration product specification differs between source snapshots.");
-  for (const [file,digest] of Object.entries(current.protectedDocuments ?? {})) if (candidate.files[file] !== digest) throw new Error(`Protected product document changed: ${file}`);
+  for (const [file,digest] of Object.entries(current.protectedDocuments ?? {})) if (contentDigest(candidate.files[file]) !== digest || candidate.files[file]!==current.files[file]) throw new Error(`Protected product document changed: ${file}`);
   await Promise.all([assertSnapshot(base), assertSnapshot(candidate), assertSnapshot(current)]);
   const shared = new Set([...Object.keys(base.files), ...Object.keys(current.files)].filter(file => sharedInputs.includes(path.basename(file)) || contracts.some(c => file === c || file.startsWith(`${c}/`))));
   const stale = [...shared].filter(file => base.files[file] !== current.files[file]);
   if (stale.length) return { ok: false, reason: "Candidate has stale dependency or contract inputs; retry from current staging.", files: stale };
   const writes = new Map<string, Buffer | undefined>();
+  const modes=new Map<string,number>();
   const conflicts: string[] = [];
   for (const file of new Set([...Object.keys(base.files), ...Object.keys(candidate.files)])) {
     const before = base.files[file], incoming = candidate.files[file], accepted = current.files[file];
     if (before === incoming || incoming === accepted) continue;
+    if(incoming!==undefined){const incomingMode=identityMode(incoming),baseMode=before?identityMode(before):undefined,currentMode=accepted?identityMode(accepted):undefined;modes.set(file,incomingMode===baseMode?(currentMode??incomingMode):incomingMode);}
     if (before === accepted) {
       writes.set(file, incoming === undefined ? undefined : await readFile(path.join(candidate.directory, file))); continue;
     }
@@ -51,7 +54,7 @@ export async function integrateCandidate(base: Snapshot, candidate: Snapshot, cu
       const target = path.join(work, file);
       if ((await lstat(target).catch(() => undefined))?.isDirectory()) await rm(target, { recursive: true });
       await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, bytes);
-      if (current.files[file] === undefined) await chmod(target, (await lstat(path.join(candidate.directory, file))).mode & 0o777);
+      await chmod(target,modes.get(file)!);
     }
     return { ok: true, proposal: { ...await captureBaseline(work, destination, current.exclusions, current.executionDigest), ...(current.productDigest ? {productDigest:current.productDigest,protectedDocuments:current.protectedDocuments} : {}) } };
   } finally { await rm(work, { recursive: true, force: true }); }

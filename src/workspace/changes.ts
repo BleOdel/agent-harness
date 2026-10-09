@@ -1,3 +1,4 @@
+import {fileIdentity} from './file-identity.ts';
 /**
  * What the model did, expressed as a set of file changes, and whether
  * that set is safe to apply.
@@ -166,7 +167,7 @@ export async function fingerprintTree(root: string, prefix = "", exclusions: rea
       const stats = await lstat(path.join(root, relative));
       found.set(
         relative,
-        stats.isSymbolicLink() ? SYMLINK : await readFile(path.join(root, relative), "base64"),
+        stats.isSymbolicLink() ? SYMLINK : fileIdentity(await readFile(path.join(root, relative)),stats.mode),
       );
     }
   }

@@ -1,3 +1,5 @@
+import {fileIdentity,identityAt,identityMode,portableMode} from './file-identity.ts';
+import {atomicBytes} from './atomic.ts';
 /**
  * Create a disposable copy, apply what the gates proved, destroy the copy.
  *
@@ -7,11 +9,11 @@
  * slowly accumulating the operator's disk.
  */
 
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, cp, lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { safePath } from "./safe-path.ts";
-import { captureBaseline, type Snapshot } from "./candidate.ts";
+import { assertLiveBaseline, assertSnapshot, captureBaseline, type Snapshot } from "./candidate.ts";
 import { type Change, sourceExclusion, sourceExclusions, assertChangesAreApplicable } from "./changes.ts";
 
 export interface Sandbox {
@@ -78,23 +80,26 @@ export async function snapshotForRecovery(
 ): Promise<Recovery> {
   assertChangesAreApplicable(changes, copy);
   const files: string[] = [];
+  const before:Record<string,string>={},after:Record<string,string>={};
   for (const change of changes) {
     if (change.kind !== "added") {
       const destination = path.join(directory, "before", change.file);
       await mkdir(path.dirname(destination), { recursive: true });
-      await writeFile(destination, await readFile(path.join(project, change.file)));
+      const source=await safePath(project,change.file),bytes=await readFile(source),mode=portableMode((await lstat(source)).mode);
+      await writeFile(destination,bytes);await chmod(destination,mode);before[change.file]=fileIdentity(bytes,mode);
     }
     if (change.kind !== "deleted") {
       const destination = path.join(directory, "after", change.file);
       await mkdir(path.dirname(destination), { recursive: true });
-      await writeFile(destination, await readFile(path.join(copy, change.file)));
+      const source=await safePath(copy,change.file),bytes=await readFile(source),mode=portableMode((await lstat(source)).mode);
+      await writeFile(destination,bytes);await chmod(destination,mode);after[change.file]=fileIdentity(bytes,mode);
     }
     files.push(change.file);
   }
   await mkdir(directory, { recursive: true });
   await writeFile(
     path.join(directory, "CHANGES.json"),
-    `${JSON.stringify({ project, changes }, null, 2)}\n`,
+    `${JSON.stringify({ identityVersion:2, project, changes, before, after }, null, 2)}\n`,
     "utf8",
   );
   return { directory, files };
@@ -104,20 +109,26 @@ export async function applyChanges(
   project: string,
   copy: string,
   changes: readonly Change[],
+  baseline?:Snapshot, candidate?:Snapshot,
 ): Promise<void> {
   assertChangesAreApplicable(changes, copy);
+  if(baseline)await assertLiveBaseline(project,baseline);if(candidate)await assertSnapshot(candidate);
   for (const change of changes) {
     await safePath(project, change.file);
     if (change.kind !== "deleted") await safePath(copy, change.file);
   }
   for (const change of changes) {
     const destination = await safePath(project, change.file);
+    const expected=baseline?baseline.files[change.file]:await identityAt(destination);
+    const unchanged=async()=>{await safePath(project,change.file);if(await identityAt(destination)!==expected)throw Error(`Live content or mode changed at ${change.file}; refusing stale apply.`);};
     if (change.kind === "deleted") {
-      await rm(destination, { force: true });
+      await unchanged();await rm(destination, { force: true });
       continue;
     }
     await mkdir(path.dirname(destination), { recursive: true });
-    await writeFile(destination, await readFile(path.join(copy, change.file)));
+    const source=await safePath(copy,change.file),bytes=await readFile(source),mode=portableMode((await lstat(source)).mode);
+      if(candidate&&fileIdentity(bytes,mode)!==candidate.files[change.file])throw Error('Candidate content or mode changed before application.');
+    await atomicBytes(destination,bytes,mode,path.dirname(destination),unchanged);
   }
 }
 

@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "kind": "local-mode-identity-validation",
+  "at": "2026-10-09T16:52:12.742204+00:00",
+  "status": "passed",
+  "source": {
+    "baseCommit": "2383129c066b723550ba3f0fa8f7c8206178a905",
+    "state": "disposable uncommitted overlay",
+    "codeTreeSha256": "04ddb3fd29723273b3b1466d0585538b099ee5709ca7938e58ce915d023983c7",
+    "hashDefinition": "SHA256 of compact sorted JSON path-to-SHA256 map for src/**, test/**, package.json, package-lock.json and tsconfig.json; documentation excluded.",
+    "changedCode": {
+      "src/acceptance/checks.ts": "a734fac3af51c12cba6148d8cf08f8002cc3eedef9b54e0e9f89e05722289782",
+      "src/ml/store.ts": "bff73d6fb0c1bf97a4607f1800a3bddf330d1a183136ae5da526cf0a5f781060",
+      "src/product/report.ts": "6cfeaa78d2d839389f13c27c8910596328c246a35e7dd86dc051416deb976988",
+      "src/recovery/plan-undo.ts": "44a0b6a3eb701cd1c5dabd7c2d336e2dca6ba775dfe7b844700a4027d613ae08",
+      "src/review/diff.ts": "c32d12a524082bd055fc81b14caaf62719eb29b1611352bab457c9e37cba0989",
+      "src/staging/apply.ts": "789fd3b20aa5e8c788a28675899328c98ede278f84c90a9d52579030f2f9dfd5",
+      "src/staging/store.ts": "4e711fa1b55baecbd386c9cfe507d3d350645d3f47b62f1d0065cc0750a3ab9d",
+      "src/team/apply.ts": "4ee802453239b32a0caec386be0a49f1d076d56dc36724894f05bcc23ecebbd3",
+      "src/team/integrate.ts": "5917fda963d486393b0bf83f9cf851f5343b2c82c756d5d49d8f74b30cc82c77",
+      "src/torch/store.ts": "f485c455bf4ca2ac39ae29d8c591d1190ce7d010a7701bf6722d2c4828cbe9b0",
+      "src/verbs/show.ts": "c00e5cc3b16b3850deea92a58b78258f36675a575e523b5e663e5360b3cb7a76",
+      "src/verbs/undo.ts": "4aaca0fe4a1b909eebf0093bb5f626b60e2abc33d5a6a6755d398199835f11be",
+      "src/verbs/work.ts": "80c90fe741e743639d9ecaa1ceca34ea7e391068606d27b1e5cab46277fd3f0c",
+      "src/view/workspace.ts": "36401d7725c4a9fee16b57123ec031ce9ea998642cc3199b3630611c721ab9a7",
+      "src/workspace/candidate.ts": "fd71ed7a36de47e93eb58b622da991d5e604ee4e32d0256955bf8deb59202656",
+      "src/workspace/changes.ts": "6504210957b7d2fb189e554b3f218c3af06ec7718a01b2b3e8a581974c40db13",
+      "src/workspace/file-identity.ts": "ff4bcff05970952b3530ce2c4b31a6a901210e670e833b587e1f5e7106b029ff",
+      "src/workspace/sandbox-lifecycle.ts": "33426d6153576849bb54fdccd6de7fb35f79fde3a7adc4153fdf4a468df15a5c",
+      "src/workspace/work-checkpoints.ts": "59b336997f41182a57ad3038738d84e3831ecd3f67c36afbf37195fc11912bfa",
+      "test/acceptance-fixture.ts": "eb1098e4d2afe4a20a4d196a785ac05526a750c14d7aaa061f8510786a90636c",
+      "test/mode-identity.test.ts": "71e1c4af488d51b9e1817eb4b1675caac36f008e0010cd7423154598ddb302c3",
+      "test/reliability-defects.test.ts": "552eaecef8c02f11063d287c235969a21f458ac9be1e49ceb6412cec187cefaa",
+      "test/source-selection.test.ts": "2cfae2ecaa3d87239ab8c1f2e0dd6b8f2b9a288804daa6daa834662f4660e747",
+      "test/staged-review.test.ts": "f807a74a9e9e63a5bba87c44098e1caecfaf5836140808a3e3c8b4248b0d8e60",
+      "test/team-application.test.ts": "b4ad2f243de1b80534fa5dd6d0a14e39834b7436a519ae25afa491f825b4a102"
+    }
+  },
+  "runtime": {
+    "host": "Darwin",
+    "architecture": "arm64",
+    "node": "v26.5.0",
+    "providers": "none; isolated fixtures only"
+  },
+  "requiredCheck": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "tests": 964,
+    "pass": 891,
+    "fail": 0,
+    "skipped": 73,
+    "cancelled": 0,
+    "limitation": "Known defects and optional runtime lanes remain explicit skips, never qualification."
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-09T16:49:58.456Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "16a46c53df3c6259fbec69915faea2e7e76fb115f54cbe83a59cf631e2ae5031",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 12,
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-09T16:50:43.556Z"
+  },
+  "linuxModes": {
+    "command": "docker run --rm --network none --read-only --user 501:20 --cap-drop ALL --security-opt no-new-privileges --cpus 2 --memory 512m --pids-limit 256 --tmpfs /tmp:rw,exec,nosuid,nodev,size=134217728 [read-only source/dependency mounts] --workdir /work sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb node --test test/mode-identity.test.ts",
+    "image": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "exitCode": 0,
+    "tests": 4,
+    "passed": 4,
+    "skipped": 0,
+    "diagnostics": "  restored    run.sh\n\nundid r1, recorded as r2. Undo that with: harness undo r2\nThe suite was not re-run. Check it before working on top of this.\n  restored    run.sh\n\nundid r2, recorded as r3. Undo that with: harness undo r3\nThe suite was not re-run. Check it before working on top of this.\n\u2714 F06 mode-only changes are verified, applied, undone and redone (42.159791ms)\n\u2714 mode drift invalidates frozen and live identity, while irrelevant permission bits do not (4.93125ms)\n\u2714 privileged source modes fail closed and byte-only snapshots are not fresh evidence (6.65975ms)\n\u2714 ordinary apply refuses a changed live mode after verification (6.918917ms)\n\u2139 tests 4\n\u2139 suites 0\n\u2139 pass 4\n\u2139 fail 0\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 489.338792\n",
+    "note": "Initial noexec temporary mount prevented launching the fixture script. The successful run explicitly enables executable test scratch storage; source stays read-only."
+  },
+  "requiredRegressions": [
+    "test/mode-identity.test.ts",
+    "test/staged-review.test.ts",
+    "test/team-application.test.ts"
+  ],
+  "negativeControls": "docs/reliability/evidence/mode-identity-controls.json",
+  "remainingTransactionDefect": {
+    "finding": "F04",
+    "command": "HARNESS_KNOWN_DEFECTS=1 node --test --test-name-pattern=^F04 test/reliability-defects.test.ts",
+    "exitCode": 1,
+    "qualifies": false,
+    "observation": "Late second-file source failure still leaves partial ordinary application; hr-010 remains open."
+  },
+  "limitations": [
+    "Windows ACL semantics and native/mobile/ML runtimes were not qualified.",
+    "Portable identity normalizes executable status; exact read/write permissions, ownership, timestamps and ACLs are not source semantics.",
+    "Legacy byte-only journals can recover existing intents under their original guarantees but cannot become fresh mode-aware evidence.",
+    "Legacy ordinary snapshots lack historical executable metadata; undo preserves current mode where available and defaults missing restored files to 0644.",
+    "No existing project or blog state was migrated, no provider requests were sent, and no dependencies were added.",
+    "Cross-file atomicity and complete controller adoption remain separate tasks."
+  ]
+}

@@ -1,3 +1,4 @@
+import {contentDigest} from '../workspace/file-identity.ts';
 /** Approved data and holdout labels never enter a job's writable or readonly mounts. */
 import { randomUUID } from 'node:crypto';
 import { lstat, readFile, readdir, realpath, rename, rm } from 'node:fs/promises';
@@ -61,7 +62,7 @@ export async function assertNoProtectedSource(project:string,data:ApprovedData):
  const adapter=getAdapter((await readProfile(project)).adapter),files=await sourceFiles(project,'',adapter.source.generatedDirectories);
  const ids=new Set(data.holdout.map(r=>r.id));
  for(const [file,digest] of Object.entries(files)){
-  if(digest===data.approval.dataset.sourceHash)throw new OperatorError(`Protected dataset was copied into project source: ${file}. Move datasets outside the project.`);
+  if(contentDigest(digest)===data.approval.dataset.sourceHash)throw new OperatorError(`Protected dataset was copied into project source: ${file}. Move datasets outside the project.`);
   if(!/\.(?:csv|json)$/iu.test(file))continue;
   let rows:Row[]=[];
   const text=await readFile(path.join(project,file),'utf8');

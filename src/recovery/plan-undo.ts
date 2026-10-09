@@ -1,3 +1,5 @@
+import {readFile} from 'node:fs/promises';
+import {identityAt,identityMode} from '../workspace/file-identity.ts';
 /**
  * What undoing one run would do to each file, decided without writing
  * anything.
@@ -35,14 +37,28 @@ export async function planUndo(
   project: string,
   run: RunRecord,
   snapshot: string,
-): Promise<{ outcomes: FileOutcome[]; writes: Map<string, Buffer | undefined> }> {
+): Promise<{ outcomes: FileOutcome[]; writes: Map<string, Buffer | undefined>; modes:Map<string,number>; expected:Map<string,string|undefined> }> {
   const outcomes: FileOutcome[] = [];
   const writes = new Map<string, Buffer | undefined>();
+  const modes=new Map<string,number>(),expected=new Map<string,string|undefined>();
+  const raw=await readFile(path.join(snapshot,'CHANGES.json'),'utf8').catch((e:NodeJS.ErrnoException)=>{if(e.code==='ENOENT')return undefined;throw e;});
+  const manifest=raw?JSON.parse(raw):undefined;
+  if(manifest?.identityVersion!==undefined&&manifest.identityVersion!==2)throw Error('Unknown recovery identity version.');
 
   for (const change of run.changes) {
     const current = await readSafe(project, change.file);
     const before = await readSafe(path.join(snapshot, "before"), change.file);
     const after = await readSafe(path.join(snapshot, "after"), change.file);
+    const currentId=await identityAt(path.join(project,change.file));expected.set(change.file,currentId);
+    const currentMode=currentId?identityMode(currentId):undefined;
+    if(manifest?.identityVersion===2){
+      const beforeId=await identityAt(path.join(snapshot,'before',change.file)),afterId=await identityAt(path.join(snapshot,'after',change.file));
+      if(beforeId!==manifest.before?.[change.file]||afterId!==manifest.after?.[change.file])throw Error('Recovery content or executable mode changed.');
+      const beforeMode=beforeId?identityMode(beforeId):undefined,afterMode=afterId?identityMode(afterId):undefined;
+      modes.set(change.file,beforeMode===afterMode?(currentMode??beforeMode??0o644):(beforeMode??0o644));
+      if(change.kind==='added'&&currentMode!==undefined&&afterMode!==currentMode){outcomes.push({file:change.file,action:'conflicted',detail:'executable mode changed since creation'});continue;}
+    }else modes.set(change.file,currentMode??0o644);
+
 
     if (change.kind === "added") {
       if (current === undefined) {
@@ -105,6 +121,6 @@ export async function planUndo(
     outcomes.push({ file: change.file, action: "merged", detail: `${String(merged.kept)} later edits kept` });
   }
 
-  return { outcomes, writes };
+  return { outcomes, writes, modes, expected };
 }
 

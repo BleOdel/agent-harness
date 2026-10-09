@@ -1,3 +1,4 @@
+import {identityMode} from '../workspace/file-identity.ts';
 import { sourceExclusion } from '../workspace/changes.ts';
 import { listWorkCheckpoints } from "../workspace/work-checkpoints.ts";
 /**
@@ -66,10 +67,12 @@ export async function show(project: string, argv: readonly string[]): Promise<vo
     return;
   }
 
+  const metadata=await readFile(path.join(snapshot,'CHANGES.json'),'utf8').then(JSON.parse).catch(()=>undefined);
   for (const change of run.changes) {
     say(`--- ${change.kind}: ${change.file}`);
     const excluded = sourceExclusion(change.file);
     if (excluded) { say(`  (withheld: ${excluded}; retained snapshot is unchanged)`); continue; }
+    if(metadata?.identityVersion===2){const modes=[metadata.before?.[change.file],metadata.after?.[change.file]].map(id=>id?identityMode(id).toString(8):'absent');if(modes[0]!==modes[1])say(`executable mode: ${modes[0]} -> ${modes[1]}`);}
     const before = await read(path.join(snapshot, "before", change.file)) ?? [];
     const after = await read(path.join(snapshot, "after", change.file)) ?? [];
     for (const line of diffLines(before, after)) {

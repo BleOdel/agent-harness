@@ -1,3 +1,4 @@
+import {fileIdentity,identityMode} from '../workspace/file-identity.ts';
 import {sourceExclusion} from '../workspace/changes.ts';
 import {listStages} from '../staging/store.ts';
 import {parseContinuation} from '../workflow/store.ts';
@@ -56,8 +57,8 @@ async function stagedDiff(root:string,before:Snapshot,after:Snapshot):Promise<Fi
  const result:FileDiff[]=[];
  for(const file of files.slice(0,40)){
   const excluded=sourceExclusion(file);if(excluded){result.push({file,kind:'unavailable',lines:[],note:`Withheld: ${excluded}; retained snapshot is unchanged.`});continue;}
-  const read=async(s:Snapshot)=>{if(!s.files[file])return '';const rel=path.relative(root,path.join(await realpath(s.directory),file));const data=await bytes(root,rel,64*1024);if(!data||hash(data)!==s.files[file])throw Error('Retained diff bytes changed or are unavailable');const text=data.toString('utf8');if(text.split('\n').length>1500)throw Error('Diff line limit exceeded');return isBinary(text)?undefined:text;};
-  try{const a=await read(before),b=await read(after);result.push({file,kind:!before.files[file]?'added':!after.files[file]?'deleted':'modified',lines:a===undefined||b===undefined?[]:diffLines(a.split('\n'),b.split('\n')).filter(l=>/^[+-]/.test(l)).slice(0,600),note:'Retained staging comparison; maximum 600 changed lines per file. Binary and oversized files require CLI inspection.'});}
+  const read=async(s:Snapshot)=>{if(!s.files[file])return '';const rel=path.relative(root,path.join(await realpath(s.directory),file));const data=await bytes(root,rel,64*1024);if(!data||fileIdentity(data,(await lstat(path.join(s.directory,file))).mode,s.identityVersion??1)!==s.files[file])throw Error('Retained diff bytes changed or are unavailable');const text=data.toString('utf8');if(text.split('\n').length>1500)throw Error('Diff line limit exceeded');return isBinary(text)?undefined:text;};
+  try{const a=await read(before),b=await read(after);result.push({file,kind:!before.files[file]?'added':!after.files[file]?'deleted':'modified',lines:a===undefined||b===undefined?[]:diffLines(a.split('\n'),b.split('\n')).filter(l=>/^[+-]/.test(l)).slice(0,600),note:(before.identityVersion===2&&after.identityVersion===2?`Executable mode ${before.files[file]?identityMode(before.files[file]!).toString(8):'absent'} → ${after.files[file]?identityMode(after.files[file]!).toString(8):'absent'}. `:'Legacy byte-only identity. ')+'Retained staging comparison; maximum 600 changed lines per file. Binary and oversized files require CLI inspection.'});}
   catch{result.push({file,kind:'unavailable',lines:[],note:'Diff unavailable: snapshot is missing, changed, oversized or unsafe. Inspect before applying.'});}
  }
  if(files.length>40)result.push({file:'Additional files',kind:'omitted',lines:[],note:`${files.length-40} additional files are not embedded. Use harness team inspect.`});return result;

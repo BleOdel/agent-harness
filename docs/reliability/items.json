@@ -129,7 +129,7 @@
     "id": "hr-008",
     "title": "Include executable file metadata in candidate identity",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Version candidate identity to include the normalized executable bit in addition to relative path and content; reject privileged permission bits and avoid treating ownership, timestamps or irrelevant platform permission bits as portable semantics.",
       "Detect and deliver mode-only changes, and restore the original mode during undo.",

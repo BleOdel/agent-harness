@@ -192,22 +192,41 @@
         "src/workspace/candidate.ts:92",
         "src/workspace/changes.ts"
       ],
-      "status": "open",
+      "status": "verified",
       "tasks": [
         "hr-001",
         "hr-008",
         "hr-038"
       ],
       "regressions": [
-        "test/reliability-defects.test.ts"
+        "test/mode-identity.test.ts",
+        "test/staged-review.test.ts",
+        "test/team-application.test.ts"
       ],
-      "resolutionEvidence": [],
+      "resolutionEvidence": [
+        {
+          "kind": "regression",
+          "path": "test/mode-identity.test.ts"
+        },
+        {
+          "kind": "regression",
+          "path": "test/staged-review.test.ts"
+        },
+        {
+          "kind": "regression",
+          "path": "test/team-application.test.ts"
+        },
+        {
+          "kind": "negative-control",
+          "path": "docs/reliability/evidence/mode-identity-controls.json"
+        }
+      ],
       "qualification": {
-        "state": "reproduced",
+        "state": "fixed",
         "trigger": "Change only executable mode from 0644 to 0755; require candidate identity to change.",
-        "regression": "test/reliability-defects.test.ts",
-        "execution": "docs/reliability/evidence/foundation-validation.json",
-        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix."
+        "regression": "test/mode-identity.test.ts",
+        "execution": "docs/reliability/evidence/mode-identity-validation.json",
+        "limitation": "Portable executable status on macOS/Linux; Windows ACLs, ownership, timestamps and exact POSIX read/write permissions are not modeled. Legacy journal recovery retains its prior byte-only guarantees and does not become new verification evidence. Cross-file atomic recovery remains hr-010."
       }
     },
     {

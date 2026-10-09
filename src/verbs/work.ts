@@ -723,7 +723,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
         recoveryPath(project, runId),
       );
       applicationStarted = true;
-      await applyChanges(project, candidate.directory, changes);
+      await applyChanges(project, candidate.directory, changes, baseline, candidate);
       await appendRun(project, {
         id: runId,
         at: new Date().toISOString(),

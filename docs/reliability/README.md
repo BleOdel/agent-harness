@@ -16,7 +16,7 @@ Hosted CI prepares the pinned Node and browser runtimes, executes the same comma
 
 ## Known defects and closing findings
 
-`npm run verify:known-defects` is an explicit, non-qualifying lane. Its tests assert desired safe behavior, so existing known defects fail. Default npm tests list those cases as skipped with a reason; they never count them as fixed. Move each regression into required tests as its implementation task lands. The lane ports preparation-owner selection, browser timing, partial application, provider interruption, mode identity, checkpoint rejection, release retry, noninteractive preparation and peer-review invalidation. The browser test additionally requires HARNESS_VERIFY_BROWSER=1 and the installed immutable browser image configuration; a skipped browser reproduction is unexecuted, never fixed. Nested secret exclusion, dashboard authority and default output capture run as required regressions.
+`npm run verify:known-defects` is an explicit, non-qualifying lane. Its tests assert desired safe behavior, so existing known defects fail. Default npm tests list those cases as skipped with a reason; they never count them as fixed. Move each regression into required tests as its implementation task lands. The lane ports preparation-owner selection, browser timing, partial application, provider interruption, checkpoint rejection, release retry, noninteractive preparation and peer-review invalidation. The browser test additionally requires HARNESS_VERIFY_BROWSER=1 and the installed immutable browser image configuration; a skipped browser reproduction is unexecuted, never fixed. Nested secret exclusion, dashboard authority, executable identity and default output capture run as required regressions.
 
 A finding can be marked verified only with a retained positive regression and a deliberately restored-defect control. The registry validates structure and links; it is not a cryptographic proof that an arbitrary linked result is trustworthy. Source/runtime-bound qualification and evidence admission remain separate gates.
 
@@ -30,13 +30,13 @@ Source copies, candidate snapshots, retained-source checks, review diffs and das
 
 Direct application refuses excluded paths. Retained diffs with newly excluded paths are withheld from display; original recovery files remain on disk. New artifacts using excluded paths are refused and old such artifacts cannot be previewed or exported; their retained bytes are preserved. A legacy snapshot whose identity included newly excluded paths is refused for reuse and requires review before fresh preparation. No old snapshot is silently rewritten or upgraded.
 
-This is a filename policy, not a claim to find secrets embedded in ordinary source or approved example files. High-confidence bounded content scanning, explicit exception approval and richer quarantine migration are remaining hr-005 work. Do not place real credentials in sample files. Executable metadata migration remains hr-008 and must cover apply, undo and old receipts together.
+This is a filename policy, not a claim to find secrets embedded in ordinary source or approved example files. High-confidence bounded content scanning, explicit exception approval and richer quarantine migration are remaining hr-005 work. Do not place real credentials in sample files. Executable metadata is now covered by hr-008 across capture, integration, apply, undo and legacy recovery.
 
 ## Reading the audit status
 
 Registry version 2 separates four qualification states: `inspection-only` (a documented boundary/gap without a fresh runtime reproduction), `unexecuted` (a regression exists but has not run), `reproduced` (the desired-behavior regression fails), and `fixed` (regression and negative-control evidence accompany closure). Version 1 remains readable without inventing new qualification fields. A fresh run does not overwrite the historical audit baseline.
 
-`evidence/foundation-validation.json` records source-file hashes, the baseline commit, runtime identities, commands and results. `evidence/foundation-known-defects.tap` retains the failing audit run. Its nonzero exit is expected and **does not qualify the harness as passing**. No provider credentials or model requests are used. Nine reproduced findings remain open; the backlog owns their fixes. Inspection-only entries retain a trigger/verification strategy and limitations rather than artificial tests that assert bugs exist.
+`evidence/foundation-validation.json` records source-file hashes, the baseline commit, runtime identities, commands and results. `evidence/foundation-known-defects.tap` retains the failing audit run. Its nonzero exit is expected and **does not qualify the harness as passing**. No provider credentials or model requests are used. Eight reproduced findings remain open; the backlog owns their fixes. Inspection-only entries retain a trigger/verification strategy and limitations rather than artificial tests that assert bugs exist.
 
 
 ## Captured output and overflow recovery
@@ -50,3 +50,14 @@ Ordinary builders stream permitted raw output into exclusive mode-0600 files und
 After confirmed termination, builder overflow saves unverified source before cleanup and records a resume command. Resume runs all gates again. If checkpoint creation fails, or worker shutdown cannot be confirmed, both original source and controller workspace paths are recorded and retained; these are **not** safe checkpoints. Confirm worker termination before inspecting/recovering them. No incomplete work is applied. Other provider-error and cancellation recovery remains hr-009; this change does not claim to fix F05.
 
 `evidence/output-limit-validation.json` records the current F07 qualification; `evidence/output-limit-controls.json` records deliberately restored defects. Historical foundation results remain unchanged. Each fixed finding links its own execution receipt, so later fixes do not retroactively change the original audit run.
+
+
+## Executable source identity
+
+New snapshots carry `identityVersion: 2`. Each file identity includes its content SHA-256 and portable mode: 0755 when any executable bit is set, otherwise 0644. Snapshot digest comparison, frozen copy validation, build-change detection, candidate review and evidence binding use that identity. Setuid, setgid and sticky bits on source files are refused. Ownership, timestamps, ACLs and non-executable read/write permission differences are not portable source semantics. Copies and delivery normalize modes; this is not a complete permission-preserving backup tool.
+
+Mode-only edits appear in change sets and reviewer/retained diff output. Ordinary, staged and team application deliver the verified executable bit; undo restores it. Replacement checks detect live mode drift, including a chmod made while the atomic replacement is being prepared. A merged team candidate combines nonconflicting content and executable changes rather than dropping the mode change.
+
+Old records remain readable. Byte-only snapshots and implementation checkpoints cannot authorize fresh work or inherit mode-aware evidence. Retained source remains available for explicit recovery and fresh verification. An already-started legacy team or staged journal can complete its existing intent using its recorded byte checks and original permission policy; that recovery is not upgraded evidence. Legacy ordinary undo keeps its byte-based merge behavior and preserves the current mode where available, defaulting restored missing files to 0644 because the historical executable bit was not recorded. New undo records capture the modes actually observed and written.
+
+This does not make a sequence of file replacements atomic. Multi-file transaction recovery remains hr-010. Local macOS and installed Linux-container results do not qualify Windows ACL behavior or native/mobile runners.

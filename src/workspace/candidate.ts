@@ -1,12 +1,14 @@
+import {fileIdentity,identityMode,contentDigest,type IdentityVersion} from './file-identity.ts';
 /** Host-owned source snapshots. None of these directories is mounted writable by a worker. */
 import { assertProductCurrent } from "../product/spec.ts";
 import { createHash } from "node:crypto";
-import { copyFile, lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, copyFile, lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { checkLimits, type Limits } from "../gates/limits.ts";
 import { assertChangesAreApplicable, BoundaryViolation, type Change, sourceExclusion } from "./changes.ts";
 
 export interface Snapshot {
+  readonly identityVersion?: 2;
   readonly productDigest?: string;
   readonly protectedDocuments?: Readonly<Record<string,string>>;
   readonly directory: string;
@@ -24,7 +26,7 @@ export class InputChangeRequired extends Error { }
 const hash = (bytes: string | Buffer): string => createHash("sha256").update(bytes).digest("hex");
 
 /** Unlike the historical diff walker, unreadable paths and special files fail closed. */
-export async function sourceFiles(root: string, prefix = "", exclusions: readonly string[] = []): Promise<Record<string, string>> {
+export async function sourceFiles(root: string, prefix = "", exclusions: readonly string[] = [], version:IdentityVersion=2): Promise<Record<string, string>> {
   const found: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const entry of await readdir(path.join(root, prefix), { withFileTypes: true })) {
     const relative = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
@@ -34,8 +36,8 @@ export async function sourceFiles(root: string, prefix = "", exclusions: readonl
     if (stat.isSymbolicLink() || (stat.isFile() && stat.nlink !== 1) || (!stat.isDirectory() && !stat.isFile())) {
       throw new BoundaryViolation(`${relative} is a symlink, hard link or special file; only regular source files are supported.`, relative);
     }
-    if (stat.isDirectory()) Object.assign(found, await sourceFiles(root, relative, exclusions));
-    else found[relative] = hash(await readFile(file));
+    if (stat.isDirectory()) Object.assign(found, await sourceFiles(root, relative, exclusions, version));
+    else found[relative] = fileIdentity(await readFile(file),stat.mode,version);
   }
   return found;
 }
@@ -47,10 +49,11 @@ const controlsOf = async (project: string): Promise<string> => hash(await readFi
 
 export async function copySource(source: string, destination: string, exclusions: readonly string[] = []): Promise<void> {
   await mkdir(destination, { recursive: true });
-  for (const file of Object.keys(await sourceFiles(source, "", exclusions))) {
+  for (const [file,identity] of Object.entries(await sourceFiles(source, "", exclusions))) {
     const target = path.join(destination, file);
     await mkdir(path.dirname(target), { recursive: true });
     await copyFile(path.join(source, file), target);
+    await chmod(target,identityMode(identity));
   }
 }
 async function freeze(source: string, directory: string, exclusions: readonly string[] = [], executionDigest?: string): Promise<Snapshot> {
@@ -59,7 +62,7 @@ async function freeze(source: string, directory: string, exclusions: readonly st
   const files = await sourceFiles(directory, "", exclusions);
   const digest = digestOf(files);
   if (digest !== digestOf(before) || digest !== digestOf(await sourceFiles(source, "", exclusions))) throw new Error("Source changed while capturing a snapshot.");
-  const snapshot: Snapshot = { directory, digest, files, ...(exclusions.length ? { exclusions } : {}), ...(executionDigest ? { executionDigest } : {}) };
+  const snapshot: Snapshot = { identityVersion:2, directory, digest, files, ...(exclusions.length ? { exclusions } : {}), ...(executionDigest ? { executionDigest } : {}) };
   await writeFile(`${directory}.json`, JSON.stringify(snapshot, null, 2) + "\n");
   return snapshot;
 }
@@ -72,10 +75,13 @@ export async function captureBaseline(project: string, directory: string, exclus
   await writeFile(`${directory}.json`, JSON.stringify(baseline, null, 2) + "\n");
   return baseline;
 }
-export async function assertSnapshot(snapshot: Snapshot): Promise<void> {
-  if (snapshot.digest !== digestOf(await sourceFiles(snapshot.directory, "", snapshot.exclusions))) throw new Error("Frozen source changed after capture or its source-selection policy changed. Retained source is unchanged; review exclusions before preparing a new snapshot.");
+export async function assertSnapshot(snapshot: Snapshot, legacyRecovery=false): Promise<void> {
+  if(snapshot.identityVersion!==undefined&&snapshot.identityVersion!==2)throw Error('Unsupported snapshot identity version.');
+  if(snapshot.identityVersion!==2&&!legacyRecovery)throw Error("Legacy byte-only snapshot cannot authorize new work. Retained files remain available; capture and verify a new mode-aware candidate.");
+  if (snapshot.digest !== digestOf(snapshot.files) || snapshot.digest !== digestOf(await sourceFiles(snapshot.directory, "", snapshot.exclusions,snapshot.identityVersion??1))) throw new Error("Frozen source changed after capture or its source-selection policy changed. Retained source is unchanged; review exclusions before preparing a new snapshot.");
 }
 export async function assertLiveBaseline(project: string, baseline: Snapshot): Promise<void> {
+  if(baseline.identityVersion!==2)throw Error("Legacy baseline identity requires fresh verification.");
   if ((await assertProductCurrent(project))?.digest !== baseline.productDigest) throw new Error("Product specification changed during this run. Re-run from the current baseline.");
   if (baseline.digest !== digestOf(await sourceFiles(project, "", baseline.exclusions)) || (baseline.controls !== undefined && baseline.controls !== await controlsOf(project))) {
     throw new Error("The live project or its requirements changed during this run. Re-run from the current baseline.");
@@ -86,7 +92,7 @@ export async function captureCandidate(baseline: Snapshot, worker: string, direc
   await assertSnapshot(baseline);
   const files = await sourceFiles(worker, "", baseline.exclusions);
   for (const [file,digest] of Object.entries(baseline.protectedDocuments ?? {})) {
-    if (files[file] !== digest) throw new BoundaryViolation(`Protected product document cannot be changed by the builder: ${file}. Revise it through the operator and run harness product setup.`,file);
+    if (contentDigest(files[file]) !== digest || files[file]!==baseline.files[file]) throw new BoundaryViolation(`Protected product document cannot be changed by the builder: ${file}. Revise it through the operator and run harness product setup.`,file);
   }
   const changes: Change[] = [];
   for (const file of new Set([...Object.keys(baseline.files), ...Object.keys(files)])) {

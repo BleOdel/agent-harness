@@ -12,7 +12,7 @@ import { applyTeam } from "./acceptance-fixture.ts";
 import { recoverApplication, undoTeam } from "../src/team/apply.ts";
 import { withWriter } from "../src/workspace/writer-lock.ts";
 
-async function fixture(executables = false) {
+async function fixture(executables = false,modeOnly=false) {
   const root = await mkdtemp(path.join(os.tmpdir(), "team-apply-")), project = path.join(root, "project"); await mkdir(project);
   const features = [{ id: "feature", title: "Feature", criteria: ["new content works"], priority: "must" as const, status: "todo" as const, dependsOn: [] }];
   await writeFile(path.join(project, "features.json"), JSON.stringify(features));
@@ -21,7 +21,7 @@ async function fixture(executables = false) {
   const plan = parseTeamPlan({ version: 1, roles: [{ id: "builder", instructions: "build", skills: [] }], skills: [] }, features);
   const directory = await createTeam(project, plan, root, { maxAttempts: 1, maxDispatches: 4, maxMs: 60000, maxCostUsd: 1 });
   const worker: Worker = {
-    async execute(a) { const work = path.join(a.directory, "worker"); await copySource(a.baseline.directory, work); await writeFile(path.join(work, "old.txt"), "after"); await writeFile(path.join(work, "added.bin"), Buffer.from([0,255,1])); if (executables) { await rm(path.join(work, "removed.sh")); await writeFile(path.join(work, "new.sh"), "#!/bin/sh\necho after\n"); await chmod(path.join(work, "new.sh"), 0o755); } return { outcome: "submitted", candidate: await captureCandidate(a.baseline, work, path.join(a.directory, "candidate")), usage: { tokens: 0, costUsd: 0, complete: true }, observedReads: [], workflowEvidence: [] }; },
+    async execute(a) { const work = path.join(a.directory, "worker"); await copySource(a.baseline.directory, work); if(modeOnly)await chmod(path.join(work,"old.txt"),0o755);else await writeFile(path.join(work, "old.txt"), "after"); await writeFile(path.join(work, "added.bin"), Buffer.from([0,255,1])); if (executables) { await rm(path.join(work, "removed.sh")); await writeFile(path.join(work, "new.sh"), "#!/bin/sh\necho after\n"); await chmod(path.join(work, "new.sh"), 0o755); } return { outcome: "submitted", candidate: await captureCandidate(a.baseline, work, path.join(a.directory, "candidate")), usage: { tokens: 0, costUsd: 0, complete: true }, observedReads: [], workflowEvidence: [] }; },
     async verify() { return { passed: true, gates: ["candidate passes"], review: "pass" }; },
     async verifyIntegration() { return { passed: true, gates: ["combined passes"], review: "pass" }; }, async cleanup() {},
   };
@@ -170,4 +170,33 @@ test("team application refuses staged work without approved acceptance evidence"
     assert.equal(await readFile(path.join(f.project, "old.txt"), "utf8"), "before");
     assert.equal((await readRecord(f.project)).runs.length, 0);
   } finally { await f.close(); }
+});
+
+test('team apply refuses a mode change made during atomic replacement',async()=>{
+ const f=await fixture();try{
+  await assert.rejects(applyTeam(f.project,f.directory,{checkpoint:async point=>{if(point==='prepared:old.txt')await chmod(path.join(f.project,'old.txt'),0o755);}}),/External change/);
+  assert.equal((await stat(path.join(f.project,'old.txt'))).mode&0o111,0o111);assert.equal(await readFile(path.join(f.project,'old.txt'),'utf8'),'before');
+ }finally{await f.close();}
+});
+
+test('legacy byte-only team journals recover without becoming new verification evidence',async()=>{
+ const {applicationPath}=await import('../src/team/apply.ts');const {digest}=await import('../src/team/schema.ts');const {createHash}=await import('node:crypto');const {assertSnapshot}=await import('../src/workspace/candidate.ts');
+ const f=await fixture();try{
+  await assert.rejects(applyTeam(f.project,f.directory,{checkpoint:point=>{if(point==='intent')throw Error('fixture crash');}}),/fixture crash/);
+  const marker=JSON.parse(await readFile(applicationPath(f.project),'utf8')),intentPath=path.join(f.project+'-harness','applications',marker.id,'intent.json'),intent=JSON.parse(await readFile(intentPath,'utf8'));
+  for(const snapshot of [intent.before,intent.after]){delete snapshot.identityVersion;for(const file of Object.keys(snapshot.files))snapshot.files[file]=snapshot.files[file].slice(7);snapshot.digest=createHash('sha256').update(JSON.stringify(Object.entries(snapshot.files).sort(([a],[b])=>a.localeCompare(b)))).digest('hex');}
+  intent.record.baselineDigest=intent.before.digest;intent.record.candidateDigest=intent.after.digest;marker.intentDigest=digest(intent);
+  await writeFile(intentPath,JSON.stringify(intent));await writeFile(applicationPath(f.project),JSON.stringify(marker));
+  await assert.rejects(assertSnapshot(intent.after),/Legacy/);
+  await recoverApplication(f.project,f.directory);assert.equal(await readFile(path.join(f.project,'old.txt'),'utf8'),'after');
+  await undoTeam(f.project,f.directory);assert.equal(await readFile(path.join(f.project,'old.txt'),'utf8'),'before');
+ }finally{await f.close();}
+});
+
+test('team delivers a mode-only edit and restores the original executable bit',async()=>{
+ const f=await fixture(false,true);try{await applyTeam(f.project,f.directory,{},"before");assert.equal((await stat(f.project+'/old.txt')).mode&0o777,0o755);assert.equal(await readFile(f.project+'/old.txt','utf8'),'before');await undoTeam(f.project,f.directory);assert.equal((await stat(f.project+'/old.txt')).mode&0o777,0o644);}finally{await f.close();}
+});
+
+test('team mode-only writes reject concurrent chmod even to the proposed mode',async()=>{
+ const f=await fixture(false,true);try{await assert.rejects(applyTeam(f.project,f.directory,{checkpoint:async point=>{if(point==='prepared:old.txt')await chmod(f.project+'/old.txt',0o755);}},'before'),/External change/);}finally{await f.close();}
 });

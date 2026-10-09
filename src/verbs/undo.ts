@@ -1,3 +1,5 @@
+import {identityAt,fileIdentity,identityMode} from '../workspace/file-identity.ts';
+import {atomicBytes} from '../workspace/atomic.ts';
 /**
  *   harness undo <run-id>
  *   harness undo            (lists what can be undone)
@@ -23,7 +25,7 @@ import { harnessDirectory } from "../record/record.ts";
 import { withWriter } from "../workspace/writer-lock.ts";
 
 import { existsSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   appendUndo,
@@ -99,7 +101,7 @@ async function undoUnlocked(project: string, argv: readonly string[]): Promise<v
     throw new OperatorError(`the recovery snapshot for ${run.id} is missing.`, `Expected it at ${snapshot}.`);
   }
 
-  const { outcomes, writes } = await planUndo(project, run, snapshot);
+  const { outcomes, writes, modes, expected } = await planUndo(project, run, snapshot);
   const conflicts = outcomes.filter((outcome) => outcome.action === "conflicted");
   if (conflicts.length > 0) {
     // All or nothing. A half-undone change leaves the project in a state
@@ -120,16 +122,19 @@ async function undoUnlocked(project: string, argv: readonly string[]): Promise<v
   const undoId = await nextRunId(project);
   const undoSnapshot = recoveryPath(project, undoId);
   const undoChanges: Change[] = [];
+  const before:Record<string,string>={},after:Record<string,string>={};
   for (const [file, content] of writes) {
     await safePath(project, file);
     const previous = await readSafe(project, file);
     if (previous !== undefined) {
       await mkdir(path.dirname(path.join(undoSnapshot, "before", file)), { recursive: true });
       await writeFile(path.join(undoSnapshot, "before", file), previous);
+      const identity=expected.get(file)!;before[file]=identity;await chmod(path.join(undoSnapshot,'before',file),identityMode(identity));
     }
     if (content !== undefined) {
       await mkdir(path.dirname(path.join(undoSnapshot, "after", file)), { recursive: true });
       await writeFile(path.join(undoSnapshot, "after", file), content);
+      await chmod(path.join(undoSnapshot,'after',file),modes.get(file)!);after[file]=fileIdentity(content,modes.get(file)!);
     }
     undoChanges.push({
       file,
@@ -138,14 +143,17 @@ async function undoUnlocked(project: string, argv: readonly string[]): Promise<v
     });
   }
 
-  for (const file of writes.keys()) await safePath(project, file);
+  await mkdir(undoSnapshot,{recursive:true});
+  await writeFile(path.join(undoSnapshot,'CHANGES.json'),JSON.stringify({identityVersion:2,project,changes:undoChanges,before,after})+'\n');
+  for (const file of writes.keys()) {await safePath(project, file);if(await identityAt(path.join(project,file))!==expected.get(file))throw new OperatorError('Live content or mode changed while preparing undo.');}
   for (const [file, content] of writes) {
     const live = await safePath(project, file);
+    const unchanged=async()=>{await safePath(project,file);if(await identityAt(live)!==expected.get(file))throw new OperatorError('Live content or mode changed during undo.');};
     if (content === undefined) {
-      await rm(live, { force: true });
+      await unchanged();await rm(live, { force: true });
     } else {
       await mkdir(path.dirname(live), { recursive: true });
-      await writeFile(live, content);
+      await atomicBytes(live,content,modes.get(file)!,path.dirname(live),unchanged);
     }
   }
   await appendUndo(project, undoId, run, undoChanges);

@@ -48,7 +48,7 @@ test('a legacy snapshot containing newly excluded files is refused and preserved
  try {
   const files:Record<string,string>={};for(const p of [...privatePaths,...safePaths])files[p]=createHash('sha256').update(await readFile(path.join(project,p))).digest('hex');
   const digest=createHash('sha256').update(JSON.stringify(Object.entries(files).sort(([a],[b])=>a.localeCompare(b)))).digest('hex');
-  await assert.rejects(assertSnapshot({directory:project,files,digest}),/selection|Frozen source/);
+  await assert.rejects(assertSnapshot({directory:project,files,digest}),/Legacy|selection|Frozen source/);
   assert.equal(await readFile(path.join(project,'service/.env'),'utf8'),token);
  }finally{await rm(root,{recursive:true,force:true});}
 });

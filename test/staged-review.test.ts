@@ -9,9 +9,9 @@ import {harnessDirectory} from '../src/record/record.ts';
 async function fixture(fn:(root:string,p:string)=>Promise<void>){const root=await realpath(await mkdtemp(path.join(os.tmpdir(),'stage-test-')));const p=path.join(root,'app');await mkdir(p);try{await writeFile(path.join(p,'features.json'),JSON.stringify([{id:'story',title:'Story',priority:'must',status:'todo',criteria:['Announced errors'],dependsOn:[]}]));await writeFile(path.join(p,'app.js'),'before');await writeFile(path.join(p,'package.json'),JSON.stringify({type:'module',scripts:{test:'node --test test/*.test.js'}}));await fn(root,p);}finally{await rm(root,{recursive:true,force:true});}}
 const checks={version:1,cases:[{id:'speech',tasks:['story'],kind:'manual',steps:[],manual:{instructions:'Use a real screen reader and observe the spoken error.'}}]};
 async function approval(root:string,p:string){const file=path.join(root,'checks.json');await writeFile(file,JSON.stringify(checks));return approveChecks(p,file);}
-async function staged(root:string,p:string){
+async function staged(root:string,p:string,modeOnly=false){
  const approved=await approval(root,p),baseline=await captureBaseline(p,path.join(root,'baseline'));
- const worker=path.join(root,'worker');await mkdir(worker);await writeFile(path.join(worker,'app.js'),'after');await writeFile(path.join(worker,'package.json'),await readFile(path.join(p,'package.json')));
+ const worker=path.join(root,'worker');await mkdir(worker);await writeFile(path.join(worker,'app.js'),modeOnly?'before':'after');if(modeOnly)await (await import('node:fs/promises')).chmod(path.join(worker,'app.js'),0o755);await writeFile(path.join(worker,'package.json'),await readFile(path.join(p,'package.json')));
  const candidate=await captureCandidate(baseline,worker,path.join(root,'candidate'));
  const evidencePath=path.join(harnessDirectory(p),'acceptance/results/abc.json');await mkdir(path.dirname(evidencePath),{recursive:true});
  const acceptance={approvalDigest:approved.digest,candidateDigest:candidate.digest,evidencePath};
@@ -103,4 +103,27 @@ import {readiness} from '../src/guide/readiness.ts';
 test('readiness distinguishes approved manual designs from unresolved preparation without provider calls',()=>fixture(async(root,p)=>{
  await approval(root,p);const result=await readiness(p,{},async()=>assert.fail('No configured container or provider should run'));
  const acceptance=result.checks.find(c=>c.id==='acceptance');assert.equal(acceptance?.status,'ready');assert.match(acceptance!.message,/staged final review/);
+}));
+
+test('staged application preserves a concurrent mode-only change',()=>fixture(async(root,p)=>{
+ const {chmod,stat}=await import('node:fs/promises');const {stage}=await staged(root,p);await approveStage(p,stage);
+ await assert.rejects(applyStage(p,'r1',async point=>{if(point==='prepared-file:app.js')await chmod(path.join(p,'app.js'),0o755);}),/External change/);
+ assert.equal((await stat(path.join(p,'app.js'))).mode&0o111,0o111);assert.equal(await readFile(path.join(p,'app.js'),'utf8'),'before');
+}));
+
+test('legacy staged journals finish existing intent but cannot authorize a fresh candidate',()=>fixture(async(root,p)=>{
+ const {createHash}=await import('node:crypto');const {stageBinding,writeStage}=await import('../src/staging/store.ts');const {assertSnapshot}=await import('../src/workspace/candidate.ts');
+ const {stage}=await staged(root,p);await approveStage(p,stage);await assert.rejects(applyStage(p,'r1',async point=>{if(point==='intent')throw Error('fixture crash');}),/fixture crash/);
+ const saved=await readStage(p,'r1');for(const snapshot of [saved.baseline,saved.candidate]){delete (snapshot as {identityVersion?:number}).identityVersion;const files=snapshot.files as Record<string,string>;for(const name of Object.keys(files))files[name]=files[name]!.slice(7);(snapshot as {digest:string}).digest=createHash('sha256').update(JSON.stringify(Object.entries(files).sort(([a],[b])=>a.localeCompare(b)))).digest('hex');}
+ saved.acceptance.candidateDigest=saved.candidate.digest;saved.operator!.binding=stageBinding(saved);const evidence=JSON.parse(await readFile(saved.acceptance.evidencePath,'utf8'));evidence.candidateDigest=saved.candidate.digest;await writeFile(saved.acceptance.evidencePath,JSON.stringify(evidence));await writeStage(saved);
+ await assert.rejects(assertSnapshot(saved.candidate),/Legacy/);await applyStage(p,'r1');assert.equal(await readFile(path.join(p,'app.js'),'utf8'),'after');
+}));
+
+test('staged mode-only application delivers the verified executable bit',()=>fixture(async(root,p)=>{
+ const {stat}=await import('node:fs/promises');const {stage}=await staged(root,p,true);assert.ok(stage.candidate.changes.some(c=>c.file==='app.js'));await approveStage(p,stage);await applyStage(p,'r1');assert.equal((await stat(p+'/app.js')).mode&0o777,0o755);assert.equal(await readFile(p+'/app.js','utf8'),'before');
+}));
+
+test('staged mode-only writes reject concurrent chmod even to the proposed mode',()=>fixture(async(root,p)=>{
+ const {chmod}=await import('node:fs/promises');const {stage}=await staged(root,p,true);await approveStage(p,stage);
+ await assert.rejects(applyStage(p,'r1',async point=>{if(point==='prepared-file:app.js')await chmod(p+'/app.js',0o755);}),/External change/);
 }));

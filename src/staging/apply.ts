@@ -1,3 +1,4 @@
+import {fileIdentity,identityAt,identityMode,portableMode} from '../workspace/file-identity.ts';
 /** Application intent is durable before writes; recovery accepts only before/after bytes. */
 import {mkdir,readFile,rm,realpath,lstat} from 'node:fs/promises';
 import path from 'node:path';
@@ -42,7 +43,7 @@ export async function applyStage(project:string,id:string,checkpoint?:(point:str
   const recovery=await snapshotForRecovery(project,s.candidate.directory,s.candidate.changes,recoveryPath(project,applicationId));
   await checkpoint?.('prepared-recovery');
   for(const c of s.candidate.changes)for(const [side,expected] of [['before',s.baseline.files[c.file]],['after',s.candidate.files[c.file]]] as const){
-   if(expected===undefined)continue;const bytes=await readFile(path.join(recovery.directory,side,c.file));if(createHash('sha256').update(bytes).digest('hex')!==expected)throw new OperatorError('Recovery bytes changed while preparing application.');
+   if(expected===undefined)continue;const bytes=await readFile(path.join(recovery.directory,side,c.file));if(await identityAt(path.join(recovery.directory,side,c.file),s.baseline.identityVersion??1)!==expected)throw new OperatorError('Recovery bytes changed while preparing application.');
   }
   await assertLiveBaseline(project,s.baseline);
   s.application={...features,record:{id:applicationId,at:new Date().toISOString(),project,goal:s.task,attempts:0,outcome:'applied',gates:[...s.gates,...s.acceptance.summaries,'Final operator review passed (manual observations are operator-reported).'],review:s.review,changes:s.candidate.changes,baselineDigest:s.baseline.digest,candidateDigest:s.candidate.digest,acceptance:s.acceptance,...(s.execution?{execution:s.execution}:{}),reason:`Applied reviewed staged candidate ${s.id}. Manual review: staging/${s.id}/state.json`}};
@@ -52,15 +53,16 @@ export async function applyStage(project:string,id:string,checkpoint?:(point:str
  await atomicWrite(pending(project),JSON.stringify({id,version:1})+'\n');
  await checkpoint?.('intent');
  // Before any write, reject unrelated edits, including files not touched by the candidate.
- const live=await sourceFiles(project,'',s.baseline.exclusions);
+ const live=await sourceFiles(project,'',s.baseline.exclusions,s.baseline.identityVersion??1);
  for(const file of new Set([...Object.keys(live),...Object.keys(s.baseline.files),...Object.keys(s.candidate.files)]))if(live[file]!==s.baseline.files[file]&&live[file]!==s.candidate.files[file])throw new OperatorError(`External change at ${file}; restore it before resuming this application.`);
  const featureFile=path.join(project,'features.json'),features=await readFile(featureFile,'utf8');
  if(![s.application.featuresBefore,s.application.featuresAfter].includes(features))throw new OperatorError('Requirements changed during staged application.');
  for(const c of s.candidate.changes){
   const target=await safePath(project,c.file);
-  const unchanged=async()=>{await safePath(project,c.file);const bytes=await readSafe(project,c.file),hash=bytes?createHash('sha256').update(bytes).digest('hex'):undefined;if(hash!==s.baseline.files[c.file]&&hash!==s.candidate.files[c.file])throw new OperatorError(`External change at ${c.file}; refusing replacement.`);};
+  const expectedCurrent=await identityAt(target,s.baseline.identityVersion??1);
+  const unchanged=async()=>{await safePath(project,c.file);const bytes=await readSafe(project,c.file),hash=await identityAt(path.join(project,c.file),s.baseline.identityVersion??1);if(hash!==expectedCurrent)throw new OperatorError(`External change at ${c.file}; refusing replacement.`);};
   if(c.kind==='deleted'){await checkpoint?.('prepared-file:'+c.file);await unchanged();await rm(target,{force:true});}
-  else {const source=await safePath(s.candidate.directory,c.file),bytes=await readFile(source);if(createHash('sha256').update(bytes).digest('hex')!==s.candidate.files[c.file])throw new OperatorError('Candidate changed during application.');await mkdir(path.dirname(target),{recursive:true});await atomicBytes(target,bytes,(await lstat(target).catch((e:NodeJS.ErrnoException)=>{if(e.code==='ENOENT')return lstat(source);throw e;})).mode&0o777,path.dirname(target),async()=>{await checkpoint?.('prepared-file:'+c.file);await unchanged();});}
+  else {const source=await safePath(s.candidate.directory,c.file),bytes=await readFile(source);if(fileIdentity(bytes,(await lstat(source)).mode,s.candidate.identityVersion??1)!==s.candidate.files[c.file])throw new OperatorError('Candidate changed during application.');await mkdir(path.dirname(target),{recursive:true});await atomicBytes(target,bytes,s.candidate.identityVersion===2?identityMode(s.candidate.files[c.file]!):(await lstat(target).catch((e:NodeJS.ErrnoException)=>{if(e.code==='ENOENT')return lstat(source);throw e;})).mode&0o777,path.dirname(target),async()=>{await checkpoint?.('prepared-file:'+c.file);await unchanged();});}
   await checkpoint?.('file:'+c.file);
  }
  await atomicBytes(featureFile,Buffer.from(s.application.featuresAfter),(await lstat(await safePath(project,'features.json'))).mode&0o777,path.dirname(featureFile),async()=>{await checkpoint?.('prepared-features');await safePath(project,'features.json');const current=await readFile(featureFile,'utf8');if(![s.application!.featuresBefore,s.application!.featuresAfter].includes(current))throw new OperatorError('Requirements changed during replacement.');});await checkpoint?.('features');

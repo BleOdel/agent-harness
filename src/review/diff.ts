@@ -1,3 +1,4 @@
+import {identityAt,identityMode} from '../workspace/file-identity.ts';
 /**
  * A unified diff of the change set, for the Reviewer to read.
  *
@@ -113,9 +114,12 @@ export async function renderDiff(
       );
       continue;
     }
+    const ids=await Promise.all([identityAt(path.join(project,change.file)),identityAt(path.join(copy,change.file))]);
+    const modes=ids.map(id=>id?identityMode(id).toString(8):'absent');
+    const modeLines=modes[0]!==modes[1]?[`executable mode: ${modes[0]} -> ${modes[1]}`]:[];
     const body = diffLines(before, after).filter((line) => line.startsWith("+") || line.startsWith("-"));
     budget -= body.length;
-    sections.push([header, ...body].join("\n"));
+    sections.push([header,...modeLines, ...body].join("\n"));
   }
   return sections.join("\n\n");
 }

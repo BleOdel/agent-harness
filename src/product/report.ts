@@ -82,7 +82,7 @@ export async function productReport(project:string):Promise<ProductReport>{
    if(last?.outcome==='passed'){
     const required=approval.manifest.cases.filter(c=>c.tasks.includes('*')||c.tasks.includes(task.id));
     if(!required.every(c=>caseKind(c)==='browser'?last.browserObservations?.some((o:any)=>o.case===c.id&&o.source===current.source&&o.status==='passed'):caseKind(c)==='manual'?false:c.steps.every((step,i)=>last.observations?.some((o:any)=>o.case===c.id&&o.step===i+1&&o.exitCode===step.exitCode&&!o.timedOut))))throw Error(`Acceptance observations incomplete for ${task.id}.`);
-    await assertAcceptanceProof(project,{directory:project,digest:current.source,files:{},exclusions:current.exclusions},[task.id],{approvalDigest:approval.digest,candidateDigest:current.source,evidencePath:path.join(root,last.file)});status='passed';
+    await assertAcceptanceProof(project,{identityVersion:2,directory:project,digest:current.source,files:await sourceFiles(project,"",current.exclusions),exclusions:current.exclusions},[task.id],{approvalDigest:approval.digest,candidateDigest:current.source,evidencePath:path.join(root,last.file)});status='passed';
    }
    if(last?.outcome==='automated-passed'){
     const stage=(await listStages(project)).find(s=>s.status==='applied'&&s.tasks.includes(task.id)&&s.candidate.digest===current.source&&s.acceptance.approvalDigest===approval.digest);

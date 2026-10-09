@@ -1,3 +1,4 @@
+import {identityAt,identityMode,fileIdentity,portableMode} from '../workspace/file-identity.ts';
 import {assertProductCurrent} from "../product/spec.ts";
 /** Host-only batch application. Intent precedes writes; fingerprints decide recovery. */
 import { assertAcceptanceProof, type AcceptanceProof } from "../acceptance/checks.ts";
@@ -41,11 +42,11 @@ async function loadIntent(project: string, pending: Pending): Promise<Intent> {
   const intent = JSON.parse((await optional(path.join(transactionPath(project, pending.id), "intent.json")))!.toString()) as Intent;
   if (digest(intent) !== pending.intentDigest || intent.version !== 1 || intent.id !== pending.id || intent.project !== project || intent.teamRunId !== pending.teamRunId) throw new Error("Application intent changed; manual recovery required.");
   await assertTeamDirectory(project, intent.teamDirectory);
-  await Promise.all([assertSnapshot(intent.before), assertSnapshot(intent.after)]);
+  await Promise.all([assertSnapshot(intent.before,true), assertSnapshot(intent.after,true)]);
   return intent;
 }
 async function inspectLive(intent: Intent): Promise<void> {
-  const live = await sourceFiles(intent.project);
+  const live = await sourceFiles(intent.project,"",[],intent.before.identityVersion??1);
   for (const file of new Set([...Object.keys(live), ...Object.keys(intent.before.files), ...Object.keys(intent.after.files)])) {
     if (live[file] !== intent.before.files[file] && live[file] !== intent.after.files[file]) throw new Error(`External change at ${file}; fingerprints disagree. Manual recovery required.`);
   }
@@ -120,18 +121,18 @@ async function writeSource(intent: Intent, file: string, toBefore: boolean, chec
     for (const part of parts) { parent = path.join(parent, part); const stat = await lstat(parent).catch((e: NodeJS.ErrnoException) => { if (e.code === "ENOENT") return undefined; throw e; }); if (stat && !stat.isDirectory()) throw new Error(`Parent changed or became a symlink: ${file}`); }
   };
   await assertParents();
-  const current = await optional(live), currentHash = current === undefined ? undefined : hash(current);
+  const current = await optional(live), currentHash = await identityAt(live,intent.before.identityVersion??1);
   if (currentHash !== intent.before.files[file] && currentHash !== intent.after.files[file]) throw new Error(`External change at ${file}; refusing overwrite.`);
   if (currentHash === desired.files[file]) return;
   if (desired.files[file] === undefined) { await unlink(live); await syncDirectory(path.dirname(live)); }
   else {
     const bytes = await readFile(path.join(desired.directory, file));
-    if (hash(bytes) !== desired.files[file]) throw new Error(`Application snapshot changed at ${file}.`);
-    await atomicBytes(live, bytes, intent.modes[file], transactionPath(intent.project, intent.id), async () => {
+    if (fileIdentity(bytes,(await lstat(path.join(desired.directory,file))).mode,desired.identityVersion??1) !== desired.files[file]) throw new Error(`Application snapshot changed at ${file}.`);
+    await atomicBytes(live, bytes, desired.identityVersion===2?identityMode(desired.files[file]!):intent.modes[file], transactionPath(intent.project, intent.id), async () => {
       await checkpoint?.(`prepared:${file}`);
       await assertParents();
-      const latest = await optional(live), fingerprint = latest === undefined ? undefined : hash(latest);
-      if (fingerprint !== intent.before.files[file] && fingerprint !== intent.after.files[file]) throw new Error(`External change at ${file}; refusing replacement.`);
+      const latest = await optional(live), fingerprint = await identityAt(live,intent.before.identityVersion??1);
+      if (fingerprint !== currentHash) throw new Error(`External change at ${file}; refusing replacement.`);
     });
   }
 }
@@ -167,7 +168,7 @@ async function finish(intent: Intent, options: ApplicationOptions): Promise<Team
   }
   await checkpoint("sources");
   const expected = rollback ? intent.before : intent.after;
-  await assertSnapshot({ ...expected, directory: intent.project });
+  await assertSnapshot({ ...expected, directory: intent.project },true);
   if (!featuresFirst) { await writeFeatures(intent, rollback, checkpoint); await checkpoint("features"); }
   if (rollback) {
     state = await appendEvent(intent.teamDirectory, { type: "application-rolled-back", transactionId: intent.id, direction: intent.direction });
@@ -214,15 +215,16 @@ export async function undoTeam(project: string, directory: string, options: Appl
     if (state.status !== "applied" || !state.appliedTransactionId) throw new Error("Only an applied team batch can be undone.");
     const original = JSON.parse((await optional(path.join(transactionPath(project, state.appliedTransactionId), "intent.json")))!.toString()) as Intent;
     if (digest(original) !== state.appliedIntentDigest) throw new Error("Applied intent changed; manual recovery required.");
-    await Promise.all([assertSnapshot(original.before), assertSnapshot(original.after)]);
+    await Promise.all([assertSnapshot(original.before,true), assertSnapshot(original.after,true)]);
     const undoLive = await captureBaseline(project, path.join(directory, `undo-live-${randomUUID()}`));
-    for (const change of original.changes) if (undoLive.files[change.file] !== original.after.files[change.file]) throw new Error(`External change at ${change.file}; batch undo requires manual reconciliation.`);
+    const undoIdentities=await sourceFiles(project,"",[],original.after.identityVersion??1);
+    for (const change of original.changes) if (undoIdentities[change.file] !== original.after.files[change.file]) throw new Error(`External change at ${change.file}; batch undo requires manual reconciliation.`);
     const undoSource = path.join(directory, `undo-source-${randomUUID()}`); await copySource(undoLive.directory, undoSource);
     try {
       for (const change of original.changes) {
         const file = path.join(undoSource, change.file);
         if (original.before.files[change.file] === undefined) await rm(file);
-        else await atomicBytes(file, await readFile(path.join(original.before.directory, change.file)), original.modes[change.file]);
+        else await atomicBytes(file, await readFile(path.join(original.before.directory, change.file)), original.before.identityVersion===2?identityMode(original.before.files[change.file]!):original.modes[change.file]);
       }
       const intent = await begin(project, directory, state, undoSource, "undo", undoLive, options); await options.checkpoint?.("intent"); return finish(intent, options);
     } finally { await rm(undoSource, { recursive: true, force: true }); }

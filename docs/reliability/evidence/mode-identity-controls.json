@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "allRestored": true,
+  "controls": [
+    {
+      "control": "mode-identity",
+      "mutation": "${portableMode(mode).toString(8)} \u2192 644",
+      "file": "src/workspace/file-identity.ts",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern=F06",
+        "test/mode-identity.test.ts"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "diagnostics": "\u2716 F06 mode-only changes are verified, applied, undone and redone (7.120875ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 251.990458\n\n\u2716 failing tests:\n\ntest at test/mode-identity.test.ts:13:1\n\u2716 F06 mode-only changes are verified, applied, undone and redone (7.120875ms)\n  AssertionError [ERR_ASSERTION]: Expected \"actual\" to be strictly unequal to:\n  \n  'a51912d18f5798c61ecf6a0908fcbac5dbeda783c4da9ed3d837d3c01cec81e5'\n      at TestContext.<anonymous> (file:///Users/blessingodeleye/Documents/Codex/2026-09-08/github-projects-listed-chatgpt-conversation-6a9eb4e0/work/harness-mode-identity/test/mode-identity.test.ts:16:96)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 'a51912d18f5798c61ecf6a0908fcbac5dbeda783c4da9ed3d837d3c01cec81e5',\n    expected: 'a51912d18f5798c61ecf6a0908fcbac5dbeda783c4da9ed3d837d3c01cec81e5',\n    operator: 'notStrictEqual',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "control": "ordinary-delivery",
+      "mutation": "atomicBytes(destination,bytes,mode, \u2192 atomicBytes(destination,bytes,0o644,",
+      "file": "src/workspace/sandbox-lifecycle.ts",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern=F06",
+        "test/mode-identity.test.ts"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "diagnostics": "\u2716 F06 mode-only changes are verified, applied, undone and redone (23.297416ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 204.568625\n\n\u2716 failing tests:\n\ntest at test/mode-identity.test.ts:13:1\n\u2716 F06 mode-only changes are verified, applied, undone and redone (23.297416ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  420 !== 493\n  \n      at TestContext.<anonymous> (file:///Users/blessingodeleye/Documents/Codex/2026-09-08/github-projects-listed-chatgpt-conversation-6a9eb4e0/work/harness-mode-identity/test/mode-identity.test.ts:18:10)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 420,\n    expected: 493,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "control": "legacy-evidence",
+      "mutation": "if(snapshot.identityVersion!==2&&!legacyRecovery) \u2192 if(false)",
+      "file": "src/workspace/candidate.ts",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern=privileged source",
+        "test/mode-identity.test.ts"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "diagnostics": "\u2716 privileged source modes fail closed and byte-only snapshots are not fresh evidence (6.023666ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 192.568667\n\n\u2716 failing tests:\n\ntest at test/mode-identity.test.ts:33:1\n\u2716 privileged source modes fail closed and byte-only snapshots are not fresh evidence (6.023666ms)\n  AssertionError [ERR_ASSERTION]: Missing expected rejection.\n      at async TestContext.<anonymous> (file:///Users/blessingodeleye/Documents/Codex/2026-09-08/github-projects-listed-chatgpt-conversation-6a9eb4e0/work/harness-mode-identity/test/mode-identity.test.ts:37:3)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: undefined,\n    expected: /legacy|identity|version/i,\n    operator: 'rejects',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "control": "integration-mode",
+      "mutation": "await chmod(target,modes.get(file)!); \u2192 await chmod(target,0o644);",
+      "file": "src/team/integrate.ts",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern=team delivers a mode-only",
+        "test/team-application.test.ts"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "diagnostics": "\u2716 team delivers a mode-only edit and restores the original executable bit (375.251916ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 532.374541\n\n\u2716 failing tests:\n\ntest at test/team-application.test.ts:196:1\n\u2716 team delivers a mode-only edit and restores the original executable bit (375.251916ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  420 !== 493\n  \n      at TestContext.<anonymous> (file:///Users/blessingodeleye/Documents/Codex/2026-09-08/github-projects-listed-chatgpt-conversation-6a9eb4e0/work/harness-mode-identity/test/team-application.test.ts:197:98)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 420,\n    expected: 493,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+    },
+    {
+      "control": "live-mode-drift",
+      "mutation": "baseline.digest !== digestOf(await sourceFiles(project, \"\", baseline.exclusions)) \u2192 false",
+      "file": "src/workspace/candidate.ts",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern=mode drift invalidates",
+        "test/mode-identity.test.ts"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "diagnostics": "\u2716 mode drift invalidates frozen and live identity, while irrelevant permission bits do not (6.003125ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 0\n\u2139 fail 1\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 190.891625\n\n\u2716 failing tests:\n\ntest at test/mode-identity.test.ts:26:1\n\u2716 mode drift invalidates frozen and live identity, while irrelevant permission bits do not (6.003125ms)\n  AssertionError [ERR_ASSERTION]: Missing expected rejection.\n      at async TestContext.<anonymous> (file:///Users/blessingodeleye/Documents/Codex/2026-09-08/github-projects-listed-chatgpt-conversation-6a9eb4e0/work/harness-mode-identity/test/mode-identity.test.ts:29:42)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: undefined,\n    expected: /changed/,\n    operator: 'rejects',\n    diff: 'simple'\n  }\n"
+    }
+  ]
+}

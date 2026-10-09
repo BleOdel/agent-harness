@@ -160,10 +160,10 @@ export class AcceptanceFailure extends OperatorError {
 export async function assertAcceptanceProof(project: string, candidate: Snapshot, tasks: readonly string[], proof?: AcceptanceProof): Promise<void> {
   return assertProof(project,candidate,tasks,proof,false);
 }
-export async function assertAutomatedAcceptanceProof(project:string,candidate:Snapshot,tasks:readonly string[],proof?:AcceptanceProof):Promise<void>{
-  return assertProof(project,candidate,tasks,proof,true);
+export async function assertAutomatedAcceptanceProof(project:string,candidate:Snapshot,tasks:readonly string[],proof?:AcceptanceProof,legacyRecovery=false):Promise<void>{
+  return assertProof(project,candidate,tasks,proof,true,legacyRecovery);
 }
-async function assertProof(project:string,candidate:Snapshot,tasks:readonly string[],proof:AcceptanceProof|undefined,staging:boolean):Promise<void>{
+async function assertProof(project:string,candidate:Snapshot,tasks:readonly string[],proof:AcceptanceProof|undefined,staging:boolean,legacyRecovery=false):Promise<void>{
   if (!proof) throw new OperatorError("Application requires approved acceptance evidence.", "Run verification before applying this candidate.");
   const approved = await requireApprovedChecks(project, tasks, staging);
   tasks=await acceptanceTaskScope(project,tasks,approved);
@@ -186,7 +186,7 @@ async function assertProof(project:string,candidate:Snapshot,tasks:readonly stri
   for(const check of approved.manifest.cases.filter(c=>caseKind(c)==='browser'&&(c.tasks.includes('*')||c.tasks.some(t=>tasks.includes(t)))))await assertBrowserEvidence(project,check,approved.browserRuntime,candidate.digest,evidence.browserObservations);
   if (candidate.executionDigest) assertExecutionPin(evidence.execution);
   if (candidate.executionDigest && (proof.executionDigest !== candidate.executionDigest || evidence.execution?.digest !== candidate.executionDigest)) throw new OperatorError("Acceptance evidence does not match the candidate execution environment.");
-  await assertSnapshot(candidate);
+  await assertSnapshot(candidate,legacyRecovery);
 }
 
 export async function verifyAcceptance(project: string, candidate: Snapshot, tasks: readonly string[], config: Config, approved: Approval, execution?: ExecutionPin): Promise<AcceptanceResult> {
