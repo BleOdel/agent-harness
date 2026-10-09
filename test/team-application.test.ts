@@ -185,6 +185,7 @@ test('legacy byte-only team journals recover without becoming new verification e
   await assert.rejects(applyTeam(f.project,f.directory,{checkpoint:point=>{if(point==='intent')throw Error('fixture crash');}}),/fixture crash/);
   const marker=JSON.parse(await readFile(applicationPath(f.project),'utf8')),intentPath=path.join(f.project+'-harness','applications',marker.id,'intent.json'),intent=JSON.parse(await readFile(intentPath,'utf8'));
   for(const snapshot of [intent.before,intent.after]){delete snapshot.identityVersion;for(const file of Object.keys(snapshot.files))snapshot.files[file]=snapshot.files[file].slice(7);snapshot.digest=createHash('sha256').update(JSON.stringify(Object.entries(snapshot.files).sort(([a],[b])=>a.localeCompare(b)))).digest('hex');}
+  intent.version=1;marker.version=1;intent.teamDirectory=f.directory;intent.teamRunId=path.basename(f.directory);delete intent.effect;intent.modes=Object.fromEntries([...new Set([...Object.keys(intent.before.files),...Object.keys(intent.after.files),'features.json'])].map(file=>[file,0o644]));delete intent.featuresMode;
   intent.record.baselineDigest=intent.before.digest;intent.record.candidateDigest=intent.after.digest;marker.intentDigest=digest(intent);
   await writeFile(intentPath,JSON.stringify(intent));await writeFile(applicationPath(f.project),JSON.stringify(marker));
   await assert.rejects(assertSnapshot(intent.after),/Legacy/);

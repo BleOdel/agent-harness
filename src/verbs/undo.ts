@@ -1,3 +1,9 @@
+import {beginApplication,finishApplication} from '../workspace/application.ts';
+import {captureBaseline,copySource} from '../workspace/candidate.ts';
+import {applicationFeatures} from '../features.ts';
+import {runSnapshotPath} from '../record/record.ts';
+import {mkdtemp,readFile} from 'node:fs/promises';
+import os from 'node:os';
 import {identityAt,fileIdentity,identityMode} from '../workspace/file-identity.ts';
 import {atomicBytes} from '../workspace/atomic.ts';
 /**
@@ -96,7 +102,7 @@ async function undoUnlocked(project: string, argv: readonly string[]): Promise<v
   const item = rootRun.goal;
   const status = depth % 2 === 1 ? "todo" : "done";
 
-  const snapshot = recoveryPath(project, run.id);
+  const snapshot = runSnapshotPath(project, run);
   if (!existsSync(snapshot)) {
     throw new OperatorError(`the recovery snapshot for ${run.id} is missing.`, `Expected it at ${snapshot}.`);
   }
@@ -118,54 +124,22 @@ async function undoUnlocked(project: string, argv: readonly string[]): Promise<v
     );
   }
 
-  // The undo is a run too, so it can be undone in turn.
   const undoId = await nextRunId(project);
-  const undoSnapshot = recoveryPath(project, undoId);
-  const undoChanges: Change[] = [];
-  const before:Record<string,string>={},after:Record<string,string>={};
-  for (const [file, content] of writes) {
-    await safePath(project, file);
-    const previous = await readSafe(project, file);
-    if (previous !== undefined) {
-      await mkdir(path.dirname(path.join(undoSnapshot, "before", file)), { recursive: true });
-      await writeFile(path.join(undoSnapshot, "before", file), previous);
-      const identity=expected.get(file)!;before[file]=identity;await chmod(path.join(undoSnapshot,'before',file),identityMode(identity));
+  const temporary=await mkdtemp(path.join(os.tmpdir(),'harness-undo-'));
+  let restated=false;
+  try {
+    const baseline=await captureBaseline(project,path.join(temporary,'before'));
+    const source=path.join(temporary,'after');await copySource(baseline.directory,source);
+    for(const [file,content] of writes){
+      if(await identityAt(path.join(project,file))!==expected.get(file))throw new OperatorError('Live content or mode changed while preparing undo.');
+      if(content===undefined)await rm(path.join(source,file),{force:true});
+      else await atomicBytes(path.join(source,file),content,modes.get(file)!);
     }
-    if (content !== undefined) {
-      await mkdir(path.dirname(path.join(undoSnapshot, "after", file)), { recursive: true });
-      await writeFile(path.join(undoSnapshot, "after", file), content);
-      await chmod(path.join(undoSnapshot,'after',file),modes.get(file)!);after[file]=fileIdentity(content,modes.get(file)!);
-    }
-    undoChanges.push({
-      file,
-      kind: content === undefined ? "deleted" : previous === undefined ? "added" : "modified",
-      symlink: false,
-    });
-  }
-
-  await mkdir(undoSnapshot,{recursive:true});
-  await writeFile(path.join(undoSnapshot,'CHANGES.json'),JSON.stringify({identityVersion:2,project,changes:undoChanges,before,after})+'\n');
-  for (const file of writes.keys()) {await safePath(project, file);if(await identityAt(path.join(project,file))!==expected.get(file))throw new OperatorError('Live content or mode changed while preparing undo.');}
-  for (const [file, content] of writes) {
-    const live = await safePath(project, file);
-    const unchanged=async()=>{await safePath(project,file);if(await identityAt(live)!==expected.get(file))throw new OperatorError('Live content or mode changed during undo.');};
-    if (content === undefined) {
-      await unchanged();await rm(live, { force: true });
-    } else {
-      await mkdir(path.dirname(live), { recursive: true });
-      await atomicBytes(live,content,modes.get(file)!,path.dirname(live),unchanged);
-    }
-  }
-  await appendUndo(project, undoId, run, undoChanges);
-
-  // The item that run completed is no longer complete. Leaving it "done"
-  // makes `look` describe work whose code has just been removed, which is
-  // the one thing the record exists to prevent.
-  //
-  // Undoing an *undo* re-applies the original, so the item it completed
-  // becomes done again. Status has to travel the same round trip the
-  // files do, or the list and the repository disagree after two undos.
-  const restated = await markStatus(project, item, status, writes.size > 0);
+    const raw=await readFile(path.join(project,'features.json'),'utf8').catch((e:NodeJS.ErrnoException)=>{if(e.code==='ENOENT')return null;throw e;});
+    const featuresAfter=applicationFeatures(raw,item,status,writes.size>0);restated=raw!==featuresAfter;
+    const intent=await beginApplication(project,{source,expected:baseline,featuresAfter,direction:'undo',record:{id:undoId,at:new Date().toISOString(),project,goal:`undo ${run.id}`,attempts:0,outcome:'applied',gates:[],changes:[],reverses:run.id}});
+    await finishApplication(intent);
+  }finally{await rm(temporary,{recursive:true,force:true});}
 
   for (const outcome of outcomes) {
     say(`  ${outcome.action.padEnd(11)} ${outcome.file}${outcome.detail === undefined ? "" : `  (${outcome.detail})`}`);

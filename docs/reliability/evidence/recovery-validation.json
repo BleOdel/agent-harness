@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "kind": "local-interruption-and-application-recovery-validation",
+  "at": "2026-10-09T17:56:30.876299+00:00",
+  "status": "passed",
+  "source": {
+    "baseCommit": "253de6c0d04a46379c97db5c01a935add6176183",
+    "state": "disposable uncommitted overlay",
+    "codeTreeSha256": "ff72f10a2bf9d689975e4d0d5942880feb964d7ce1938e355391447cadc0b750",
+    "hashDefinition": "SHA256 of compact sorted JSON path-to-SHA256 map for src/**, test/**, package.json, package-lock.json and tsconfig.json; documentation excluded.",
+    "changedCode": {
+      "src/agent/execute.ts": "67dc4af73a0238199981bf7b1914a00ddcc4eeb5e2f0b4daca6723d64ea2a01b",
+      "src/cli.ts": "3f326a2a2c60a465d3c16326b03b23f9bfbb63324bc175e945e6f4b35480cdf6",
+      "src/features.ts": "69f2f8e8ce49d36cee45e9ace52d00147d6fb4e5aea9fe623fc7ca2054c5ee44",
+      "src/record/record.ts": "14f2f975e87c6b80860f132296705c3dfaf9cea9776607f943e395ebf10d67ea",
+      "src/staging/apply.ts": "e36dd370f8500af6ac9f9f8f2eccb086f8b4bf366cbb845ab3246dc9d9d52f37",
+      "src/team/apply.ts": "94be3f886729f41e0d7261e22b4718471d8b278e54c2ef5a5837a4d5903d9fec",
+      "src/verbs/look.ts": "4e54df41cd3263c70a2a33177a4733a883f4aef641a0da9f3da4ba5a63e6beaf",
+      "src/verbs/stage.ts": "440c2fe4ec488292eec7dfade114f42448b56ddcfdd27abb8500541118213b88",
+      "src/verbs/undo.ts": "9a6129020c02260d79155ad3d3c6a8b368c04e1966b4835c80bd182911cf40e5",
+      "src/verbs/work.ts": "ffd7e76a1c076dcab68652c2de55ebcc87f5552b573f72ff12c85b98e9ff9466",
+      "src/workspace/application.ts": "f7e82722d65d00206a97726fe4669d56b6f78ec2624f42487d433e64996745df",
+      "src/workspace/sandbox-lifecycle.ts": "2d4795b7fc40d23a2d2d7465b4d350ee3f3280ad2129c71b0abc1e5fa81dee0a",
+      "src/workspace/work-attempts.ts": "b2b9323fc9c3e995baea7c5dcb53d943b8289bf5e985bbc694374dc539fc21fa",
+      "src/workspace/work-checkpoints.ts": "9c851717a391ad5fc1a1e9b754e13bafba29469a763c806d21ed73bf13cdae02",
+      "src/workspace/writer-lock.ts": "07ed577dabf392712916f36c11428c1a6c828e709b7edd9fddc90914df9d5033",
+      "test/application-transaction.test.ts": "ab4dc168af4191efb9e263f601ccf13061c699266f5c40e2be4a538ad04a95b3",
+      "test/hardening.test.ts": "114a009e0a89b6364a04efe2ec8cac2024dde6687dceda25653eafa427da26f8",
+      "test/mode-identity.test.ts": "945e9be8226a856dccd6b98fa20ce6613b37c63c0e9e2743ef8f7aa4f009d8b9",
+      "test/reliability-defects.test.ts": "ba3904c13dedc77c3bd13373eb60856fc7914c9c10ce393d93992b6589fc6603",
+      "test/staged-review.test.ts": "876877eeaf60f7af995699643b5d89cad5ff90967aa3e3dfe8cdb04bc24f3f26",
+      "test/team-application.test.ts": "ddf590b023a6b58ab16b70c346f58e475ea52cd419b2bd1cbbf33f5da1cde237",
+      "test/work-flow.test.ts": "473cbb652dc078ba75a5861a2a0d46f872637af33e7e1e958f646f193739f6e9"
+    }
+  },
+  "host": {
+    "platform": "Darwin",
+    "architecture": "arm64",
+    "node": "v26.5.0"
+  },
+  "check": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "tests": 1011,
+    "pass": 940,
+    "fail": 0,
+    "skipped": 71,
+    "cancelled": 0,
+    "limitation": "Known-defect and optional runtime skips do not qualify those features."
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-09T17:54:16.546Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "985281e45e93de0f11d5b8edee86ba2c4f4ac761ddc3f8d5cc8372ed37668c90",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 12,
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-09T17:55:15.313Z"
+  },
+  "requiredRegressions": [
+    "test/application-transaction.test.ts",
+    "test/team-application.test.ts",
+    "test/staged-review.test.ts",
+    "test/reliability-defects.test.ts",
+    "test/work-flow.test.ts"
+  ],
+  "negativeControls": "docs/reliability/evidence/recovery-controls.json",
+  "observations": [
+    "Stopped authentication, quota, network, nonzero-exit, timeout, output-limit and cancelled builders preserve partial source and resume through fresh gates.",
+    "Unsafe capture retains raw workspace and previous checkpoint; actual host SIGKILL leaves an honest workspace pointer without claiming final capture.",
+    "Injected EACCES on the second file remains recoverable; actual process SIGKILL at thirteen journal boundaries recovers in fresh processes without duplicate records.",
+    "Ordinary undo and undo-of-undo preserve bytes, executable modes and feature status; legacy staged and team journals remain recoverable.",
+    "Recovery refuses unrelated edits and changed acceptance expectations; persisted rollback does not require renewed forward authorization."
+  ],
+  "limitations": [
+    "No paid model/provider requests were run. Fake external workers exercise actual host controller paths.",
+    "Process kills and injected write failures are not physical power-loss, remote-filesystem or Windows qualification.",
+    "SIGKILL cannot save unsaved bytes: no periodic implementation snapshots or automatic raw-workspace adoption are claimed.",
+    "Per-file atomic replacement is not cross-file filesystem atomicity.",
+    "Legacy byte-only recovery cannot invent executable modes or become fresh verification evidence.",
+    "Receipts and progress metadata are finalized after execution; the code hash binds tested code."
+  ]
+}

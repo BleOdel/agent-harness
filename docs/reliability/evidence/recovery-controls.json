@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "status": "passed",
+  "controls": [
+    {
+      "name": "discard-provider-source",
+      "file": "src/verbs/work.ts",
+      "test": "test/work-flow.test.ts",
+      "pattern": "F05",
+      "exitCode": 1,
+      "detected": true,
+      "restored": true
+    },
+    {
+      "name": "lose-attempt-reference",
+      "file": "src/workspace/work-attempts.ts",
+      "test": "test/work-flow.test.ts",
+      "pattern": "host SIGKILL",
+      "exitCode": 1,
+      "detected": true,
+      "restored": true
+    },
+    {
+      "name": "drop-executable-mode",
+      "file": "src/workspace/application.ts",
+      "test": "test/application-transaction.test.ts",
+      "pattern": "application recovery after record",
+      "exitCode": 1,
+      "detected": true,
+      "restored": true
+    },
+    {
+      "name": "omit-feature-publication",
+      "file": "src/workspace/application.ts",
+      "test": "test/application-transaction.test.ts",
+      "pattern": "application recovery after features",
+      "exitCode": 1,
+      "detected": true,
+      "restored": true
+    },
+    {
+      "name": "overwrite-concurrent-mode",
+      "file": "src/workspace/application.ts",
+      "test": "test/team-application.test.ts",
+      "pattern": "team mode-only writes reject concurrent",
+      "exitCode": 1,
+      "detected": true,
+      "restored": true
+    },
+    {
+      "name": "duplicate-history",
+      "file": "src/workspace/application.ts",
+      "test": "test/application-transaction.test.ts",
+      "pattern": "application recovery after record",
+      "exitCode": 1,
+      "detected": true,
+      "restored": true
+    }
+  ]
+}

@@ -31,7 +31,7 @@ export const recoveryPath = (project: string, runId: string): string =>
 export type Outcome = "staged" | "applied" | "gate-failed" | "escalated" | "no-changes" | "error" | "blocked" | "environment-blocked";
 
 export interface RunRecord {
-  readonly interruption?: "output-limit";
+  readonly interruption?: import("../workspace/work-checkpoints.ts").WorkFailure;
   readonly retainedWorkspace?: {readonly source:string;readonly controller:string};
   readonly checkRefresh?: {readonly previousApprovalDigest:string;readonly currentApprovalDigest:string};
   readonly id: string;
@@ -115,7 +115,10 @@ export async function nextRunId(project: string): Promise<string> {
   const staged = await readdir(path.join(harnessDirectory(project), "staging")).catch((error: NodeJS.ErrnoException) => {if(error.code === "ENOENT")return [];throw error;});
   const reserved:string[]=[];
   for(const id of staged.filter(id=>/^r[1-9][0-9]*$/.test(id))){const raw=await readFile(path.join(harnessDirectory(project),'staging',id,'state.json'),'utf8');const record=JSON.parse(raw).application?.record?.id;if(typeof record==='string')reserved.push(record);}
-  const highest = [...runs.map(r => r.id), ...checkpoints, ...staged, ...reserved].filter(id => /^r[1-9][0-9]*$/.test(id)).reduce((n,id) => Math.max(n,Number(id.slice(1))),0);
+  const active=await readdir(path.join(harnessDirectory(project),"implementation","attempts")).catch((e:NodeJS.ErrnoException)=>{if(e.code==="ENOENT")return [];throw e;});
+  const applications=await readdir(path.join(harnessDirectory(project),'applications')).catch((e:NodeJS.ErrnoException)=>{if(e.code==='ENOENT')return [];throw e;});
+  for(const id of applications.filter(id=>/^application-[a-f0-9-]+$/.test(id))){const raw=await readFile(path.join(harnessDirectory(project),'applications',id,'intent.json'),'utf8').catch((e:NodeJS.ErrnoException)=>{if(e.code==='ENOENT')return undefined;throw e;});if(raw){const intent=JSON.parse(raw);if(typeof intent.record?.id==='string')reserved.push(intent.record.id);}}
+  const highest = [...runs.map(r => r.id), ...checkpoints, ...staged, ...reserved,...active.map(n=>n.replace(/\.json$/, ""))].filter(id => /^r[1-9][0-9]*$/.test(id)).reduce((n,id) => Math.max(n,Number(id.slice(1))),0);
   return `r${String(Math.max(highest, runs.length + malformed.length) + 1)}`;
 }
 

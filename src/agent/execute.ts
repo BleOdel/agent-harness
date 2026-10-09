@@ -10,7 +10,7 @@ export async function executeAndSubmit(layout: SandboxLayout, request: AgentRequ
   const agent = await runAgent(layout, request, onOutput, onTurn);
   // runAgent confirms container removal before returning. Worker-owned IDs
   // remain ordinary submission data and cannot select a controller attempt.
-  if (agent.timedOut || agent.outputLimited) return { agent, submission: {ok:false as const, reason:agent.outputLimited?"Builder output-limit":"Builder timed out"}, claim: {ok:false as const, reason:agent.outputLimited?"Builder output-limit":"Builder timed out"} };
+  if (agent.timedOut || agent.outputLimited || agent.providerError || agent.code!==0) return { agent, submission: {ok:false as const, reason:agent.outputLimited?"Builder output-limit":"Builder timed out"}, claim: {ok:false as const, reason:agent.outputLimited?"Builder output-limit":"Builder timed out"} };
   return { agent, submission: await readSubmission(layout.workDirectory), claim: await readClaim(layout.workDirectory) };
 }
 
@@ -39,6 +39,6 @@ export function briefing(goal: string, criteria: readonly string[], sharedInputs
     "If missing input or an unresolved decision prevents completion, stop and",
     "write this instead. Do not guess or claim completion:",
     '{"outcome":"blocked","reason":"what prevents completion","requestedInput":"the specific input needed"}',
-    "A blocked result stops without review or apply; partial edits are discarded.",
+    "A blocked result stops without review or apply; safe partial edits are retained as unverified work.",
   ].join("\n");
 }

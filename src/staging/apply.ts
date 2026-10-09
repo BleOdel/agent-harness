@@ -1,3 +1,5 @@
+import {beginApplication,finishApplication,loadApplication,pendingApplication} from '../workspace/application.ts';
+import {withWriter} from '../workspace/writer-lock.ts';
 import {fileIdentity,identityAt,identityMode,portableMode} from '../workspace/file-identity.ts';
 /** Application intent is durable before writes; recovery accepts only before/after bytes. */
 import {mkdir,readFile,rm,realpath,lstat} from 'node:fs/promises';
@@ -18,7 +20,7 @@ import {projectTestCommand} from '../project/profile.ts';
 import {readContinuation,saveContinuation} from '../workflow/store.ts';
 import {OperatorError} from '../verbs/io.ts';
 const pending=(p:string)=>path.join(harnessDirectory(p),'staged-application.json');
-async function completeContinuation(project:string,s:Stage):Promise<void>{
+export async function completeContinuation(project:string,s:Stage):Promise<void>{
  const state=await readContinuation(project);if(!state||state.task!==s.task||state.status==='complete')return;
  state.status='complete';state.message=`Applied reviewed candidate ${s.id} as ${s.application!.record.id}. Nothing was published.`;state.updated=new Date().toISOString();state.events.push({at:state.updated,stage:'apply',message:state.message});state.events=state.events.slice(-30);await saveContinuation(project,state);
 }
@@ -28,7 +30,7 @@ async function featuresAfter(p:string,s:Stage){
  const affected=new Set([s.task]);if(s.candidate.changes.length)for(let more=true;more;){more=false;for(const f of list.features)if(!affected.has(f.id)&&f.dependsOn.some(d=>affected.has(d))){affected.add(f.id);more=true;}}
  return {featuresBefore:raw,featuresAfter:JSON.stringify(list.features.map(f=>f.id===s.task?{...f,status:'done'}:(s.candidate.sharedInputsChanged||affected.has(f.id))&&['done','doing'].includes(f.status)?{...f,status:'needs-revalidation'}:f),null,2)+'\n'};
 }
-export async function applyStage(project:string,id:string,checkpoint?:(point:string)=>Promise<void>):Promise<Stage>{
+async function applyLegacyStage(project:string,id:string,checkpoint?:(point:string)=>Promise<void>):Promise<Stage>{
  project=await realpath(project);const s=await readStage(project,id);
  if(s.status==='applied'){const marker=await readArtifact(harnessDirectory(project),'staged-application.json');if(marker&&JSON.parse(marker).id===id)await rm(pending(project),{force:true});await completeContinuation(project,s);return s;}
  if(!['pending','applying'].includes(s.status))throw new OperatorError('Rejected candidate cannot be applied.');
@@ -69,3 +71,26 @@ export async function applyStage(project:string,id:string,checkpoint?:(point:str
  await appendRunOnce(project,s.application.record);await checkpoint?.('record');
  s.status='applied';await writeStage(s);await rm(pending(project),{force:true});await completeContinuation(project,s);return s;
 }
+
+/** All newly prepared stages use the shared journal; old staged intents remain recoverable. */
+export async function applyStage(project:string,id:string,checkpoint?:(point:string)=>Promise<void>):Promise<Stage>{
+ project=await realpath(project);
+ return withWriter(project,'stage apply',async()=>{
+  const marker=await pendingApplication(project);
+  if(marker){
+   if(marker.version!==2)throw new OperatorError('Recover the pending team application first.');
+   const intent=await loadApplication(project);if(intent?.effect?.kind!=='stage'||intent.effect.id!==id)throw new OperatorError('Another application requires recovery first.');
+   await finishApplication(intent,{...(checkpoint?{checkpoint:stageCheckpoint(checkpoint)}:{})});return readStage(project,id);
+  }
+  const s=await readStage(project,id);
+  if(s.status==='applying'||await readArtifact(harnessDirectory(project),'staged-application.json'))return applyLegacyStage(project,id,checkpoint);
+  if(s.status==='applied'){await completeContinuation(project,s);return s;}
+  if(s.status!=='pending')throw new OperatorError('Rejected candidate cannot be applied.');
+  await assertStageCurrent(project,s);await assertStageReview(s);
+  if(s.execution)await assertExecutionCompatible(s.execution,project,loadConfig(),await projectTestCommand(project,process.env.HARNESS_TEST_COMMAND));
+  const features=await featuresAfter(project,s),record={id:await nextRunId(project),at:new Date().toISOString(),project,goal:s.task,attempts:0,outcome:'applied' as const,gates:[...s.gates,...s.acceptance.summaries,'Final operator review passed (manual observations are operator-reported).'],review:s.review,changes:s.candidate.changes,acceptance:s.acceptance,...(s.execution?{execution:s.execution}:{}),reason:`Applied reviewed staged candidate ${s.id}. Manual review: staging/${s.id}/state.json`};
+  const intent=await beginApplication(project,{source:s.candidate.directory,expected:s.baseline,featuresAfter:features.featuresAfter,record,effect:{kind:'stage',id},validate:async()=>{await checkpoint?.('prepared-recovery');await assertStageCurrent(project,s);await assertStageReview(s);}});
+  await finishApplication(intent,{...(checkpoint?{checkpoint:stageCheckpoint(checkpoint)}:{})});return readStage(project,id);
+ },true);
+}
+function stageCheckpoint(callback:(point:string)=>Promise<void>){return (point:string)=>callback(point==='prepared:features.json'?'prepared-features':point.startsWith('prepared:')?'prepared-file:'+point.slice(9):point.startsWith('write:')?'file:'+point.slice(6):point);}

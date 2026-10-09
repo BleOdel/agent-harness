@@ -11,8 +11,10 @@ export interface CheckpointInputs {
  goal:string;workDigest:string;approvalDigest:string;executionDigest:string;
  baseline:Pick<Snapshot,'identityVersion'|'digest'|'controls'|'exclusions'|'productDigest'>;
 }
+export type WorkFailure = "timeout"|"output-limit"|"provider-auth"|"provider-quota"|"provider-network"|"provider"|"exit"|"cancelled"|"verification"|"host-interrupted";
+export function classifyWorkFailure(message:string):WorkFailure {if(/auth|token.*expired|refresh.*token|401/i.test(message))return "provider-auth";if(/quota|usage.limit|rate.limit|429/i.test(message))return "provider-quota";if(/network|transport|disconnect|ECONN|fetch failed/i.test(message))return "provider-network";return "provider";}
 interface State extends CheckpointInputs {
- version:1;project:string;runId:string;savedAt:string;attempt:number;instruction:string;
+ version:1|2;failure?:{kind:WorkFailure;workerStopped:true};project:string;runId:string;savedAt:string;attempt:number;instruction:string;
  partial:Pick<Snapshot,'identityVersion'|'digest'|'files'|'exclusions'>;
  status:'available'|'completed'|'superseded'|'discarded';updatedBy?:string;
 }
@@ -34,13 +36,13 @@ async function boundedSource(directory:string,exclusions:readonly string[]):Prom
  await walk();
 }
 async function writeState(checkpoint:WorkCheckpoint):Promise<void>{const {directory,...state}=checkpoint;const bytes=Buffer.from(JSON.stringify(state,null,2)+'\n');if(bytes.length>4*1024*1024)throw new OperatorError('Checkpoint metadata exceeds the 4 MiB limit.');await atomicBytes(path.join(directory,'state.json'),bytes,0o600);}
-export async function saveWorkCheckpoint(project:string,runId:string,worker:string,input:CheckpointInputs&{attempt:number;instruction:string}):Promise<WorkCheckpoint>{
+export async function saveWorkCheckpoint(project:string,runId:string,worker:string,input:CheckpointInputs&{attempt:number;instruction:string;failure?:{kind:WorkFailure;workerStopped:true}}):Promise<WorkCheckpoint>{
  project=await realpath(project);if(!validId(runId))throw new OperatorError('Invalid checkpoint run id.');
  await boundedSource(worker,input.baseline.exclusions??[]);
  await mkdir(root(project),{recursive:true,mode:0o700});const pending=await mkdtemp(path.join(root(project),'.pending-'));
  try {
   const partial=await captureBaseline(worker,path.join(pending,'source'),input.baseline.exclusions);
-  const state:WorkCheckpoint={...input,baseline:{identityVersion:2,digest:input.baseline.digest,...(input.baseline.productDigest?{productDigest:input.baseline.productDigest}:{}),...(input.baseline.controls?{controls:input.baseline.controls}:{}),...(input.baseline.exclusions?{exclusions:input.baseline.exclusions}:{})},version:1,project,runId,savedAt:new Date().toISOString(),partial:{identityVersion:2,digest:partial.digest,files:partial.files,...(partial.exclusions?{exclusions:partial.exclusions}:{})},status:'available',directory:pending};
+  const state:WorkCheckpoint={...input,baseline:{identityVersion:2,digest:input.baseline.digest,...(input.baseline.productDigest?{productDigest:input.baseline.productDigest}:{}),...(input.baseline.controls?{controls:input.baseline.controls}:{}),...(input.baseline.exclusions?{exclusions:input.baseline.exclusions}:{})},version:2,failure:input.failure??{kind:"verification",workerStopped:true},project,runId,savedAt:new Date().toISOString(),partial:{identityVersion:2,digest:partial.digest,files:partial.files,...(partial.exclusions?{exclusions:partial.exclusions}:{})},status:'available',directory:pending};
   // Flush source bytes before publishing the manifest; a visible checkpoint is complete.
   for (const file of Object.keys(partial.files)) {const h=await open(path.join(pending,'source',file),'r');try{await h.sync();}finally{await h.close();}}
   const directories=new Set(['source']);for(const file of Object.keys(partial.files)){let d=path.posix.dirname(`source/${file}`);while(d!=='.'){directories.add(d);d=path.posix.dirname(d);}}
@@ -55,7 +57,8 @@ async function readCheckpoint(project:string,runId:string):Promise<WorkCheckpoin
  if(!stat.isDirectory()||stat.isSymbolicLink())throw new OperatorError('Checkpoint must be a real directory.');
  const raw=await readArtifact(directory,'state.json',4*1024*1024);if(!raw)return;
  const s=JSON.parse(raw) as State;
- if(!s||s.version!==1||s.project!==project||s.runId!==runId||typeof s.goal!=='string'||!s.goal||typeof s.instruction!=='string'||!s.instruction||![1,2].includes(s.attempt)||!['available','completed','superseded','discarded'].includes(s.status)||![s.workDigest,s.approvalDigest,s.executionDigest,s.baseline?.digest,s.partial?.digest].every(hex)||!s.partial?.files||typeof s.partial.files!=='object'||Array.isArray(s.partial.files))throw new OperatorError('Invalid saved implementation checkpoint.',remedy);
+ if(!s||(s.version!==1&&s.version!==2)||s.project!==project||s.runId!==runId||typeof s.goal!=='string'||!s.goal||typeof s.instruction!=='string'||!s.instruction||![1,2].includes(s.attempt)||!['available','completed','superseded','discarded'].includes(s.status)||![s.workDigest,s.approvalDigest,s.executionDigest,s.baseline?.digest,s.partial?.digest].every(hex)||!s.partial?.files||typeof s.partial.files!=='object'||Array.isArray(s.partial.files))throw new OperatorError('Invalid saved implementation checkpoint.',remedy);
+ if(s.version===2&&(!s.failure||s.failure.workerStopped!==true||!['timeout','output-limit','provider-auth','provider-quota','provider-network','provider','exit','cancelled','verification','host-interrupted'].includes(s.failure.kind)))throw new OperatorError('Invalid checkpoint failure classification.');
  for(const exclusions of [s.baseline.exclusions,s.partial.exclusions])if(exclusions!==undefined&&(!Array.isArray(exclusions)||exclusions.some(v=>typeof v!=='string')))throw new OperatorError('Invalid checkpoint exclusions.');
  if(JSON.stringify(s.baseline.exclusions??[])!==JSON.stringify(s.partial.exclusions??[])||(s.baseline.controls!==undefined&&!hex(s.baseline.controls)))throw new OperatorError('Invalid checkpoint source identity.');
  return {...s,directory};

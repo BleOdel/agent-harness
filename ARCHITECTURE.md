@@ -144,7 +144,7 @@ flowchart TD
   T --> C["Exact source claim and independent review"]
   R --> C
   C --> A["Fresh offline acceptance commands; host compares approved expectations"]
-  A --> S["Ordinary apply or team staging/application journal"]
+  A --> S["Shared application journal: work, staged/team apply and undo"]
 ```
 
 Dependency installation is recreated per executable gate and acceptance case.
@@ -1596,3 +1596,24 @@ accepts only the known before/after bytes, refuses unrelated edits and completes
 its record once. A pending marker blocks other writers. Successful application
 uses normal undo records. Product aggregation only accepts operator review for the
 exact current source and approved requirements, and labels the evidence accordingly.
+
+
+### Interrupted implementation and application
+
+```mermaid
+flowchart TD
+  W[Builder in disposable workspace] --> E{Outcome}
+  E -->|Stopped unsuccessfully| C[Capture bound unverified checkpoint]
+  C -->|Safe capture| R[Fresh sandbox and all verification again]
+  C -->|Unsafe or capture failed| Q[Quarantine raw workspace; retain previous checkpoint]
+  W -->|Host killed| P[Durable attempt pointer; possible unsaved loss]
+  E -->|Verified candidate| J[Publish application intent and before/after snapshots]
+  J --> F[Atomic per-file writes with content and mode checks]
+  F --> S[Publish feature status and one history record]
+  S --> D[Complete stage/team effects and clear pending pointer]
+  F -->|Interrupted| I[Finish or explicitly roll back the same journal]
+  I -->|External edit| X[Stop and retain originals]
+  I --> F
+```
+
+The attempt pointer is not a checkpoint. The application journal recovers a sequence of writes; it does not make the entire filesystem update atomic. Existing version-one staged/team journals retain their original recovery paths. See the [recovery contract](docs/reliability/README.md#implementation-and-application-recovery-hr-009--hr-010).

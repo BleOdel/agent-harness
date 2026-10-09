@@ -1,3 +1,8 @@
+import {beginApplication,finishApplication,loadApplication} from '../workspace/application.ts';
+import {applicationFeatures} from '../features.ts';
+import {withContainmentSignal} from '../containment/process.ts';
+import {saveWorkAttempt} from '../workspace/work-attempts.ts';
+import {contentFindings} from '../workspace/secret-content.ts';
 import {saveStage,pendingStage} from '../staging/store.ts';
 import {caseKind} from '../acceptance/evidence-kind.ts';
 import {ImplementationInterrupted} from '../workflow/controller.ts';
@@ -7,7 +12,7 @@ import {checkRefresh, type CheckRefresh} from "../workspace/check-refresh.ts";
 import { repairClaim } from "../agent/claim-repair.ts";
 import { atomicBytes } from "../workspace/atomic.ts";
 import { createHash } from "node:crypto";
-import { assertCheckpointInputs, findWorkCheckpoint, listWorkCheckpoints, restoreWorkCheckpoint, retireWorkCheckpoint, saveWorkCheckpoint } from "../workspace/work-checkpoints.ts";
+import { classifyWorkFailure, assertCheckpointInputs, findWorkCheckpoint, listWorkCheckpoints, restoreWorkCheckpoint, retireWorkCheckpoint, saveWorkCheckpoint } from "../workspace/work-checkpoints.ts";
 import { modelLabel } from "../model-settings.ts";
 import { contractContext } from "../acceptance/draft.ts";
 import { getAdapter } from "../adapters/registry.ts";
@@ -159,7 +164,7 @@ function limitsFrom(environment: NodeJS.ProcessEnv): Limits {
   };
 }
 
-async function workUnlocked(argv: readonly string[]): Promise<void> {
+async function workUnlocked(argv: readonly string[],signal:AbortSignal): Promise<void> {
   const args = [...argv];
   const explicitlyStaged=args.includes("--stage");
   if(explicitlyStaged)args.splice(args.indexOf("--stage"),1);
@@ -251,17 +256,23 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
     detail: string,
     extra: Partial<RunRecord> = {},
   ): Promise<OperatorError> => {
-    if ((outcome === "gate-failed" || outcome === "escalated" || outcome === "blocked") && execution && attempts > 0) {
+    stopping=true;
+    if (workerStopped && !applicationStarted && execution && attempts > 0 && !extra.implementationCheckpoint && !extra.retainedWorkspace) {
+      retainWorkspace=true;
+      const kind=extra.interruption??(signal.aborted?'cancelled':'verification');
+      extra={...extra,interruption:kind};
       try {
         const saved = await saveWorkCheckpoint(project, runId, sandbox.workDirectory, {
           goal:task, workDigest, approvalDigest:approvedChecks.digest, executionDigest:execution.digest, baseline,
-          attempt:attempts, instruction:`Continue the retained implementation. The previous verification did not pass.\n${summary}\n${detail}\n\nOriginal task and approved interfaces:\n${originalInstruction}`,
+          attempt:attempts,failure:{kind,workerStopped:true}, instruction:phase === "building" ? instruction : `Continue the retained implementation. The previous operation did not finish.\n${contentFindings(summary+detail).length?"Sensitive diagnostics withheld; inspect the local record.":(summary+"\n"+detail).slice(0,16000)}\n\nOriginal task and approved interfaces:\n${originalInstruction}`,
         });
         if (checkpoint) await retireWorkCheckpoint(checkpoint, "superseded", runId);
         extra = {...extra, implementationCheckpoint:runId};
+        if(kind==="timeout")summary+="; unverified partial work saved";
         detail += `\n\nUnverified source retained: ${path.join(saved.directory,"source")}\nContinue with: harness work --resume ${runId}\nAll verification must pass before anything is applied.`;
       } catch (error) {
-        detail += `\nPartial source could not be checkpointed: ${(error as Error).message}`;
+        extra={...extra,retainedWorkspace:{source:sandbox.workDirectory,controller:workspace.root}};
+        detail += `\ncheckpoint creation failed: ${(error as Error).message}\nQuarantined unverified workspace retained: ${sandbox.workDirectory}. Previous checkpoints remain available. Nothing was applied.`;
       }
     }
     await appendRun(project, {
@@ -296,7 +307,7 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       }),
       ...extra,
     });
-    recorded = true;
+    recorded = true;retainWorkspace=!!extra.retainedWorkspace;
     return new OperatorError(summary, detail);
   };
 
@@ -312,6 +323,8 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
 
   let attempts = 0;
   let recorded = false;
+  let stopping=false;
+  let attemptReference=false;
   let workerStopped = false;
   let applicationStarted = false;
   let gateSummaries: string[] = [];
@@ -416,11 +429,12 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       await assertSkillBundles(path.join(harnessDirectory(project), "executions", runId, "skills"), execution!.skills);
       const diagnosticsDirectory=path.join(harnessDirectory(project),'diagnostics',runId);
       await mkdir(diagnosticsDirectory,{recursive:true,mode:0o700});
+      await saveWorkAttempt(project,{runId,task,attempt,source:sandbox.workDirectory,controller:workspace.root,container:layout.containerName,...(checkpoint?{previousCheckpoint:checkpoint.runId}:{}),status:'running'});attemptReference=true;
       workerStopped = false;
       const built = await executeAndSubmit(
         layout,
         {
-          goal: checkpoint ? "Continue the saved, unverified partial implementation already in this directory. Inspect it before changing it: a timeout may have interrupted an edit or a deliberate mutation test. Finish the task, rerun validation and write a fresh claim.\n\n" + instruction : instruction,
+          goal: checkpoint ? "Continue the saved, unverified partial implementation already in this directory. Inspect it before changing it: an interruption may have stopped an edit or a deliberate mutation test. Finish the task, rerun validation and write a fresh claim.\n\n" + instruction : instruction,
           provider: config.provider,
           model: config.model,
           effort: config.effort ?? "medium",
@@ -452,32 +466,10 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       say("");
       say(describeUsage(spent));
 
-      if(agent.outputLimited){
-        const diagnostic=`Output-limit: ${agent.outputProblem ?? "captured process output or an event frame exceeded its bound"}. Diagnostics: ${agent.diagnosticFile ?? diagnosticsDirectory}`;
-        let saved;
-        try{saved=await saveWorkCheckpoint(project,runId,sandbox.workDirectory,{...checkpointInputs,attempt,instruction});}
-        catch(error){
-          // The worker is confirmed stopped. Never destroy the only useful source after a new cutoff.
-          retainWorkspace=true;
-          throw await stop('error','agent: output-limit; checkpoint creation failed',`${diagnostic}\n${(error as Error).message}\nUnverified source retained: ${sandbox.workDirectory}. Controller workspace: ${workspace.root}. Nothing was applied.`,{interruption:'output-limit',retainedWorkspace:{source:sandbox.workDirectory,controller:workspace.root}});
-        }
-        if(checkpoint)await retireWorkCheckpoint(checkpoint,'superseded',runId);
-        throw await stop('error','agent: output-limit; unverified partial work saved',`${diagnostic}\nSaved source: ${path.join(saved.directory,'source')}\nContinue with: harness work --resume ${runId}. Nothing was applied.`,{interruption:'output-limit',implementationCheckpoint:runId});
-      }
-      if (agent.timedOut) {
-        let saved;
-        try {
-          saved = await saveWorkCheckpoint(project, runId, sandbox.workDirectory, {...checkpointInputs, attempt, instruction});
-        } catch (error) {
-          throw await stop("error", "agent: timed out; partial work could not be checkpointed", `Nothing was applied. ${(error as Error).message}`);
-        }
-        if (checkpoint) await retireWorkCheckpoint(checkpoint, "superseded", runId);
-        throw new ImplementationInterrupted(await stop("error", `agent: timed out after ${String(Math.round(config.agentTimeoutMs / 1000))}s; unverified partial work saved`,
-          `Saved source: ${path.join(saved.directory, "source")}\nContinue with: harness work --resume ${runId}\nRunning harness work for this item also resumes it. Use harness work --fresh <item-id> to start again. Nothing was applied.`,
-          {implementationCheckpoint:runId}),runId);
-      }
-      if (agent.providerError) throw await stop("error", `agent: ${agent.providerError}`, "Restore provider authentication or resolve the provider error before retrying.");
-      if (agent.code !== 0) throw await stop("error", `agent: exited ${String(agent.code)}`, agent.stderr);
+      if(agent.outputLimited)throw await stop('error','agent: output-limit',`Captured output exceeded its bound. Diagnostics: ${agent.diagnosticFile??diagnosticsDirectory}. Nothing was applied.`,{interruption:'output-limit'});
+      if(agent.timedOut){const failure=await stop('error',`agent: timed out after ${String(Math.round(config.agentTimeoutMs/1000))}s`,'Nothing was applied.',{interruption:'timeout'});if(!retainWorkspace)throw new ImplementationInterrupted(failure,runId);throw failure;}
+      if(agent.providerError)throw await stop('error',`agent: ${agent.providerError}`,'Restore provider authentication or resolve the provider error before retrying.',{interruption:classifyWorkFailure(agent.providerError)});
+      if(agent.code!==0)throw await stop('error',`agent: exited ${String(agent.code)}`,agent.stderr,{interruption:signal.aborted?'cancelled':'exit'});
 
       const submission = built.submission;
       if (submission.ok && submission.outcome === "blocked") {
@@ -716,15 +708,10 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
         say(`Final observations and approval: harness stage review ${stage.id}`);return;
       }
       await mark("applying");
-      const recovery = await snapshotForRecovery(
-        project,
-        candidate.directory,
-        changes,
-        recoveryPath(project, runId),
-      );
-      applicationStarted = true;
-      await applyChanges(project, candidate.directory, changes, baseline, candidate);
-      await appendRun(project, {
+      const featuresBefore = await readFile(path.join(project,'features.json'),'utf8').catch((e:NodeJS.ErrnoException)=>{if(e.code==='ENOENT')return null;throw e;});
+      const featuresAfter = applicationFeatures(featuresBefore,work.feature?.id,'done',changes.length>0,candidate.sharedInputsChanged);
+      const intent = await beginApplication(project,{source:candidate.directory,expected:baseline,featuresAfter,validate:()=>assertSnapshot(candidate),record: {
+
         id: runId,
         at: new Date().toISOString(),
         project,
@@ -755,7 +742,10 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
             turns: spent.turns,
           }
         }),
-      });
+      }});
+      applicationStarted = true;
+      await finishApplication(intent);
+      recorded = true;
       if (checkpoint) await retireWorkCheckpoint(checkpoint, "completed", runId);
       // node_modules is never applied, so a run that added a package
       // brings back the declaration without the package. Every gate
@@ -763,8 +753,6 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
       // machine the project will not run until it is installed here too.
       const missing = adapter.reference.id === "node-npm" ? await missingInProject(project) : [];
 
-      if (candidate.sharedInputsChanged && work.feature !== undefined) await invalidateSharedInputs(project, work.feature.id);
-      if (work.feature !== undefined) await markDone(project, work.feature.id, changes.length > 0);
       for (const change of changes) say(`  ${change.kind.padEnd(8)} ${change.file}`);
       say(`applied as ${runId}. undo with: harness undo ${runId}`);
       if (missing.length > 0) {
@@ -772,10 +760,21 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
         say(`This run declared ${missing.join(", ")}, which ${missing.length === 1 ? "is" : "are"} not installed here.`);
         say("Install with:  harness deps --install");
       }
-      say(`recovery: ${recovery.directory}`);
+      say(`recovery: ${path.join(harnessDirectory(project),"applications",intent.id)}`);
       return;
     }
   } catch (error) {
+    if(!recorded){
+      // Publishing the pointer may succeed before a final fsync reports failure.
+      // Never append an error under a record ID already reserved by live intent.
+      const pending=await loadApplication(project).catch(()=>undefined);
+      if(pending?.record.id===runId)applicationStarted=true;
+      if(applicationStarted)throw new OperatorError(`Application interrupted: ${(error as Error).message}`,'The durable application journal retains original and proposed source. Run harness recover-application to finish, or harness recover-application --rollback before record commitment.');
+    }
+    if(stopping)throw error;
+    if(!recorded&&!workerStopped&&!applicationStarted&&attempts>0){
+      try{await dockerRunner.cleanup(layout);workerStopped=true;}catch{/* An unconfirmed worker must never be snapshotted or destroyed. */}
+    }
     if(!recorded&&!workerStopped&&!applicationStarted&&attempts>0){
       retainWorkspace=true;
       throw await stop('error',`Builder termination could not be confirmed: ${(error as Error).message}`,
@@ -787,13 +786,15 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
     // Never snapshot an unconfirmed live builder or imply recovery after partial apply.
     if (!recorded && workerStopped && !applicationStarted && attempts > 0) {
       throw await stop((phase as Phase) === "reviewing" ? "escalated" : "gate-failed",
-        `Verification could not finish: ${(error as Error).message}`, "Nothing was applied. Resolve the verification failure before continuing.");
+        `${(phase as Phase)==="building"?"Operation":"Verification"} could not finish: ${(error as Error).message}`, "Nothing was applied. Resolve the failure before continuing.",{interruption:signal.aborted?"cancelled":(phase as Phase)==="building"?"exit":"verification"});
     }
     throw error;
   } finally {
     // Remove stopped disposable work only after preservation succeeds. An explicitly
     // recorded recovery workspace stays unverified and must not be mistaken for live source.
     clearInterval(beat);
+    if(attemptReference)try{await saveWorkAttempt(project,{runId,task,attempt:attempts,source:sandbox.workDirectory,controller:workspace.root,container:layout.containerName,...(checkpoint?{previousCheckpoint:checkpoint.runId}:{}),status:retainWorkspace?'quarantined':'finished'});}catch{retainWorkspace=true;}
+
     if(!retainWorkspace)await destroyRunWorkspace(workspace);
     // And the run marker, so a watching page does not show this as still
     // going. A kill -9 skips this, which is what the heartbeat is for.
@@ -802,5 +803,8 @@ async function workUnlocked(argv: readonly string[]): Promise<void> {
 }
 
 export async function work(argv: readonly string[]): Promise<void> {
-  return withWriter(path.resolve(process.env.HARNESS_PROJECT ?? process.cwd()), "work", () => workUnlocked(argv));
+  const controller=new AbortController();const cancel=()=>controller.abort(new Error('Implementation cancelled by operator signal.'));
+  process.on('SIGINT',cancel);process.on('SIGTERM',cancel);
+  try{return await withContainmentSignal(controller.signal,()=>withWriter(path.resolve(process.env.HARNESS_PROJECT ?? process.cwd()), "work", () => workUnlocked(argv,controller.signal)));}
+  finally{process.off('SIGINT',cancel);process.off('SIGTERM',cancel);}
 }

@@ -1,3 +1,4 @@
+import {runSnapshotPath} from '../src/record/record.ts';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, mkdir, writeFile, readFile, rm, link, symlink } from "node:fs/promises";
@@ -60,7 +61,7 @@ test("public ordinary undo and undo-of-undo preserve all binary bytes in files a
  await appendRun(project,{id:"r1",at:new Date().toISOString(),project,goal:"asset",attempts:1,outcome:"applied",gates:[],changes:[{file:"asset.bin",kind:"modified",symlink:false}]});
  await undo(project,["r1"]);assert.deepEqual(await readFile(path.join(project,"asset.bin")),before);
  await undo(project,["r2"]);assert.deepEqual(await readFile(path.join(project,"asset.bin")),after);
- assert.deepEqual(await readFile(path.join(recoveryPath(project,"r2"),"before/asset.bin")),after);
+ assert.deepEqual(await readFile(path.join(runSnapshotPath(project,(await readRecord(project)).runs.find(r=>r.id==="r2")!),"before/asset.bin")),after);
  assert.equal((await readRecord(project)).runs.length,3);
 }));
 

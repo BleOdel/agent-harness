@@ -67,5 +67,5 @@ export async function stageCommand(project:string,args:readonly string[],provide
   result.approved=await confirmed(io,'Approve and apply this candidate now?');await recordStageReview(project,s,result);
   if(result.approved){const applied=await applyStage(project,id);io.write(`Applied as ${applied.application!.record.id}. Undo: harness undo ${applied.application!.record.id}`);}
   else io.write('Saved for later. No source was applied.');
- });
+ },action==='apply');
 }

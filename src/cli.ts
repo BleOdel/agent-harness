@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --experimental-strip-types
+import {recoverPendingApplication} from './workspace/application.ts';
 import {sourcePolicyCommand} from './verbs/source.ts';
 import { capabilitiesCommand } from './verbs/capabilities.ts';
 import {stageCommand} from './verbs/stage.ts';
@@ -121,6 +122,7 @@ const USAGE = [
   "  harness team apply <id>       journal and apply verified staging",
   "  harness team undo <id>        journal a batch reversal",
   "  harness team recover <id>     reconcile attempts or finish a pending application",
+  "  harness recover-application  finish or roll back an interrupted application",
   "  harness recover-lock <token> recover a dead writer explicitly",
   "  harness run [--max N]         work items until one needs you",
   "  harness look",
@@ -177,6 +179,9 @@ async function main(): Promise<void> {
       return checks(project, rest);
     case "team":
       return team(project, rest);
+    case "recover-application":
+      if(rest.some(a=>a!=='--rollback')||rest.length>1)throw new OperatorError('Use: harness recover-application [--rollback]');
+      await recoverPendingApplication(project,{rollback:rest.includes('--rollback')});say('Application recovery complete.');return;
     case "recover-lock":
       if (rest.length !== 1) throw new OperatorError("Use: harness recover-lock <owner-token>");
       await recoverWriter(project, rest[0]!);

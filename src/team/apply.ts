@@ -1,3 +1,4 @@
+import {beginApplication,finishApplication,loadApplication,type ApplicationIntent} from '../workspace/application.ts';
 import {identityAt,identityMode,fileIdentity,portableMode} from '../workspace/file-identity.ts';
 import {assertProductCurrent} from "../product/spec.ts";
 /** Host-only batch application. Intent precedes writes; fingerprints decide recovery. */
@@ -64,53 +65,14 @@ function featuresAfter(before: string, state: TeamState, undo: boolean): string 
   return JSON.stringify(list.features.map(task => completed.has(task.id) ? { ...task, status: undo ? "todo" : "done" }
     : (state.invalidated.includes(task.id) || (undo && affected.has(task.id))) && ["done", "doing"].includes(task.status) ? { ...task, status: "needs-revalidation" } : task), null, 2) + "\n";
 }
-async function begin(project: string, directory: string, state: TeamState, source: string, direction: Intent["direction"], expected: Snapshot, options: ApplicationOptions): Promise<Intent> {
-  const id = `application-${randomUUID()}`, root = transactionPath(project, id);
-  await durableDirectory(root, 0o700);
-  await assertLiveBaseline(project, expected);
-  const before = await captureBaseline(project, path.join(root, "before"));
-  if (before.digest !== expected.digest || before.controls !== expected.controls) throw new Error("Live source changed while preparing application.");
-  const after = await captureBaseline(source, path.join(root, "after"));
-  if (direction === "apply" && after.digest !== state.baseline.digest) throw new Error("Verified staging changed during application preparation.");
-  const raw = await optional(path.join(project, "features.json")); if (!raw) throw new Error("Application requires the accepted feature manifest.");
-  const changes: Change[] = [...new Set([...Object.keys(before.files), ...Object.keys(after.files)])].filter(file => before.files[file] !== after.files[file]).sort().map(file => ({ file, symlink: false, kind: after.files[file] === undefined ? "deleted" : before.files[file] === undefined ? "added" : "modified" }));
-  assertChangesAreApplicable(changes, after.directory);
-  for (const file of new Set([...Object.keys(before.files), ...Object.keys(after.files)])) {
-    if (!safeRelative(file)) throw new Error("Unsafe application path.");
-    // Directory replacement can remove excluded data. Refuse it before any write.
-    const parts = file.split("/"); parts.pop();
-    while (parts.length) { if (before.files[parts.join("/")] !== undefined || after.files[parts.join("/")] !== undefined) throw new Error("File/directory replacement requires manual application."); parts.pop(); }
-  }
-  const modes: Record<string, number> = {};
-  for (const file of [...changes.map(c => c.file), "features.json"]) {
-    const stat = await lstat(path.join(project, file)).catch((e: NodeJS.ErrnoException) => { if (e.code === "ENOENT") return undefined; throw e; });
-    if (stat && stat.nlink !== 1) throw new Error(`Hard-linked application paths are unsupported: ${file}`);
-    let ancestor = path.dirname(path.join(project, file));
-    while (!(await lstat(ancestor).catch((e: NodeJS.ErrnoException) => { if (e.code === "ENOENT") return undefined; throw e; }))) ancestor = path.dirname(ancestor);
-    if ((await lstat(ancestor)).dev !== (await lstat(root)).dev) throw new Error("Application state and destination must be on the same filesystem.");
-    modes[file] = stat ? stat.mode & 0o777 : (await lstat(path.join(after.directory, file))).mode & 0o777;
-  }
-  const history = await readRecord(project); if (history.malformed.length) throw new Error("Malformed record requires repair before application.");
-  const record: RunRecord = { id: await nextRunId(project), at: new Date().toISOString(), project, goal: direction === "apply" ? state.runId : `undo ${state.appliedRecordId}`, attempts: state.attempts.length, outcome: "applied", ...(state.execution ? { execution: state.execution } : {}), gates: direction === "apply" ? ["All staged candidates passed gates, review, combined verification and approved acceptance checks."] : [], ...(direction === "apply" && options.acceptance ? { acceptance: options.acceptance } : {}), changes, teamRunId: state.runId, taskIds: [...state.integrated], transactionId: id, baselineDigest: before.digest, candidateDigest: after.digest, ...(direction === "undo" ? { reverses: state.appliedRecordId! } : {}) };
-  const intent: Intent = { version: 1, id, project, teamDirectory: directory, teamRunId: state.runId, direction, before, after, featuresBefore: raw.toString(), featuresAfter: featuresAfter(raw.toString(), state, direction === "undo"), changes, modes, record };
-  // The intent may outlive this process; flush its source bytes before publication.
-  for (const snapshot of [before, after]) {
-    const directories = new Set<string>([snapshot.directory, root]);
-    for (const file of Object.keys(snapshot.files)) {
-      const handle = await open(path.join(snapshot.directory, file), "r"); try { await handle.sync(); } finally { await handle.close(); }
-      let directory = path.dirname(path.join(snapshot.directory, file));
-      while (directory.startsWith(snapshot.directory)) { directories.add(directory); directory = path.dirname(directory); }
-    }
-    for (const directory of [...directories].sort((a, b) => b.length - a.length)) await syncDirectory(directory);
-  }
-  await atomicJson(path.join(root, "intent.json"), intent, true);
-  // Recheck after preparation and before publishing an intent that may write.
-  await options.checkpoint?.("prepared-intent");
-  await assertLiveBaseline(project, expected);
-  if (direction === "apply") await assertAcceptanceProof(project, state.baseline, state.integrated, options.acceptance);
-  await atomicJson(applicationPath(project), { version: 1, id, teamRunId: state.runId, intentDigest: digest(intent) } satisfies Pending, true);
-  return intent;
+async function begin(project: string, directory: string, state: TeamState, source: string, direction: Intent['direction'], expected: Snapshot, options: ApplicationOptions): Promise<ApplicationIntent> {
+ const raw=await optional(path.join(project,'features.json'));if(!raw)throw Error('Application requires the accepted feature manifest.');
+ return beginApplication(project,{source,expected,direction,featuresAfter:featuresAfter(raw.toString(),state,direction==='undo'),effect:{kind:'team',directory,runId:state.runId},
+  record:{id:await nextRunId(project),at:new Date().toISOString(),project,goal:direction==='apply'?state.runId:`undo ${state.appliedRecordId}`,attempts:state.attempts.length,outcome:'applied',...(state.execution?{execution:state.execution}:{}),gates:direction==='apply'?['All staged candidates passed gates, review, combined verification and approved acceptance checks.']:[],...(direction==='apply'&&options.acceptance?{acceptance:options.acceptance}:{}),changes:[],teamRunId:state.runId,taskIds:[...state.integrated],...(direction==='undo'?{reverses:state.appliedRecordId!}:{})},
+  validate:async()=>{await options.checkpoint?.('prepared-intent');await assertLiveBaseline(project,expected);if(direction==='apply'){await assertSnapshot(state.baseline);await assertAcceptanceProof(project,state.baseline,state.integrated,options.acceptance);}}
+ });
 }
+async function finishCurrent(intent:ApplicationIntent,directory:string,options:ApplicationOptions):Promise<TeamState>{await finishApplication(intent,options);return readState(directory);}
 async function writeSource(intent: Intent, file: string, toBefore: boolean, checkpoint?: ApplicationOptions["checkpoint"]): Promise<void> {
   const desired = toBefore ? intent.before : intent.after;
   const live = path.join(intent.project, file);
@@ -194,8 +156,7 @@ export async function applyTeam(project: string, directory: string, options: App
     await readChecks(directory, state.verificationDigest);
     await assertAcceptanceProof(project, state.baseline, state.integrated, options.acceptance);
     const intent = await begin(project, directory, state, state.baseline.directory, "apply", state.original, options);
-    await options.checkpoint?.("intent");
-    return finish(intent, options);
+    return finishCurrent(intent, directory, options);
   });
 }
 export async function recoverApplication(project: string, directory: string, options: ApplicationOptions = {}): Promise<TeamState> {
@@ -204,6 +165,7 @@ export async function recoverApplication(project: string, directory: string, opt
     await assertTeamDirectory(project, directory);
     const pending = await pendingAt(project); if (!pending) return readState(directory);
     if (pending.teamRunId !== path.basename(directory)) throw new Error(`Pending application belongs to ${pending.teamRunId}; recover that run first.`);
+    if((pending.version as number)===2){const intent=await loadApplication(project);if(intent?.effect?.kind!=='team'||intent.effect.directory!==directory)throw Error('Pending application belongs to another operation.');return finishCurrent(intent,directory,options);}
     return finish(await loadIntent(project, pending), options);
   }, true);
 }
@@ -213,7 +175,7 @@ export async function undoTeam(project: string, directory: string, options: Appl
     await assertTeamDirectory(project, directory); const state = await readState(directory);
     if (state.status === "undone") return state;
     if (state.status !== "applied" || !state.appliedTransactionId) throw new Error("Only an applied team batch can be undone.");
-    const original = JSON.parse((await optional(path.join(transactionPath(project, state.appliedTransactionId), "intent.json")))!.toString()) as Intent;
+    const original = JSON.parse((await optional(path.join(transactionPath(project, state.appliedTransactionId), "intent.json")))!.toString()) as Intent|ApplicationIntent;
     if (digest(original) !== state.appliedIntentDigest) throw new Error("Applied intent changed; manual recovery required.");
     await Promise.all([assertSnapshot(original.before,true), assertSnapshot(original.after,true)]);
     const undoLive = await captureBaseline(project, path.join(directory, `undo-live-${randomUUID()}`));
@@ -224,9 +186,9 @@ export async function undoTeam(project: string, directory: string, options: Appl
       for (const change of original.changes) {
         const file = path.join(undoSource, change.file);
         if (original.before.files[change.file] === undefined) await rm(file);
-        else await atomicBytes(file, await readFile(path.join(original.before.directory, change.file)), original.before.identityVersion===2?identityMode(original.before.files[change.file]!):original.modes[change.file]);
+        else await atomicBytes(file, await readFile(path.join(original.before.directory, change.file)), original.before.identityVersion===2?identityMode(original.before.files[change.file]!):original.version===1?original.modes[change.file]:0o644);
       }
-      const intent = await begin(project, directory, state, undoSource, "undo", undoLive, options); await options.checkpoint?.("intent"); return finish(intent, options);
+      const intent = await begin(project, directory, state, undoSource, "undo", undoLive, options); return finishCurrent(intent, directory, options);
     } finally { await rm(undoSource, { recursive: true, force: true }); }
   });
 }

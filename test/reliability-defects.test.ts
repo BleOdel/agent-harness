@@ -43,7 +43,7 @@ test('F01 targeted repair can resume a preparation-owned failed scope',known,asy
   assert.equal(called,true,'targeted repair must locate the preparation-owned scope');
  }finally{await rm(root,{recursive:true,force:true});}
 });
-test('F04 a failed ordinary apply preserves every live file',known,async()=>{
+test('F04 a failed ordinary apply preserves every live file',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'audit-apply-')),project=root+'/app',copy=root+'/copy';
  try{
   await mkdir(project);await mkdir(copy);

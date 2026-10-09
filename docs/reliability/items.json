@@ -148,7 +148,7 @@
     "id": "hr-009",
     "title": "Retain implementation work on every unsuccessful exit",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Capture safe unverified source for timeout, provider/auth/quota/network errors, nonzero exit, cancellation and output-limit failure before sandbox cleanup.",
       "Write the checkpoint atomically with failure classification, task/attempt identity and a recoverable source manifest; do not require a valid builder claim to retain work.",
@@ -169,7 +169,7 @@
     "id": "hr-010",
     "title": "Journal all application and undo writes",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Use one versioned application transaction with reserved record identity, intent, before/after manifests and per-file progress for ordinary work, staged work, team application and undo.",
       "Check expected live bytes and executable modes before replacing each file; use atomic file replacement and a durable recovery journal.",

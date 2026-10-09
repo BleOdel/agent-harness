@@ -1,3 +1,5 @@
+import {pendingApplication} from '../workspace/application.ts';
+import {unfinishedWorkAttempts,attemptNotice} from '../workspace/work-attempts.ts';
 import {listMetal,readMetalState} from "../metal/store.ts";
 import {listAppleRuns} from "../native/apple/store.ts";
 import {listGuiRuns} from "../native/gui/store.ts";
@@ -47,6 +49,8 @@ export function stateOfItem(feature: Feature, runs: readonly RunRecord[]): strin
 }
 
 export async function look(project: string): Promise<void> {
+  const pending=await pendingApplication(project);if(pending)say(`Application ${pending.id} requires recovery: ${pending.version===2?'harness recover-application':'harness team recover '+pending.teamRunId}.`);
+  for(const attempt of await unfinishedWorkAttempts(project))say(attemptNotice(attempt));
   for(const a of await listMetal(project)){const s=await readMetalState(project,a.id);say(`METAL ${a.spec.title} · ${s.status} · epoch ${s.checkpoint?.model.completed??0}/${a.spec.epochs} · ${a.id}`);}
   for(const r of await listAppleRuns(project)) say(`NATIVE UI ${r.id} · ${r.status} · ${r.message}`);
   for(const r of await listGuiRuns(project)) say(`MACOS GUI ${r.id} · ${r.status} · ${r.message}`);

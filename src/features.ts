@@ -293,3 +293,10 @@ export async function invalidateSharedInputs(project: string, except: string): P
   const next = list.features.map(f => f.id !== except && (f.status === "done" || f.status === "doing") ? { ...f, status: "needs-revalidation" } : f);
   await writeFile(path.join(project, FEATURES_FILE), JSON.stringify(next, null, 2) + "\n");
 }
+
+/** Pure status transition so application can journal requirements alongside source. */
+export function applicationFeatures(text:string|null,id:string|undefined,status:Status,changed:boolean,shared=false):string|null{
+ if(text===null||id===undefined)return text;const list=parseFeatures(text);if(!list.ok)throw Error(list.reason);const previous=list.features.find(f=>f.id===id);if(!previous)return text;
+ const affected=new Set([id]);if(changed||(previous.status==='done'&&status!=='done'))for(let more=true;more;){more=false;for(const f of list.features)if(!affected.has(f.id)&&f.dependsOn.some(d=>affected.has(d))){affected.add(f.id);more=true;}}
+ return JSON.stringify(list.features.map(f=>f.id===id?{...f,status}:(shared||affected.has(f.id))&&['done','doing'].includes(f.status)?{...f,status:'needs-revalidation'}:f),null,2)+'\n';
+}

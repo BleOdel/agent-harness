@@ -286,9 +286,12 @@ its current scoped performance evidence and separate assessment.
 > gates, a valid independent review, and operator-approved behaviour checked
 > by the host. Recovery snapshots preserve applied source bytes.**
 
-These are bounded checks, not a proof of complete correctness. Ordinary undo
-can refuse conflicting edits, and ordinary multi-file application is not a
-crash-atomic transaction. Team batch application has a recovery journal.
+These are bounded checks, not a proof of complete correctness. Ordinary, staged
+and team application and undo share a durable journal. Each file replacement is
+atomic; the whole tree is recoverable rather than filesystem-atomic. Conflicting
+user edits stop recovery. Run `harness recover-application` to finish a current
+journal, or add `--rollback` before its history record is committed. Legacy team
+and staged journals retain their existing recovery commands.
 
 This is deliberately *not* "the model cannot act". The predecessor to this
 project put a human approval in front of every byte the model wrote. It

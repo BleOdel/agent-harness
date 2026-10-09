@@ -1,3 +1,4 @@
+import {runSnapshotPath} from '../src/record/record.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,writeFile,readFile,rm,realpath} from 'node:fs/promises';
@@ -50,13 +51,13 @@ test('application requires final review, preserves undo data, marks the task don
  const {stage}=await staged(root,p);await assert.rejects(applyStage(p,'r1'),/review/);assert.equal(await readFile(path.join(p,'app.js'),'utf8'),'before');
  await saveContinuation(p,{version:1,task:'story',status:'approval',message:'Review candidate',updated:new Date().toISOString(),attempts:1,maxBuilds:2,recoveries:0,events:[]});
  await approveStage(p,stage);const applied=await applyStage(p,'r1');assert.equal(applied.status,'applied');assert.equal((await readContinuation(p))?.status,'complete');assert.equal(await readFile(path.join(p,'app.js'),'utf8'),'after');assert.equal(JSON.parse(await readFile(path.join(p,'features.json'),'utf8'))[0].status,'done');
- assert.equal(await readFile(path.join(harnessDirectory(p),'recovery',applied.application!.record.id,'before/app.js'),'utf8'),'before');
+ assert.equal(await readFile(path.join(runSnapshotPath(p,applied.application!.record),'before/app.js'),'utf8'),'before');
  await applyStage(p,'r1');assert.equal((await readRecord(p)).runs.length,1);
 }));
 test('interrupted application reserves its run, blocks other writers and resumes exact bytes once',()=>fixture(async(root,p)=>{
  const {stage}=await staged(root,p);await approveStage(p,stage);
  await assert.rejects(applyStage(p,'r1',async point=>{if(point==='file:app.js')throw Error('simulated crash');}),/simulated crash/);
- await assert.rejects(withWriter(p,'work',async()=>assert.fail()),/staged application requires recovery/);
+ await assert.rejects(withWriter(p,'work',async()=>assert.fail()),/application requires recovery/);
  assert.equal(await nextRunId(p),'r3');
  await applyStage(p,'r1');assert.equal((await readRecord(p)).runs.length,1);assert.equal((await readStage(p,'r1')).status,'applied');
  await withWriter(p,'work',async()=>{});
@@ -77,7 +78,7 @@ test('edits made while a file or requirements replacement is prepared are preser
  const {stage}=await staged(root,p);await approveStage(p,stage);
  await assert.rejects(applyStage(p,'r1',async point=>{if(point==='prepared-file:app.js')await writeFile(path.join(p,'app.js'),'concurrent edit');}),/External change/);
  assert.equal(await readFile(path.join(p,'app.js'),'utf8'),'concurrent edit');await writeFile(path.join(p,'app.js'),'before');
- await assert.rejects(applyStage(p,'r1',async point=>{if(point==='prepared-features')await writeFile(path.join(p,'features.json'),'[]');}),/Requirements changed/);
+ await assert.rejects(applyStage(p,'r1',async point=>{if(point==='prepared-features')await writeFile(path.join(p,'features.json'),'[]');}),/External feature change/);
  assert.equal(await readFile(path.join(p,'features.json'),'utf8'),'[]');
 }));
 

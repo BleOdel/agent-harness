@@ -126,25 +126,25 @@ export async function applyChanges(
   changes: readonly Change[],
   baseline?:Snapshot, candidate?:Snapshot,
 ): Promise<void> {
-  assertChangesAreApplicable(changes, copy);
-  if(baseline)await assertLiveBaseline(project,baseline);if(candidate)await assertSnapshot(candidate);
-  for (const change of changes) {
-    await safePath(project, change.file);
-    if (change.kind !== "deleted") await readSelectedSource(copy,change.file);
-  }
-  for (const change of changes) {
-    const destination = await safePath(project, change.file);
-    const expected=baseline?baseline.files[change.file]:await identityAt(destination);
-    const unchanged=async()=>{await safePath(project,change.file);if(await identityAt(destination)!==expected)throw Error(`Live content or mode changed at ${change.file}; refusing stale apply.`);};
-    if (change.kind === "deleted") {
-      await unchanged();await rm(destination, { force: true });
-      continue;
-    }
-    await mkdir(path.dirname(destination), { recursive: true });
-    const source=await safePath(copy,change.file),bytes=await readSelectedSource(copy,change.file),mode=portableMode((await lstat(source)).mode);
-      if(candidate&&fileIdentity(bytes,mode)!==candidate.files[change.file])throw Error('Candidate content or mode changed before application.');
-    await atomicBytes(destination,bytes,mode,path.dirname(destination),unchanged);
-  }
+  // Compatibility entry point for host callers. New production work supplies its
+  // own reviewed record; this adapter still uses the same durable writer.
+  const {withWriter}=await import('./writer-lock.ts');
+  const {beginApplication,finishApplication}=await import('./application.ts');
+  const {nextRunId}=await import('../record/record.ts');
+  const {copySource}=await import('./candidate.ts');
+  await withWriter(project,'apply',async()=>{
+    assertChangesAreApplicable(changes,copy);if(baseline)await assertLiveBaseline(project,baseline);if(candidate)await assertSnapshot(candidate);
+    // All proposed bytes must exist and pass source policy before any intent.
+    for(const c of changes){await safePath(project,c.file);if(c.kind!=='deleted')await readSelectedSource(copy,c.file);}
+    const root=await realpath(await mkdtemp(path.join(os.tmpdir(),'harness-apply-')));
+    try{
+      const expected=baseline??await captureBaseline(project,path.join(root,'before'));
+      const source=path.join(root,'after');await copySource(expected.directory,source,expected.exclusions);
+      for(const c of changes){const target=await safePath(source,c.file);if(c.kind==='deleted')await rm(target,{force:true});else{const bytes=await readSelectedSource(copy,c.file),mode=portableMode((await lstat(await safePath(copy,c.file))).mode);if(candidate&&fileIdentity(bytes,mode)!==candidate.files[c.file])throw Error('Candidate content or mode changed before application.');await atomicBytes(target,bytes,mode);}}
+      const featuresAfter=await readFile(path.join(project,'features.json'),'utf8').catch((e:NodeJS.ErrnoException)=>{if(e.code==='ENOENT')return null;throw e;});
+      const intent=await beginApplication(project,{source,expected,featuresAfter,record:{id:await nextRunId(project),at:new Date().toISOString(),project,goal:'Host application',attempts:0,outcome:'applied',changes,gates:[]}});await finishApplication(intent);
+    }finally{await rm(root,{recursive:true,force:true});}
+  });
 }
 
 export interface RunWorkspace { readonly root: string; readonly baseline: Snapshot; readonly sandbox: Sandbox; }

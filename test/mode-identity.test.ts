@@ -18,7 +18,7 @@ test('F06 mode-only changes are verified, applied, undone and redone',async()=>{
   assert.equal(await mode(f.project+'/run.sh'),0o755);
   const {run}=await import('../src/run.ts');assert.equal((await run(f.project+'/run.sh',[],{timeoutMs:5000})).code,0);
   const {renderDiff}=await import('../src/review/diff.ts');assert.match(await renderDiff(baseline.directory,candidate.directory,candidate.changes),/executable mode: 644 -> 755/);
-  await appendRun(f.project,{id:'r1',at:new Date().toISOString(),project:f.project,goal:'script',attempts:1,outcome:'applied',gates:[],changes:candidate.changes});
+  assert.equal((await readRecord(f.project)).runs[0]!.outcome,'applied');
   await undo(f.project,['r1']);assert.equal(await mode(f.project+'/run.sh'),0o644);
   await undo(f.project,['r2']);assert.equal(await mode(f.project+'/run.sh'),0o755);assert.equal((await readRecord(f.project)).runs.length,3);
  }finally{await f.close();}

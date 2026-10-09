@@ -631,7 +631,7 @@ test('staged acceptance failures receive at most one repair and never apply fail
  }finally{await f.close();}
 });
 
-test('F05 provider interruption preserves useful unverified implementation', {skip:process.env.HARNESS_KNOWN_DEFECTS!=='1'},async()=>{
+test('F05 provider interruption preserves useful unverified implementation',async()=>{
  const f=await fixture([item('api')],'provider-error');
  try{
   const docker=await readFile(f.env.HARNESS_DOCKER!,'utf8');
@@ -693,4 +693,66 @@ test('overflow with unconfirmed container cleanup retains source without claimin
   if(retained){assert.match(path.basename(path.dirname(retained.source)),/^harness-work-/);assert.match(path.basename(retained.controller),/^harness-controller-/);await rm(path.dirname(retained.source),{recursive:true,force:true});await rm(retained.controller,{recursive:true,force:true});}
   await f.close();
  }
+});
+
+for(const [kind,message] of [['provider-auth','authentication token expired'],['provider-quota','usage limit reached'],['provider-network','network connection disconnected'],['exit','']] as const)test(`failed builder ${kind} retains and resumes exactly its partial work`,async()=>{
+ const f=await fixture([item('api')],'changed');f.env.FLOW_MODE='failure';
+ try{
+  const docker=await readFile(f.env.HARNESS_DOCKER!,'utf8');
+  const failure=message?`console.log(JSON.stringify({type:'message_end',message:{role:'assistant',stopReason:'error',errorMessage:${JSON.stringify(message)}}}));`:'';
+  await writeFile(f.env.HARNESS_DOCKER!,docker.replace('const blocked = mode',`if(mode==='failure'){fs.writeFileSync(path.join(work,'app.js'),'export const value = 2;\\n');fs.writeFileSync(path.join(work,'.harness-claim.json'),'{unfinished');${failure}process.exit(7);}
+const blocked = mode`));
+  const result=await f.run('work','api');assert.notEqual(result.code,0);
+  const record=(await readRecord(f.project)).runs[0]!;assert.equal(record.interruption,kind);assert.equal(record.implementationCheckpoint,record.id);
+  const saved=await findWorkCheckpoint(f.project,undefined,record.id);assert.ok(saved);assert.equal((saved as any).failure.kind,kind);
+  assert.equal(await readFile(path.join(saved.directory,'source/app.js'),'utf8'),'export const value = 2;\n');
+  assert.equal(await readFile(path.join(f.project,'app.js'),'utf8'),'export const value = 1;\n');
+  f.env.FLOW_MODE='resume';const resumed=await f.run('work','--resume',record.id);assert.equal(resumed.code,0,resumed.text);
+  assert.equal(await readFile(path.join(f.project,'app.js'),'utf8'),'export const value = 2;\n');
+ }finally{await f.close();}
+});
+test('operator cancellation stops the worker before saving partial source and resumes in another host',async()=>{
+ const f=await fixture([item('api')],'changed');f.env.FLOW_MODE='timeout';
+ const {spawn}=await import('node:child_process');let child:ReturnType<typeof spawn>|undefined;
+ try{
+  child=spawn(process.execPath,[cli,'work','api'],{cwd:f.project,env:f.env,stdio:['ignore','pipe','pipe']});let output='';child.stdout!.on('data',b=>output+=b);child.stderr!.on('data',b=>output+=b);const closed=new Promise(resolve=>child!.once('close',resolve));
+  for(let i=0;i<200;i++){const calls=await f.calls();if(calls.some(c=>c.kind==='builder')&&await readFile(path.join(calls.find(c=>c.kind==='builder')!.work,'app.js'),'utf8')==='export const value = 2;\n')break;await new Promise(r=>setTimeout(r,20));}
+  child.kill('SIGTERM');await closed;
+  const r=(await readRecord(f.project)).runs[0]!;assert.equal(r.interruption,'cancelled',output);assert.equal(r.implementationCheckpoint,r.id);
+  const c=await findWorkCheckpoint(f.project,undefined,r.id);assert.equal(c!.failure!.workerStopped,true);assert.equal(await readFile(path.join(c!.directory,'source/app.js'),'utf8'),'export const value = 2;\n');
+  f.env.FLOW_MODE='resume';const resumed=await f.run('work','--resume',r.id);assert.equal(resumed.code,0,resumed.text);
+ }finally{child?.kill('SIGKILL');await f.close();}
+});
+
+test('unsafe failed source is quarantined without superseding the last complete checkpoint',async()=>{
+ const f=await fixture([item('api')],'changed');let retained:{source:string;controller:string}|undefined;
+ try{
+  f.env.FLOW_MODE='timeout';f.env.HARNESS_AGENT_TIMEOUT='1';await f.run('work','api');
+  const previous=await findWorkCheckpoint(f.project,undefined,'r1');assert.ok(previous);
+  const docker=await readFile(f.env.HARNESS_DOCKER!,'utf8');
+  await writeFile(f.env.HARNESS_DOCKER!,docker.replace('const blocked = mode',`if(mode==='unsafe-failure'){fs.writeFileSync(path.join(work,'app.js'),'export const value = 3;\\n');fs.symlinkSync('app.js',path.join(work,'unsafe'));process.exit(9);}\nconst blocked = mode`));
+  f.env.FLOW_MODE='unsafe-failure';const result=await f.run('work','--resume','r1');assert.notEqual(result.code,0);assert.match(result.text,/Quarantined unverified workspace/);
+  const latest=(await readRecord(f.project)).runs.at(-1)!;retained=latest.retainedWorkspace;assert.ok(retained);assert.equal(latest.implementationCheckpoint,undefined);
+  assert.equal((await findWorkCheckpoint(f.project,undefined,'r1'))!.status,'available');
+  assert.equal(await readFile(path.join(previous.directory,'source/app.js'),'utf8'),'export const value = 2;\n');
+  assert.equal(await readFile(path.join(retained.source,'app.js'),'utf8'),'export const value = 3;\n');
+  assert.equal(await readFile(path.join(f.project,'app.js'),'utf8'),'export const value = 1;\n');
+ }finally{if(retained){await rm(path.dirname(retained.source),{recursive:true,force:true});await rm(retained.controller,{recursive:true,force:true});}await f.close();}
+});
+
+test('host SIGKILL leaves an honest durable attempt reference and reserves its run id',async()=>{
+ const f=await fixture([item('api')],'changed');f.env.FLOW_MODE='timeout';f.env.HARNESS_AGENT_TIMEOUT='60';
+ const {spawn}=await import('node:child_process');const {unfinishedWorkAttempts}=await import('../src/workspace/work-attempts.ts');const {nextRunId}=await import('../src/record/record.ts');
+ let child:ReturnType<typeof spawn>|undefined,workerPid:number|undefined,reference:Awaited<ReturnType<typeof unfinishedWorkAttempts>>[number]|undefined;
+ try{
+  const docker=await readFile(f.env.HARNESS_DOCKER!,'utf8');await writeFile(f.env.HARNESS_DOCKER!,docker.replace('const mode = process.env.FLOW_MODE;',`const mode = process.env.FLOW_MODE;fs.writeFileSync(path.join(process.env.FLOW_LOG+'.pid'),String(process.pid));`));
+  child=spawn(process.execPath,[cli,'work','api'],{cwd:f.project,env:f.env,stdio:'ignore'});const closed=new Promise(resolve=>child!.once('exit',resolve));
+  for(let i=0;i<200;i++){const calls=await f.calls();if(calls.some(c=>c.kind==='builder')&&await readFile(path.join(calls.find(c=>c.kind==='builder')!.work,'app.js'),'utf8')==='export const value = 2;\n')break;await new Promise(r=>setTimeout(r,20));}
+  workerPid=Number(await readFile(f.env.FLOW_LOG+'.pid','utf8'));child.kill('SIGKILL');await closed;
+  reference=(await unfinishedWorkAttempts(f.project))[0];assert.ok(reference);assert.equal(reference.status,'running');assert.equal(reference.previousCheckpoint,undefined);
+  assert.equal(await nextRunId(f.project),'r2');assert.equal(await findWorkCheckpoint(f.project,'api'),undefined);
+  const look=await f.run('look');assert.match(look.text,/this reference is not a completed checkpoint/);assert.match(look.text,/Last completed checkpoint: none recorded/);
+  assert.equal(await readFile(path.join(reference.source,'app.js'),'utf8'),'export const value = 2;\n');
+  assert.equal(await readFile(path.join(f.project,'app.js'),'utf8'),'export const value = 1;\n');
+ }finally{if(workerPid)try{process.kill(workerPid,'SIGKILL');}catch{}child?.kill('SIGKILL');if(reference){await rm(path.dirname(reference.source),{recursive:true,force:true});await rm(reference.controller,{recursive:true,force:true});}await f.close();}
 });
