@@ -1,3 +1,4 @@
+import {assertContentAllowed} from '../workspace/secret-content.ts';
 import {fileIdentity,identityMode} from '../workspace/file-identity.ts';
 import {sourceExclusion} from '../workspace/changes.ts';
 import {listStages} from '../staging/store.ts';
@@ -30,7 +31,7 @@ async function checked(root:string,relative:string):Promise<string>{
  return current;
 }
 async function bytes(root:string,relative:string,limit=2*1024*1024):Promise<Buffer|undefined>{
- let handle;try{const file=await checked(root,relative);handle=await open(file,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);const stat=await handle.stat();if(!stat.isFile()||stat.nlink!==1||stat.size>limit)throw Error('State file is not a bounded regular file');const data=await handle.readFile();if(data.length>limit)throw Error('State file grew beyond the display limit');return data;}catch(e){if(missing(e))return undefined;throw e;}finally{await handle?.close();}
+ let handle;try{const file=await checked(root,relative);handle=await open(file,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);const stat=await handle.stat();if(!stat.isFile()||stat.nlink!==1||stat.size>limit)throw Error('State file is not a bounded regular file');const data=await handle.readFile();if(data.length>limit)throw Error('State file grew beyond the display limit');assertContentAllowed(relative,data,false);return data;}catch(e){if(missing(e))return undefined;throw e;}finally{await handle?.close();}
 }
 async function json(root:string,relative:string):Promise<unknown>{const data=await bytes(root,relative);return data?JSON.parse(data.toString('utf8')):undefined;}
 async function names(root:string,relative:string):Promise<string[]>{try{return (await readdir(await checked(root,relative))).sort();}catch(e){if(missing(e))return [];throw e;}}

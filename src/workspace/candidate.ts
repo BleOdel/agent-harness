@@ -1,3 +1,4 @@
+import {readSelectedSource,SOURCE_SCAN_LIMIT} from './secret-content.ts';
 import {fileIdentity,identityMode,contentDigest,type IdentityVersion} from './file-identity.ts';
 /** Host-owned source snapshots. None of these directories is mounted writable by a worker. */
 import { assertProductCurrent } from "../product/spec.ts";
@@ -26,18 +27,19 @@ export class InputChangeRequired extends Error { }
 const hash = (bytes: string | Buffer): string => createHash("sha256").update(bytes).digest("hex");
 
 /** Unlike the historical diff walker, unreadable paths and special files fail closed. */
-export async function sourceFiles(root: string, prefix = "", exclusions: readonly string[] = [], version:IdentityVersion=2): Promise<Record<string, string>> {
+export async function sourceFiles(root: string, prefix = "", exclusions: readonly string[] = [], version:IdentityVersion=2, budget={bytes:0,files:0}): Promise<Record<string, string>> {
   const found: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const entry of await readdir(path.join(root, prefix), { withFileTypes: true })) {
     const relative = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
     if (sourceExclusion(relative, exclusions) || relative === '.harness-claim.json') continue;
+    if(++budget.files>10000)throw new Error('Source selection scan limit exceeded.');
     const file = path.join(root, relative);
     const stat = await lstat(file);
     if (stat.isSymbolicLink() || (stat.isFile() && stat.nlink !== 1) || (!stat.isDirectory() && !stat.isFile())) {
       throw new BoundaryViolation(`${relative} is a symlink, hard link or special file; only regular source files are supported.`, relative);
     }
-    if (stat.isDirectory()) Object.assign(found, await sourceFiles(root, relative, exclusions, version));
-    else found[relative] = fileIdentity(await readFile(file),stat.mode,version);
+    if (stat.isDirectory()) Object.assign(found, await sourceFiles(root, relative, exclusions, version,budget));
+    else { if(stat.size>SOURCE_SCAN_LIMIT-budget.bytes)throw new Error('Source selection scan limit exceeded; no input is certified safe.');const bytes=await readSelectedSource(root,relative);budget.bytes+=bytes.length;if(budget.bytes>SOURCE_SCAN_LIMIT)throw new Error('Source selection scan limit exceeded.');found[relative] = fileIdentity(bytes,stat.mode,version); }
   }
   return found;
 }
@@ -54,6 +56,7 @@ export async function copySource(source: string, destination: string, exclusions
     await mkdir(path.dirname(target), { recursive: true });
     await copyFile(path.join(source, file), target);
     await chmod(target,identityMode(identity));
+    await readSelectedSource(destination,file);
   }
 }
 async function freeze(source: string, directory: string, exclusions: readonly string[] = [], executionDigest?: string): Promise<Snapshot> {

@@ -329,7 +329,8 @@
         "hr-005"
       ],
       "regressions": [
-        "test/source-selection.test.ts"
+        "test/source-selection.test.ts",
+        "test/secret-selection.test.ts"
       ],
       "resolutionEvidence": [
         {
@@ -339,14 +340,22 @@
         {
           "kind": "negative-control",
           "path": "docs/reliability/evidence/mutation-controls.json"
+        },
+        {
+          "kind": "regression",
+          "path": "test/secret-selection.test.ts"
+        },
+        {
+          "kind": "negative-control",
+          "path": "docs/reliability/evidence/secret-selection-controls.json"
         }
       ],
       "qualification": {
         "state": "fixed",
         "trigger": "Place synthetic secrets in nested environment files, key formats, generated outputs and Git-ignored locations; verify source/model/snapshot/artifact paths consistently exclude or stop for review. Confirm .env.example remains usable when intentionally allowed.",
         "regression": "test/source-selection.test.ts",
-        "execution": "docs/reliability/evidence/foundation-validation.json",
-        "limitation": "Fixed only at the recorded audit scope. Original negative controls remain historical; regression rerun is local."
+        "execution": "docs/reliability/evidence/secret-selection-validation.json",
+        "limitation": "Bounded high-confidence pattern scanning and exact synthetic-fixture exceptions. Generated/dependency inputs, archives, transformed credentials and arbitrary log scrubbing are not comprehensive secret-detection evidence."
       }
     },
     {

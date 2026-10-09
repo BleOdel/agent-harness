@@ -1,3 +1,4 @@
+import {assertContentAllowed} from '../workspace/secret-content.ts';
 import {atomicWrite} from '../planning/store.ts';
 import {CheckRequestInterrupted} from './request-failure.ts';
 import {checkRequestBudget,checkRequestWindow,ensureCheckBudget} from './budget.ts';
@@ -69,6 +70,7 @@ export function draftPrompt(task: Feature, feedback = '', previous?: Proposal, o
 export interface CheckRequestOptions {tools?:'read'|'none';stage?:string;}
 export function checkToolArguments(options:CheckRequestOptions):string[]{return [...(options.tools==='none'?['--no-tools']:['--tools','read,grep']),'--no-context-files','--no-prompt-templates'];}
 export async function requestCheckJson(project: string, prompt: string, options:CheckRequestOptions={}): Promise<unknown> {
+ assertContentAllowed("acceptance prompt",prompt,false);
  ensureCheckBudget();
  if(options.tools==='none'&&Buffer.byteLength(prompt)>128*1024)throw new OperatorError('Explicit planning/review packet exceeds 128 KiB. No request was sent.');
  const config = loadConfig({ ...process.env, HARNESS_PROJECT: project });

@@ -1,3 +1,4 @@
+import {assertContentAllowed} from '../workspace/secret-content.ts';
 import { assertModelEffort, type ReasoningEffort } from "../model-settings.ts";
 import { dockerRunner } from "../runners/docker.ts";
 /**
@@ -34,6 +35,7 @@ export interface AgentRequest {
 }
 
 export function buildAgentCommand(request: AgentRequest): string[] {
+  assertContentAllowed("agent prompt",request.goal,false);
   return [
     "node",
     `${CONTAINER_PI_PACKAGE}/dist/cli.js`,

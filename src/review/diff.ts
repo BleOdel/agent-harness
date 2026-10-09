@@ -1,3 +1,4 @@
+import {readBoundedSource,assertContentAllowed,ContentWithheld} from '../workspace/secret-content.ts';
 import {identityAt,identityMode} from '../workspace/file-identity.ts';
 /**
  * A unified diff of the change set, for the Reviewer to read.
@@ -68,12 +69,14 @@ export function diffLines(before: readonly string[], after: readonly string[]): 
 export const isBinary = (text: string): boolean => text.includes("\u0000");
 
 const BINARY = Symbol("binary");
+const WITHHELD=Symbol("withheld");
 
-async function lines(file: string): Promise<string[] | typeof BINARY | undefined> {
+async function lines(file: string): Promise<string[] | typeof BINARY | typeof WITHHELD | undefined> {
   let text;
   try {
-    text = await readFile(file, "utf8");
-  } catch {
+    const bytes=await readBoundedSource(path.dirname(file),path.basename(file));assertContentAllowed(path.basename(file),bytes,false);text=bytes.toString();
+  } catch(error) {
+    if(error instanceof ContentWithheld)return WITHHELD;
     return undefined;
   }
   return isBinary(text) ? BINARY : text.split("\n");
@@ -98,6 +101,7 @@ export async function renderDiff(
     const before = change.kind === "added" ? [] : (await lines(path.join(project, change.file)) ?? []);
     const after = change.kind === "deleted" ? [] : (await lines(path.join(copy, change.file)) ?? []);
 
+    if(before===WITHHELD||after===WITHHELD){sections.push(`${header}\n  (content withheld by secret-selection policy; retained files unchanged)`);continue;}
     if (before === BINARY || after === BINARY) {
       // Said, not shown. There is nothing useful to show, and its bytes
       // cannot travel in a command-line argument.

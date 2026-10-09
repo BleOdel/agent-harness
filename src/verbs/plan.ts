@@ -1,3 +1,5 @@
+import {assertContentAllowed} from '../workspace/secret-content.ts';
+import {sourceFiles} from '../workspace/candidate.ts';
 import { assertModelEffort, modelLabel, type ReasoningEffort } from "../model-settings.ts";
 import { projectTestCommand } from "../project/profile.ts";
 import { dockerRunner } from "../runners/docker.ts";
@@ -52,6 +54,7 @@ export function buildPlanCommand(request: {
   provider: string | undefined; model: string | undefined;
   phase?: "draft" | "items"; diagnosis?: string; adapter?: string;
 }): string[] {
+  assertContentAllowed("planning topic",request.topic,false);assertContentAllowed("planning diagnosis",request.diagnosis??"",false);
   const items = request.phase === "items";
   const environment = request.adapter === "python-pip" ? "Selected environment: Python, one src-layout package with static pyproject.toml, exact .python-version and hash-pinned requirements.lock. Tests: tests/test_*.py or *_test.py, fixed pytest collection, packaged wheel imports. Only pinned flit_core builds and wheel dependencies; no custom backends, source dependency builds, local/Git dependencies or plugin autoload. Changes to pyproject.toml, requirements.lock or .python-version need dedicated shared-inputs assignments. Read AGENTS.md for the package name and current constraints." : "";
   return ["node", `${CONTAINER_PI_PACKAGE}/dist/cli.js`, "--approve",
@@ -112,6 +115,7 @@ export async function runPlanAttempt(original: SavedPlan, config: Config): Promi
   }
   // Empty explicit sessions make Pi persist even the initial user message before its first response.
   if (await readArtifact(plan.work, SESSION_FILE, 64 * 1024 * 1024) === undefined) await atomicWrite(path.join(plan.work, SESSION_FILE), "");
+  await sourceFiles(plan.work);
   const skills = items ? [] : execution.skills.map(s => s.id);
   const layout: SandboxLayout = {
     dockerExecutable: config.dockerExecutable, imageId: config.imageId, containerName: planContainer(plan),

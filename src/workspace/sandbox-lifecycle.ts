@@ -1,3 +1,4 @@
+import {readSelectedSource,SOURCE_SCAN_LIMIT} from './secret-content.ts';
 import {fileIdentity,identityAt,identityMode,portableMode} from './file-identity.ts';
 import {atomicBytes} from './atomic.ts';
 /**
@@ -9,7 +10,7 @@ import {atomicBytes} from './atomic.ts';
  * slowly accumulating the operator's disk.
  */
 
-import { chmod, cp, lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, cp, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { safePath } from "./safe-path.ts";
@@ -25,13 +26,25 @@ export interface Sandbox {
   readonly withheld: readonly string[];
 }
 
+/** Legacy sandbox copying preserves links for its later boundary gate; never scan through them. */
+async function assertCopyContent(root:string,exclusions:readonly string[]):Promise<void>{
+ let bytes=0,entries=0;
+ async function walk(prefix=''):Promise<void>{for(const entry of await readdir(path.join(root,prefix),{withFileTypes:true})){
+  const file=prefix?`${prefix}/${entry.name}`:entry.name;if(sourceExclusion(file,exclusions))continue;
+  if(++entries>10000)throw new Error('Source selection scan limit exceeded.');
+  if(entry.isDirectory())await walk(file);
+  else if(entry.isFile()){const stat=await lstat(path.join(root,file));if(stat.size>SOURCE_SCAN_LIMIT-bytes)throw new Error('Source selection scan limit exceeded.');const data=await readSelectedSource(root,file);bytes+=data.length;if(bytes>SOURCE_SCAN_LIMIT)throw new Error('Source selection scan limit exceeded.');}
+ }}await walk();
+}
+
 export async function createSandbox(project: string, exclusions: readonly string[] = []): Promise<Sandbox> {
+  await assertCopyContent(project,exclusions);
   // realpath because the Docker mount and every later path comparison
   // must agree on one spelling; on macOS os.tmpdir() is a symlink.
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "harness-work-")));
   const workDirectory = path.join(root, "work");
   const withheld: string[] = [];
-  await cp(project, workDirectory, {
+  try { await cp(project, workDirectory, {
     recursive: true,
     // Never dereference: a symlink in the operator's project stays a
     // symlink in the copy rather than becoming a copy of whatever it
@@ -47,7 +60,9 @@ export async function createSandbox(project: string, exclusions: readonly string
       return false;
     },
   });
+  await assertCopyContent(workDirectory,exclusions);
   return { workDirectory, root, withheld: withheld.sort() };
+  } catch(error) { await rm(root,{recursive:true,force:true});throw error; }
 }
 
 export async function destroySandbox(sandbox: Sandbox): Promise<void> {
@@ -115,7 +130,7 @@ export async function applyChanges(
   if(baseline)await assertLiveBaseline(project,baseline);if(candidate)await assertSnapshot(candidate);
   for (const change of changes) {
     await safePath(project, change.file);
-    if (change.kind !== "deleted") await safePath(copy, change.file);
+    if (change.kind !== "deleted") await readSelectedSource(copy,change.file);
   }
   for (const change of changes) {
     const destination = await safePath(project, change.file);
@@ -126,7 +141,7 @@ export async function applyChanges(
       continue;
     }
     await mkdir(path.dirname(destination), { recursive: true });
-    const source=await safePath(copy,change.file),bytes=await readFile(source),mode=portableMode((await lstat(source)).mode);
+    const source=await safePath(copy,change.file),bytes=await readSelectedSource(copy,change.file),mode=portableMode((await lstat(source)).mode);
       if(candidate&&fileIdentity(bytes,mode)!==candidate.files[change.file])throw Error('Candidate content or mode changed before application.');
     await atomicBytes(destination,bytes,mode,path.dirname(destination),unchanged);
   }

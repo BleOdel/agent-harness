@@ -1,3 +1,4 @@
+import {assertContentAllowed} from '../workspace/secret-content.ts';
 import { assertModelEffort } from "../model-settings.ts";
 /** Pi 0.80.6 JSONL transport. A command acknowledgement is never completion. */
 import { randomUUID } from "node:crypto";
@@ -131,7 +132,7 @@ export async function runRpcAgent(layout: SandboxLayout, request: AgentRequest, 
     const initial = await peer.request("get_state");
     if (initial.data?.thinkingLevel !== undefined && initial.data.thinkingLevel !== (request.effort ?? "medium")) throw new Error(`Pi selected reasoning ${initial.data.thinkingLevel}, expected ${request.effort ?? "medium"}.`);
     const prompt = peer.request("prompt", { message: request.goal });
-    hooks.ready?.({ async steer(message) { if (lifecycle.complete || failure) throw new Error("Builder is no longer accepting steering."); await peer.request("steer", { message }); } });
+    hooks.ready?.({ async steer(message) { if (lifecycle.complete || failure) throw new Error("Builder is no longer accepting steering."); assertContentAllowed("agent steering",message,false);await peer.request("steer", { message }); } });
     await prompt; await settled;
     const idle = await peer.request("get_state");
     if (failure) throw failure;

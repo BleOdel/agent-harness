@@ -1,3 +1,4 @@
+import {readSelectedSource} from './secret-content.ts';
 import {fileIdentity} from './file-identity.ts';
 /**
  * What the model did, expressed as a set of file changes, and whether
@@ -167,7 +168,7 @@ export async function fingerprintTree(root: string, prefix = "", exclusions: rea
       const stats = await lstat(path.join(root, relative));
       found.set(
         relative,
-        stats.isSymbolicLink() ? SYMLINK : fileIdentity(await readFile(path.join(root, relative)),stats.mode),
+        stats.isSymbolicLink() ? SYMLINK : fileIdentity(await readSelectedSource(root,relative),stats.mode),
       );
     }
   }

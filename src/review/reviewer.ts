@@ -1,3 +1,4 @@
+import {assertContentAllowed} from '../workspace/secret-content.ts';
 import type {BrowserEvidence} from "./browser-evidence.ts";
 import type { VerificationEvidence } from "./evidence.ts";
 import { assertModelEffort, type ReasoningEffort } from "../model-settings.ts";
@@ -175,6 +176,7 @@ export function parseReview(text: string): Review {
  * asserted rather than described. Every flag here is load-bearing.
  */
 export function buildReviewCommand(request: ReviewRequest): string[] {
+  assertContentAllowed("review prompt",reviewPrompt(request),false);
   return [
     "node",
     `${CONTAINER_PI_PACKAGE}/dist/cli.js`,

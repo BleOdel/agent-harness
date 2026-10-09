@@ -1,3 +1,4 @@
+import {contentFindings,readBoundedSource} from '../workspace/secret-content.ts';
 /**
  * The project as a browsable tree, with what each file cost to get there.
  *
@@ -87,12 +88,13 @@ export async function collectTree(project: string, runs: readonly RunRecord[]): 
       files.push({ ...base, text: undefined, note: "Not included: the page reached its size limit" });
       continue;
     }
-    const text = await readFile(full, "utf8").catch(() => undefined);
+    const text = await readBoundedSource(project,relative,MAX_FILE_BYTES).then(b=>b.toString()).catch(() => undefined);
     if (text === undefined || isBinary(text)) {
       omitted += 1;
       files.push({ ...base, text: undefined, note: text === undefined ? "Could not be read" : "Binary file" });
       continue;
     }
+    if(contentFindings(text).length){omitted++;files.push({...base,text:undefined,note:"Content withheld by secret-selection policy"});continue;}
     budget -= bytes;
     files.push({ ...base, text, note: undefined });
   }

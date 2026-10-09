@@ -1,3 +1,4 @@
+import {assertContentAllowed} from '../workspace/secret-content.ts';
 import { readProfile } from "../project/profile.ts";
 import { getAdapter } from "../adapters/registry.ts";
 /** Durable planning drafts are untrusted; approval and import identities stay outside the mount. */
@@ -39,7 +40,7 @@ export async function readArtifact(directory: string, name: string, maxBytes = 2
   try {
     const stat = await handle.stat();
     if (!stat.isFile() || stat.nlink !== 1 || stat.size > maxBytes) throw new OperatorError(`${name} must be a bounded regular file with one link.`);
-    return await handle.readFile("utf8");
+    const text=await handle.readFile("utf8");if(Buffer.byteLength(text)>maxBytes)throw new OperatorError("Planning file grew beyond its limit.");assertContentAllowed(name,text,false);return text;
   } finally { await handle.close(); }
 }
 

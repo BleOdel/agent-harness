@@ -1,3 +1,4 @@
+import {readBoundedSource,assertContentAllowed,ContentWithheld} from '../workspace/secret-content.ts';
 import {identityMode} from '../workspace/file-identity.ts';
 import { sourceExclusion } from '../workspace/changes.ts';
 import { listWorkCheckpoints } from "../workspace/work-checkpoints.ts";
@@ -19,8 +20,9 @@ import { OperatorError, say } from "./io.ts";
 
 const read = async (file: string): Promise<string[] | undefined> => {
   try {
-    return (await readFile(file, "utf8")).split("\n");
-  } catch {
+    const bytes=await readBoundedSource(path.dirname(file),path.basename(file));assertContentAllowed(path.basename(file),bytes,false);return bytes.toString().split("\n");
+  } catch(e) {
+    if(e instanceof ContentWithheld)throw e;
     return undefined;
   }
 };
@@ -73,11 +75,11 @@ export async function show(project: string, argv: readonly string[]): Promise<vo
     const excluded = sourceExclusion(change.file);
     if (excluded) { say(`  (withheld: ${excluded}; retained snapshot is unchanged)`); continue; }
     if(metadata?.identityVersion===2){const modes=[metadata.before?.[change.file],metadata.after?.[change.file]].map(id=>id?identityMode(id).toString(8):'absent');if(modes[0]!==modes[1])say(`executable mode: ${modes[0]} -> ${modes[1]}`);}
-    const before = await read(path.join(snapshot, "before", change.file)) ?? [];
+    try { const before = await read(path.join(snapshot, "before", change.file)) ?? [];
     const after = await read(path.join(snapshot, "after", change.file)) ?? [];
     for (const line of diffLines(before, after)) {
       if (line.startsWith("+") || line.startsWith("-")) say(line);
     }
-    say();
+    say(); }catch(e){if(e instanceof ContentWithheld)say("  (content withheld; retained snapshot unchanged)");else throw e;}
   }
 }

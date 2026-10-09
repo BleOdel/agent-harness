@@ -1,3 +1,4 @@
+import {assertContentAllowed} from '../workspace/secret-content.ts';
 /** One read-only proposal can repair bookkeeping, never application source or evidence. */
 import {CheckResponse} from '../acceptance/response.ts';
 import {assertModelEffort} from '../model-settings.ts';
@@ -22,6 +23,7 @@ export async function repairClaim(layout:SandboxLayout,request:ReviewRequest&{
   JSON.stringify({title:request.title,criteria:request.criteria,approvedContext:request.approvedContext,changes:request.candidate.changes,previousClaim:request.existing,failure:request.failure}),
  ].join('\n\n');
  if(Buffer.byteLength(prompt)>512*1024)throw Error('Claim correction context exceeds its 512 KiB limit.');
+ assertContentAllowed("claim repair prompt",prompt,false);
  const command=buildReviewCommand(request);command.pop();command.push('--mode','json',prompt);
  const isolated:SandboxLayout={...layout,purpose:'review',workDirectory:request.candidate.directory};
  const response=new CheckResponse();let result;

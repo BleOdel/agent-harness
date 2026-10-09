@@ -2064,7 +2064,7 @@ files retain staging permissions, including executable bits. The existing
 exclusions keep secrets, dependencies and harness control files out of source
 application. Symlinks, special files, touched hardlinks, file/directory
 replacement and destinations on a different filesystem from the journal are
-refused. Metadata-only changes, ownership and extended attributes are not
+refused. Normalized executable-bit changes are tracked. Ownership and extended attributes are not
 tracked as source changes; empty directories may remain after deletion.
 
 This is a recoverable sequence of individual file replacements, not an atomic
@@ -2204,3 +2204,8 @@ and still require current-source evidence for the other product obligations.
 ## Reliability and supported scope
 
 Run `harness capabilities [--json]` for the current implementation scope and known lifecycle gaps. This does not launch tools or contact a model. Doctor and acceptance planning share the same support summary. See [the reliability implementation plan](docs/reliability/README.md) for task status, audit findings, operational smoke CI and migration rules.
+
+
+### Inspecting source for credential content
+
+Run `harness source inspect` before sharing source with agents. The harness blocks recognized credential patterns in source copies and screens diffs and artifact exports. Findings show paths, rule IDs and file hashes without showing values. Confirmed synthetic fixtures can receive an exact path/content exception with `harness source allow`; `harness source revoke` removes it. Private configuration paths remain excluded. See [source-selection rules, commands and limitations](docs/reliability/README.md#source-selection-boundary).

@@ -74,7 +74,7 @@
     "id": "hr-005",
     "title": "Use one secret-aware project selection policy",
     "priority": "must",
-    "status": "doing",
+    "status": "done",
     "criteria": [
       "Apply the same depth-aware exclusions to source copies, prompts, candidate snapshots and exported diffs/artifacts, covering nested .env files and environment variants.",
       "Permit documented safe examples and explicit operator exceptions; present excluded paths and redacted reasons without printing secret values.",

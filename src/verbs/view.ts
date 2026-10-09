@@ -1,3 +1,4 @@
+import {readBoundedSource,assertContentAllowed,ContentWithheld} from '../workspace/secret-content.ts';
 import { sourceExclusion } from '../workspace/changes.ts';
 import {readWorkspace,readOutput} from '../view/workspace.ts';
 import { officeModel, renderOffice } from "../view/office.ts";
@@ -33,16 +34,16 @@ import { OperatorError, say } from "./io.ts";
 const MAX_LINES_PER_FILE = 600;
 
 async function read(file: string): Promise<string | undefined> {
-  return readFile(file, "utf8").catch(() => undefined);
+  try{const bytes=await readBoundedSource(path.dirname(file),path.basename(file));assertContentAllowed(path.basename(file),bytes,false);return bytes.toString();}catch(e){if(e instanceof ContentWithheld)throw e;return undefined;}
 }
 
 async function fileDiff(snapshot: string, file: string, kind: string): Promise<FileDiff> {
   const excluded = sourceExclusion(file);
   if (excluded) return {file, kind, lines: [], note: `Withheld: ${excluded}; retained snapshot is unchanged.`};
-  const [before, after] = await Promise.all([
+  let before:string|undefined,after:string|undefined;try{[before, after] = await Promise.all([
     read(path.join(snapshot, "before", file)),
     read(path.join(snapshot, "after", file)),
-  ]);
+  ]);}catch(e){if(e instanceof ContentWithheld)return {file,kind,lines:[],note:"Content withheld; retained snapshot unchanged."};throw e;}
   if ((before !== undefined && isBinary(before)) || (after !== undefined && isBinary(after))) {
     return { file, kind, lines: [], note: "Binary file, not shown." };
   }

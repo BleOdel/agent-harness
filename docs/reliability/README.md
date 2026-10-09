@@ -30,7 +30,20 @@ Source copies, candidate snapshots, retained-source checks, review diffs and das
 
 Direct application refuses excluded paths. Retained diffs with newly excluded paths are withheld from display; original recovery files remain on disk. New artifacts using excluded paths are refused and old such artifacts cannot be previewed or exported; their retained bytes are preserved. A legacy snapshot whose identity included newly excluded paths is refused for reuse and requires review before fresh preparation. No old snapshot is silently rewritten or upgraded.
 
-This is a filename policy, not a claim to find secrets embedded in ordinary source or approved example files. High-confidence bounded content scanning, explicit exception approval and richer quarantine migration are remaining hr-005 work. Do not place real credentials in sample files. Executable metadata is now covered by hr-008 across capture, integration, apply, undo and legacy recovery.
+hr-005 adds bounded content selection before source copying, snapshot reuse, source-derived prompt reads, agent/check/review dispatch, and diff/artifact display or export. High-confidence private-key headers and recognizable GitHub, OpenAI-style, AWS, Google and Slack token patterns block selection, including in ordinary code, binary bytes and example files. Findings contain rule IDs and paths, never matched values. A content finding blocks the operation rather than silently omitting a source file and turning it into an apparent deletion.
+
+Use `harness source inspect` to see path exclusions and content findings with their file SHA-256. After inspecting a false positive locally, an operator can explicitly authorize the exact synthetic fixture:
+
+```sh
+harness source allow test/fixture.txt --sha256 <digest-from-inspection> --reason "Synthetic credential fixture"
+harness source revoke test/fixture.txt
+```
+
+Exceptions live outside worker source in `<project>-harness/source-policy.json`, under the project writer lock. Each is bound to its relative path and complete content hash, with at most 100 entries. They cannot override private/control path exclusions, file limits or alias restrictions. Worker-written policy files are not authorization. Host writer operations load the selected project's exceptions; direct module callers default to refusing findings unless the host explicitly supplies its policy context. Public views, artifact export and assembled prompts remain screened even when a source fixture is authorized. An exception is consent to expose those exact source bytes to that project's workers, not a recommendation to share real credentials.
+
+Scanning is limited to 32 MiB per file, 128 MiB and 10,000 entries per selected source tree. Oversized or unsafe input stops selection; it never receives a clean result based on a prefix. Artifact input retains its existing 32 MiB limit. Dependency/generated directories omitted by the source policy are not content-scanned by this feature (the legacy sandbox may still copy dependencies for execution). Archives are not unpacked; encoded, encrypted, transformed and unrecognized credentials are not certified safe. This is high-confidence detection, not an entropy scanner, comprehensive DLP, log scrubber or network sandbox.
+
+Old snapshots and artifacts are checked at reuse/display/export, not rewritten. A newly detected finding blocks reuse or hides content while retaining original bytes. Remove the credential from live source, or review an exact false-positive exception, then create and verify a fresh candidate; do not edit an old approval or recovery record to bypass this gate. Revoking an exception also blocks reuse of affected snapshots. Executable metadata remains covered by hr-008 across capture, integration, apply, undo and legacy recovery.
 
 ## Reading the audit status
 
