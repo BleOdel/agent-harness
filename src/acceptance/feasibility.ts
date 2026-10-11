@@ -10,6 +10,7 @@ import type {ProductKind} from '../product/spec.ts';
 import type {EvidenceTarget} from '../product/evidence/schema.ts';
 export type GapKind='unsupported-capability'|'missing-installation'|'unqualified-runtime'|'human-observation'|'missing-interface';
 export interface EvidenceGap {kind:GapKind;stage:string;detail:string;}
+export class EvidenceFeasibilityGap extends OperatorError {readonly issues:EvidenceGap[];constructor(issues:EvidenceGap[]){super('Evidence feasibility needs attention before interface freeze or executable generation.',issues.map(g=>`${g.kind} / ${g.stage}: ${g.detail}`).join('\n'));this.issues=issues;}}
 export interface RouteInput {profile:ProjectProfile;dependencies:boolean;kinds:readonly EvidenceKind[];sensitive:boolean;requiredStages?:Stage[];product?:{kind:ProductKind;digest:string;targets:EvidenceTarget[]};}
 export interface AtomicObligation {id:string;criterion:number;caseId:string;kind:EvidenceKind;observation:string;anchors:{name:string;quote:string|null}[];capabilities:string[];gaps:EvidenceGap[];}
 export interface EvidenceCheckpoint {version:1;identity:string;criteria:{number:number;raw:unknown;previousReplies?:unknown[]}[];obligations:AtomicObligation[];issues:EvidenceGap[];}
@@ -17,7 +18,7 @@ export interface EvidenceDesign extends EvidenceCheckpoint {digest:string;status
 const hash=(v:unknown)=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const text=(v:unknown,max=600):v is string=>typeof v==='string'&&!!v.trim()&&!v.includes('\0')&&Buffer.byteLength(v)<=max;
 function object(v:unknown,keys:string[]):Record<string,unknown>{if(!v||typeof v!=='object'||Array.isArray(v)||Object.keys(v).some(k=>!keys.includes(k)))throw new OperatorError('Invalid atomic evidence fields.');return v as Record<string,unknown>;}
-const browserActions=new Set(['goto','click','press','text','count','focused','viewport','motion','reload','overflow','accessibility','screenshot','type','fill','paste','capture','clipboard','download','storage','context','page','network','requestCount','attribute','select'].map(a=>'browser.'+a));
+const browserActions=new Set(['value','goto','click','press','text','count','focused','viewport','motion','reload','overflow','accessibility','screenshot','type','fill','paste','capture','clipboard','download','storage','context','page','network','requestCount','attribute','select'].map(a=>'browser.'+a));
 export function routeIssues(input:RouteInput):EvidenceGap[]{
  const {profile:p}=input,issues:EvidenceGap[]=[],add=(stage:string,detail:string)=>issues.push({kind:'unsupported-capability',stage,detail});
  if(p.runner.id!=='docker'||p.runner.version!==1||p.requirements.os!=='linux'||p.requirements.gui||p.requirements.gpu||p.requirements.emulator||p.requirements.cpu>2||p.requirements.memoryMiB>2048)add('build','The selected ordinary agent runner cannot meet this OS, GUI, GPU, emulator or resource requirement. Select an implemented recipe/runner explicitly.');
@@ -82,6 +83,6 @@ export async function discoverEvidence(task:Feature,b:Blueprint,input:RouteInput
   state.obligations.push(...obligations);state.issues.push(...obligations.flatMap(o=>o.gaps));await services.save(state);
  }
  const blocking=state.issues.filter(g=>g.kind!=='human-observation');
- if(blocking.length)throw new OperatorError('Evidence feasibility needs attention before interface freeze or executable generation.',blocking.map(g=>`${g.kind} / ${g.stage}: ${g.detail}`).join('\n'));
+ if(blocking.length)throw new EvidenceFeasibilityGap(blocking);
  return {...state,digest:hash({identity:state.identity,obligations:state.obligations,issues:state.issues}),status:'design-ready',applicationVerified:false,unresolved:state.obligations.filter(o=>o.gaps.length>0)};
 }

@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "controls": [
+    {
+      "name": "peer-description-global-invalidation",
+      "file": "src/acceptance/scoped-review.ts",
+      "regression": "test/review-dependencies.test.ts",
+      "exitCode": 1,
+      "caught": true,
+      "outputSha256": "dc27a2bbc5bead7ed7b3192b6db1c60bafe6769bde0ae13ff191b3fb999e5cb7"
+    },
+    {
+      "name": "shared-privacy-omitted",
+      "file": "src/acceptance/scoped-review.ts",
+      "regression": "test/review-dependencies.test.ts",
+      "exitCode": 1,
+      "caught": true,
+      "outputSha256": "1dcdf30cecbd174735d9ffee31e2bf80de1e7f3da18acc039b569c1dcbcf24ce"
+    },
+    {
+      "name": "delegation-bypassed",
+      "file": "src/acceptance/interface-amendments.ts",
+      "regression": "test/interface-amendments.test.ts",
+      "exitCode": 1,
+      "caught": true,
+      "outputSha256": "59bd4fe317f49b601ccc7dd07b6eea2d87c669f313c2be7eafc1c6174bf36603"
+    },
+    {
+      "name": "independent-decision-ignored",
+      "file": "src/acceptance/interface-amendments.ts",
+      "regression": "test/interface-amendments.test.ts",
+      "exitCode": 1,
+      "caught": true,
+      "outputSha256": "ce3e64cb3cc379ae27d39456236be12667736ce1d83bf27e1ebe526db7780ab4"
+    },
+    {
+      "name": "lost-prose-accepted",
+      "file": "src/browser/capabilities.ts",
+      "regression": "test/form-scenarios.test.ts",
+      "exitCode": 1,
+      "caught": true,
+      "outputSha256": "0c07645d7aea9e1cbb5ac85d8cd862f2d0e833b32a0a2fdfb859ef70a9679b8c"
+    },
+    {
+      "name": "early-submit-observation-dropped",
+      "file": "src/acceptance/form-scenarios.ts",
+      "regression": "test/form-scenarios.test.ts",
+      "exitCode": 1,
+      "caught": true,
+      "outputSha256": "4f62485e2d1306811fe9445c4b935bda769625acc58c29ae9817636aba3fd516"
+    },
+    {
+      "name": "forged-local-contract-accepted",
+      "file": "src/acceptance/interface-contract.ts",
+      "regression": "test/review-dependencies.test.ts",
+      "exitCode": 1,
+      "caught": true,
+      "outputSha256": "257b9777e18b39b00ac5fe598ce4af6e6b1c7bc04cc203a2eed91c3e52019b13"
+    }
+  ],
+  "limitation": "Deliberate source defects in a separate disposable copy; no provider calls."
+}

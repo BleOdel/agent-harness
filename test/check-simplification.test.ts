@@ -43,8 +43,8 @@ test('simplification reviews the outline first, resumes generated parts, and ret
  await assert.rejects(simplifyInParts(task,p,'giant',ledger(),services),/provider timeout/);
  assert.equal(outlines,1);assert.equal(state!.cases.length,1);assert.equal(state!.generationAttempts.boundary,1);
  const result=await simplifyInParts(task,p,'giant',ledger(),{...services,plan:async()=>{throw Error('must reuse outline');},generate:async id=>{generated++;return part(id,plan.cases.find(c=>c.id===id)!.description);}},state);
- assert.equal(outlines,1);assert.equal(generated,3);assert.equal(result.ledger.entries.find(e=>e.scope==='startup')!.review!.verdict,'pass');
- assert.equal(result.ledger.entries.find(e=>e.scope==='startup')!.digest,scopeDigest(task,result.proposal,'startup'));
+ assert.equal(outlines,1);assert.equal(generated,3);assert.equal(result.ledger.entries.some(e=>e.scope==='startup'),false,'shared coverage limitation changed; re-review is required');
+ assert.notEqual(scopeDigest(task,p,'startup'),scopeDigest(task,result.proposal,'startup'));
  assert.equal(result.ledger.entries.some(e=>e.scope==='giant'),false);assert.equal(result.ledger.entries.some(e=>e.scope==='persistence'),false);
  assert.deepEqual(result.proposal.manifest.cases.at(-1),p.manifest.cases.at(-1));assert.equal('validation' in result,false);
 });
@@ -125,7 +125,7 @@ for(const kind of ['exhausted-code','rejected-recipe'] as const)test(`writer-loc
   await simplifySavedCheck(project,io,undefined,(...args)=>({...factory!(...args),generate:async id=>part(id,plan.cases.find(c=>c.id===id)!.description)}));
   const updated=JSON.parse(await readFile(path.join(dir,'review-progress.json'),'utf8'));
   assert.deepEqual(updated.proposal.manifest.cases.map((c:{id:string})=>c.id),['startup','entry','boundary','persistence']);
-  assert.equal(updated.ledger.entries.find((e:{scope:string})=>e.scope==='startup').review.verdict,'pass');
+  assert.equal(updated.ledger.entries.some((e:{scope:string})=>e.scope==='startup'),false,'changed shared limitation needs review');
   assert.deepEqual(await readApproval(project),approved);assert.equal(await readFile(path.join(project,'features.json'),'utf8'),JSON.stringify([task]));
   await assert.rejects(readFile(path.join(dir,'simplification.json')),{code:'ENOENT'});
   assert.match(lines.join('\n'),/Resuming saved simplification/);
@@ -202,7 +202,7 @@ test('legacy failed-outline checkpoint keeps its spent attempt and resumes with 
  },saved);
  assert.equal(requests,1);assert.equal(state!.outlineAttempts,2);
  assert.deepEqual(result.proposal.manifest.cases.map(c=>c.id),['startup','giant-part-1','giant-part-2','persistence']);
- assert.equal(result.ledger.entries.find(e=>e.scope==='startup')!.review!.verdict,'pass');
+ assert.equal(result.ledger.entries.some(e=>e.scope==='startup'),false,'shared coverage limitation changed; re-review is required');
 });
 test('a saved correction reply resumes even when both outline requests were already spent',async()=>{
  const p=original();let state:SimplificationState|undefined,plans=0,reviews=0;
@@ -224,7 +224,7 @@ test('legacy exhausted oversized child is subdivided without repeating its spent
  },saved);
  assert.equal(split,1);assert.deepEqual(generated,['private-fields','database-files']);
  assert.deepEqual(result.proposal.manifest.cases.map(c=>c.id),['startup','entry','private-fields','database-files','persistence']);
- assert.equal(state!.generationAttempts.boundary,2);assert.equal(result.ledger.entries.find(e=>e.scope==='startup')!.review!.verdict,'pass');
+ assert.equal(state!.generationAttempts.boundary,2);assert.equal(result.ledger.entries.some(e=>e.scope==='startup'),false,'shared coverage limitation changed; re-review is required');
 });
 
 test('oversized generated replies are retained with exact sizes before any subdivision',async()=>{

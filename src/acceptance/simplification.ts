@@ -199,7 +199,7 @@ export async function simplifyInParts(task:Feature,original:Proposal,scope:strin
   for(const c of next.manifest.cases.filter(c=>generatedIds.has(c.id)))smallCase(c,task,parts.find(part=>part.id===c.id)!);
  };
  const rebindLedger=(previous:Proposal,receipts:ReviewLedger,next:Proposal):ReviewLedger=>({version:1,entries:[
-  ...receipts.entries.filter(e=>e.scope!==scope&&e.scope!=='$contract'&&e.digest===scopeDigest(task,previous,e.scope)&&next.manifest.cases.some(c=>c.id===e.scope)&&same(previous.manifest.cases.find(c=>c.id===e.scope),next.manifest.cases.find(c=>c.id===e.scope))).map(e=>({...structuredClone(e),digest:scopeDigest(task,next,e.scope)})),
+  ...receipts.entries.filter(e=>e.scope!==scope&&e.scope!=='$contract'&&e.digest===scopeDigest(task,previous,e.scope)&&next.manifest.cases.some(c=>c.id===e.scope)&&same(previous.manifest.cases.find(c=>c.id===e.scope),next.manifest.cases.find(c=>c.id===e.scope))).filter(e=>e.digest===scopeDigest(task,next,e.scope)).map(e=>structuredClone(e)),
   {scope:'$contract',digest:scopeDigest(task,next,'$contract'),repairs:0,syntaxRepairs:0,review:state.outlineReview!.review},
  ],...(receipts.previousIssues?{previousIssues:[...receipts.previousIssues]}:{})});
  async function reviewGenerated():Promise<void>{

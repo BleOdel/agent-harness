@@ -84,7 +84,7 @@ test('F16 explicit preparation without a terminal reaches project validation',kn
   assert.equal(result.timedOut,false);assert.doesNotMatch(result.stdout+result.stderr,/needs a terminal/i);
  }finally{await rm(root,{recursive:true,force:true});}
 });
-test('F18 an unrelated peer description does not invalidate a case code review',known,()=>{
+test('F18 an unrelated peer description does not invalidate a case code review',()=>{
  const p=proposal(),before=scopeDigest(task,p,'edit');p.manifest.cases[1]!.description='An unchanged peer check with clearer wording.';
  assert.equal(scopeDigest(task,p,'edit'),before);
 });

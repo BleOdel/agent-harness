@@ -360,7 +360,7 @@
     "id": "hr-020",
     "title": "Resolve routine interface choices through scoped amendments",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Classify contract-choice, missing-action, journey-limit, invalid-format, provider failure and genuine requirement conflict separately, each with a bounded recovery route.",
       "Within explicit initial delegation, propose routine accessible names and control types, and split compound observations without requesting operator-written probe code.",
@@ -379,7 +379,7 @@
     "id": "hr-021",
     "title": "Compile common form checks from trusted scenario templates",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Provide bounded typed scenarios for text limits/live counts, acknowledgements, optional content notes and submission-failure prose retention.",
       "Let models supply approved control mappings and fixtures; trusted harness code owns repeated interaction, timing, process cleanup and observation mechanics.",
@@ -400,7 +400,7 @@
     "id": "hr-022",
     "title": "Invalidate review receipts by their actual dependencies",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Give contract clauses and obligations stable IDs and record each case receipt dependency on relevant clauses, inputs and runner semantics.",
       "Keep a separate global coverage/consistency receipt; a global outline change does not automatically erase every independent case review.",

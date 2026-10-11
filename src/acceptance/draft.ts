@@ -1,3 +1,4 @@
+import {parseInterfaceChoices,type InterfaceChoice} from './interface-contract.ts';
 import {projectRoute} from './feasibility-project.ts';
 import {assertContentAllowed} from '../workspace/secret-content.ts';
 import {atomicWrite} from '../planning/store.ts';
@@ -24,7 +25,7 @@ import { OperatorError } from '../verbs/io.ts';
 import { harnessDirectory } from '../record/record.ts';
 
 export interface Coverage { criterion: number; cases: string[]; limitation?: string; }
-export interface Proposal { version: 1; contract: string; coverage: Coverage[]; manifest: CheckManifest; }
+export interface Proposal { localChoices?:InterfaceChoice[]; version: 1; contract: string; coverage: Coverage[]; manifest: CheckManifest; }
 export const taskDigest = (task: Feature): string => createHash('sha256').update(JSON.stringify({ id: task.id, title: task.title, criteria: task.criteria, planContext: task.planContext ?? '', dependsOn: task.dependsOn, kind: task.kind ?? 'implementation', contracts: task.contracts ?? [] })).digest('hex');
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 export function parseProposal(raw: unknown, task: Feature): Proposal {
@@ -45,8 +46,9 @@ export function parseProposal(raw: unknown, task: Feature): Proposal {
  }
  if (seen.size !== task.criteria.length) throw new OperatorError('Draft must account for every criterion.');
  if ([...ids].some(id => !(raw.coverage as Coverage[]).some(c => c.cases.includes(id)))) throw new OperatorError('Each case must map to a criterion.');
+ const localChoices=parseInterfaceChoices(raw.localChoices,raw.contract,manifest.cases);
  // Strip model-supplied approval metadata. Fingerprints and provenance come from the host.
- return { version: 1, contract: raw.contract, coverage: raw.coverage as Coverage[], manifest: { version: 1, cases: manifest.cases.map(c => ({ id: c.id, tasks: c.tasks, description: c.description!, steps: c.steps, ...(c.kind?{kind:c.kind}:{}), ...(c.browser?{browser:c.browser}:{}), ...(c.manual?{manual:c.manual}:{}) })) } };
+ return { ...(localChoices?{localChoices}:{}),version: 1, contract: raw.contract, coverage: raw.coverage as Coverage[], manifest: { version: 1, cases: manifest.cases.map(c => ({ id: c.id, tasks: c.tasks, description: c.description!, steps: c.steps, ...(c.kind?{kind:c.kind}:{}), ...(c.browser?{browser:c.browser}:{}), ...(c.manual?{manual:c.manual}:{}) })) } };
 }
 export function contractContext(approval: Approval | undefined, tasks: readonly string[]): string {
  const contracts = [...new Set(approval?.manifest.cases.filter(c => c.tasks.includes('*') || c.tasks.some(t => tasks.includes(t))).map(c => c.contract).filter((s): s is string => !!s) ?? [])];

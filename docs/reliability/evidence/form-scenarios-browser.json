@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "runtime": {
+    "image": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+    "arch": "arm64",
+    "node": "v26.5.0",
+    "playwright": "1.63.0",
+    "chromium": "153.0.8010.12",
+    "axe": "4.13.0",
+    "protocol": "cb3683f43efd5e6f788a1ebb3e9409c7a52a31da9a112d480dd4e6894c1735f4"
+  },
+  "outcomes": [
+    {
+      "kind": "text-limits",
+      "alternate": false,
+      "expected": "passed",
+      "status": "passed",
+      "checks": 22
+    },
+    {
+      "kind": "acknowledgement",
+      "alternate": false,
+      "expected": "passed",
+      "status": "passed",
+      "checks": 5
+    },
+    {
+      "kind": "content-note",
+      "alternate": false,
+      "expected": "passed",
+      "status": "passed",
+      "checks": 11
+    },
+    {
+      "kind": "failure-retention",
+      "alternate": false,
+      "expected": "passed",
+      "status": "passed",
+      "checks": 4
+    },
+    {
+      "kind": "text-limits",
+      "alternate": true,
+      "expected": "passed",
+      "status": "passed",
+      "checks": 22
+    },
+    {
+      "kind": "acknowledgement",
+      "alternate": true,
+      "expected": "passed",
+      "status": "passed",
+      "checks": 5
+    },
+    {
+      "kind": "content-note",
+      "alternate": true,
+      "expected": "passed",
+      "status": "passed",
+      "checks": 11
+    },
+    {
+      "kind": "failure-retention",
+      "alternate": true,
+      "expected": "passed",
+      "status": "passed",
+      "checks": 4
+    },
+    {
+      "broken": "counts",
+      "expected": "failed",
+      "status": "failed",
+      "reason": "text: eventually observation failed after 5106ms (limit/window 5000ms); last observed {\"action\":\"text\",\"values\":[\"0 characters\"]}.\nStep 4: exact text differs.\ntext: eventually observation failed after 5040ms (limit/window 5000ms); last observed {\"action\":\"text\",\"values\":[\"0 characters\"]}.\nStep 6: exact text differs.\ntext: eventually observation failed after 5124ms (limit/window 5000ms); last observed {\"action\":\"text\",\"values\":[\"0 characters\"]}.\nStep 8: exact text differs.\ntext: eventually observation failed after 5013ms (limit/window 5000ms); last observed {\"action\":\"text\",\"values\":[\"0 characters\"]}.\nStep 10: exact text differs.\ntext: eventually observation failed after 5162ms (limit/window 5000ms); last observed {\"action\":\"text\",\"values\":[\"0 characters\"]}.\nStep 20: exact text differs.\ntext: eventually observation failed after 5252ms (limit/window 5000ms); last observed {\"action\":\"text\",\"values\":[\"0 characters\"]}.\nStep 26: exact text differs.\ntext: eventually observation failed after 5153ms (limit/window 5000ms); last observed {\"action\":\"text\",\"values\":[\"0 characters\"]}.\nStep 32: exact text differs.\ntext: eventually observation failed after 5077ms (limit/window 5000ms); last observed {\"action\":\"text\",\"values\":[\"0 characters\"]}.\nStep 38: exact text differs."
+    },
+    {
+      "broken": "validation",
+      "expected": "failed",
+      "status": "failed",
+      "reason": "text: eventually observation failed after 5056ms (limit/window 5000ms); last observed {\"action\":\"text\",\"values\":[]}.\nStep 16: exact text differs.\ntext: eventually observation failed after 5103ms (limit/window 5000ms); last observed {\"action\":\"text\",\"values\":[]}.\nStep 22: exact text differs.\ntext: eventually observation failed after 5057ms (limit/window 5000ms); last observed {\"action\":\"text\",\"values\":[]}.\nStep 40: exact text differs."
+    },
+    {
+      "broken": "early",
+      "expected": "failed",
+      "status": "failed",
+      "reason": "requestCount: during observation failed after 452ms (limit/window 300ms); last observed {\"action\":\"requestCount\",\"value\":4}.\nrequestCount: request count differs.\nrequestCount: during observation failed after 449ms (limit/window 300ms); last observed {\"action\":\"requestCount\",\"value\":8}.\nrequestCount: request count differs."
+    },
+    {
+      "broken": "ack",
+      "expected": "failed",
+      "status": "failed",
+      "reason": "text: eventually observation failed after 5028ms (limit/window 5000ms); last observed {\"action\":\"text\",\"values\":[\"Saved\"]}.\nStep 3: exact text differs.\nrequestCount: during observation failed after 304ms (limit/window 300ms); last observed {\"action\":\"requestCount\",\"value\":1}.\nrequestCount: request count differs.\nrequestCount: eventually observation failed after 5028ms (limit/window 5000ms); last observed {\"action\":\"requestCount\",\"value\":2}.\nrequestCount: request count differs."
+    },
+    {
+      "broken": "notes",
+      "expected": "failed",
+      "status": "failed",
+      "reason": "text: eventually observation failed after 5080ms (limit/window 5000ms); last observed {\"action\":\"text\",\"values\":[]}.\nStep 10: exact text differs."
+    },
+    {
+      "broken": "retention",
+      "expected": "failed",
+      "status": "failed",
+      "reason": "value: during observation failed after 619ms (limit/window 500ms); last observed {\"action\":\"value\",\"values\":[\"\"]}.\nvalue: value differs."
+    }
+  ]
+}

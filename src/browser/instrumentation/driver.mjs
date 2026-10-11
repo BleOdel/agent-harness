@@ -72,6 +72,7 @@ try{
     if(step.action==='storage')Object.assign(o,await observeStorage(page));
     if(step.action==='requestCount')o.value=session.counts.get(step.method+' '+step.path)||0;
     if(step.action==='attribute')o.values=await element.evaluateAll((es,name)=>es.map(e=>e.getAttribute(name)),step.name);
+    if(step.action==='value')o.values=await element.first().isVisible()?await element.evaluateAll(es=>es.map(e=>e.value)):[];
     if(step.action==='text')o.values=await element.first().isVisible()?await element.allTextContents():[];
     if(step.action==='count')o.value=await element.count();
     if(await exchange(i,o)==='next')break;

@@ -760,21 +760,31 @@
         "src/acceptance/preparation.ts:66",
         "src/acceptance/outline-patch.ts"
       ],
-      "status": "open",
+      "status": "verified",
       "tasks": [
         "hr-017",
         "hr-022"
       ],
       "regressions": [
+        "test/review-dependencies.test.ts",
         "test/reliability-defects.test.ts"
       ],
-      "resolutionEvidence": [],
+      "resolutionEvidence": [
+        {
+          "kind": "regression",
+          "path": "test/review-dependencies.test.ts"
+        },
+        {
+          "kind": "negative-control",
+          "path": "docs/reliability/evidence/interface-group-controls.json"
+        }
+      ],
       "qualification": {
-        "state": "reproduced",
-        "trigger": "Edit only an unrelated peer description; require the selected case code-review digest to remain unchanged.",
-        "regression": "test/reliability-defects.test.ts",
-        "execution": "docs/reliability/evidence/foundation-validation.json",
-        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix."
+        "state": "fixed",
+        "trigger": "Change one local control mapping or unrelated manual instruction while two independent receipts exist; change shared privacy or limitations and require dependent review.",
+        "regression": "test/review-dependencies.test.ts",
+        "execution": "docs/reliability/evidence/interface-group-validation.json",
+        "limitation": "Deterministic receipt/preparation qualification. Arbitrary free-text clauses remain global dependencies; old receipt fingerprints are not granted compatibility. This does not establish model-review quality or end-to-end blog completion."
       }
     },
     {

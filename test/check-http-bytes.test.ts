@@ -33,14 +33,13 @@ test('targeted migration pins byte observations without changing peers, contract
 });
 
 import {scopeDigest,reviewScopes} from '../src/acceptance/scoped-review.ts';import {taskDigest} from '../src/acceptance/draft.ts';import {ASSET_MODULE,ASSET_DIGEST} from '../src/acceptance/asset-runtime.ts';
-test('pre-byte-policy disclosure receipts need fresh review while unrelated scope receipts remain reusable',async()=>{
+test('legacy global receipts need fresh dependency review; current independent receipts remain reusable',async()=>{
  const p=proposal(),s=p.manifest.cases[0]!.steps[0]!;s.command[3]+=`;import {assertNoDatabaseBytes} from '${ASSET_MODULE}';`;s.assetRuntime=ASSET_DIGEST;
  const oldDigest=(scope:string)=>createHash('sha256').update(JSON.stringify({policy:1,task:taskDigest(task),metadata:{contract:p.contract,coverage:p.coverage,cases:p.manifest.cases.map(c=>({id:c.id,tasks:c.tasks,description:c.description}))},case:scope==='$contract'?null:p.manifest.cases.find(c=>c.id===scope)})).digest('hex');
- assert.equal(scopeDigest(task,p,'old'),oldDigest('old'));
- s.command[3]+=";const example='Buffer.from(r.text)';/* Buffer.from(r.text) */";assert.equal(scopeDigest(task,p,'old'),oldDigest('old'));
- s.command[3]+=';Buffer.from(response.text)';
- assert.notEqual(scopeDigest(task,p,'old'),oldDigest('old'));assert.equal(scopeDigest(task,p,'new'),oldDigest('new'));assert.equal(scopeDigest(task,p,'$contract'),oldDigest('$contract'));
+ assert.notEqual(scopeDigest(task,p,'old'),oldDigest('old'));
  const pass={verdict:'pass' as const,issues:[],limitations:[]},ledger={version:1 as const,entries:['$contract','old','new'].map(scope=>({scope,digest:oldDigest(scope),repairs:0,syntaxRepairs:0,review:pass}))};const seen:string[]=[];
- const reviewed=await reviewScopes(task,p,{syntax:async()=>[],review:async scope=>{seen.push(scope);return pass;},repair:async()=>{throw Error('not a code repair');},save:async()=>{}},ledger);
- assert.deepEqual(seen,['old']);assert.deepEqual(reviewed.ledger.entries.find(e=>e.scope==='new'),ledger.entries.find(e=>e.scope==='new'));
+ const services={syntax:async()=>[],review:async(scope:string)=>{seen.push(scope);return pass;},repair:async()=>{throw Error('not a code repair');},save:async()=>{}};
+ const reviewed=await reviewScopes(task,p,services,ledger);assert.deepEqual(seen,['$contract','old','new']);
+ const peer=scopeDigest(task,p,'new');s.command[3]+=';Buffer.from(response.text)';assert.equal(scopeDigest(task,p,'new'),peer);seen.length=0;
+ const updated=await reviewScopes(task,p,services,reviewed.ledger);assert.deepEqual(seen,['old']);assert.deepEqual(updated.ledger.entries.find(e=>e.scope==='new'),reviewed.ledger.entries.find(e=>e.scope==='new'));
 });

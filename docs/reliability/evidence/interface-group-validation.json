@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "kind": "local-interface-group-validation",
+  "status": "passed",
+  "tasks": [
+    "hr-020",
+    "hr-021",
+    "hr-022"
+  ],
+  "source": {
+    "baseCommit": "5bc3153d8689d3ce854cc131fe8209b418da775e",
+    "codeTreeSha256": "f877826f4450704c97d7f052bee1b7301d91ff76397716fe485720364b145b81",
+    "changedCode": {
+      "test/review-dependencies.test.ts": "1d27190bd3fb813231946f999f6f48fae89c0b9a88881ed6f39e196f9970f0c7",
+      "test/form-scenarios.test.ts": "ecce3ac6cb0a685ec6e53bdc85936607be2d611e1c951115f3cde174e8df3a06",
+      "test/reliability-defects.test.ts": "c67a69253b47df0daa595304a8f37be26e8664cb8b5ee6cdcc712b71f6eb4d2c",
+      "test/check-http-bytes.test.ts": "5580b99a348c772d204a98a62f9b4b9327bb6dc286eb7c6a56ef0c8933757de7",
+      "test/form-scenarios-browser.test.ts": "9c4fcc0dcc7467703abaf37bea065bb2b5e3d09316012e9fd15737cf545fa6b6",
+      "test/interface-amendments.test.ts": "202aa447a0e694f8bdab9a86cf37c9d7564104a7078aa1f754cf87e5dd243d29",
+      "test/check-simplification.test.ts": "bb91d738048324970a015be3c18a13cac6624542992daec660b508abdf07ff8d",
+      "src/browser/capabilities.ts": "530d6984019f80cbbab4fc4d413e955dda80cbfed1d8634d3c4d525c9d3794b8",
+      "src/browser/timing.ts": "0cf0a4ad96a80edffcb114a5c49f12cba541019d6b19cc52ef062e287446a85a",
+      "src/acceptance/preparation.ts": "a7a42e2e7258364e5cd01052f7a1d0b1661b26e99dce0019bbddfdee466550d6",
+      "src/acceptance/interface-amendments.ts": "403544f7aed156062ba4f6b9b1c9854fa3eb9998d2089980188a0a6d2255e434",
+      "src/acceptance/draft.ts": "48007159d9ea32be7a501bfce15910bb8c21bdf79db3b2947720932186b37c2a",
+      "src/acceptance/form-scenarios.ts": "d1a6943dae0980f9ab19aec87fa33d47359facf2472fdd837568798eecc67d5f",
+      "src/acceptance/simplification.ts": "6b29289873b791f61d54478c65f78ecc7e664b28437ea4a2061dfc8b99f4a9eb",
+      "src/acceptance/interface-choices.ts": "839327b8322d468b798ce417632be23f66d258da6bbca6fcb76959d3daa80815",
+      "src/acceptance/scoped-review.ts": "0ac0cdfb068f07af8ed46c2a493c1293c5a95b85a88246645971bf67d763de01",
+      "src/acceptance/feasibility.ts": "5589333fadbed9803a73880078ba88d1c39bfb13b89a2827cc3ed321e92f41ad",
+      "src/acceptance/interface-contract.ts": "8320d480674688daebc56e7aee3603ca6a580e609a8d1bf9601430e2dd4dfffb",
+      "src/acceptance/browser-design.ts": "438bb14d01eee5bfe913675514cf7800f08fb5fc35b96dea40f6adc062d18ff4",
+      "src/verbs/checks.ts": "b6746ce99e64765a49053ff431f75e4b92fcaf25fea8f79d9229f5bb74fffa7d",
+      "src/browser/instrumentation/driver.mjs": "68c20d9bbf698ce34a752ab2a5c904a98063a52f1d750d9ecf1eac1c1967d0de"
+    },
+    "identityScope": "Source, collected tests/fixtures, package manifests and tsconfig; excludes Finder metadata and qualification documentation generated after execution."
+  },
+  "requiredRegressions": [
+    "test/review-dependencies.test.ts",
+    "test/interface-amendments.test.ts",
+    "test/form-scenarios.test.ts",
+    "test/form-scenarios-browser.test.ts",
+    "test/reliability-defects.test.ts"
+  ],
+  "fullCheck": {
+    "command": "npm run check",
+    "tests": 1163,
+    "pass": 1091,
+    "fail": 0,
+    "skipped": 72,
+    "cancelled": 0,
+    "todo": 0,
+    "outputSha256": "af648b2316b40030699c5c376e9d08395ec2b8d6ca65fd941fa415ea85a5963a"
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-11T18:13:43.006Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-timing-docker.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "d279478a2e2d6fdfc150f28bc13e1ff09df447e5d1674738c0ed0815a6595a06",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-11T18:16:06.143Z"
+  },
+  "browserForms": {
+    "outcomes": 14,
+    "validInterfaces": 2,
+    "positiveScenarios": 8,
+    "deliberateApplicationDefects": 6,
+    "receipt": "docs/reliability/evidence/form-scenarios-browser.json",
+    "runtime": {
+      "image": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "arch": "arm64",
+      "node": "v26.5.0",
+      "playwright": "1.63.0",
+      "chromium": "153.0.8010.12",
+      "axe": "4.13.0",
+      "protocol": "cb3683f43efd5e6f788a1ebb3e9409c7a52a31da9a112d480dd4e6894c1735f4"
+    }
+  },
+  "harnessNegativeControls": {
+    "caught": 7,
+    "receipt": "docs/reliability/evidence/interface-group-controls.json"
+  },
+  "providerRequests": 0,
+  "limitations": [
+    "No live model-quality or end-to-end blog qualification; deterministic proposal/review fixtures are not proof of reviewer independence or accuracy.",
+    "Unknown legacy/free-text contract dependencies remain shared and require re-review; local optimization applies only to validated typed control mappings.",
+    "Templates cover bounded native controls and finite observation windows; custom UI, exact option enumeration, forbidden controls, visual quality and assistive technology may need separate evidence.",
+    "Existing blog files, approvals and histories were not changed. New browser protocol semantics require explicit migration/review of affected approvals."
+  ]
+}

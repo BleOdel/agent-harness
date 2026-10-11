@@ -1,3 +1,6 @@
+import {globalContract,choiceSuffix,type InterfaceChoice} from './interface-contract.ts';
+import {amendProjectOutline} from './interface-choices.ts';
+import {errorBlocker} from './interface-amendments.ts';
 import {projectRoute,prepareEvidence} from './feasibility-project.ts';
 import {applyOutlinePatch,outlinePatchDigest,requestOutlinePatch,type OutlinePatchReply,type InvalidOutlinePatch} from './outline-patch.ts';
 import {createHash} from 'node:crypto';
@@ -17,8 +20,8 @@ import { parseChecks, type AcceptanceCase } from './checks.ts';
 import { OperatorError } from '../verbs/io.ts';
 import { proposalDigest, parseDraftReview, type DraftReview } from './repair.ts';
 import { requestScopedReview,reviewScopes,scopeDigest,type ReviewLedger } from './scoped-review.ts';
-export interface Blueprint { version:1; contract:string; coverage:Coverage[]; cases:Behaviour[]; }
-export interface Preparation { evidenceDigest?:string; browserCapabilities?:string; pendingOutlinePatch?:OutlinePatchReply; outlinePatchHistory?:OutlinePatchReply[]; routingHistory?:unknown[]; reviewLedger?:ReviewLedger; version:1; blueprint:Blueprint; cases:AcceptanceCase[]; pendingCase?:{id:string;raw:unknown;repairs:number;blockerClarifications?:number}; splits?:number; pendingSplit?:{id:string;raw:unknown;review?:DraftReview}; retiredCases?:{id:string;raw:unknown;repairs:number}[]; outlineRepairs?:number; outlineReview?:{digest:string;review:DraftReview}; }
+export interface Blueprint { localChoices?:InterfaceChoice[];version:1; contract:string; coverage:Coverage[]; cases:Behaviour[]; }
+export interface Preparation { amendments?:{before:Blueprint;after:Blueprint;reason:string}[]; evidenceDigest?:string; browserCapabilities?:string; pendingOutlinePatch?:OutlinePatchReply; outlinePatchHistory?:OutlinePatchReply[]; routingHistory?:unknown[]; reviewLedger?:ReviewLedger; version:1; blueprint:Blueprint; cases:AcceptanceCase[]; pendingCase?:{id:string;raw:unknown;repairs:number;blockerClarifications?:number}; splits?:number; pendingSplit?:{id:string;raw:unknown;review?:DraftReview}; retiredCases?:{id:string;raw:unknown;repairs:number}[]; outlineRepairs?:number; outlineReview?:{digest:string;review:DraftReview}; }
 export const MAX_CASE_BYTES = 16 * 1024;
 class OversizedCase extends OperatorError {}
 const stub = (task:Feature,c:Behaviour):AcceptanceCase => caseKind(c)==='browser'
@@ -29,7 +32,7 @@ export function parseBlueprint(raw:unknown,task:Feature):Blueprint {
  const b=routeBlueprint(raw as Blueprint);
  if(!b||b.version!==1||!Array.isArray(b.cases)||!b.cases.length||b.cases.length>28||b.cases.some(c=>!c||typeof c.id!=='string'||! /^[a-z][a-z0-9-]{0,79}$/u.test(c.id)))throw new OperatorError('Preparation needs between one and 28 named behaviours.');
  const p=parseProposal({...b,manifest:{version:1,cases:b.cases.map(c=>stub(task,c))}},task);
- return {version:1,contract:p.contract,coverage:p.coverage,cases:p.manifest.cases.map(c=>({id:c.id,description:c.description!,...(c.kind?{kind:c.kind}:{})}))};
+ return {...(p.localChoices?{localChoices:p.localChoices}:{}),version:1,contract:p.contract,coverage:p.coverage,cases:p.manifest.cases.map(c=>({id:c.id,description:c.description!,...(c.kind?{kind:c.kind}:{})}))};
 }
 export function parsePreparedCase(raw:unknown,task:Feature,selected:Blueprint['cases'][number]):AcceptanceCase {
  if(caseKind(selected)!=='command')return parseRoutedCase(raw,task.id,selected);
@@ -55,24 +58,26 @@ export function partitionBlueprint(task:Feature,b:Blueprint,id:string,raw:unknow
  if(value.cases.some(c=>caseKind(c)!==caseKind(b.cases[index]!)))throw new OperatorError('Partition cannot change evidence kind.');
  const cases=[...b.cases.slice(0,index),...value.cases,...b.cases.slice(index+1)];
  const coverage=b.coverage.map(c=>({...c,cases:c.cases.flatMap(old=>old===id?value.cases!.map(part=>part.id):[old])}));
- return parseBlueprint({...b,cases,coverage},task);
+ const localChoices=b.localChoices?.flatMap(c=>c.caseId===id?value.cases!.map(part=>({...c,caseId:part.id,observation:part.description})):[c]);
+ return parseBlueprint({...b,cases,coverage,...(localChoices?{localChoices,contract:globalContract(b.contract,b.localChoices)+choiceSuffix(localChoices)}:{})},task);
 }
 /** Routing migration retains old unapproved drafts; receipts never cross evidence kinds. */
 export function initializePreparation(task:Feature,blueprint:Blueprint,saved?:Preparation):Preparation{
  const cases:AcceptanceCase[]=[];
  const retired=[...(saved?.retiredCases??[])];let rerouted=false;
- for(const [index,entry] of (saved?.cases??[]).entries()){const selected=blueprint.cases[index];if(!selected||selected.id!==entry.id)throw new OperatorError('Unexpected case in saved preparation.');if(caseKind(entry)!==caseKind(selected)||rerouted){retired.push({id:entry.id,raw:entry,repairs:0});rerouted=true;continue;}cases.push(parsePreparedCase(entry,task,selected));}
+ for(const entry of saved?.cases??[]){const selected=blueprint.cases.find(c=>c.id===entry.id);if(!selected||caseKind(entry)!==caseKind(selected)||entry.description!==selected.description){retired.push({id:entry.id,raw:entry,repairs:0});rerouted=true;continue;}if(cases.some(c=>c.id===entry.id))throw new OperatorError('Duplicate saved prepared case.');cases.push(parsePreparedCase(entry,task,selected));}
  if(saved&&JSON.stringify(saved.blueprint)!==JSON.stringify(blueprint))rerouted=true;
  if(rerouted&&saved?.pendingCase)retired.push(structuredClone(saved.pendingCase));
- const state:Preparation={...(!rerouted&&saved?.reviewLedger?{reviewLedger:structuredClone(saved.reviewLedger)}:{}),version:1,blueprint,cases,...(saved?.routingHistory?{routingHistory:structuredClone(saved.routingHistory)}:{}),outlineRepairs:saved?.outlineRepairs??0,splits:saved?.splits??0,...(retired.length?{retiredCases:structuredClone(retired)}:{})};
+ const state:Preparation={...(saved?.amendments?{amendments:structuredClone(saved.amendments)}:{}),...(saved?.reviewLedger?{reviewLedger:structuredClone(saved.reviewLedger)}:{}),version:1,blueprint,cases,...(saved?.routingHistory?{routingHistory:structuredClone(saved.routingHistory)}:{}),outlineRepairs:saved?.outlineRepairs??0,splits:saved?.splits??0,...(retired.length?{retiredCases:structuredClone(retired)}:{})};
+ if(state.amendments&&(!Array.isArray(state.amendments)||state.amendments.length>2||state.amendments.some(a=>!a.before||!a.after||typeof a.reason!=='string')))throw new OperatorError('Invalid saved amendment history.');
  if(!Number.isInteger(state.splits)||state.splits!<0||state.splits!>2)throw new OperatorError('Invalid saved behaviour partition budget.');
  if(saved?.pendingSplit&&!rerouted){
-  if(saved.pendingSplit.id!==blueprint.cases[cases.length]?.id||!saved.pendingCase)throw new OperatorError('Invalid saved behaviour partition.');
+  if(saved.pendingSplit.id!==blueprint.cases.find(c=>!cases.some(entry=>entry.id===c.id))?.id||!saved.pendingCase)throw new OperatorError('Invalid saved behaviour partition.');
   state.pendingSplit=structuredClone(saved.pendingSplit);
  }
  if(!Number.isInteger(state.outlineRepairs)||state.outlineRepairs!<0||state.outlineRepairs!>2)throw new OperatorError("Invalid saved outline repair budget.");
  if(saved?.pendingCase&&!rerouted){
-  if(saved.pendingCase.id!==blueprint.cases[cases.length]?.id||!Number.isInteger(saved.pendingCase.repairs)||saved.pendingCase.repairs<0||saved.pendingCase.repairs>2)throw new OperatorError('Invalid saved case preparation.');
+  if(saved.pendingCase.id!==blueprint.cases.find(c=>!cases.some(entry=>entry.id===c.id))?.id||!Number.isInteger(saved.pendingCase.repairs)||saved.pendingCase.repairs<0||saved.pendingCase.repairs>2)throw new OperatorError('Invalid saved case preparation.');
   if(saved.pendingCase.blockerClarifications!==undefined&&(!Number.isInteger(saved.pendingCase.blockerClarifications)||saved.pendingCase.blockerClarifications<0||saved.pendingCase.blockerClarifications>1))throw new OperatorError('Invalid saved browser clarification budget.');
   state.pendingCase=structuredClone(saved.pendingCase);
  }
@@ -94,20 +99,30 @@ export function initializePreparation(task:Feature,blueprint:Blueprint,saved?:Pr
  const priorCapabilities=saved?.browserCapabilities??(saved?.outlineReview?.digest===legacyReceipt?legacyCapabilities:undefined);
  if(blueprint.cases.some(c=>caseKind(c)==='browser'))state.browserCapabilities=currentCapabilities;
  const pending=state.pendingCase,raw=pending?.raw;
- if(priorCapabilities&&priorCapabilities!==currentCapabilities&&pending&&!state.pendingSplit&&caseKind(blueprint.cases[cases.length]!)==='browser'&&raw&&typeof raw==='object'&&!Array.isArray(raw)&&'blocker' in raw&&raw.blocker==='missing-action'){
+ if(priorCapabilities&&priorCapabilities!==currentCapabilities&&pending&&!state.pendingSplit&&caseKind(blueprint.cases.find(c=>!cases.some(entry=>entry.id===c.id))!)==='browser'&&raw&&typeof raw==='object'&&!Array.isArray(raw)&&'blocker' in raw&&raw.blocker==='missing-action'){
   (state.retiredCases??=[]).push(structuredClone(pending));delete state.pendingCase;
  }
  if(saved?.evidenceDigest!==undefined){if(!/^[a-f0-9]{64}$/.test(saved.evidenceDigest))throw new OperatorError('Invalid evidence feasibility fingerprint.');state.evidenceDigest=saved.evidenceDigest;}
  const digest=outlineFingerprint(task,blueprint,state.evidenceDigest);
  if(!rerouted&&saved?.outlineReview?.digest===digest)state.outlineReview={digest,review:parseDraftReview(saved.outlineReview.review)};
  if(rerouted&&saved)(state.routingHistory??=[]).push(structuredClone({...saved,routingHistory:undefined}));
+ if(state.reviewLedger){const current=parseProposal({...blueprint,manifest:{version:1,cases:blueprint.cases.map(c=>cases.find(g=>g.id===c.id)??stub(task,c))}},task);const entries=state.reviewLedger.entries;state.reviewLedger.entries=entries.filter(e=>current.manifest.cases.some(c=>c.id===e.scope)&&e.digest===scopeDigest(task,current,e.scope));for(const entry of entries)if(!state.reviewLedger.entries.includes(entry))(state.reviewLedger.retired??=[]).push({entry,reason:'Preparation dependency changed; original receipt retained without granting compatibility.'});}
  return state;
 }
-export async function draftInParts(task:Feature,services:{feasibility?:(b:Blueprint)=>Promise<unknown>;reviewCase?:(p:Proposal,scope:string,ledger:ReviewLedger,save:(p:Proposal,l:ReviewLedger)=>Promise<void>)=>Promise<unknown>;plan:()=>Promise<unknown>;generate:(id:string,blueprint:Blueprint)=>Promise<unknown>;save:(state:Preparation)=>Promise<void>;reviewOutline?:(blueprint:Blueprint)=>Promise<DraftReview>;repairOutline?:(blueprint:Blueprint,issues:string[],previous?:InvalidOutlinePatch)=>Promise<unknown>;clarifyBlocker?:(id:string,blueprint:Blueprint,raw:unknown,error:string)=>Promise<unknown>;repairCase?:(id:string,blueprint:Blueprint,raw:unknown,error:string)=>Promise<unknown>;splitCase?:(id:string,blueprint:Blueprint)=>Promise<unknown>;reviewSplit?:(blueprint:Blueprint,original:Blueprint['cases'][number])=>Promise<DraftReview>;progress?:(text:string)=>void},saved?:Preparation):Promise<Proposal> {
+export async function draftInParts(task:Feature,services:{amendOutline?:(b:Blueprint,error:unknown)=>Promise<Blueprint>;feasibility?:(b:Blueprint)=>Promise<unknown>;reviewCase?:(p:Proposal,scope:string,ledger:ReviewLedger,save:(p:Proposal,l:ReviewLedger)=>Promise<void>)=>Promise<unknown>;plan:()=>Promise<unknown>;generate:(id:string,blueprint:Blueprint)=>Promise<unknown>;save:(state:Preparation)=>Promise<void>;reviewOutline?:(blueprint:Blueprint)=>Promise<DraftReview>;repairOutline?:(blueprint:Blueprint,issues:string[],previous?:InvalidOutlinePatch)=>Promise<unknown>;clarifyBlocker?:(id:string,blueprint:Blueprint,raw:unknown,error:string)=>Promise<unknown>;repairCase?:(id:string,blueprint:Blueprint,raw:unknown,error:string)=>Promise<unknown>;splitCase?:(id:string,blueprint:Blueprint)=>Promise<unknown>;reviewSplit?:(blueprint:Blueprint,original:Blueprint['cases'][number])=>Promise<DraftReview>;progress?:(text:string)=>void},saved?:Preparation):Promise<Proposal> {
  let blueprint=parseBlueprint(saved?.blueprint??await services.plan(),task);
- const state=initializePreparation(task,blueprint,saved),cases=state.cases;
+ const state=initializePreparation(task,blueprint,saved);let cases=state.cases;
  await services.save(state);
- const checkFeasibility=async()=>{const report=await services.feasibility?.(blueprint);if(report&&typeof report==='object'&&'digest' in report){if(typeof report.digest!=='string'||!/^[a-f0-9]{64}$/.test(report.digest))throw new OperatorError('Invalid evidence feasibility receipt.');state.evidenceDigest=report.digest;if(state.outlineReview?.digest!==outlineFingerprint(task,blueprint,state.evidenceDigest))delete state.outlineReview;await services.save(state);}};
+ const amend=async(error:unknown):Promise<boolean>=>{
+  const blocker=errorBlocker(error);if(!services.amendOutline||!['contract-choice','journey-limit'].includes(blocker.kind))return false;
+  if((state.amendments?.length??0)>=2)throw new OperatorError('Two interface amendments did not resolve preparation.',blocker.details+' Review the saved design before granting more work; nothing was approved.');
+  const before=blueprint,next=parseBlueprint(await services.amendOutline(before,error),task);
+  if(outlinePatchDigest(next)===outlinePatchDigest(before))throw new OperatorError('Interface amendment made no change.');
+  const migrated=initializePreparation(task,next,state);migrated.amendments=[...(state.amendments??[]),{before:structuredClone(before),after:structuredClone(next),reason:blocker.details}];
+  for(const key of Object.keys(state))delete (state as unknown as Record<string,unknown>)[key];Object.assign(state,migrated);blueprint=next;cases=state.cases;
+  delete state.outlineReview;delete state.evidenceDigest;await services.save(state);return true;
+ };
+ const checkFeasibility=async()=>{for(;;){try{const report=await services.feasibility?.(blueprint);if(report&&typeof report==='object'&&'digest' in report){if(typeof report.digest!=='string'||!/^[a-f0-9]{64}$/.test(report.digest))throw new OperatorError('Invalid evidence feasibility receipt.');state.evidenceDigest=report.digest;if(state.outlineReview?.digest!==outlineFingerprint(task,blueprint,state.evidenceDigest))delete state.outlineReview;await services.save(state);}return;}catch(error){if(!await amend(error))throw error;}}};
  await checkFeasibility();
  if(services.reviewOutline){
   for(;;){
@@ -157,14 +172,19 @@ export async function draftInParts(task:Feature,services:{feasibility?:(b:Bluepr
  };
  prepareCases: while(cases.length<blueprint.cases.length){
   await reviewGenerated();
-  const selected=blueprint.cases[cases.length]!;
+  const selected=blueprint.cases.find(c=>!cases.some(entry=>entry.id===c.id))!;
   services.progress?.(`Preparing behaviour ${cases.length+1}/${blueprint.cases.length}: ${selected.description}`);
   if(!state.pendingCase){state.pendingCase={id:selected.id,raw:caseKind(selected)==='manual'?{...selected,tasks:[task.id],steps:[],manual:{instructions:selected.description}}:await services.generate(selected.id,blueprint),repairs:0};await services.save(state);}
   let entry:AcceptanceCase;
   for(;;){
    try{entry=parsePreparedCase(state.pendingCase.raw,task,selected);break;}
    catch(error){
-    if(error instanceof EvidenceCapabilityGap)throw error;
+    if(error instanceof EvidenceCapabilityGap){
+     if(!await amend(error))throw error;
+     await checkFeasibility();
+     if(services.reviewOutline){state.outlineReview={digest:outlineFingerprint(task,blueprint,state.evidenceDigest),review:parseDraftReview(await services.reviewOutline(blueprint))};await services.save(state);if(state.outlineReview.review.verdict!=='pass')throw new OperatorError('Amended interface needs a design decision.',state.outlineReview.review.issues.join('\n'));}
+     continue prepareCases;
+    }
     if(error instanceof IncompleteBrowserBlocker){
      if(!services.clarifyBlocker||(state.pendingCase.blockerClarifications??0)>=1)throw new OperatorError('The model did not provide a usable browser diagnosis.',`${error.message} The replies are retained; inspect the generator and contract before another attempt. No manual rerouting or approval occurred.`);
      ensureCheckBudget();state.pendingCase.blockerClarifications=(state.pendingCase.blockerClarifications??0)+1;await services.save(state);
@@ -195,7 +215,7 @@ export async function draftInParts(task:Feature,services:{feasibility?:(b:Bluepr
      (state.retiredCases??=[]).push(structuredClone(state.pendingCase));
      const before=currentProposal();
      blueprint=next;state.blueprint=next;
-     if(state.reviewLedger){const after=currentProposal();state.reviewLedger.entries=state.reviewLedger.entries.filter(e=>e.scope!=='$contract'&&e.digest===scopeDigest(task,before,e.scope)&&cases.some(c=>c.id===e.scope)).map(e=>({...e,digest:scopeDigest(task,after,e.scope)}));}
+     if(state.reviewLedger){const after=currentProposal();state.reviewLedger.entries=state.reviewLedger.entries.filter(e=>e.scope!=='$contract'&&e.digest===scopeDigest(task,before,e.scope)&&cases.some(c=>c.id===e.scope)).filter(e=>e.digest===scopeDigest(task,after,e.scope));}
      state.outlineReview={digest:outlineFingerprint(task,next),review:state.pendingSplit.review};
      delete state.pendingCase;delete state.pendingSplit;await services.save(state);await checkFeasibility();
      if(services.reviewOutline&&!state.outlineReview){state.outlineReview={digest:outlineFingerprint(task,blueprint,state.evidenceDigest),review:parseDraftReview(await services.reviewOutline(blueprint))};await services.save(state);if(state.outlineReview.review.verdict!=='pass')throw new OperatorError('Partitioned evidence needs renewed interface review.',state.outlineReview.review.issues.join('\n'));}
@@ -214,12 +234,13 @@ export async function draftInParts(task:Feature,services:{feasibility?:(b:Bluepr
   cases.push(entry);delete state.pendingCase;await services.save(state);
  }
  await reviewGenerated();
- return parseProposal({version:1,contract:blueprint.contract,coverage:blueprint.coverage,manifest:{version:1,cases}},task);
+ return parseProposal({...blueprint,manifest:{version:1,cases:blueprint.cases.map(c=>cases.find(g=>g.id===c.id)!)}},task);
 }
 export async function prepareInParts(project:string,task:Feature,feedback:string,previous:Proposal|undefined,save:(state:Preparation)=>Promise<void>,progress:(text:string)=>void,saved?:Preparation,previousIssues:readonly string[]=[],overrides:{review?:typeof requestScopedReview;source?:string;route?:()=>Promise<unknown>;feasibility?:(b:Blueprint)=>Promise<unknown>}={}):Promise<Proposal>{
  await (overrides.route??(()=>projectRoute(project)))();
  let atomic:Awaited<ReturnType<typeof prepareEvidence>>|undefined;
  return draftInParts(task,{
+  amendOutline:(b,error)=>amendProjectOutline(project,task,b,error,progress),
   feasibility:overrides.feasibility??(async b=>{atomic=await prepareEvidence(project,task,b,progress);return atomic;}),
   reviewCase:(p,scope,ledger,checkpoint)=>reviewScopes(task,p,{durableRepairs:true,syntax:syntaxIssues,review:(id,candidate,issues)=>(overrides.review??requestScopedReview)(project,task,candidate,id,issues,progress),repair:(id,candidate,issues)=>repairCaseCode(project,task,candidate,id,issues),save:checkpoint,progress},ledger,scope),
   plan:()=>prepareOutline(project,task,overrides.source??'',feedback,previous,previousIssues,progress),

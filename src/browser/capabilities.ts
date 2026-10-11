@@ -3,9 +3,9 @@ import {repeatedInput,type RepeatedInput} from './instrumentation/input.ts';
 import {OperatorError} from '../verbs/io.ts';
 type Input={value:string;valueFrom?:never;valueRepeat?:never}|{valueFrom:string;value?:never;valueRepeat?:never}|{valueRepeat:RepeatedInput;value?:never;valueFrom?:never};
 type Expected={expected:string;expectedFrom?:never}|{expectedFrom:string;expected?:never};
-type CapabilityAction={action:'type';selector:string;value:string}|({action:'fill'|'paste';selector:string}&Input)|{action:'capture';selector:string;name:string;source:'text'|'value'}|({action:'clipboard'}&Expected)|({action:'download';selector:string}&Expected)|{action:'storage';absentFrom:string}|{action:'context'|'page';name:string}|{action:'network';path:string;method:string;mode:'normal'|'abort'|'503'}|{action:'requestCount';path:string;method:string;expected:number}|{action:'attribute';selector:string;name:string;expected:string}|{action:'select';selector:string;value:string};
+type CapabilityAction={action:'type';selector:string;value:string}|({action:'fill'|'paste';selector:string}&Input)|{action:'capture';selector:string;name:string;source:'text'|'value'}|({action:'value';selector:string}&Expected)|({action:'clipboard'}&Expected)|({action:'download';selector:string}&Expected)|{action:'storage';absentFrom:string}|{action:'context'|'page';name:string}|{action:'network';path:string;method:string;mode:'normal'|'abort'|'503'}|{action:'requestCount';path:string;method:string;expected:number}|{action:'attribute';selector:string;name:string;expected:string}|{action:'select';selector:string;value:string};
 export type CapabilityStep=CapabilityAction&{observation?:import('./timing.ts').ObservationWindow};
-export const capabilityActions=new Set(['type','fill','paste','capture','clipboard','download','storage','context','page','network','requestCount','attribute','select']);
+export const capabilityActions=new Set(['value','type','fill','paste','capture','clipboard','download','storage','context','page','network','requestCount','attribute','select']);
 const fail=(m:string):never=>{throw new OperatorError(m);};
 const text=(v:unknown,n=12000):v is string=>typeof v==='string'&&v.length<=n&&!v.includes('\0');
 const label=(v:unknown):v is string=>typeof v==='string'&&/^[a-z][a-z0-9-]{0,39}$/u.test(v);
@@ -19,7 +19,7 @@ export function validateCapability(s:Record<string,unknown>,refs:Set<string>,con
  if(a==='type'){selector();if(typeof s.value!=='string'||! /^[\x20-\x7e]{1,256}$/u.test(s.value))fail('Typing requires 1..256 printable ASCII characters. Use fill or paste for larger or Unicode input.');keys=['selector','value'];}
  if(a==='select'){selector();if(!text(s.value,300))fail('Invalid option value.');keys=['selector','value'];}
  if(a==='capture'){selector();if(!label(s.name)||refs.has(s.name)||refs.size>=20||!['text','value'].includes(String(s.source)))fail('Invalid or duplicate capture.');refs.add(s.name as string);keys=['selector','name','source'];}
- if(a==='clipboard'||a==='download'){if(a==='download')selector();keys=[...(a==='download'?['selector']:[]),expected()];checks++;}
+ if(a==='value'||a==='clipboard'||a==='download'){if(a!=='clipboard')selector();keys=[...(a!=='clipboard'?['selector']:[]),expected()];checks++;}
  if(a==='storage'){reference(s.absentFrom);keys=['absentFrom'];checks++;}
  if(a==='context'||a==='page'){if(!label(s.name))fail('Invalid browser session name.');if(a==='context'){contexts.add(s.name as string);active.context=s.name as string;pages.add(active.context+'/main');}else pages.add(active.context+'/'+String(s.name));if(contexts.size>4||pages.size>12)fail('Browser session limit reached.');keys=['name'];}
  if(a==='network'||a==='requestCount'){
@@ -32,15 +32,15 @@ export function validateCapability(s:Record<string,unknown>,refs:Set<string>,con
 }
 export function assessCapability(s:CapabilityStep,raw:unknown,refs:Map<string,string>,failures:string[]):number{
  if(!raw||typeof raw!=='object'||Array.isArray(raw))fail('Invalid capability observation.');const o=raw as Record<string,unknown>;
- const a=s.action;const extra=a==='capture'||a==='attribute'?['values']:a==='clipboard'||a==='download'||a==='requestCount'?['value']:a==='storage'?['local','session','databases','cache','cookies']:[];
+ const a=s.action;const extra=a==='capture'||a==='attribute'||a==='value'?['values']:a==='clipboard'||a==='download'||a==='requestCount'?['value']:a==='storage'?['local','session','databases','cache','cookies']:[];
  if(o.action!==a||Object.keys(o).length!==extra.length+1||Object.keys(o).some(k=>k!=='action'&&!extra.includes(k)))fail('Invalid capability observation fields.');
  const mismatch=(message:string)=>failures.push(`${a}: ${message}`);
  const expected=(step:Expected)=>step.expectedFrom!==undefined?refs.get(step.expectedFrom):step.expected;
- if(a==='capture'||a==='attribute'){
+ if(a==='capture'||a==='attribute'||a==='value'){
   if(!Array.isArray(o.values)||o.values.length>12||o.values.some(v=>v!==null&&!text(v)))fail('Invalid captured values.');
   const values=o.values as unknown[];
   if(a==='capture'){if(values.length!==1||!text(values[0])||!values[0])mismatch('capture requires exactly one nonempty value.');else refs.set(s.name,values[0] as string);return 0;}
-  if(values.length!==1||values[0]!==s.expected)mismatch('attribute differs.');return 1;
+  if(values.length!==1||values[0]!==(a==='value'?expected(s):s.expected))mismatch(a+' differs.');return 1;
  }
  if(a==='clipboard'||a==='download'){if(!text(o.value,65536))fail('Invalid text output.');const wanted=expected(s);if(wanted===undefined||o.value!==wanted)mismatch('text differs from expected value.');return 1;}
  if(a==='requestCount'){if(!Number.isSafeInteger(o.value)||Number(o.value)<0||Number(o.value)>1000)fail('Invalid request count observation.');if(o.value!==s.expected)mismatch('request count differs.');return 1;}

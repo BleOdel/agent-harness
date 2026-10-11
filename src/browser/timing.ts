@@ -1,11 +1,11 @@
 import {OperatorError} from '../verbs/io.ts';
 export interface ObservationWindow {mode:'eventually'|'during';milliseconds:number;}
-export const timedActions=new Set(['text','count','attribute','requestCount','storage']);
+export const timedActions=new Set(['value','text','count','attribute','requestCount','storage']);
 /** Defaults apply only to positive observations. Absence needs an approved interval. */
 export function observationWindow(step:any):ObservationWindow|undefined{
  if(!step||typeof step!=='object'||Array.isArray(step))return undefined;
  if(!timedActions.has(step.action)){if(step.observation!==undefined)throw new OperatorError('This action does not support an observation window.');return undefined;}
- const negative=step.action==='storage'||((step.action==='count'||step.action==='requestCount')&&step.expected===0)||(step.action==='text'&&step.expected==='');
+ const negative=step.action==='storage'||((step.action==='count'||step.action==='requestCount')&&step.expected===0)||((step.action==='text'||step.action==='value')&&step.expected==='');
  const w=step.observation;
  if(w===undefined){if(negative)throw new OperatorError('Absence and no-request claims require an explicit during observation window.','Choose a bounded interval and review the changed journey before approval.');return {mode:'eventually',milliseconds:5000};}
  if(!w||typeof w!=='object'||Array.isArray(w)||Object.keys(w).length!==2||!['mode','milliseconds'].every(k=>Object.hasOwn(w,k))||!['eventually','during'].includes(w.mode)||!Number.isSafeInteger(w.milliseconds)||w.milliseconds<100||w.milliseconds>10000)throw new OperatorError('Observation windows require mode eventually or during and 100–10000 milliseconds.');
