@@ -1,3 +1,4 @@
+import {currentOperationId, checkpointSavedFile} from '../workflow/operations.ts';
 import {evidenceHash} from '../evidence/admission.ts';
 import {assertDeliveryAdmission} from '../evidence/delivery.ts';
 /** Retained, verified candidates. Metadata lives outside every candidate mount. */
@@ -14,6 +15,7 @@ import {OperatorError} from '../verbs/io.ts';
 export interface Observation {id:string;passed:boolean;notes:string;}
 export interface StageReview {environment:string;observations:Observation[];approved:boolean;}
 export interface Stage {
+ operationId?:string;
  version:1;id:string;project:string;task:string;workDigest:string;tasks:string[];created:string;
  baseline:Snapshot;candidate:Candidate;acceptance:AcceptanceResult;execution?:ExecutionPin;
  gates:readonly string[];review:NonNullable<RunRecord['review']>;usage?:RunRecord['usage'];
@@ -26,7 +28,13 @@ export type StageInput=Pick<Stage,'id'|'task'|'workDigest'|'tasks'|'baseline'|'c
 const root=(p:string)=>path.join(harnessDirectory(p),'staging');
 export function stageDirectory(project:string,id:string):string{if(!/^r[1-9][0-9]*$/.test(id))throw new OperatorError('Invalid staged run ID.');return path.join(root(project),id);}
 export const stageBinding=(s:Stage)=>digest(JSON.stringify({task:s.task,work:s.workDigest,baseline:s.baseline.digest,controls:s.baseline.controls,product:s.baseline.productDigest,candidate:s.candidate.digest,approval:s.acceptance.approvalDigest,execution:s.execution?.digest,manual:s.manual}));
-export async function writeStage(s:Stage):Promise<void>{await atomicWrite(path.join(stageDirectory(s.project,s.id),'state.json'),JSON.stringify(s,null,2)+'\n');}
+export async function writeStage(s: Stage): Promise<void> {
+  const operationId = currentOperationId(s.project);
+  if (operationId) s.operationId = operationId;
+  const file = path.join(stageDirectory(s.project, s.id), 'state.json');
+  await atomicWrite(file, JSON.stringify(s, null, 2) + '\n');
+  await checkpointSavedFile(file, 'stage', s.status === 'applied' ? 'complete' : s.status === 'pending' ? 'approval' : 'attention');
+}
 export async function saveStage(project:string,input:StageInput):Promise<Stage>{
  project=await realpath(project);const dest=stageDirectory(project,input.id);
  await assertSnapshot(input.candidate);await assertLiveBaseline(project,input.baseline);
@@ -49,8 +57,12 @@ export async function saveStage(project:string,input:StageInput):Promise<Stage>{
   s.review={...s.review,evidenceDigest:evidenceHash(reviewBytes)};
   await assertDeliveryAdmission(project,input.candidate,input.tasks,s.acceptance,{route:'staged',review:s.review});
   for(const name of ['source','baseline']){const directories=new Set([path.join(pending,name)]);for(const file of Object.keys(await sourceFiles(path.join(pending,name),'',input.baseline.exclusions))){const target=path.join(pending,name,file),handle=await open(target,'r');try{await handle.sync();}finally{await handle.close();}let dir=path.dirname(target);while(dir.startsWith(path.join(pending,name))){directories.add(dir);dir=path.dirname(dir);}}for(const dir of [...directories].sort((a,b)=>b.length-a.length))await syncDirectory(dir);}
+  const operationId = currentOperationId(project);
+  if (operationId) s.operationId = operationId;
   await atomicWrite(path.join(pending,'state.json'),JSON.stringify(s,null,2)+'\n');
-  await syncDirectory(pending);await rename(pending,dest);await syncDirectory(root(project));return s;
+  await syncDirectory(pending);await rename(pending,dest);await syncDirectory(root(project));
+  await checkpointSavedFile(path.join(dest,'state.json'), 'stage', 'approval');
+  return s;
  }finally{await rm(pending,{recursive:true,force:true});}
 }
 export async function readStage(project:string,id:string):Promise<Stage>{

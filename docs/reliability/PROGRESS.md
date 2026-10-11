@@ -1,4 +1,4 @@
-# Reliability progress — Group 2: evidence admission
+# Reliability progress — Group 2: evidence and command ownership
 
 Completed tasks: hr-001–hr-023 — **23 of 45**. The remaining 22 tasks are open. [Grouped delivery](GROUPS.md) Group 2 has completed common evidence admission; hr-024–hr-027 (durable ownership, structured commands, cumulative allowances and continuation) remain.
 
@@ -122,3 +122,14 @@ Combined automated and operator evidence uses the same policy for ordinary, stag
 Eight deliberately restored defects were caught. Source identities, full-suite results and installed Docker/Chromium results are retained in `evidence/evidence-admission-validation.json` and `evidence/evidence-admission-controls.json`. No live blog state, paid model requests or dependencies changed. Group 2 continues with hr-024; F12 and F23 remain open for their broader integration obligations.
 
 Validation: `npm run check` passed 1,115 of 1,187 tests, with 72 explicit skips and no failures. Required Docker/Chromium smoke passed 13/13 with no skips.
+
+
+## Durable command ownership (hr-024 foundation; task remains open)
+
+Migrated work, continuation, checks, stage and team command boundaries now share one host operation ID. Nested dispatch reservations are flushed before callbacks run. Parallel inherited writers and callbacks whose owner returned are refused. A complete expected-record comparison and writer-token verification protect every operation replacement; an optional expected status revision can guard dispatch itself. Existing command names and application-recovery guards remain.
+
+Saved run, implementation, continuation, preparation, stage and team facts are referenced through bounded digest checkpoints. Application intent retains the initiating operation ID; replay keeps the original record bytes. CLI status and dashboard guidance expose last-recorded ownership without claiming a process is alive or interpreting a returned command as application success. Killed commands retain uncertain dispatches; a new explicitly requested command after lock recovery archives the interrupted owner. Existing allowances and approvals are not renewed.
+
+The complete phase-service migration is deliberately not marked done: this batch owns command execution, while legacy domain controllers still own task/phase progression behind compatibility adapters. hr-024 remains open; completed count remains **23/45**. Request accounting and autonomous retry policy remain hr-026/hr-027. This is not yet the promised uninterrupted end-to-end workflow.
+
+Validation: `npm run check`: 1,201 tests, 1,129 passed, 72 explicitly skipped, zero failures. Required Docker/Chromium smoke passed 13/13 without skips. Six deliberately restored defects were detected. Evidence: `evidence/operation-ownership-validation.json` and `evidence/operation-ownership-controls.json`. The suite caught an import-cycle regression; the shared artifact reader is now independent of the planning/runtime registry. No paid model calls, new dependencies or live blog changes were made.

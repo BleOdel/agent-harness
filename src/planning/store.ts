@@ -1,9 +1,8 @@
-import {assertContentAllowed} from '../workspace/secret-content.ts';
+import {readArtifact} from '../workspace/artifact.ts';
 import { readProfile } from "../project/profile.ts";
 import { getAdapter } from "../adapters/registry.ts";
 /** Durable planning drafts are untrusted; approval and import identities stay outside the mount. */
 import { createHash, randomUUID } from "node:crypto";
-import { constants } from "node:fs";
 import { cp, lstat, mkdir, open, readdir, realpath, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { parseProposedItems, type Feature } from "../features.ts";
@@ -32,17 +31,7 @@ export async function atomicWrite(file: string, text: string): Promise<void> {
   try { await rename(temporary, file); } finally { await rm(temporary, { force: true }); }
 }
 
-/** Do not follow a model-created symlink when reading a draft on the host. */
-export async function readArtifact(directory: string, name: string, maxBytes = 2 * 1024 * 1024): Promise<string | undefined> {
-  let handle;
-  try { handle = await open(path.join(directory, name), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error; }
-  try {
-    const stat = await handle.stat();
-    if (!stat.isFile() || stat.nlink !== 1 || stat.size > maxBytes) throw new OperatorError(`${name} must be a bounded regular file with one link.`);
-    const text=await handle.readFile("utf8");if(Buffer.byteLength(text)>maxBytes)throw new OperatorError("Planning file grew beyond its limit.");assertContentAllowed(name,text,false);return text;
-  } finally { await handle.close(); }
-}
+export {readArtifact} from '../workspace/artifact.ts';
 
 export async function savePlan(plan: SavedPlan, state: PlanState): Promise<SavedPlan> {
   await atomicWrite(path.join(plan.directory, "state.json"), `${JSON.stringify(state, null, 2)}\n`);

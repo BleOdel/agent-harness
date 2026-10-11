@@ -1,3 +1,4 @@
+import {checkpointSavedFile} from '../workflow/operations.ts';
 /** Unverified source checkpoints live outside the project and are never applied directly. */
 import {lstat,mkdir,mkdtemp,readdir,realpath,rename,rm,rmdir,open} from 'node:fs/promises';
 import path from 'node:path';
@@ -48,7 +49,9 @@ export async function saveWorkCheckpoint(project:string,runId:string,worker:stri
   const directories=new Set(['source']);for(const file of Object.keys(partial.files)){let d=path.posix.dirname(`source/${file}`);while(d!=='.'){directories.add(d);d=path.posix.dirname(d);}}
   for(const d of [...directories].sort((a,b)=>b.length-a.length))await syncDirectory(path.join(pending,d));
   await rm(path.join(pending,'source.json'));
-  await writeState(state);const directory=path.join(root(project),runId);await rename(pending,directory);await syncDirectory(root(project));return {...state,directory};
+  await writeState(state);const directory=path.join(root(project),runId);await rename(pending,directory);await syncDirectory(root(project));
+  await checkpointSavedFile(path.join(directory,'state.json'), 'implementation', 'paused');
+  return {...state,directory};
  }finally{await rm(pending,{recursive:true,force:true});}
 }
 async function readCheckpoint(project:string,runId:string):Promise<WorkCheckpoint|undefined>{

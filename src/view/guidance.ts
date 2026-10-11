@@ -7,6 +7,7 @@ const quote=(s:string)=>"'"+s.replaceAll("'","'\\''")+"'";
 export function nextAction(items:readonly QueueItem[],teams:readonly TeamView[],runs:readonly RunView[],data:WorkspaceInfo):Action{
  const make=(title:string,message:string,command:string,href:string):Action=>({title,message,command,href});
  if(data.warnings.length)return make('Project data needs attention',data.warnings[0]!,'harness doctor','#attention');
+ if(data.operation?.state==='running'||data.operation?.state==='interrupted')return make('Inspect operation ownership',`Operation ${data.operation.id}, revision ${data.operation.revision}, has ${data.operation.state} execution state. Inspect its writer before resuming; saved state does not prove a process is alive.`,'harness continue status','#attention');
  if(data.ordinary?.reason)return make('Inspect the stopped run',data.ordinary.reason,'harness guide','#attention');
  if(data.ordinary?.live||teams.some(t=>t.live))return make('Work is in progress','Select an agent to inspect its current assignment and recorded activity.','harness look','#office');
  const candidate=data.stages?.[0];if(candidate)return make(candidate.status==='applying'?'Recover staged application':'Review the staged candidate',`${candidate.task}: automated checks passed; ${candidate.manual} manual observations remain attached to final review.`, `harness stage ${candidate.status==='applying'?'apply':'review'} ${quote(candidate.id)}`,'#review');

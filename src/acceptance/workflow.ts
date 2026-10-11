@@ -1,3 +1,4 @@
+import {checkpointSavedFile, describeOperation} from '../workflow/operations.ts';
 import {caseKind,routeBlueprint} from './evidence-kind.ts';
 import {readActivePreparation} from './active-preparation.ts';
 import {CheckRequestInterrupted,transientCheckFailure} from './request-failure.ts';
@@ -87,7 +88,11 @@ export async function prepareChecks(project:string,io:Dialogue,limits:CheckLimit
  return withWriter(project,'checks prepare',async()=>{
   const state=await loadState(project),run:WorkflowRun={started:new Date().toISOString(),limits,spend:{requests:0},status:'running'};
   state.runs.push(run);await mkdir(directory(project),{recursive:true,mode:0o700});
-  const save=()=>atomicWrite(path.join(directory(project),'workflow.json'),JSON.stringify(state,null,2)+'\n');
+  const save = async () => {
+    const file = path.join(directory(project), 'workflow.json');
+    await atomicWrite(file, JSON.stringify(state, null, 2) + '\n');
+    await checkpointSavedFile(file, 'preparation', run.status === 'ready' ? 'approval' : run.status === 'blocked' ? 'attention' : run.status === 'paused' ? 'paused' : 'checkpoint');
+  };
   io.write(`Preparation allowance: ${limits.maxRequests} model requests, ${limits.maxSeconds}s total, ${limits.requestSeconds}s per request. Completed reviews are reused; approval remains separate.`);
   await save();await describeCheckProgress(project,io.write);
   const snapshot=async()=>{
@@ -144,7 +149,7 @@ async function describeCheckProgress(project:string,write:(s:string)=>void):Prom
  write(`Saved check reviews for ${task.title}: ${reviewed}/${scopes.length} sections; ${stale} helper refreshes needed. Source and task freshness are verified before resuming.`);
 }
 export async function checkWorkflowStatus(project:string,write:(s:string)=>void):Promise<void>{
- project=await canonicalProject(project);await describeCheckProgress(project,write);const state=await loadState(project),last=state.runs.at(-1);
+ project=await canonicalProject(project);await describeOperation(project,write);await describeCheckProgress(project,write);const state=await loadState(project),last=state.runs.at(-1);
  const pendingRaw=await readArtifact(directory(project),'simplification.json',8*1024*1024);
  if(pendingRaw){
   const pending=JSON.parse(pendingRaw),saved=pending.state;

@@ -1,3 +1,4 @@
+import {currentOperationId} from '../workflow/operations.ts';
 /** Host-owned application journal. Atomic file replacements are recoverable, not a filesystem transaction. */
 import {randomUUID} from 'node:crypto';
 import {lstat,open,readFile,unlink} from 'node:fs/promises';
@@ -50,7 +51,8 @@ export async function beginApplication(project:string,input:ApplicationInput):Pr
   await safePath(project,file);let parent=path.dirname(path.join(project,file));while(!await lstat(parent).catch((e:NodeJS.ErrnoException)=>{if(e.code==='ENOENT')return undefined;throw e;}))parent=path.dirname(parent);
   if((await lstat(parent)).dev!==(await lstat(root)).dev)throw Error('Application journal and destination must share a filesystem.');
  }
- const record={...input.record,project,changes,transactionId:id,baselineDigest:before.digest,candidateDigest:after.digest};
+ const operationId=currentOperationId(project);
+ const record={...input.record,...(operationId?{operationId}:{}),project,changes,transactionId:id,baselineDigest:before.digest,candidateDigest:after.digest};
  const i:ApplicationIntent={version:2,id,project,direction:input.direction??'apply',before,after,featuresBefore:features,featuresAfter:input.featuresAfter,featuresMode:featureStat?featureStat.mode&0o777:0o644,changes,record,...(input.effect?{effect:input.effect}:{})};
  for(const snapshot of [before,after]){
   const dirs=new Set([root,snapshot.directory]);for(const file of Object.keys(snapshot.files)){const h=await open(path.join(snapshot.directory,file),'r');try{await h.sync();}finally{await h.close();}let p=path.dirname(path.join(snapshot.directory,file));while(p.startsWith(snapshot.directory)){dirs.add(p);p=path.dirname(p);}}

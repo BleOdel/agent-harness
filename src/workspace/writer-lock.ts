@@ -7,8 +7,9 @@ import path from "node:path";
 import { OperatorError } from "../verbs/io.ts";
 
 interface Owner { version: 1; token: string; pid: number; host: string; command: string; at: string; }
-export interface Writer { readonly token: string; readonly project: string; release(): Promise<void>; }
-const context = new AsyncLocalStorage<Writer>();
+export interface Writer { readonly token: string; readonly project: string; release(): Promise<void>; assertOwned(): Promise<void>; }
+interface WriterFrame { writer: Writer; active: boolean; childActive: boolean; }
+const context = new AsyncLocalStorage<WriterFrame>();
 export async function canonicalProject(project: string): Promise<string> {
   const resolved = path.resolve(project);
   try { return await realpath(resolved); } catch (error) {
@@ -44,21 +45,39 @@ export async function acquireWriter(project: string, command: string): Promise<W
     if (await exists(`${file}.recovery`)) { await unlink(file); throw new OperatorError("Project writer recovery is in progress."); }
   } finally { await unlink(temporary); }
   let released = false;
-  return { token, project: canonical, async release() {
+  return { token, project: canonical, async assertOwned() {
+    if (released || (await ownerAt(file)).token !== token) throw new OperatorError("Writer owner changed or was released.");
+  }, async release() {
     if (released) return;
     if ((await ownerAt(file)).token !== token) throw new OperatorError("Writer owner changed; refusing to release another owner's lock.");
     await unlink(file); released = true;
   } };
 }
-export async function withWriter<T>(project: string, command: string, action: () => Promise<T>, allowPendingApplication = false): Promise<T> {
+export async function withWriter<T>(project: string, command: string, action: () => Promise<T>, allowPendingApplication = false, expectedOperation?: {id: string; revision: number}): Promise<T> {
   const current = context.getStore();
-  if (current?.project === await canonicalProject(project)) return action();
+  const canonical = await canonicalProject(project);
+  if (current?.writer.project === canonical) {
+    if (!current.active || current.childActive) throw new OperatorError("A nested writer is already active or its owner finished.");
+    current.childActive = true;
+    const child: WriterFrame = {writer: current.writer, active: true, childActive: false};
+    try {
+      await current.writer.assertOwned();
+      const {withOperation, assertOperationRevision} = await import('../workflow/operations.ts');
+      if (expectedOperation) await assertOperationRevision(canonical, expectedOperation.id, expectedOperation.revision);
+      return await context.run(child, () => withOperation(current.writer, command, action));
+    } finally { child.active = false; current.childActive = false; }
+  }
   const lease = await acquireWriter(project, command);
   try {
     if (!allowPendingApplication && await exists(`${lease.project}-harness/application.json`)) throw new OperatorError("An application requires recovery before another writer may start.", "Use harness recover-application (or --rollback) for current journals; harness team recover <run-id> for legacy team journals. The pending application.json identifies the run.");
     if (command !== 'stage apply' && await exists(`${lease.project}-harness/staged-application.json`)) throw new OperatorError('A staged application requires recovery before another writer may start.', 'Run harness stage apply <id>; staged-application.json identifies the candidate.');
     const {withSourcePolicy}=await import('./source-policy.ts');
-    return await context.run(lease,()=>withSourcePolicy(lease.project,action));
+    const {withOperation, assertOperationRevision} = await import('../workflow/operations.ts');
+    if (expectedOperation) await assertOperationRevision(lease.project, expectedOperation.id, expectedOperation.revision);
+    const frame: WriterFrame = {writer: lease, active: true, childActive: false};
+    try {
+      return await context.run(frame, () => withSourcePolicy(lease.project, () => withOperation(lease, command, action)));
+    } finally { frame.active = false; }
   } finally { await lease.release(); }
 }
 export async function recoverWriter(project: string, token: string): Promise<void> {

@@ -43,3 +43,18 @@ Recovery `CHANGES.json` now records `identityVersion`, `before` and `after` entr
 Implementation checkpoint v2 adds a classified `failure` with `workerStopped: true`; source is unverified and retains the existing task, baseline, approval and execution binding. Version-one checkpoints remain readable. A separate work-attempt v1 pointer reserves its run identity before dispatch; it records workspace/container locations, not source validity. It can survive host death without claiming an exit handler ran.
 
 Application intent v2 is common to work, staged/team apply and undo. The published pointer pins intent contents; intent pins before/after manifests and the single reserved record. An optional stage/team effect is completed idempotently after source and feature publication. A persisted rollback decision cannot switch direction after another crash. Per-file replacement uses expected content and executable mode; source, features, history and final controller status each have durable recovery boundaries. Completed or rolled-back journals retain originals and reserve their record IDs. Legacy v1 journals finish through their original readers and cannot authorize fresh work.
+
+
+## Durable execution ownership (hr-024 foundation)
+
+`src/workflow/operations.ts` owns command execution in `operations/current.json`, under the existing canonical project writer lock. It is distinct from the approval-bound lifecycle interchange records: unknown task/source/runtime bindings are not invented. Existing domain controllers remain the authority for their complete phase records until the remaining hr-024 adoption.
+
+Each command reserves a dispatch before its callback. Sequential nested commands inherit one operation; concurrent nested writers are refused. Expected revisions and the complete old owner record are checked before atomic replacement. Status consumers may supply an expected operation ID/revision to `withWriter`; stale requests are rejected before creating another owner. CLI and observer UI display operation IDs and revisions as recorded execution state, not proof of liveness.
+
+`returned` means a callback returned, including callbacks that saved a pause or pending approval. It is never a successful acceptance verdict. `failed` means the command threw. After explicit writer recovery, an unfinished owner becomes `interrupted`; unresolved dispatches are `uncertain`. No model call is replayed or allowance refunded by this service. Old owner records are archived before replacement; existing planning, evidence, continuation, implementation and application-journal bytes remain readable.
+
+Compatibility checkpoints pin saved domain facts by kind, reference and digest. New run/stage/continuation records carry operation IDs; application intents pin the ID before source publication. A replayed intent retains its original history record exactly. These references are progress diagnostics, not a new evidence-admission route. Content approval, source/runtime checks, human observations and final authorization retain their existing gates.
+
+Records are bounded to 1,024 dispatches, 1,024 checkpoints and 2 MiB. Reaching a limit stops rather than silently dropping history. Project-wide retention/pruning remains hr-033. The service is a cooperating host-writer boundary, not protection against arbitrary malicious native code running as the operator.
+
+Remaining hr-024 work: adopt the shared phase/event model as controller authority, consolidate selection/transition APIs beyond command-entry reservations, and qualify crash/restart composition of those phase transitions before declaring the task complete.

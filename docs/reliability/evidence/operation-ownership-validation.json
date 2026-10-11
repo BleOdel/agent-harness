@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "kind": "local-operation-ownership-validation",
+  "scope": "hr-024 command-ownership foundation; task remains open for full phase-service adoption",
+  "source": {
+    "baseCommit": "660fb6cf10b15db615c8b523c3027943a9e8d509",
+    "codeTreeSha256": "43a87a617fc231994291449ed91c572c89225d0270478ead3694e19099bf0569",
+    "changedFiles": {
+      "src/staging/store.ts": "ecb9cad120d9f227940461c0240ecb441e9d81384e0409fc54bba5ef0dd3a83f",
+      "src/record/record.ts": "0106bf7f070ec7bf234cdd707e3dc6b76cad731cbd8bd744d60e632bdddf74fa",
+      "src/workspace/writer-lock.ts": "44ceb2d0de540e88e6762bba74820b33f67e2efe2c91cdc49348b49ba9fd2833",
+      "src/workspace/application.ts": "995d72cf16801b72220f312d87cb2b5f041e71d82a2c990097536231f6a1e67d",
+      "src/workspace/work-checkpoints.ts": "aae696058b09e0d34d633098247b8eb2c2beeb7046583b817a5785eede76c9df",
+      "src/workspace/artifact.ts": "11853e46b28f576b077f67299e1b8ce150a5657b4ee421f444a836c7e1952007",
+      "src/planning/store.ts": "4d5decbef49a9145cd4e5322c2ed8f0e45920dcea26534cbc10bf1ef1cce6b00",
+      "src/acceptance/workflow.ts": "d32d48e8df7e5aab23e3c594d45768836353532beef90f012cd9bda09ea42ff6",
+      "src/team/state.ts": "df8e423bec8a0782a65922cc5bb8c709d8b90c92fa4e68501094f49b4d93f3fa",
+      "src/workflow/operations.ts": "cb5b9ed90cf2c6c049cb134d8c3eb4ed6d387fb92f03cb58d9bfe12999b4a971",
+      "src/workflow/controller.ts": "b93ebb0ca6429129b69726589d0ed9b832055b2a547bf628108ad115750e36ed",
+      "src/workflow/store.ts": "94580a6e0716b85b4ec87f83afe8441d1f149acb9747f2ced4de2563947aeacc",
+      "src/view/guidance.ts": "c5b5083e19a5132ceec8ab1c0c487f043586233842c37b729f15ac4df3fa97d3",
+      "src/view/workspace.ts": "2aabe831349cf3890e9c2ef157806b4120c4e3ac2c9a2a60812ffb9c4389b39a",
+      "src/verbs/continue.ts": "04e59eba185482e6edd28ab33c6ff2b1c7eef83a401aca4e9a1965cd09db8498",
+      "test/workflow-ownership.test.ts": "cf9115384d5407d821a26d0d6fce88724362be54498eed88560c91cd3bc0fa09"
+    }
+  },
+  "node": "v26.5.0",
+  "fullSuite": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "counts": {
+      "tests": 1201,
+      "pass": 1129,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 72,
+      "todo": 0
+    },
+    "logSha256": "ec64c705113988550fb0c06f43dfbae8067b48d7caebbf636c8deaea74d94dc6"
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-11T19:14:11.088Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-timing-docker.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "864ce3e9f5d8b912616760d0bdf7f185c5bc3dc507d41e760bcc4a353be8b22f",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-11T19:16:31.864Z"
+  },
+  "negativeControls": {
+    "count": 6,
+    "detected": 6,
+    "artifact": "docs/reliability/evidence/operation-ownership-controls.json"
+  },
+  "requiredRegressions": [
+    "test/workflow-ownership.test.ts",
+    "test/continuation.test.ts",
+    "test/staged-review.test.ts",
+    "test/python-adapter.test.ts"
+  ],
+  "limitations": [
+    "Execution returned is not evidence of application success or approval. Domain evidence and application journals remain authoritative.",
+    "Existing domain records are referenced by digest, not migrated to shared lifecycle phase records; hr-024 remains open for that adoption.",
+    "Only explicitly tracked command families adopt the execution envelope. Request-level accounting, structured headless events, bounded autonomous recovery and authenticated dashboard mutations remain later tasks.",
+    "Lost processes leave reservations uncertain. Explicit writer recovery does not prove a provider request did not run; no automatic replay or budget refund occurs.",
+    "Cross-process cases exercise the real writer/operation boundary with synthetic commands. No live provider, blog or external release was used.",
+    "Local macOS Node and Linux arm64 Docker/Chromium results do not qualify other platforms or hosted CI."
+  ],
+  "postValidationEdits": [
+    {
+      "file": "src/workspace/artifact.ts",
+      "change": "Remove one trailing blank line; executable content unchanged.",
+      "beforeSha256": "11853e46b28f576b077f67299e1b8ce150a5657b4ee421f444a836c7e1952007",
+      "afterSha256": "a2f254bf9b54100ec24523f356d98b0e802169d1c8f8ab2d7b2a2a72d7744b33"
+    }
+  ]
+}

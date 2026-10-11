@@ -1,3 +1,4 @@
+import {checkpointSavedFile} from '../workflow/operations.ts';
 import { assertExecutionPin, type ExecutionPin } from "../project/execution.ts";
 /** Each committed event is immutable; state.json is only a rebuildable projection. */
 import { randomUUID } from "node:crypto";
@@ -150,6 +151,7 @@ export async function createState(root: string, plan: TeamPlan, baseline: Snapsh
   const state = reduce(undefined, event);
   await atomicJson(path.join(root, "events", "00000001.json"), event, true);
   await atomicJson(path.join(root, "state.json"), state);
+  await checkpointSavedFile(path.join(root, "state.json"), 'team', state.status === 'staged' ? 'approval' : state.status === 'applied' || state.status === 'undone' ? 'complete' : state.status === 'running' ? 'checkpoint' : 'attention');
   return state;
 }
 export async function appendEvent(root: string, payload: EventPayload): Promise<TeamState> {
@@ -167,5 +169,6 @@ export async function appendEvent(root: string, payload: EventPayload): Promise<
   const state = reduce(previous, event);
   await atomicJson(path.join(root, "events", `${String(event.seq).padStart(8, "0")}.json`), event, true);
   await atomicJson(path.join(root, "state.json"), state);
+  await checkpointSavedFile(path.join(root, "state.json"), 'team', state.status === 'staged' ? 'approval' : state.status === 'applied' || state.status === 'undone' ? 'complete' : state.status === 'running' ? 'checkpoint' : 'attention');
   return state;
 }

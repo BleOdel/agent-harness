@@ -1,3 +1,5 @@
+import {currentOperationId, checkpointOperation} from '../workflow/operations.ts';
+import {createHash} from 'node:crypto';
 /**
  * What was attempted, what was proved, what failed and why.
  *
@@ -31,6 +33,7 @@ export const recoveryPath = (project: string, runId: string): string =>
 export type Outcome = "staged" | "applied" | "gate-failed" | "escalated" | "no-changes" | "error" | "blocked" | "environment-blocked";
 
 export interface RunRecord {
+  readonly operationId?: string;
   readonly interruption?: import("../workspace/work-checkpoints.ts").WorkFailure;
   readonly retainedWorkspace?: {readonly source:string;readonly controller:string};
   readonly checkRefresh?: {readonly previousApprovalDigest:string;readonly currentApprovalDigest:string};
@@ -124,7 +127,17 @@ export async function nextRunId(project: string): Promise<string> {
 
 export async function appendRun(project: string, run: RunRecord): Promise<void> {
   await mkdir(harnessDirectory(project), { recursive: true });
-  await appendFile(recordPath(project), `${JSON.stringify(run)}\n`, "utf8");
+  const operationId = currentOperationId(project);
+  const saved = operationId ? {...run, operationId} : run;
+  const bytes = `${JSON.stringify(saved)}\n`;
+  await appendFile(recordPath(project), bytes, "utf8");
+  await recordOperationProgress(project, saved);
+}
+async function recordOperationProgress(project: string, run: RunRecord): Promise<void> {
+  await checkpointOperation(project, {
+    kind: 'run', reference: `record.jsonl:${run.id}`, digest: createHash('sha256').update(JSON.stringify(run) + '\n').digest('hex'),
+    status: run.outcome === 'applied' ? 'complete' : run.outcome === 'staged' ? 'approval' : run.interruption ? 'paused' : 'attention',
+  });
 }
 
 /**
@@ -206,9 +219,11 @@ export async function appendRunOnce(project: string, run: RunRecord): Promise<vo
   const existing = records.filter(r => r.id === run.id);
   if (existing.length) {
     if (existing.length !== 1 || JSON.stringify(existing[0]) !== JSON.stringify(run)) throw new Error("Conflicting application record; manual recovery required.");
+    await recordOperationProgress(project, run);
     return;
   }
   await atomicBytes(file, Buffer.from(raw + (raw && !raw.endsWith("\n") ? "\n" : "") + JSON.stringify(run) + "\n"), 0o600);
+  await recordOperationProgress(project, run);
 }
 
 /** Team journals and ordinary recovery snapshots retain the same before/after layout. */

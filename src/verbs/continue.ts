@@ -1,3 +1,4 @@
+import {describeOperation} from '../workflow/operations.ts';
 import {pendingStage} from '../staging/store.ts';
 import path from 'node:path';import {randomUUID} from 'node:crypto';
 import {readFeatures,nextItems,unmetDependencies} from '../features.ts';
@@ -35,6 +36,7 @@ async function totalCheckRequests(project:string):Promise<number>{
 export async function continueCommand(project:string,args:readonly string[],dialogue?:Dialogue):Promise<void>{
  project=await canonicalProject(project);
  if(args.length===1&&args[0]==='status'){
+  await describeOperation(project,say);
   const s=await readContinuation(project);if(!s){say('No continuation saved. Start with harness continue.');return;}
   say(`${s.task}: ${s.status} (last recorded) · ${s.attempts}/${s.maxBuilds} build dispatches`);say(s.message);
   say(`Saved diagnosis and events: ${path.join(harnessDirectory(project),'continuation.json')}`);return;

@@ -181,3 +181,8 @@ Ordinary and staged application and shared-journal recovery use the policy. Team
 New receipts pin the complete acceptance and source-review artifacts. Command stdout beyond the existing 4,000-character preview is retained as a separate bounded, private `acceptance/results/*-output-*.txt` artifact and read back by its hash. Candidate processes cannot see these receipts. Retention across all runs remains a separate task. Browser admission continues to re-assess the retained journey artifact.
 
 Older receipts are read without rewriting them or inventing missing observations. Full hashed previews can supply text evidence; truncated previews, missing runtime identities, or source-review packets without a current approved-contract binding require fresh verification/review. Artifact hashes protect against changes relative to the retained host reference; they are not signatures against hostile software running as the operator. Original limitations and human-attestation labels remain visible in admission results.
+
+
+## Current Group 2 increment
+
+The command-ownership foundation is implemented for hr-024. Work, continuation, checks, staging and teams now record one durable execution owner with pre-dispatch reservations and referenced checkpoints. This does not yet replace all domain phase controllers; hr-024 remains open. See [progress](PROGRESS.md), [state boundaries](STATE-CONTRACTS.md), and [qualification](evidence/operation-ownership-validation.json). No model allowance or approval changes implicitly.

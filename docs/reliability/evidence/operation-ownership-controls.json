@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "controls": [
+    {
+      "id": "parallel-inheritance",
+      "file": "src/workspace/writer-lock.ts",
+      "regression": "parallel nested commands",
+      "exitCode": 1,
+      "detected": true
+    },
+    {
+      "id": "stale-guidance",
+      "file": "src/workflow/operations.ts",
+      "regression": "status revision guards",
+      "exitCode": 1,
+      "detected": true
+    },
+    {
+      "id": "record-cas",
+      "file": "src/workflow/operations.ts",
+      "regression": "operation compare-and-swap",
+      "exitCode": 1,
+      "detected": true
+    },
+    {
+      "id": "crash-outcome",
+      "file": "src/workflow/operations.ts",
+      "regression": "crash retains one uncertain",
+      "exitCode": 1,
+      "detected": true
+    },
+    {
+      "id": "owner-token",
+      "file": "src/workflow/operations.ts",
+      "regression": "replaced writer token",
+      "exitCode": 1,
+      "detected": true
+    },
+    {
+      "id": "checkpoint-preservation",
+      "file": "src/workflow/operations.ts",
+      "regression": "saved run and continuation adapters",
+      "exitCode": 1,
+      "detected": true
+    }
+  ],
+  "method": "Each defect was introduced independently in a separate disposable copy. Targeted regression failed with assertions; original bytes restored after each trial."
+}

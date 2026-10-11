@@ -13,4 +13,4 @@ The operator requested grouped implementation on 11 October 2026. These groups s
 
 Each group is developed in a disposable copy and applied only after its gates pass. Commit/push remains a separate operator instruction. A completed group is not completion of the 45-task program. Unknown capabilities and unresolved manual evidence remain explicit.
 
-Current delivery: Group 1 is complete. Group 2 has completed hr-023; hr-024–hr-027 remain. Overall: 23/45 tasks complete.
+Current delivery: Group 1 is complete. Group 2 has completed hr-023 and the command-ownership foundation of hr-024. Full hr-024 phase-service adoption and hr-025–hr-027 remain. Overall: 23/45 tasks complete.
