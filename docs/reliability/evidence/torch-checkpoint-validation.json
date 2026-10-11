@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "kind": "local-torch-checkpoint-validation",
+  "status": "passed",
+  "requiredRegressions": [
+    "test/torch-checkpoint.test.ts",
+    "test/reliability-defects.test.ts",
+    "test/product-ml-models.test.ts",
+    "test/torch-process.test.ts"
+  ],
+  "at": "2026-10-10T16:23:00.932711+00:00",
+  "source": {
+    "baseCommit": "64166ea660319210beed0ab9aa2b530b7b2f6948",
+    "state": "disposable uncommitted overlay",
+    "codeTreeSha256": "4920ebbdcb21604e3460fb8d1365c3a17adb71d6144fe203d34b11a0e59ec7b1",
+    "hashDefinition": "SHA256 of compact sorted JSON path-to-SHA256 map for src/**, test/**, package.json, package-lock.json and tsconfig.json; documentation excluded.",
+    "changedCode": {
+      "src/product/evidence/ml-torch.ts": "5b7a45cbd5b03e06d17a272b0c269686481b17687a490ce6c1070900c51dd5be",
+      "src/product/evidence/torch-checkpoint.ts": "1e5829247f632277fd1dc8305ee96bf5cd977382a459036ff9e69ead415f6b16",
+      "src/torch/checkpoint.ts": "dd003226a29be35b81e04b2560b7ccbbe069976a1c362abf2f87ad599adfbb8f",
+      "src/torch/recipe.ts": "0664a2e122594a5cdc1ec45df7f7945e2823020f0bc06f11606a7e052a4ffa72",
+      "src/torch/schema.ts": "67fb7e2a2f378fa49750ce303ca539948222e431f3f62cb8396248077c5fe125",
+      "src/torch/store.ts": "b79040fe2e354a5d5a7329b98ea814e56339448a1de61654d613971564c8cfe9",
+      "src/torch/workflow.ts": "ae39a8270915b10d2fbb578307d664f467de81b7901ea0b9340cb4f92e2ae419",
+      "src/verify-torch.ts": "a58e132284bbccac0f2b8cb66b7acc35858f89641a017bdfe58f8eee7c9b282b",
+      "test/fixtures/torch/README.md": "cd64b1e6b179fd7acef7f56ba0a98888da588196440ff7e7f3974f67ca8e1d9e",
+      "test/fixtures/torch/classifier.json": "d44f17dfb708def8cdeb70b6be80fd0c8c37081d9ff169871f145d9cf8963687",
+      "test/fixtures/torch/generate.py": "0dab9639a2e93d55f5a14e9774d23fb94bf7c9ce0a70500c46f76f59fe7fa68b",
+      "test/fixtures/torch/kmeans.json": "7b72b19f906c2d3d2f1913188de10c48eb32405dc7eba4733ee504b163c86edb",
+      "test/product-ml-models.test.ts": "8a7618ac9897e676825dccb4a680b698272879a9c11661cb589726090e31e131",
+      "test/reliability-defects.test.ts": "29208289327ddaa991643380cf3992ab6055eb01c2b43ce16952309f62a488e4",
+      "test/torch-checkpoint.test.ts": "529d29a685ee636d38cb67ed794924dbe221945f2dc873f54c47e9d52f3c820f"
+    }
+  },
+  "fullSuite": {
+    "command": "npm run check",
+    "tests": 1071,
+    "pass": 1001,
+    "fail": 0,
+    "skipped": 70,
+    "cancelled": 0,
+    "limitation": "Explicit optional runtime and remaining known-defect skips are not passing evidence."
+  },
+  "focused": {
+    "command": "node --test test/torch-checkpoint.test.ts test/product-ml-models.test.ts",
+    "tests": 72,
+    "pass": 72,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0
+  },
+  "torch": {
+    "command": "HARNESS_DOCKER=/usr/local/bin/docker npm run verify:torch",
+    "image": "sha256:55a2958667abd8134bc8ad42241b308a0deeea885c6568790692bc0108603ebd",
+    "platform": "linux/arm64",
+    "torch": "2.14.0+cpu",
+    "python": "3.13.12",
+    "tests": 70,
+    "pass": 70,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0
+  },
+  "numericalRecovery": {
+    "version": 1,
+    "kind": "recovery",
+    "image": "sha256:55a2958667abd8134bc8ad42241b308a0deeea885c6568790692bc0108603ebd",
+    "recipe": "23f7b8d90e5fb2982e0887de04c96d563486bbb0d38143da2114ab0542202e4c",
+    "passed": true,
+    "code": 0,
+    "stdout": "classifier: exact complete checkpoint, loss trajectory and model recovery\nkmeans: exact complete checkpoint, loss trajectory and model recovery\nOptimizer-reset mutation detected\n",
+    "stderr": ""
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-10T16:20:19.813Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "f35dd50cdfd1fad7bc50dcdab12507e7a563715655591e2d76162d7a3817dc2d",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 12,
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-10T16:21:20.329Z"
+  },
+  "negativeControls": "docs/reliability/evidence/torch-checkpoint-controls.json",
+  "observations": [
+    "The original weak validator failed 41 of the first 55 new tests, including null tensors and empty optimizer state.",
+    "Training checkpoint admission, resume hooks, host evaluation and evidence review delegate to the same approved-dimension validator.",
+    "The actual installed CPU recipe passes classifier/clustering training and evaluation, cancellation/resume and killed-controller recovery.",
+    "Fresh-process classifier and clustering runs match uninterrupted complete checkpoints and model bytes exactly; the optimizer-reset mutation diverges."
+  ],
+  "limitations": [
+    "F13 remains open for hr-012 dedicated late-checkpoint promotion and fallback failure injection, and hr-042 broader ML qualification.",
+    "Inert schema validation is not proof that arbitrary well-shaped numbers resulted from training or that a model is useful; held-out quality gates remain separate.",
+    "No CUDA, Metal or LLM checkpoint qualification, provider request, external release or new dependency.",
+    "Real runtime qualification is local Linux arm64 on the pinned CPU image, not a claim about every architecture.",
+    "Recipe hashes now include checkpoint.ts; old approvals and artifacts are retained but cannot silently authorize a changed recipe.",
+    "Progress metadata and this receipt are finalized after execution; the code hash binds tested code and fixtures."
+  ]
+}

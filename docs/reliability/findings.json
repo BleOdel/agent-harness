@@ -25,7 +25,7 @@
         "src/acceptance/workflow.ts:86",
         "src/acceptance/guided.ts:341"
       ],
-      "status": "open",
+      "status": "verified",
       "tasks": [
         "hr-001",
         "hr-014",
@@ -35,15 +35,39 @@
         "hr-037"
       ],
       "regressions": [
+        "test/active-preparation-repair.test.ts",
+        "test/check-workflow.test.ts",
+        "test/guided-checks.test.ts",
         "test/reliability-defects.test.ts"
       ],
-      "resolutionEvidence": [],
+      "resolutionEvidence": [
+        {
+          "kind": "regression",
+          "path": "test/active-preparation-repair.test.ts"
+        },
+        {
+          "kind": "regression",
+          "path": "test/check-workflow.test.ts"
+        },
+        {
+          "kind": "regression",
+          "path": "test/guided-checks.test.ts"
+        },
+        {
+          "kind": "regression",
+          "path": "test/reliability-defects.test.ts"
+        },
+        {
+          "kind": "negative-control",
+          "path": "docs/reliability/evidence/recovery-preparation-controls.json"
+        }
+      ],
       "qualification": {
-        "state": "reproduced",
+        "state": "fixed",
         "trigger": "Store a preparation-owned failed case with passing peer receipts, then request targeted repair without review-progress.json.",
-        "regression": "test/reliability-defects.test.ts",
-        "execution": "docs/reliability/evidence/foundation-validation.json",
-        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix. Synthetic preparation envelope reproduces owner selection; migration and interrupted repair need fuller controller fixtures in hr-014."
+        "regression": "test/active-preparation-repair.test.ts",
+        "execution": "docs/reliability/evidence/recovery-preparation-validation.json",
+        "limitation": "Local provider-free controller/ledger tests cover the reproduced owner and retry defect. Broader lifecycle adoption, evidence routing, UI choices and complete project orchestration remain separate tasks."
       }
     },
     {
@@ -498,7 +522,7 @@
       "id": "F13",
       "title": "PyTorch accepts structurally incomplete recovery checkpoints",
       "priority": "P1",
-      "confidence": "Pure validator reproduction; no training started",
+      "confidence": "Checkpoint validation repaired and exercised on the pinned CPU runtime; dedicated promotion/fallback qualification remains hr-012.",
       "problem": "validateTorchCheckpoint checks the presence of several dictionary keys but does not deeply validate their values against the approved model and data dimensions. The audit passed malformed classifier checkpoints with null model tensors, empty optimizer slots, invalid scheduler/RNG content and an empty sampler order; malformed k-means centroids also passed.",
       "impact": "The host may retain a checkpoint as complete recovery state even though restoring it fails or optimizer history is missing. A newly retained bad checkpoint can replace the active recovery checkpoint reference, although older artifacts remain retained.",
       "fix": "Validate tensor dtype/shape/finite values, exact parameter coverage, optimizer moments and step counters, scheduler state, RNG encoding, sample permutation and data identity against the approved training spec. Validate k-means dimensions and centers. Advance the retained checkpoint only after validation; keep the previous known-good checkpoint. Add an isolated load/continue check where useful.",
@@ -508,7 +532,7 @@
         "src/torch/recipe.ts",
         "src/jobs/controller.ts"
       ],
-      "status": "open",
+      "status": "verified",
       "tasks": [
         "hr-001",
         "hr-011",
@@ -516,15 +540,39 @@
         "hr-042"
       ],
       "regressions": [
+        "test/torch-checkpoint.test.ts",
+        "test/job-checkpoints.test.ts",
+        "test/torch-retention-process.test.ts",
         "test/reliability-defects.test.ts"
       ],
-      "resolutionEvidence": [],
+      "resolutionEvidence": [
+        {
+          "kind": "regression",
+          "path": "test/torch-checkpoint.test.ts"
+        },
+        {
+          "kind": "regression",
+          "path": "test/job-checkpoints.test.ts"
+        },
+        {
+          "kind": "regression",
+          "path": "test/torch-retention-process.test.ts"
+        },
+        {
+          "kind": "regression",
+          "path": "test/reliability-defects.test.ts"
+        },
+        {
+          "kind": "negative-control",
+          "path": "docs/reliability/evidence/recovery-preparation-controls.json"
+        }
+      ],
       "qualification": {
-        "state": "reproduced",
-        "trigger": "Supply a serialized classifier checkpoint with null tensors and empty optimizer state; require rejection.",
-        "regression": "test/reliability-defects.test.ts",
-        "execution": "docs/reliability/evidence/foundation-validation.json",
-        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix."
+        "state": "fixed",
+        "trigger": "Incomplete payloads are now rejected. Dedicated late-checkpoint promotion/fallback failure injection remains hr-012.",
+        "regression": "test/torch-checkpoint.test.ts",
+        "execution": "docs/reliability/evidence/recovery-preparation-validation.json",
+        "limitation": "Complete validation plus promotion/fallback qualified on the pinned Linux arm64 CPU runtime. Arbitrary numerical state is not proof of useful training; GPU/LLM and broader ML qualification remain separate."
       }
     },
     {
@@ -541,22 +589,36 @@
         "src/releases/github.ts:73",
         "src/releases/github.ts:80"
       ],
-      "status": "open",
+      "status": "verified",
       "tasks": [
         "hr-001",
         "hr-013",
         "hr-036"
       ],
       "regressions": [
+        "test/github-release.test.ts",
         "test/reliability-defects.test.ts"
       ],
-      "resolutionEvidence": [],
+      "resolutionEvidence": [
+        {
+          "kind": "regression",
+          "path": "test/github-release.test.ts"
+        },
+        {
+          "kind": "regression",
+          "path": "test/reliability-defects.test.ts"
+        },
+        {
+          "kind": "negative-control",
+          "path": "docs/reliability/evidence/recovery-preparation-controls.json"
+        }
+      ],
       "qualification": {
-        "state": "reproduced",
+        "state": "fixed",
         "trigger": "Use an in-memory GitHub client that definitively refuses draft creation with 403, restore permission and retry the approved draft.",
-        "regression": "test/reliability-defects.test.ts",
-        "execution": "docs/reliability/evidence/foundation-validation.json",
-        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix."
+        "regression": "test/github-release.test.ts",
+        "execution": "docs/reliability/evidence/recovery-preparation-validation.json",
+        "limitation": "Fake GitHub clients cover rejection/retry and ambiguous reconciliation. No real publication was performed; signed/provenance-bound delivery and broader release qualification remain separate tasks."
       }
     },
     {

@@ -5,8 +5,12 @@ import {withWriter} from '../workspace/writer-lock.ts';
 import {readJson,saveJson,safeDirectory,stateRoot,artifactBytes,sha256} from '../artifacts/store.ts';
 import {readRelease} from './store.ts';import {dryRunRelease} from './controller.ts';
 export interface GitHubClient {request(method:'GET'|'POST'|'PATCH',route:string,body?:unknown):Promise<any>;upload(route:string,bytes:Buffer):Promise<any>;}
+/** Only authoritative HTTP status is classified; error-message text is never proof. */
+export class GitHubHttpError extends Error {status:number;constructor(status:number){super(`GitHub request failed (${status}). Inspect permissions or reconcile the saved delivery; no credentials are logged.`);this.name='GitHubHttpError';this.status=status;}}
+export interface GitHubOutcome {at:string;operation:'create'|'asset'|'publish';name?:string;outcome:'confirmed-success'|'confirmed-rejection'|'ambiguous';status?:number;}
+const rejected=(e:unknown):e is GitHubHttpError=>e instanceof GitHubHttpError&&[400,401,403,404,409,422,429].includes(e.status);
 interface Manifest {version:1;release:string;releaseDigest:string;repository:string;tag:string;commit:string;filename:string;sha256:string;size:number;verification:string;}
-export interface GitHubDelivery {version:1;id:string;at:string;manifest:Manifest;digest:string;status:'draft'|'approved'|'uploading'|'uploaded'|'publishing'|'published';approved?:string;creationAttempted?:boolean;remoteId?:number;assetAttempts:string[];publication?:string;message?:string;}
+export interface GitHubDelivery {version:1;id:string;at:string;manifest:Manifest;digest:string;status:'draft'|'approved'|'uploading'|'uploaded'|'publishing'|'published';approved?:string;creationAttempted?:boolean;remoteId?:number;assetAttempts:string[];publication?:string;message?:string;outcomes?:GitHubOutcome[];}
 function fail(m:string):never{throw new OperatorError(m);}
 const hex=(s:unknown,n:number):s is string=>typeof s==='string'&&new RegExp(`^[a-f0-9]{${n}}$`,'u').test(s);
 export function validateGitHubDestination(repository:string,tag:string,commit:string):void{
@@ -19,6 +23,7 @@ async function save(project:string,d:GitHubDelivery){idCheck(d.id);await saveJso
 export async function readGitHub(project:string,id:string):Promise<GitHubDelivery>{
  idCheck(id);const d=await readJson(await root(project),id+'.json') as GitHubDelivery,m=d?.manifest;
  if(!d||d.version!==1||d.id!==id||!m||m.version!==1||sha256(JSON.stringify(m))!==d.digest||!/^release-[a-f0-9-]{36}$/u.test(m.release)||!hex(m.releaseDigest,64)||!hex(m.sha256,64)||!Number.isSafeInteger(m.size)||m.size<0||m.size>32*1024*1024||!/^[\w.+-]{1,200}$/u.test(m.filename)||!['diagnostics-passed','evaluation-passed'].includes(m.verification)||!['draft','approved','uploading','uploaded','publishing','published'].includes(d.status)||!Array.isArray(d.assetAttempts)||d.assetAttempts.length>2||new Set(d.assetAttempts).size!==d.assetAttempts.length||d.assetAttempts.some(n=>![m.filename,'SHA256SUMS.txt'].includes(n))||(d.approved!==undefined&&d.approved!==d.digest)||(d.remoteId!==undefined&&(!Number.isSafeInteger(d.remoteId)||d.remoteId<1))||(d.creationAttempted!==undefined&&typeof d.creationAttempted!=='boolean')||(d.publication!==undefined&&d.publication!==d.digest))fail('GitHub release record identity changed.');
+ if(d.outcomes!==undefined&&(!Array.isArray(d.outcomes)||d.outcomes.length>128||d.outcomes.some(v=>!v||!Number.isFinite(Date.parse(v.at))||!['create','asset','publish'].includes(v.operation)||!['confirmed-success','confirmed-rejection','ambiguous'].includes(v.outcome)||(v.status!==undefined&&(!Number.isInteger(v.status)||v.status<100||v.status>599))||(v.name!==undefined&&![m.filename,'SHA256SUMS.txt'].includes(v.name))||(v.operation==='asset'&&!v.name)||(v.outcome==='confirmed-rejection'&&![400,401,403,404,409,422,429].includes(v.status!)))))fail('Invalid GitHub request outcome history.');
  validateGitHubDestination(m.repository,m.tag,m.commit);return d;
 }
 export async function listGitHub(project:string):Promise<GitHubDelivery[]>{const dir=await root(project),all=[];for(const file of await readdir(dir))if(/^github-release-[a-f0-9-]{36}\.json$/u.test(file))all.push(await readGitHub(project,file.slice(0,-5)));return all.sort((a,b)=>a.at.localeCompare(b.at));}
@@ -44,7 +49,7 @@ export async function authenticatedGitHub():Promise<GitHubClient>{
  async function request(method:string,route:string,body:unknown,upload=false){
   const response=await fetch(`https://${upload?'uploads':'api'}.github.com/${route}`,{method,redirect:'error',signal:AbortSignal.timeout(30000),headers:{Authorization:`Bearer ${token}`,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'verified-agent-harness','Content-Type':upload?'application/octet-stream':'application/json'},...(body===undefined?{}:{body:upload?new Uint8Array(body as Buffer):JSON.stringify(body)})});
   if(method==='GET'&&response.status===404){await response.body?.cancel();return null;}
-  if(!response.ok){await response.body?.cancel();fail(`GitHub request failed (${response.status}). Inspect permissions or reconcile the saved delivery; no credentials are logged.`);}
+  if(!response.ok){await response.body?.cancel();throw new GitHubHttpError(response.status);}
   const chunks:Uint8Array[]=[];let length=0;if(!response.body)fail('GitHub returned an empty response.');for await(const chunk of response.body){length+=chunk.length;if(length>1024*1024)fail('GitHub response exceeded its size bound.');chunks.push(chunk);}
   return JSON.parse(Buffer.concat(chunks).toString());
  }
@@ -65,12 +70,20 @@ async function findRemote(client:GitHubClient,d:GitHubDelivery){
  fail('Release listing exceeds the bounded reconciliation window. Inspect the destination before proceeding.');
 }
 function checkAsset(asset:any,name:string,content:Buffer){if(asset?.name!==name||asset.state!=='uploaded'||asset.size!==content.length||asset.digest!=='sha256:'+sha256(content))fail('Remote asset bytes or digest differ. Nothing overwritten.');}
+async function mutation(project:string,d:GitHubDelivery,operation:GitHubOutcome['operation'],send:()=>Promise<any>,name?:string){
+ if((d.outcomes?.length??0)>=128)fail('GitHub request history limit reached. Reconcile the retained delivery before more writes.');
+ let result:any,error:unknown,failed=false;try{result=await send();}catch(e){failed=true;error=e;}
+ const outcome:GitHubOutcome={at:new Date().toISOString(),operation,...(name?{name}:{}),outcome:!failed?'confirmed-success':rejected(error)?'confirmed-rejection':'ambiguous',...(error instanceof GitHubHttpError?{status:error.status}:{})};
+ d.outcomes??=[];d.outcomes.push(outcome);
+ if(outcome.outcome==='confirmed-rejection'){if(operation==='create')d.creationAttempted=false;else if(operation==='asset')d.assetAttempts=d.assetAttempts.filter(n=>n!==name);}
+ await save(project,d);if(failed)throw error;return result;
+}
 async function deliver(project:string,id:string,client:GitHubClient,publishDigest?:string):Promise<GitHubDelivery>{return withWriter(project,publishDigest?'GitHub release publish':'GitHub release upload',async()=>{
  const d=await readGitHub(project,id);if(d.approved!==d.digest)fail('Destination approval is required before any upload.');if(publishDigest!==undefined&&publishDigest!==d.digest)fail('Publication requires the exact reviewed digest.');
  const content=await bytes(project,d);await checkCommit(client,d);
  const base=`repos/${d.manifest.repository}/releases`;let remote=await findRemote(client,d);
  try{
-  if(!remote){if(d.creationAttempted||d.remoteId!==undefined)fail('Previous creation outcome is unknown. Reconcile later; automatic duplicate creation is refused.');if(publishDigest)fail('Upload and verify the draft before publication.');d.creationAttempted=true;d.status='uploading';await save(project,d);remote=await client.request('POST',base,{tag_name:d.manifest.tag,target_commitish:d.manifest.commit,name:d.manifest.tag,body:body(d),draft:true,prerelease:true,make_latest:'false',generate_release_notes:false});}
+  if(!remote){if(d.creationAttempted||d.remoteId!==undefined)fail('Previous creation outcome is unknown. Reconcile later; automatic duplicate creation is refused.');if(publishDigest)fail('Upload and verify the draft before publication.');d.creationAttempted=true;d.status='uploading';await save(project,d);remote=await mutation(project,d,'create',()=>client.request('POST',base,{tag_name:d.manifest.tag,target_commitish:d.manifest.commit,name:d.manifest.tag,body:body(d),draft:true,prerelease:true,make_latest:'false',generate_release_notes:false}));}
   checkRemote(d,remote,d.publication===d.digest);d.remoteId=remote.id;await save(project,d);
   const assets=await client.request('GET',`${base}/${remote.id}/assets`);if(!Array.isArray(assets)||assets.length>2)fail('Unexpected remote assets; refusing modification.');
   const files=new Map([[d.manifest.filename,content],['SHA256SUMS.txt',Buffer.from(`${d.manifest.sha256}  ${d.manifest.filename}\n`)]]);
@@ -78,7 +91,7 @@ async function deliver(project:string,id:string,client:GitHubClient,publishDiges
   for(const [name,data]of files){const matches=assets.filter(a=>a.name===name);if(matches.length>1)fail('Duplicate remote asset names.');if(matches.length){checkAsset(matches[0],name,data);continue;}
    if(publishDigest||!remote.draft)fail('Upload all verified assets before publication.');
    if(d.assetAttempts.includes(name))fail('Previous asset upload outcome is unknown. Reconcile later; no overwrite or duplicate upload attempted.');
-   d.assetAttempts.push(name);d.status='uploading';await save(project,d);checkAsset(await client.upload(`${base}/${remote.id}/assets?name=${encodeURIComponent(name)}`,data),name,data);
+   d.assetAttempts.push(name);d.status='uploading';await save(project,d);checkAsset(await mutation(project,d,'asset',()=>client.upload(`${base}/${remote.id}/assets?name=${encodeURIComponent(name)}`,data),name),name,data);
   }
   remote=await client.request('GET',`${base}/${d.remoteId}`);checkRemote(d,remote,d.publication===d.digest);await checkCommit(client,d);
   // Re-read asset state after all uploads, immediately before recording publication.
@@ -87,7 +100,7 @@ async function deliver(project:string,id:string,client:GitHubClient,publishDiges
   const finalAssets=await client.request('GET',`${base}/${d.remoteId}/assets`);
   if(!Array.isArray(finalAssets)||finalAssets.length!==files.size)fail('Remote asset set changed. Nothing published.');
   for(const [name,data]of files){const matches=finalAssets.filter(a=>a.name===name);if(matches.length!==1)fail('Remote asset set changed. Nothing published.');checkAsset(matches[0],name,data);}
-  if(publishDigest){d.publication=d.digest;d.status='publishing';await save(project,d);if(remote.draft)remote=await client.request('PATCH',`${base}/${d.remoteId}`,{draft:false,make_latest:'false'});checkRemote(d,remote,true);if(remote.draft!==false)fail('Publication outcome is not confirmed.');d.status='published';}
+  if(publishDigest){d.publication=d.digest;d.status='publishing';await save(project,d);if(remote.draft)remote=await mutation(project,d,'publish',()=>client.request('PATCH',`${base}/${d.remoteId}`,{draft:false,make_latest:'false'}));checkRemote(d,remote,true);if(remote.draft!==false)fail('Publication outcome is not confirmed.');d.status='published';}
   else d.status=remote.draft?'uploaded':'published';
   d.message=d.status==='published'?'Publication confirmed.':'Draft and GitHub-reported asset digests verified. Nothing published.';await save(project,d);return d;
  }catch(e){d.message=(e as Error).message;await save(project,d);throw e;}

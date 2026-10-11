@@ -1,3 +1,5 @@
+import {selectCheckpoint,retainedCheckpoint} from '../jobs/checkpoints.ts';
+import {listArtifacts} from '../artifacts/store.ts';
 import path from 'node:path';
 import { readJson } from '../artifacts/store.ts';
 import { choose, confirmed, terminalDialogue, type Dialogue } from '../guide/dialogue.ts';
@@ -24,11 +26,13 @@ export async function jobCommand(project:string,args:readonly string[]):Promise<
  if(action==='create'&&id&&!extra){const absolute=path.resolve(id),raw=await readJson(path.dirname(absolute),path.basename(absolute));const j=await withWriter(project,'job create',()=>createJob(project,raw));say(`Saved ${j.spec.title}: ${j.id}. Start with harness job run ${j.id}`);return;}
  if((!action||action==='list')&&(!id||id==='--json')&&!extra){const jobs=await listJobs(project);if(id==='--json')say(JSON.stringify(jobs));else {for(const j of jobs)say(`${j.id} · ${j.spec.title} · ${j.status} · checkpoint ${j.completed??'none'} · cost unknown`);if(!jobs.length)say('No jobs saved. Use harness job setup.');}return;}
  if(action==='inspect'&&id&&(!extra||extra==='--json')&&!rest.length){const j=await readJob(project,id);if(extra==='--json')say(JSON.stringify(j));else{say(`${j.spec.title} · ${j.status}\n${j.id}\nCommand: ${JSON.stringify(j.spec.command)}\nAttempts: ${j.attempts}/${j.spec.limits.maxAttempts}; reserved ${j.reservedSeconds}/${j.spec.limits.totalSeconds}s; observed execution ${j.elapsedSeconds.toFixed(1)}s; cost unknown.`);j.events.forEach(e=>say(`${e.at} · ${e.phase}: ${e.message}`));say('Outputs are unverified job results. Inspect or export through harness artifacts.');}return;}
+ if(action==='select-checkpoint'&&id&&extra&&!rest.length){const j=await selectCheckpoint(project,id,extra);say(`Selected ${j.checkpoint}, ${j.completed} steps. Resume explicitly; no work dispatched.`);return;}
+ if(action==='checkpoints'&&id&&!extra){const j=await readJob(project,id);for(const a of (await listArtifacts(project)).filter(a=>a.producer===id&&a.name==='checkpoint.json')){try{const c=await retainedCheckpoint(project,j,a.id);say(`${a.id} · ${c.point.completed} steps · validated${j.checkpoint===a.id?' · selected':''}`);}catch(e){say(`${a.id} · unusable: ${(e as Error).message}`);}}return;}
  if(id&&!extra){
   if(action==='run'||action==='resume'){const j=await runJob(project,id,say);if(j.status!=='succeeded')throw new OperatorError(`Job ${j.status}. Saved progress remains available.`, `Use harness job inspect ${id} or harness guide.`);return;}
   if(action==='cancel'){await requestCancel(project,id);say('Cancellation requested. The controller will stop the job and keep its last valid checkpoint. During preparation it finishes the current bounded step first.');return;}
   if(action==='recover'){const j=await recoverJob(project,id);say(`${j.spec.title}: ${j.status}. Owned resources reconciled.`);return;}
  }
  if(action==='release'&&id&&extra==='--yes'&&!rest.length){await releaseJob(project,id);say('Job retired; recovery and output references released. Run harness artifacts cleanup to reclaim unreferenced bytes.');return;}
- throw new OperatorError('Use: harness job setup | create <file> | list [--json] | inspect <id> [--json] | run/resume/cancel/recover <id> | release <id> --yes');
+ throw new OperatorError('Use: harness job setup | create <file> | list [--json] | inspect <id> [--json] | run/resume/cancel/recover/checkpoints <id> | select-checkpoint <id> <artifact-id> | release <id> --yes');
 }

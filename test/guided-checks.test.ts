@@ -194,10 +194,15 @@ test('targeted repair refuses changed source before spending model work',()=>fix
 
 import {readGuidedDraft,readyCheckDraft} from '../src/acceptance/guided.ts';
 import {sourceFiles} from '../src/workspace/candidate.ts';import {createHash} from 'node:crypto';import {utimes} from 'node:fs/promises';
-test('new task preparation hides an old completed task draft even when old review progress remains',()=>fixture(async project=>{
+import {preparationOperation} from '../src/acceptance/active-preparation.ts';
+for(const legacy of [true,false])test(`new task preparation hides an old completed task draft even when old review progress remains (legacy=${legacy})`,()=>fixture(async project=>{
  await guidedSetup(project,task,dialogue(['','3']),async()=>parseProposal(proposal(),task));
  const next={...task,id:'author',title:'Author'};await writeFile(path.join(project,'features.json'),JSON.stringify([task,next]));
  const sourceDigest=createHash('sha256').update(JSON.stringify(Object.entries(await sourceFiles(project,'',[])).sort(([a],[b])=>a.localeCompare(b)))).digest('hex');
- const dir=path.join(harnessDirectory(project),'acceptance');await utimes(dir+'/review-progress.json',1,1);await writeFile(dir+'/preparation.json',JSON.stringify({version:1,taskId:next.id,taskDigest:taskDigest(next),sourceDigest,feedback:''}));
+ const dir=path.join(harnessDirectory(project),'acceptance');
+ // Old installations have no operation metadata; new checkpoints use the production allocator.
+ if(legacy){const old=JSON.parse(await readFile(dir+'/review-progress.json','utf8'));delete old.operation;await writeFile(dir+'/review-progress.json',JSON.stringify(old));}
+ const operation=legacy?undefined:await preparationOperation(dir,next.id,taskDigest(next),sourceDigest);
+ await utimes(dir+'/review-progress.json',1,1);await writeFile(dir+'/preparation.json',JSON.stringify({version:1,taskId:next.id,taskDigest:taskDigest(next),sourceDigest,feedback:'',...(operation?{operation}:{})}));
  assert.equal(await readGuidedDraft(project),undefined);assert.equal(await readyCheckDraft(project),false);
 }));

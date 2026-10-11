@@ -52,3 +52,21 @@ test('guided GitHub setup and approval need no copied IDs or network calls',asyn
  answers.push('1','2','y','0');await githubMenu(f.project,io);drafts=await listGitHub(f.project);assert.equal(drafts[0]!.status,'approved');assert.equal(drafts[0]!.remoteId,undefined);
  answers.push('1','1','0');await githubMenu(f.project,io);assert.ok(lines.some(l=>l.includes('"network": false')));assert.equal(answers.length,0);
 }finally{await rm(f.root,{recursive:true,force:true});}});
+
+import {GitHubHttpError} from '../src/releases/github.ts';
+for(const status of [400,401,403,404,409,422,429])for(const phase of ['create','asset'])test(`confirmed ${status} ${phase} rejection can retry without resetting approval`,async()=>{const f=await fixture();try{
+ const r=fake(),d=await prepareGitHub(f.project,{release:f.local.id,repository:'owner/repo',tag:'retry',commit});await approveGitHub(f.project,d.id,d.digest);let rejected=false;
+ const client:GitHubClient={request:async(method,route,body)=>{if(phase==='create'&&method==='POST'&&!rejected){rejected=true;throw new GitHubHttpError(status);}return r.client.request(method,route,body);},upload:async(route,bytes)=>{if(phase==='asset'&&!rejected){rejected=true;throw new GitHubHttpError(status);}return r.client.upload(route,bytes);}};
+ await assert.rejects(uploadGitHub(f.project,d.id,client),new RegExp(String(status)));const stopped=await readGitHub(f.project,d.id);assert.equal(stopped.approved,d.digest);assert.equal(stopped.outcomes?.at(-1)?.outcome,'confirmed-rejection');
+ assert.equal((await uploadGitHub(f.project,d.id,client)).status,'uploaded');assert.equal(r.creates,1);assert.equal(r.uploads,2);
+}finally{await rm(f.root,{recursive:true,force:true});}});
+for(const status of [408,500,502,503])test(`HTTP ${status} stays ambiguous and cannot create duplicates`,async()=>{const f=await fixture();try{
+ const r=fake(),d=await prepareGitHub(f.project,{release:f.local.id,repository:'owner/repo',tag:'uncertain',commit});await approveGitHub(f.project,d.id,d.digest);let calls=0;
+ const client:GitHubClient={...r.client,request:async(method,route,body)=>{if(method==='POST'){calls++;throw new GitHubHttpError(status);}return r.client.request(method,route,body);}};
+ await assert.rejects(uploadGitHub(f.project,d.id,client));assert.equal((await readGitHub(f.project,d.id)).outcomes?.at(-1)?.outcome,'ambiguous');await assert.rejects(uploadGitHub(f.project,d.id,client),/unknown/);assert.equal(calls,1);
+}finally{await rm(f.root,{recursive:true,force:true});}});
+test('a lost asset response reconciles the uploaded digest before retrying',async()=>{const f=await fixture();try{
+ const r=fake(),d=await prepareGitHub(f.project,{release:f.local.id,repository:'owner/repo',tag:'asset-loss',commit});await approveGitHub(f.project,d.id,d.digest);let once=false;
+ const client:GitHubClient={...r.client,upload:async(route,bytes)=>{const a=await r.client.upload(route,bytes);if(!once){once=true;throw Error('response lost after commit');}return a;}};
+ await assert.rejects(uploadGitHub(f.project,d.id,client),/lost/);assert.equal((await uploadGitHub(f.project,d.id,client)).status,'uploaded');assert.equal(r.creates,1);assert.equal(r.uploads,2);
+}finally{await rm(f.root,{recursive:true,force:true});}});

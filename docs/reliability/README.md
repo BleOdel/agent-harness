@@ -49,7 +49,7 @@ Old snapshots and artifacts are checked at reuse/display/export, not rewritten. 
 
 Registry version 2 separates four qualification states: `inspection-only` (a documented boundary/gap without a fresh runtime reproduction), `unexecuted` (a regression exists but has not run), `reproduced` (the desired-behavior regression fails), and `fixed` (regression and negative-control evidence accompany closure). Version 1 remains readable without inventing new qualification fields. A fresh run does not overwrite the historical audit baseline.
 
-`evidence/foundation-validation.json` records source-file hashes, the baseline commit, runtime identities, commands and results. `evidence/foundation-known-defects.tap` retains the failing audit run. Its nonzero exit is expected and **does not qualify the harness as passing**. No provider credentials or model requests are used. Eight reproduced findings remain open; the backlog owns their fixes. Inspection-only entries retain a trigger/verification strategy and limitations rather than artificial tests that assert bugs exist.
+`evidence/foundation-validation.json` records source-file hashes, the baseline commit, runtime identities, commands and results. `evidence/foundation-known-defects.tap` retains the failing audit run. Its nonzero exit is expected and **does not qualify the harness as passing**. No provider credentials or model requests are used. Current qualification states are listed in `findings.json`; the backlog owns the remaining fixes. Inspection-only entries retain a trigger/verification strategy and limitations rather than artificial tests that assert bugs exist.
 
 
 ## Captured output and overflow recovery
@@ -87,3 +87,44 @@ All new source applications and undo writes use version-two `application.json` p
 Legacy team journals use `harness team recover <id>` and legacy staged journals use `harness stage apply <id>`. New staged and team journals also retain these entry points. Snapshot paths are selected from each run's transaction ID; older ordinary `recovery/<run>` directories remain readable. No live project state is migrated by installing this version.
 
 The proof covers local controller behavior and the installed Linux runtime, not whole-filesystem atomicity, physical power loss, remote filesystems, Windows ACLs or all native runners. Qualification, failure injection and restored negative controls are in `evidence/recovery-validation.json` and `evidence/recovery-controls.json`.
+
+## PyTorch checkpoint integrity (hr-011)
+
+Training admission, resume, evaluation and evidence collection now share the same
+inert JSON validator, bound to the approved recipe and data dimensions. Real
+classifier and clustering fixtures are retained with their generator. The
+collected regression rejects null tensors, empty Adam state, wrong shapes and
+dtypes, nonfinite values, incorrect scheduler/settings, invalid RNG structures,
+and inconsistent sampler progress. The old F13 reproduction now runs in the
+default suite.
+
+The task-level qualification is recorded in `evidence/torch-checkpoint-validation.json`.
+The subsequent hr-012 qualification covers promotion and explicit fallback.
+Broader ML qualification remains hr-042. This change makes no CUDA, Metal or LLM
+checkpoint claim. Old approvals and source artifacts remain intact; a changed
+recipe hash prevents reusing their approval for this new validator.
+
+
+## Active acceptance preparation (hr-014)
+
+New generation and full-review checkpoints embed a shared operation ID and an
+increasing sequence. Selection uses that identity, task/source bindings and phase;
+changing an old file's timestamp cannot make it the current operation. Full review
+supersedes generation only within the same operation. Conflicting identities at
+the same sequence stop for inspection. Existing files are not eagerly rewritten;
+legacy incremental generation with its own ledger remains repairable, and older
+minimal records retain the historical timestamp adapter until a new checkpoint.
+
+Targeted repair now reads `preparation.json`'s `state.reviewLedger` during generation
+or the complete review record's ledger during review. A failed generated case is
+repaired in place, retaining successful peers and later ungenerated obligations.
+The workflow reconciles a saved retry reservation with that same owner before any
+new dispatch. Authentication and provider interruption retain the reservation;
+they do not silently grant another repair epoch. Input-bound legacy workflow grants
+are carried forward when an operation ID is introduced, preserving already-spent retries.
+
+`harness checks status` reports the active task, phase, check, source file and
+operation. Bounded preparation also saves this structured `nextAction` in
+`acceptance/workflow.json`. It is guidance, not approval or application evidence.
+Final operator approval is still separate. Broader orchestration, migration,
+review-invalidation and browser timing tasks remain on the roadmap.

@@ -190,7 +190,7 @@
     "id": "hr-011",
     "title": "Validate full PyTorch checkpoint contents",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Validate model tensor names, dtypes, dimensions and finite values against the selected recipe/model specification.",
       "Validate optimizer parameter mapping, moments and step counters, scheduler state, RNG structures, data identity and sampler permutation/cursor as required by that recipe.",
@@ -208,7 +208,7 @@
     "id": "hr-012",
     "title": "Advance ML recovery state only after validation",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Promote the active checkpoint only after schema, artifact integrity and recipe identity validation succeeds; preserve the last known-valid reference on failure.",
       "Record the relation between interrupted attempt, checkpoint and resumed attempt, with clear incomplete versus recoverable outcomes.",
@@ -226,7 +226,7 @@
     "id": "hr-013",
     "title": "Classify GitHub delivery outcomes before retry",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Represent confirmed rejection, confirmed success and ambiguous transport outcome as distinct typed results for release creation and asset upload.",
       "After an authoritative rejection proves no mutation, allow a retry after the underlying permission or validation problem is resolved.",
@@ -244,7 +244,7 @@
     "id": "hr-014",
     "title": "Repair the active preparation ledger",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Select saved state by task, operation and preparation phase, including incremental reviewLedger state; never select an unrelated legacy file merely because it exists.",
       "A blocked check during generation repairs in place while completed checks and later ungenerated obligations remain intact.",
@@ -553,7 +553,7 @@
       "Browser verification and human preview run the exact same candidate identity using isolated disposable data and the prepared dependency artifact.",
       "Record preview observations against that candidate; source or lockfile drift invalidates the receipt and prevents final application.",
       "Cancel, controller loss and failed readiness clean up owned servers/containers without deleting the candidate or unrelated evidence.",
-      "Validation evidence: Complete verification \u2192 preview \u2192 manual observation \u2192 staged readiness for an Express app and built frontend. Repeat with stale receipts, missing dependencies and forced process loss."
+      "Validation evidence: Complete verification → preview → manual observation → staged readiness for an Express app and built frontend. Repeat with stale receipts, missing dependencies and forced process loss."
     ],
     "dependsOn": [
       "hr-015",
@@ -727,7 +727,7 @@
     "status": "todo",
     "criteria": [
       "Use the approved blog requirements and saved progress in an isolated qualification copy; do not reset live source, approvals or history.",
-      "Complete author-experience preparation \u2192 initial design/evidence approval \u2192 implementation \u2192 real browser checks \u2192 candidate preview \u2192 required manual observations \u2192 explicit apply.",
+      "Complete author-experience preparation → initial design/evidence approval → implementation → real browser checks → candidate preview → required manual observations → explicit apply.",
       "Inject timeout, transient provider failure, browser failure and controller restart through deterministic runs; preserve completed work without operator probe edits or copied logs.",
       "A live bounded trial uses the existing configured provider only after deterministic gates pass; record every interruption and unresolved obligation. Remaining blog milestones retain their own existing backlog.",
       "Do not count an author-milestone pass as completion of the whole blog or as evidence of production readiness.",

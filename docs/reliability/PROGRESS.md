@@ -1,8 +1,8 @@
-# Reliability progress — interruption and application recovery
+# Reliability progress — recovery and active preparation
 
-Completed tasks: hr-001 (audit failure registry), hr-002 (required operational smoke lane), hr-003 (capability catalog), hr-004 (bounded output and overflow recovery), hr-005 (secret-aware source selection), hr-007 (dashboard authority boundary), hr-008 (executable identity) hr-009 (retain failed implementation), hr-010 (shared application journal) and hr-018 (shared record contracts and storage/legacy boundaries). Completing the registry records defects; it does not fix them.
+Completed tasks: hr-001, hr-002, hr-003, hr-004, hr-005, hr-007, hr-008, hr-009, hr-010, hr-011, hr-012, hr-013, hr-014 and hr-018 — **14 of 45**. The remaining 31 tasks are open. Registry completion records defects; it does not solve all of them.
 
-The version-two registry covers all 25 findings: six reproduced defects, six fixed at their documented audit scope (F04, F05, F06, F07, F09 and F10), and thirteen inspection-only gaps. It retains the historical audit baseline separately. The six remaining desired-behavior regressions run in an explicit non-qualifying lane and currently fail: preparation owner selection, browser observation timing, incomplete PyTorch checkpoint acceptance, confirmed GitHub denial recovery, noninteractive preparation, and unrelated peer-review invalidation. Browser negative observation windows and fuller interrupted-repair migration scenarios remain implementation-task obligations.
+The registry covers all 25 findings: 9 fixed at their documented audit scope, 3 reproduced and 13 inspection-only or partially repaired gaps. F01, F13 and F14 now link current positive regressions and restored-defect controls. Historical audit evidence remains unchanged. Browser timing, noninteractive preparation and peer-review invalidation remain known desired-behavior failures. The full end-to-end reliability program is not complete.
 
 The lifecycle boundary now includes strict event fields, canonical owner paths, atomic expected-record updates under the project writer lock, concurrent-process tests, retained request reservations and opt-in legacy archives. Legacy inspection preserves original text and cannot produce approval or passing application evidence. No existing project was migrated. Controller adoption and orchestration remain hr-024; common evidence admission remains hr-023; the shared application journal now implements hr-010.
 
@@ -36,3 +36,24 @@ Final hr-005 validation: `npm run check` passed 899 of 972 tests, with 73 explic
 hr-009 and hr-010 preserve unsuccessful builder work and unify application recovery. Resume is still unverified until every gate passes. Failed capture quarantines the raw workspace; host death leaves an honest pointer and possible-loss warning. New ordinary, staged, team and undo transactions retain modes, feature transitions and history publication under one journal, with legacy recovery preserved. Qualification is recorded in `evidence/recovery-validation.json` and `evidence/recovery-controls.json`. Ten of the 45 tasks are complete; acceptance orchestration and the remaining reliability work are still open.
 
 Validation: `npm run check` passed 940 of 1,011 tests, with 71 explicit skips and no failures. Docker/Chromium smoke passed 12/12 with no skips. Six deliberate defects were detected in a separate disposable copy. No paid model calls or dependencies were added.
+
+
+hr-011 uses one strict inert JSON checkpoint validator for CPU retention/resume,
+evaluation and product evidence. It validates approved model dimensions, float32
+weights, Adam state and settings, scheduler progress and learning rate, RNG state,
+sampler progress and clustering centroids. Real CPU fixtures and their generator
+are retained. Approval hashes include the new validator; old artifacts are kept,
+and changed recipes require fresh approval. Eleven of the 45 tasks are complete.
+At the hr-011 checkpoint, F13 remained open for promotion/fallback proof.
+The hr-012 results below now close that audit defect; broader ML work remains.
+
+Qualification is retained in `evidence/torch-checkpoint-validation.json` and
+`evidence/torch-checkpoint-controls.json`. No dependencies or paid model calls
+were used. These checks do not qualify GPU/LLM training or prove model quality.
+
+Final hr-011 validation: `npm run check` passed 1,001 of 1,071 tests, with 70 explicit skips and no failures. The CPU qualification passed 70/70 with no skips; Docker/Chromium smoke passed 12/12. Five deliberately broken validators were detected.
+
+
+hr-012 validates checkpoint candidates and retained bytes before promotion, records explicit older-checkpoint selection without resetting budgets, and preserves honest recovery evidence. hr-013 distinguishes confirmed HTTP rejection from ambiguous GitHub mutations and allows safe retry under the original approval. hr-014 uses operation/phase ownership for saved preparation, repairs generated cases in their original ledger, and reconciles durable retry grants including legacy records.
+
+Validation: `npm run check` passed 1,032 of 1,102 tests, with 70 explicit skips and no failures. CPU qualification passed 76/76 without skips. Docker/Chromium smoke passed 12/12. Seven deliberate defects were caught. Evidence: `evidence/recovery-preparation-validation.json` and `evidence/recovery-preparation-controls.json`. No paid model calls, external releases or dependencies were added. Next dependency-ready acceptance task: hr-015 bounded positive browser observations; hr-016 negative windows follows it. hr-006 credential isolation is also still open.

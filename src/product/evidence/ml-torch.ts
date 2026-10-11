@@ -3,7 +3,7 @@ import type {Job} from '../../jobs/state.ts';import {validateCheckpoint} from '.
 export async function torchQuality(reader:EvidenceReader,d:MlData,j:Job,m:Awaited<ReturnType<EvidenceReader['artifact']>>,cp:Awaited<ReturnType<EvidenceReader['artifact']>>,q:EvidenceRecord){
  const a=d.a as TorchApproval,s=d.state,model=validateTorchModel(JSON.parse(m.bytes.toString()),a.features.length,a.spec.clusters);
  if(model.context!==a.digest||model.kind!==a.spec.kind||model.completed!==a.spec.steps||s.candidateHash!==m.artifact.sha256)throw Error('Model does not match approved training.');
- const point=validateCheckpoint(cp.bytes,j.spec.checkpoint!,j.identity!,a.spec.steps),p=point.payload as any;validateTorchCheckpoint(p,a.digest,a.spec.steps,a.spec.kind);
+ const point=validateCheckpoint(cp.bytes,j.spec.checkpoint!,j.identity!,a.spec.steps),p=point.payload as any;validateTorchCheckpoint(p,a.digest,a.spec.steps,a.spec.kind,{spec:a.spec,features:a.features.length,trainingRows:d.train.length});
  if(p.runtime!=='2.14.0+cpu')throw Error('PyTorch checkpoint runtime changed.');
  if(a.spec.kind==='classifier'){
   const weights:Record<string,unknown>={};if(!p.model||Object.keys(p.model).join()!=='dict'||!Array.isArray(p.model.dict))throw Error('Invalid checkpoint model encoding.');

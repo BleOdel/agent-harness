@@ -1,5 +1,5 @@
 import {caseKind} from './evidence-kind.ts';
-import {readActivePreparation} from './active-preparation.ts';
+import {readActivePreparation,preparationOperation} from './active-preparation.ts';
 import {CheckRequestInterrupted} from './request-failure.ts';
 import {ensureCheckBudget,CheckBudgetExceeded,hasCheckBudget,withCheckBudget,defaultCheckLimits,validateCheckLimits,type CheckLimits,type CheckSpend} from './budget.ts';
 import {recipeForDescription,inferWebRecipe,recipeDescription} from './recipes/catalog.ts';
@@ -148,6 +148,7 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
   const fresh = await currentTask(project, task.id);
   const source = await sourceDigest(project);
   const previous = await readApproval(project);
+  const operation=await preparationOperation(directory(project),fresh.id,taskDigest(fresh),source,!!(freshPreparation||feedback));
   await mkdir(directory(project), { recursive: true, mode: 0o700 });
   let pending: Proposal | undefined;
   let previousIssues: string[] = [];
@@ -178,7 +179,8 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
    }
   }
   let ledger: ReviewLedger | undefined;
-  const progress = await readArtifact(directory(project), 'review-progress.json', 8 * 1024 * 1024);
+  const active=await readActivePreparation(directory(project));
+  const progress = active?.name==='review-progress.json'?active.raw:undefined;
   if (!feedback && progress) {
    const record = JSON.parse(progress);
    if (record.taskId === fresh.id && record.taskDigest === taskDigest(fresh) && record.sourceDigest === source) {
@@ -194,7 +196,7 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
    const reusable = record?.taskId===fresh.id && record.taskDigest===taskDigest(fresh) && record.sourceDigest===source;
    if(reusable)io.write('Resuming saved behaviour preparation; completed checks will be reused.');
    const request = {
-    version:1,taskId:fresh.id,taskDigest:taskDigest(fresh),sourceDigest:source,
+    version:1,taskId:fresh.id,taskDigest:taskDigest(fresh),sourceDigest:source,operation,
     feedback:reusable && typeof record.feedback==='string' ? record.feedback : feedback,
     previousProposal:reusable && record.previousProposal ? parseProposal(record.previousProposal,fresh) : previousProposal,
     previousIssues:reusable && Array.isArray(record.previousIssues) && record.previousIssues.every((issue:unknown)=>typeof issue==='string') ? record.previousIssues as string[] : previousIssues,
@@ -212,7 +214,7 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
   const hasPartial = partial?.taskId===fresh.id && partial.taskDigest===taskDigest(fresh) && partial.sourceDigest===source;
   const initial = pending ?? (hasPartial ? await prepare() : automatic ?? await prepare());
   const checkpoint = async (proposal: Proposal, round: number, issues: string[]) => {
-   const record = JSON.stringify({ version: 1, taskId: fresh.id, taskDigest: taskDigest(fresh), sourceDigest: source, proposal, round, issues, ...(ledger ? {ledger} : {}) }, null, 2) + '\n';
+   const record = JSON.stringify({ version: 1, taskId: fresh.id, taskDigest: taskDigest(fresh), sourceDigest: source, operation, proposal, round, issues, ...(ledger ? {ledger} : {}) }, null, 2) + '\n';
    const history = path.join(directory(project), 'review-history');
    await mkdir(history, { recursive: true, mode: 0o700 });
    await atomicWrite(path.join(history, `${Date.now()}-${randomUUID()}.json`), record);
@@ -336,35 +338,38 @@ async function simplifySavedCheckWithinBudget(project:string,io:Dialogue,caseId:
 
 /** The operator chooses a fresh bounded attempt; ordinary resume never resets budgets. */
 export async function repairSavedCheck(project:string,io:Dialogue,caseId?:string,repair=repairScopeInIsolation):Promise<void>{
- if(caseId&&repair===repairScopeInIsolation){const raw=await readArtifact(directory(project),'review-progress.json',8*1024*1024);const c=raw?JSON.parse(raw).proposal?.manifest?.cases?.find((c:{id:string})=>c.id===caseId):undefined;if(c){if(c.steps.some((s:{recipe?:unknown})=>s.recipe)&&!recipeForDescription(c.description??''))throw new OperatorError('This saved recipe promises application-specific behaviour.',`Use harness checks regenerate ${caseId} to replace only this check and independently review it.`);if(c.steps.some((s:{recipe?:unknown})=>s.recipe)||recipeForDescription(c.description??''))return useRecipeSavedCheck(project,io,caseId);}}
  if(await readArtifact(directory(project),'simplification.json',8*1024*1024))throw new OperatorError('A design simplification is pending.','Resume harness checks simplify, or use checks setup to prepare again with changes.');
- const file=path.join(directory(project),'review-progress.json');
- const raw=await readArtifact(directory(project),'review-progress.json',8*1024*1024);
- if(!raw)throw new OperatorError('No saved check review to repair.','Run harness checks setup.');
- const record=JSON.parse(raw);const task=await currentTask(project,record.taskId);
- const proposal=parseProposal(record.proposal,task);
+ const active=await readActivePreparation(directory(project));
+ if(!active)throw new OperatorError('No saved check review to repair.','Run harness checks setup.');
+ const {raw,name}=active,file=path.join(directory(project),name),record=JSON.parse(raw),task=await currentTask(project,record.taskId);
+ const preparing=name==='preparation.json';
+ const state=preparing?record.state as Preparation:undefined;
+ if(preparing&&!state?.blueprint)throw new OperatorError('No generated check is ready to repair.','Resume harness checks prepare.');
+ const proposal=preparing?blueprintProposal(task,parseBlueprint(state!.blueprint,task)):parseProposal(record.proposal,task);
+ if(state)proposal.manifest.cases=proposal.manifest.cases.map(c=>state.cases.find(g=>g.id===c.id)??c);
  const checkCurrent=async()=>{
   if(record.taskDigest!==taskDigest(await currentTask(project,task.id))||record.sourceDigest!==await sourceDigest(project))throw new OperatorError('Saved checks describe older source or requirements.','Use harness checks setup to prepare a current draft.');
  };
  await checkCurrent();
- const ledger=record.ledger as ReviewLedger;
+ if(caseId&&!preparing&&repair===repairScopeInIsolation){const c=proposal.manifest.cases.find(c=>c.id===caseId);if(c){if(c.steps.some(s=>s.recipe)&&!recipeForDescription(c.description??''))throw new OperatorError('This saved recipe promises application-specific behaviour.',`Use harness checks regenerate ${caseId} to replace only this check and independently review it.`);if(c.steps.some(s=>s.recipe)||recipeForDescription(c.description??''))return useRecipeSavedCheck(project,io,caseId);}}
+ const ledger=(state?.reviewLedger??record.ledger) as ReviewLedger;
  if(ledger?.version!==1||!Array.isArray(ledger.entries))throw new OperatorError('This draft has no scoped review history.','Use harness checks review first.');
- const ids=blockedScopes(task,proposal,ledger);
+ const ids=blockedScopes(task,proposal,ledger).filter(id=>!state||state.cases.some(c=>c.id===id));
  if(!ids.length)throw new OperatorError('No check has an interrupted or exhausted repair.','Use harness checks review to resume saved work.');
  io.write('Repair one blocked check with a fresh, bounded attempt. Existing findings are retained; other checks and approvals are preserved.');
  let selected=caseId;
  if(!selected){const index=await choose(io,'Which blocked check should be repaired?',ids.map(id=>proposal.manifest.cases.find(c=>c.id===id)!.description!));if(index<0)return;selected=ids[index]!;}
  if(!ids.includes(selected))throw new OperatorError('Select one of the blocked checks.');
  const scope=selected;
- if(repair===repairScopeInIsolation){const c=proposal.manifest.cases.find(c=>c.id===scope)!;if(c.steps.some(s=>s.recipe)&&!recipeForDescription(c.description??''))throw new OperatorError('This saved recipe promises application-specific behaviour.',`Use harness checks regenerate ${scope} to replace only this check and independently review it.`);if(c.steps.some(s=>s.recipe)||recipeForDescription(c.description??''))return useRecipeSavedCheck(project,io,scope);}
+ if(!preparing&&repair===repairScopeInIsolation){const c=proposal.manifest.cases.find(c=>c.id===scope)!;if(c.steps.some(s=>s.recipe)&&!recipeForDescription(c.description??''))throw new OperatorError('This saved recipe promises application-specific behaviour.',`Use harness checks regenerate ${scope} to replace only this check and independently review it.`);if(c.steps.some(s=>s.recipe)||recipeForDescription(c.description??''))return useRecipeSavedCheck(project,io,scope);}
  await withWriter(project,'checks repair',async()=>{
   await checkCurrent();
-  if(await readArtifact(directory(project),'review-progress.json',8*1024*1024)!==raw)throw new OperatorError('Saved checks changed during selection. Run harness checks repair again.');
+  if((await readActivePreparation(directory(project)))?.name!==name||await readArtifact(directory(project),name,8*1024*1024)!==raw)throw new OperatorError('Saved checks changed during selection. Run harness checks repair again.');
   const approval=(await readApproval(project))?.digest;
   const history=path.join(directory(project),'review-history');await mkdir(history,{recursive:true,mode:0o700});
   await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}-before-targeted-repair.json`),raw);
   const save=async(p:Proposal,current:ReviewLedger)=>{
-   const updated={...record,proposal:p,ledger:current,issues:[...(current.previousIssues??[]),...current.entries.flatMap(e=>e.review?.issues??[])],targetedRetry:{scope,at:new Date().toISOString()}};
+   const updated={...record,...(state?{state:{...state,cases:state.cases.map(c=>p.manifest.cases.find(g=>g.id===c.id)!),reviewLedger:current}}:{proposal:p,ledger:current}),issues:[...(current.previousIssues??[]),...current.entries.flatMap(e=>e.review?.issues??[])],targetedRetry:{scope,at:new Date().toISOString()}};
    const text=JSON.stringify(updated,null,2)+'\n';
    await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}.json`),text);await atomicWrite(file,text);
   };

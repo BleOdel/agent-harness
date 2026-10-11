@@ -9,7 +9,7 @@ import {safePath} from '../workspace/safe-path.ts';
 import {sourceFiles} from '../workspace/candidate.ts';
 import {parseTorchData,parseTorchSpec,splitTorchData,type TorchRow,type TorchSpec} from './schema.ts';
 export const resources=import.meta.dirname;
-export const recipeHash=async()=>fingerprint(await Promise.all(['train.py','predict.py','schema.ts','store.ts','recipe.ts','workflow.ts'].map(async f=>[f,hash(await readFile(path.join(resources,f)))])));
+export const recipeHash=async()=>fingerprint(await Promise.all(['train.py','predict.py','schema.ts','checkpoint.ts','store.ts','recipe.ts','workflow.ts'].map(async f=>[f,hash(await readFile(path.join(resources,f)))])));
 export interface TorchApproval {version:1;id:string;spec:TorchSpec;features:string[];means:number[];scales:number[];trainHash:string;holdoutHash:string;sourceHash:string;recipe:string;image:string;digest:string;}
 export interface TorchState {id:string;status:'approved'|'training'|'passed'|'failed'|'released';jobId?:string;candidateHash?:string;report?:any;artifact?:string;}
 export async function torchRoot(project:string){const p=path.join(await stateRoot(project),'torch');await safeDirectory(p);return p;}

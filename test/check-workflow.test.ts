@@ -57,3 +57,9 @@ test('transient recovery cannot exceed the shared model-request budget',async()=
   snapshot:async()=>({key:'task:source',ready:false}),resume:async()=>{await checkRequestBudget(10000);calls++;throw new CheckRequestInterrupted('provider','HTTP 503');},repair:async()=>assert.fail(),save:async()=>{},write:()=>{},wait:async()=>{waits++;}
  }));assert.equal(result,'paused');assert.equal(calls,1);assert.equal(waits,0);assert.equal(spend.requests,1);
 });
+test('legacy input-bound retry grants migrate without creating another repair allowance',async()=>{
+ const s=state();s.pendingRetry={key:'digest:source:one',scope:'one',epoch:1};let repairs=0;
+ const services={snapshot:async()=>({key:'task:digest:source:operation',legacyKey:'digest:source',retryCounts:{one:1},ready:false}),resume:async()=>{throw new ScopeRepairBlocked('one','still blocked');},repair:async()=>{repairs++;},save:async()=>{},write:()=>{}};
+ assert.equal(await driveCheckWorkflow(s,services),'blocked');assert.equal(repairs,0);assert.equal(s.pendingRetry,undefined);assert.deepEqual(s.retried,['task:digest:source:operation:one']);
+ const spent=state();spent.retried=['digest:source:one'];assert.equal(await driveCheckWorkflow(spent,services),'blocked');assert.equal(repairs,0);
+});

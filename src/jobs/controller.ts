@@ -1,12 +1,13 @@
+import {retainCheckpoint,retainedCheckpoint} from './checkpoints.ts';
 import {beginRecoveryEvidence,updateRecoveryEvidence} from './recovery-evidence.ts';
 import {readTorchState} from '../torch/store.ts';
-import { jobRecipe, validateJobCheckpoint } from './recipes.ts';
+import { jobRecipe } from './recipes.ts';
 import { readMlState } from '../ml/store.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { artifactBytes, ARTIFACT_LIMITS, putArtifact, readJson, saveJson, sha256, releaseArtifacts } from '../artifacts/store.ts';
+import { ARTIFACT_LIMITS, putArtifact, readJson, saveJson, sha256, releaseArtifacts } from '../artifacts/store.ts';
 import { getAdapter } from '../adapters/registry.ts';
 import { loadConfig, type Config } from '../config.ts';
 import { buildRunArguments, type SandboxLayout } from '../containment/sandbox.ts';
@@ -18,7 +19,6 @@ import { assertLiveBaseline, assertSnapshot, captureBaseline } from '../workspac
 import { DEFAULT_INSTALL_POLICY } from '../workspace/dependencies.ts';
 import { withWriter } from '../workspace/writer-lock.ts';
 import { OperatorError } from '../verbs/io.ts';
-import { validateCheckpoint } from './schema.ts';
 import { jobRoot, listJobs, readJob, saveJob, type Job } from './state.ts';
 const resources=import.meta.dirname;
 const required=(message:string):never=>{throw new OperatorError(message);};
@@ -40,12 +40,7 @@ async function transfer(j:Job,file:string,optional=false):Promise<Buffer|undefin
 async function checkpoint(project:string,j:Job):Promise<void>{
  if(!j.spec.checkpoint)return;
  const bytes=await transfer(j,'.harness-output/checkpoint.json',true);if(!bytes)return;
- const point=validateCheckpoint(bytes,j.spec.checkpoint,j.identity!,j.completed??0);
- await validateJobCheckpoint(project,j.spec,point);
- if(j.checkpoint&&point.completed===(j.completed??0))return;
- if(j.events.filter(e=>e.phase==='checkpoint').length>=100)required('Checkpoint retention limit reached (100 per job).');
- const artifact=await putArtifact(project,'checkpoint.json',bytes,{producer:j.id,input:j.source!.digest,environment:j.identity!,verification:'unverified'});
- j.checkpoint=artifact.id;j.completed=point.completed;await saveJob(project,j,'checkpoint',`Saved compatible checkpoint: ${point.completed}/${point.total} steps (reported by job).`);
+ await retainCheckpoint(project,j,bytes);
 }
 async function stopOwned(j:Job):Promise<void>{if(await owned(j))await stopContainer(j.docker!,j.container!);}
 async function requestMatches(root:string,j:Job):Promise<boolean>{try{const value=await readJson(root,'cancel.json') as {token:string};return value.token===j.token;}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return false;throw e;}}
@@ -88,7 +83,7 @@ export async function runJob(project:string,id:string,notify:(message:string)=>v
  const profile=await readProfile(project),capabilities=await inspectCapabilities(profile,config),policy=config.installPolicy??DEFAULT_INSTALL_POLICY;
  if(j.identity&&(JSON.stringify(profile)!==JSON.stringify(j.profile)||JSON.stringify(capabilities)!==JSON.stringify(j.capabilities)||JSON.stringify(policy)!==JSON.stringify(j.installPolicy)||config.dockerExecutable!==j.docker))required('Job environment or settings changed. Restore the original settings before resume.');
  let resume:Buffer|undefined;
- if(j.checkpoint){resume=await artifactBytes(project,j.checkpoint);const point=validateCheckpoint(resume,j.spec.checkpoint!,j.identity!,j.completed??0);recipe?.validate(point);}
+ if(j.checkpoint){const saved=await retainedCheckpoint(project,j,j.checkpoint,j.completed??0);if(saved.point.completed!==j.completed)required('Checkpoint progress differs from the saved reference. Select a validated checkpoint explicitly.');resume=saved.bytes;}
  if(!j.source){await rm(path.join(root,'source'),{recursive:true,force:true});j.source=await captureBaseline(project,path.join(root,'source'),adapter.source.generatedDirectories);}
  j.profile=profile;j.capabilities=capabilities;j.image=config.imageId;j.docker=config.dockerExecutable;j.installPolicy=policy;
  j.status='preparing';j.token=randomUUID();j.attempts++;j.reservedSeconds+=j.spec.limits.timeoutSeconds;

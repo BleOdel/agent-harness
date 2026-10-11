@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "kind": "isolated-validator-mutations",
+  "status": "passed",
+  "controls": [
+    {
+      "mutation": "null-model-tensor",
+      "file": "src/torch/checkpoint.ts",
+      "removed": "for(const [name,shape] of Object.entries(shapes))tensor(model.get(name),shape,'model '+name);",
+      "replacement": "",
+      "fixture": "classifier",
+      "corruption": "p.model.dict[0][1]=null",
+      "command": [
+        "node",
+        "--input-type=module",
+        "-e",
+        "import temporary mutant, corrupt real fixture, assert.throws(validateTorchCheckpoint)"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "diagnosis": "AssertionError: Missing expected exception."
+    },
+    {
+      "mutation": "empty-optimizer-state",
+      "file": "src/torch/checkpoint.ts",
+      "removed": " const optimizer=dict(p.optimizer,['state','param_groups'],'optimizer'),state=dict(optimizer.get('state'),[0,1,2,3,4,5],'optimizer state'),groups=optimizer.get('param_groups');\n if(!Array.isArray(groups)||groups.length!==1)fail('optimizer groups');\n let lr=spec.learningRate;for(let i=20;i<=completed;i+=20)lr*=0.9;\n const expected={lr,betas:{tuple:[0.9,0.999]},eps:1e-8,weight_decay:0,amsgrad:false,maximize:false,foreach:null,capturable:false,differentiable:false,fused:null,decoupled_weight_decay:false,initial_lr:spec.learningRate,params:[0,1,2,3,4,5]};\n const group=dict(groups[0],Object.keys(expected),'optimizer group');for(const [key,value] of Object.entries(expected))equal(group.get(key),value,'optimizer '+key);\n for(const [i,shape] of Object.values(shapes).entries()){\n  const moments=dict(state.get(i),['step','exp_avg','exp_avg_sq'],'optimizer moments');\n  equal(tensor(moments.get('step'),[],'optimizer step'),completed,'optimizer step');tensor(moments.get('exp_avg'),shape,'optimizer first moment');tensor(moments.get('exp_avg_sq'),shape,'optimizer second moment',true);\n }\n",
+      "replacement": " let lr=spec.learningRate;for(let i=20;i<=completed;i+=20)lr*=0.9;\n",
+      "fixture": "classifier",
+      "corruption": "p.optimizer.dict[0][1].dict=[]",
+      "command": [
+        "node",
+        "--input-type=module",
+        "-e",
+        "import temporary mutant, corrupt real fixture, assert.throws(validateTorchCheckpoint)"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "diagnosis": "AssertionError: Missing expected exception."
+    },
+    {
+      "mutation": "empty-rng",
+      "file": "src/torch/checkpoint.ts",
+      "removed": "rng(p,spec.seed);",
+      "replacement": "",
+      "fixture": "classifier",
+      "corruption": "p.torchRng.fill(0)",
+      "command": [
+        "node",
+        "--input-type=module",
+        "-e",
+        "import temporary mutant, corrupt real fixture, assert.throws(validateTorchCheckpoint)"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "diagnosis": "AssertionError: Missing expected exception."
+    },
+    {
+      "mutation": "wrong-sampler-cursor",
+      "file": "src/torch/checkpoint.ts",
+      "removed": "equal(p.cursor,Math.min(((completed-1)%batches+1)*spec.batchSize,trainingRows),'sampler cursor');",
+      "replacement": "",
+      "fixture": "classifier",
+      "corruption": "p.cursor++",
+      "command": [
+        "node",
+        "--input-type=module",
+        "-e",
+        "import temporary mutant, corrupt real fixture, assert.throws(validateTorchCheckpoint)"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "diagnosis": "AssertionError: Missing expected exception."
+    },
+    {
+      "mutation": "empty-clustering-centers",
+      "file": "src/torch/checkpoint.ts",
+      "removed": "values(p.centers,[spec.clusters,features],'centers');",
+      "replacement": "",
+      "fixture": "kmeans",
+      "corruption": "p.centers=[]",
+      "command": [
+        "node",
+        "--input-type=module",
+        "-e",
+        "import temporary mutant, corrupt real fixture, assert.throws(validateTorchCheckpoint)"
+      ],
+      "exitCode": 1,
+      "detected": true,
+      "diagnosis": "AssertionError: Missing expected exception."
+    }
+  ],
+  "baseline": {
+    "tests": 55,
+    "passed": 14,
+    "failed": 41,
+    "note": "New corruption tests executed against the old validator before implementation."
+  },
+  "restoration": "Mutants ran from temporary files; qualified implementation was never altered.",
+  "additionalRedTest": {
+    "case": "finite JSON center overflows float32 on resume",
+    "observed": "Missing expected exception before float32 range validation; regression passes after repair"
+  }
+}

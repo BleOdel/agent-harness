@@ -28,16 +28,7 @@ export function assessTorch(kind:TorchKind,values:number[],labels:number[],maxEr
  const error=kind==='classifier'?values.reduce((s,v,i)=>s+Number(v!==labels[i]),0)/values.length:values.reduce((s,v)=>s+v,0)/values.length;
  return {metric:kind==='classifier'?'classification-error':'mean-squared-distance',error,maxError,passed:error<=maxError};
 }
-export function validateTorchCheckpoint(raw:unknown,context:string,completed:number,kind:TorchKind){
- const p=object(raw,['protocol','context','completed','runtime','model','optimizer','scheduler','torchRng','pythonRng','permutation','cursor','epoch','losses','centers']);
- if(p.protocol!=='torch-cpu@1'||p.context!==context||p.completed!==completed||!Number.isSafeInteger(completed)||completed<0||typeof p.runtime!=='string'||!Array.isArray(p.torchRng)||p.torchRng.length!==5056||p.torchRng.some(x=>!Number.isInteger(x)||x<0||x>255)||!Array.isArray(p.pythonRng)||!Array.isArray(p.losses)||p.losses.length!==completed||p.losses.some(v=>typeof v!=='number'||!Number.isFinite(v)))throw Error('Invalid or incomplete PyTorch recovery state.');
- if(kind==='classifier'){
-  const dictionary=(v:any,required:string[])=>v&&Object.keys(v).join(',')==='dict'&&Array.isArray(v.dict)&&required.every(k=>v.dict.filter((pair:any)=>Array.isArray(pair)&&pair.length===2&&pair[0]===k).length===1);
-  if(!dictionary(p.model,['0.weight','0.bias','3.weight','3.bias','5.weight','5.bias'])||!dictionary(p.optimizer,['state','param_groups'])||!dictionary(p.scheduler,['last_epoch','_step_count'])||!Array.isArray(p.permutation)||new Set(p.permutation).size!==p.permutation.length||p.permutation.some(v=>!Number.isSafeInteger(v)||v<0||v>=(p.permutation as unknown[]).length)||!Number.isSafeInteger(p.cursor)||Number(p.cursor)<0||Number(p.cursor)>p.permutation.length||!Number.isSafeInteger(p.epoch)||Number(p.epoch)<1)throw Error('Model, Adam, scheduler, RNG and sampler state are required.');
- }
- if(p.pythonRng.length!==3||p.pythonRng[0]!==3||!Array.isArray(p.pythonRng[1]?.tuple)||p.pythonRng[1].tuple.length!==625)throw Error('Python random state is incomplete.');
- if(kind==='kmeans'&&(!Array.isArray(p.centers)||p.centers.length<2))throw Error('Kmeans centroid state missing.');
-}
+export {validateTorchCheckpoint} from './checkpoint.ts';
 export function predictTorch(model:any,rows:TorchRow[],means:number[],scales:number[]):number[]{
  const layer=(x:number[],w:number[][],b:number[])=>w.map((r,i)=>r.reduce((s,v,j)=>s+v*x[j]!,b[i]!));
  if(model.kind==='classifier')return rows.map(r=>{let x=r.x.map((v,i)=>(v-means[i]!)/scales[i]!);for(const n of ['0','3'])x=layer(x,model.weights[n+'.weight'],model.weights[n+'.bias']).map(v=>Math.max(0,v));x=layer(x,model.weights['5.weight'],model.weights['5.bias']);if(x.some(v=>!Number.isFinite(v)))throw Error('Nonfinite prediction.');return x[1]!>x[0]!?1:0;});

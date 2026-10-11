@@ -81,6 +81,20 @@ completed steps. Checkpoints occur after complete updates with gradients cleared
 there are no unfinished accumulation, worker-prefetch or mixed-precision states.
 K-means retains its centroids, random states, progress and loss history.
 
+Training, resume, evaluation and product evidence use one non-executing validator
+for the pinned `torch-cpu@1` / PyTorch `2.14.0+cpu` schema. It checks the exact
+model tensor names, float32 shapes and finite values; all six Adam parameter
+slots, moments and completed-step counters; fixed optimizer/scheduler settings
+and current learning rate; RNG encodings; and the sampler permutation, cursor
+and epoch against the approved data dimensions and batch size. K-means requires
+finite centroids of the approved shape and no classifier-only state. Unsupported
+runtime/schema versions and incomplete checkpoints are refused with a diagnosis.
+This checks recovery-state integrity, not model quality or whether arbitrary
+well-shaped numbers really resulted from training; held-out evaluation remains
+separate. The validator is part of the recipe hash. Installing this change does
+not rewrite old approvals or retained artifacts; changed recipe hashes require
+fresh approval instead of silently resuming an older recipe.
+
 The host retains validated checkpoints while the job runs. A killed controller
 may lose steps after its last retained checkpoint; it replays those steps, rather
 than claiming every in-flight update was saved. After a hard crash, follow the
@@ -157,3 +171,22 @@ large-model pretraining and production LLM evaluation are outside this milestone
 Skipped Docker checks are not runtime evidence. Revalidate after changing the
 recipe or runtime. Exact equality is established for this pinned CPU setup;
 other devices/framework versions require their own evidence.
+
+## Checkpoint promotion and fallback
+
+The host validates every candidate before replacing the active checkpoint. It
+reads the retained artifact back and verifies its hash, provenance and complete
+recipe state before saving progress. Invalid late state cannot displace the last
+valid reference. This also applies to the final checkpoint collected after a run.
+
+For a corrupt current artifact, inspect `harness job checkpoints <job-id>` and
+explicitly select a valid retained artifact with
+`harness job select-checkpoint <job-id> <artifact-id>`. Resume then uses that
+artifact through the normal approval and identity gates; selection does not reset
+attempt/time limits. See [job recovery](JOBS.md#validated-checkpoint-selection).
+
+The CPU qualification now includes fresh-process classifier and clustering runs
+interrupted after 21 of 45 steps. Full checkpoint JSON and final model bytes match
+the uninterrupted run exactly on the pinned CPU image. Deliberately malformed
+late state preserves the earlier reference. These results do not qualify GPU
+recovery, model usefulness or arbitrary custom checkpoints.

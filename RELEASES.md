@@ -172,6 +172,14 @@ prompt or saved release record. API hosts are fixed to `api.github.com` and
 sizes bounded. GitHub Enterprise is not supported in this initial backend.
 
 Intent is saved before creating a release, uploading each asset and publishing.
+Saved mutation outcomes distinguish confirmed success, confirmed HTTP rejection,
+and ambiguous transport failure. Authoritative 400, 401, 403, 404, 409, 422 and 429
+rejections permit another attempt after the cause is resolved, using the same
+approval and fresh remote reconciliation. Error-message text is not proof of a
+rejection. Timeouts, disconnects, HTTP 408 and server errors remain ambiguous;
+HTTP 502 uploads can leave a remote starter asset and are never blindly retried.
+There is a 128-outcome bound per delivery.
+
 After an interrupted response, retry reconciles the exact saved release marker,
 commit, filenames and digests. If the outcome is unknown and no matching object
 is found, it stops instead of creating another object. Inspect the remote state
@@ -192,5 +200,7 @@ latest is provided.
 
 `test/github-release.test.ts` covers approval, draft-only upload, separate
 publication, changed destinations/assets and uncertain outcomes using a simulated
-API. No real repository was uploaded to or published during development; a live
+API, including rejection/retry and lost responses before and after remote commit.
+[GitHub’s upload documentation](https://docs.github.com/en/rest/releases/assets#upload-a-release-asset)
+describes the HTTP 502 starter-asset case. No real repository was uploaded to or published during development; a live
 end-to-end trial remains a separately approved release operation.

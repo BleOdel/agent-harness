@@ -32,6 +32,8 @@ harness job inspect <job-id> --json
 harness job cancel <job-id>        # from another terminal; or Ctrl-C in the job
 harness job recover <job-id>       # after recovering an ended controller's writer
 harness job resume <job-id>
+harness job checkpoints <job-id>  # validate retained checkpoint candidates
+harness job select-checkpoint <job-id> <artifact-id> # explicit recovery choice
 harness artifacts list --json
 harness artifacts inspect <artifact-id>
 harness artifacts export <artifact-id> /separate/output/result.bin
@@ -182,3 +184,21 @@ scheduler, arbitrary checkpoint formats and external publication are not support
 E6 adds a separate [Linux desktop diagnostic workflow](DESKTOP.md), with ASAR packages, runtime descriptors and GUI screenshots in the same artifact store. Retire those references with `harness desktop release` or the desktop guide before generic cleanup. Desktop UI sessions rerun fresh; they are not E3 checkpoint jobs.
 
 [E9a release preparation](RELEASES.md) retains its own immutable artifact reference. Retiring the original job does not invalidate an approved release. Retire the release separately before its snapshot can be collected; local staged outputs and audit remain.
+
+## Validated checkpoint selection
+
+Checkpoint promotion validates the generic protocol, approved recipe, retained
+artifact hash and job provenance before advancing the saved reference. A malformed
+late checkpoint leaves the previous reference and progress intact. Saved bytes
+remain unverified training output, even when their structure is valid.
+
+If the selected artifact is corrupt, resume stops. `job checkpoints` lists retained
+checkpoint artifacts for that job and validates each one. Select an older valid
+artifact explicitly with `job select-checkpoint`, then resume. Selection requires a
+stopped job with no owned container, records the old/new references and step count,
+and preserves spent attempts and time reservations. It never runs training or
+silently chooses a fallback. At most 32 selections are retained per job.
+
+Attempt evidence records the selected input and starting step. Product recovery
+aggregation reports an explicit older-checkpoint selection as missing consecutive
+recovery proof; it does not certify an uninterrupted chain from fallback metadata.

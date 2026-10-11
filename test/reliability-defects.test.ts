@@ -8,35 +8,36 @@ import { captureBaseline } from '../src/workspace/candidate.ts';
 import { validateTorchCheckpoint } from '../src/torch/schema.ts';
 
 const known = { skip: process.env.HARNESS_KNOWN_DEFECTS === '1' ? false : 'Known audit defects: explicit non-qualifying lane, HARNESS_KNOWN_DEFECTS=1' };
-test('F13 incomplete serialized classifier checkpoint is rejected', known, () => {
+test('F13 incomplete serialized classifier checkpoint is rejected', () => {
   const dict = (keys: string[]) => ({ dict: keys.map(key => [key, null]) });
   const value = { protocol: 'torch-cpu@1', context: 'audit', completed: 1, runtime: '2.14.0+cpu',
     model: dict(['0.weight', '0.bias', '3.weight', '3.bias', '5.weight', '5.bias']),
     optimizer: { dict: [['state', { dict: [] }], ['param_groups', []]] },
     scheduler: dict(['last_epoch', '_step_count']), torchRng: Array(5056).fill(0),
     pythonRng: [3, { tuple: Array(625).fill(null) }, null], permutation: [], cursor: 0, epoch: 1, losses: [1], centers: null };
-  assert.throws(() => validateTorchCheckpoint(value, 'audit', 1, 'classifier'), /checkpoint|tensor|optimizer|state/i);
+  assert.throws(() => validateTorchCheckpoint(value, 'audit', 1, 'classifier', {features:2,trainingRows:40,spec:{kind:'classifier',steps:45,seed:42,batchSize:7,clusters:2,learningRate:0.01} as any}), /checkpoint|tensor|optimizer|state/i);
 });
 
 import {readFile} from 'node:fs/promises';
 import {run} from '../src/run.ts';
 import {applyChanges} from '../src/workspace/sandbox-lifecycle.ts';
 import {repairSavedCheck} from '../src/acceptance/guided.ts';
-import {parseProposal} from '../src/acceptance/draft.ts';
+import {parseProposal,taskDigest} from '../src/acceptance/draft.ts';
+import {sourceFiles} from '../src/workspace/candidate.ts';
 import {scopeDigest} from '../src/acceptance/scoped-review.ts';
 import {putArtifact,sha256} from '../src/artifacts/store.ts';
 import {prepareRelease,approveRelease,stageRelease} from '../src/releases/controller.ts';
-import {prepareGitHub,approveGitHub,uploadGitHub,type GitHubClient} from '../src/releases/github.ts';
+import {prepareGitHub,approveGitHub,uploadGitHub,type GitHubClient,GitHubHttpError} from '../src/releases/github.ts';
 const task={id:'app',title:'App',status:'todo' as const,priority:'must' as const,dependsOn:[],criteria:['Pending content is private.']};
 const proposal=()=>parseProposal({version:1,contract:'Pending content is private.',coverage:[{criterion:1,cases:['edit','peer']}],manifest:{version:1,cases:['edit','peer'].map(id=>({id,tasks:['app'],description:id,steps:[{command:['node','-e','console.log(1)'],exitCode:0,stdout:'1\n'}]}))}},task);
 
-test('F01 targeted repair can resume a preparation-owned failed scope',known,async()=>{
+test('F01 targeted repair can resume a preparation-owned failed scope',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'audit-preparation-')),project=root+'/app';
  try{
   await mkdir(project);await mkdir(project+'-harness/acceptance',{recursive:true});
   await writeFile(project+'/features.json',JSON.stringify([task]));const p=proposal();
   const ledger={version:1,entries:['$contract','peer','edit'].map(scope=>({scope,digest:scopeDigest(task,p,scope),repairs:scope==='edit'?2:0,syntaxRepairs:0,review:{verdict:scope==='edit'?'repair':'pass',issues:scope==='edit'?['Observe pending fields']:[],limitations:[]}}))};
-  const saved={version:1,taskId:task.id,state:{version:1,blueprint:{version:1,contract:p.contract,coverage:p.coverage,cases:p.manifest.cases.map(c=>({id:c.id,description:c.description}))},cases:p.manifest.cases,reviewLedger:ledger}};
+  const saved={version:1,taskId:task.id,taskDigest:taskDigest(task),sourceDigest:sha256(JSON.stringify(Object.entries(await sourceFiles(project,'',['node_modules'])).sort(([a],[b])=>a.localeCompare(b)))),state:{version:1,blueprint:{version:1,contract:p.contract,coverage:p.coverage,cases:p.manifest.cases.map(c=>({id:c.id,description:c.description}))},cases:p.manifest.cases,reviewLedger:ledger}};
   const file=project+'-harness/acceptance/preparation.json';await writeFile(file,JSON.stringify(saved));
   let called=false;
   await repairSavedCheck(project,{write:()=>{},ask:async()=>{throw Error('Unexpected question');}},'edit',async(_project,_task,input,scope,history)=>{called=true;assert.equal(scope,'edit');assert.ok(history.entries.some(e=>e.scope==='peer'&&e.review?.verdict==='pass'));return {proposal:input,ledger:history};});
@@ -55,7 +56,7 @@ test('F04 a failed ordinary apply preserves every live file',async()=>{
   assert.equal(await readFile(project+'/b.js','utf8'),'before');
  }finally{await rm(root,{recursive:true,force:true});}
 });
-test('F14 confirmed remote permission denial can be retried without resetting release state',known,async()=>{
+test('F14 confirmed remote permission denial can be retried without resetting release state',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'audit-release-')),project=root+'/app',commit='a'.repeat(40);
  try{
   await mkdir(project);await mkdir(root+'/stage');
@@ -67,7 +68,7 @@ test('F14 confirmed remote permission denial can be retried without resetting re
   const client:GitHubClient={async request(method,route,body){
    if(route.includes('/commits/'))return {sha:commit};if(route.includes('/git/ref/'))return null;
    if(route.includes('/releases?'))return releases;if(route.endsWith('/assets'))return assets;
-   if(method==='POST'&&route.endsWith('/releases')){creates++;if(denied)throw Error('GitHub request failed (403).');const value={...body as object,id:1};releases.push(value);return value;}
+   if(method==='POST'&&route.endsWith('/releases')){creates++;if(denied)throw new GitHubHttpError(403);const value={...body as object,id:1};releases.push(value);return value;}
    if(route.endsWith('/releases/1'))return releases[0];throw Error('Unexpected fake route '+route);
   },async upload(route,bytes){const asset={id:assets.length+1,name:new URL('https://uploads.github.com/'+route).searchParams.get('name'),state:'uploaded',size:bytes.length,digest:'sha256:'+sha256(bytes)};assets.push(asset);return asset;}};
   await assert.rejects(uploadGitHub(project,draft.id,client),/403/);denied=false;

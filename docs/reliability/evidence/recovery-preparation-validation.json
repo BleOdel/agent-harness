@@ -1,0 +1,129 @@
+{
+  "version": 1,
+  "kind": "checkpoint-release-preparation-reliability",
+  "status": "passed",
+  "tasks": [
+    "hr-012",
+    "hr-013",
+    "hr-014"
+  ],
+  "at": "2026-10-11T15:13:10.760828+00:00",
+  "source": {
+    "baseCommit": "64166ea660319210beed0ab9aa2b530b7b2f6948",
+    "state": "disposable uncommitted overlay, including prior hr-011",
+    "codeTreeSha256": "11452910b34cb3725dbc74281290a8dc0711fad7f600f3a3b4425038f19960ba",
+    "hashDefinition": "SHA256 of compact sorted JSON path-to-SHA256 map for src/**, test/**, package.json, package-lock.json and tsconfig.json; documentation excluded.",
+    "changedCode": {
+      "src/acceptance/active-preparation.ts": "ed9afb466b1cdc521e8c1be0e23b664f31dec636a794963da154c557e7a35929",
+      "src/acceptance/guided.ts": "138f1f40deb083c722df90dff2f3579ad3ae6eb9545592e19fa4a81478575ca2",
+      "src/acceptance/workflow.ts": "85677cdabeaf27f6daa8c98ca522f1b27283553b97f5d7f8b638fc17dc05a666",
+      "src/jobs/checkpoints.ts": "4703897262b2e99ad4adcf40218db20286df330afbf09b18cbf8f1cc58000f2a",
+      "src/jobs/controller.ts": "2f99a5603aa21e02d8cc259f8176f9c0f9444ea1d46cd90c9e9e2f12de9f9cd4",
+      "src/jobs/state.ts": "925d14bf4aa51994804782993b614ea2f7905cdb86e768f362541574ae0d0a7a",
+      "src/product/evidence/ml-job.ts": "4c821b9f1721490d5e2a38e6f775a7c058123cd9068da5e911e5db82df97a506",
+      "src/releases/github.ts": "ab265c863b65a4d292871b0408d57ec7639fd21e0a53646f0f23c6faeffd2dc1",
+      "src/verbs/job.ts": "3ce396fbd760acd3403cca4400997e005ae410c80eb143e93fad05353733efaa",
+      "src/verify-torch.ts": "e6f9b6f2e2aeb5e22446c6da2bbfc126c6fc0e70f13d811f151dfa6997e268d2",
+      "test/active-preparation-repair.test.ts": "1dd6a7020d071b212a9d279631c276202b5ec46e75a86bd820cf0c2107767bc0",
+      "test/check-workflow.test.ts": "3e2879f55b76586904576bf482481f4867a075e3c717da0e75229df46e179ecd",
+      "test/fixtures/torch/retention-trial.py": "dc39999bdf6e30a1131ba99291b1d1837114bdc986fdcb2377e41fc12458204c",
+      "test/github-release.test.ts": "1b0c933541fc4f8e6c8313b5dbe64a0b99ee3e6e3d48a1cbd4e26f269d78df10",
+      "test/guided-checks.test.ts": "61383c894a5930e0aa5f7b8a86037b266fd01e22f0fc5833552a9a06361e32aa",
+      "test/job-checkpoints.test.ts": "717577743cc28016c08a2ac77d24711bbc21b53ff672fe960c56e9d97068c5c4",
+      "test/reliability-defects.test.ts": "0e689aa8a94a0005eb9ef798397614b7041bd53993f468668c1f26aba23ef593",
+      "test/torch-retention-process.test.ts": "c3a8c46a70271c6a3be0922b79788814751ce19e0d93bd7bf193aa1f26f934e3"
+    }
+  },
+  "fullSuite": {
+    "command": "npm run check",
+    "tests": 1102,
+    "pass": 1032,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 70
+  },
+  "focused": {
+    "command": "node --test test/check-workflow.test.ts test/active-preparation-repair.test.ts test/guided-checks.test.ts test/check-regeneration.test.ts",
+    "tests": 39,
+    "pass": 39,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "cpu": {
+    "command": "HARNESS_DOCKER=/usr/local/bin/docker npm run verify:torch",
+    "image": "sha256:55a2958667abd8134bc8ad42241b308a0deeea885c6568790692bc0108603ebd",
+    "platform": "linux/arm64",
+    "torch": "2.14.0+cpu",
+    "python": "3.13.12",
+    "tests": 76,
+    "pass": 76,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-11T15:11:30.090Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "4911d54d1c04399df1e6364e4d6f8a305b35cd38e8da4321751bddb28835c5ab",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 12,
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-11T15:11:58.672Z"
+  },
+  "negativeControls": "docs/reliability/evidence/recovery-preparation-controls.json",
+  "observations": [
+    "Fresh subprocess CPU classifier and kmeans training stop at step 21/45, resume retained state and exactly match full checkpoint JSON and final model bytes; malformed late state leaves the prior checkpoint reference intact.",
+    "Explicit older checkpoint selection validates provenance and bytes, records old/new references, preserves attempts, and is not silently admitted as consecutive recovery proof.",
+    "Fake GitHub clients cover authoritative rejection/retry, HTTP 408 and 5xx ambiguity, and response loss before/after remote mutation; original approval and identity constraints remain in force.",
+    "Preparation-owned third-case repair preserves two completed peers and a fourth ungenerated obligation despite stale reader review-progress timestamps.",
+    "Durable retry reservation is observed before dispatch; provider interruption resumes without a duplicate grant. Legacy input-bound grants migrate without resetting spent epochs.",
+    "Seven deliberately restored defects were detected in a separate disposable copy.",
+    "The initial full gate exposed recipe-guidance and mixed-format fixture compatibility cases; the corrected gate is recorded above."
+  ],
+  "limitations": [
+    "Default-suite skips remain unexecuted optional lanes or remaining known defects, never passing qualification.",
+    "CPU checkpoint proof is local Linux arm64 on the pinned image, not GPU/LLM or arbitrary model quality qualification.",
+    "GitHub outcomes use a fake remote; no release, upload, paid provider request or new dependency was authorized or performed.",
+    "Preparation control tests use injected provider-free services; they do not claim a real blog build completed or that all remaining orchestration/migration tasks are done.",
+    "Documentation/status receipts are finalized after code qualification; the code-tree digest binds tested implementation and fixtures."
+  ],
+  "requiredRegressions": [
+    "test/torch-checkpoint.test.ts",
+    "test/job-checkpoints.test.ts",
+    "test/torch-retention-process.test.ts",
+    "test/github-release.test.ts",
+    "test/active-preparation-repair.test.ts",
+    "test/check-workflow.test.ts",
+    "test/guided-checks.test.ts",
+    "test/reliability-defects.test.ts"
+  ]
+}
