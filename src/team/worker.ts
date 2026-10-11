@@ -27,7 +27,6 @@ import { renderDiff } from "../review/diff.ts";
 import { run } from "../run.ts";
 import { collectChanges } from "../workspace/changes.ts";
 import { readChecks } from "./checks.ts";
-import { privateAgentDirectory } from "./inputs.ts";
 import type { Attempt, Usage } from "./schema.ts";
 import { atomicJson, readState } from "./state.ts";
 import type { Worker } from "./controller.ts";
@@ -36,7 +35,7 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
   const labels = (a: Attempt): Record<string, string> => ({ "io.harness.run": path.basename(runDirectory), "io.harness.attempt": a.id });
   const layout = (a: Attempt, directory: string, reviewer = false): SandboxLayout => ({
     dockerExecutable: config.dockerExecutable, imageId: config.imageId, containerName: a.containerName,
-    workDirectory: directory, agentDirectory: path.join(a.directory, reviewer ? "reviewer-agent" : "agent"),
+    workDirectory: directory, agentDirectory: config.agentDirectory,
     piPackageDirectory: config.piPackageDirectory,
     ...(reviewer || a.skills.length === 0 ? {} : { skillsDirectory: path.join(a.directory, "skills") }),
     user: `${process.getuid?.() ?? 501}:${process.getgid?.() ?? 20}`, labels: labels(a),
@@ -54,7 +53,6 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
       const local = { ...layout(attempt, work), ...(adapter.executionEnvironment ? { environment: adapter.executionEnvironment } : {}) };
       await control?.record({ type: "phase", attemptId: attempt.id, phase: "preparing", modelRole: "builder" });
       let spent: Usage = { tokens: 0, costUsd: 0, complete: false };
-      await privateAgentDirectory(config.agentDirectory, local.agentDirectory, {piPackage:config.piPackageDirectory,provider:role.provider ?? config.provider!,validityMs:config.agentTimeoutMs});
       output(`attempt: ${attempt.id} · task: ${task.id} · role: ${role.id}\n`);
       for (const skill of attempt.skills) output(`skill: ${skill.id} ${skill.digest}\n`);
       try {
@@ -81,7 +79,7 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
         });
         await control?.flush();
         const result = { agent, submission: await readSubmission(work), claim: await readClaim(work) };
-        await atomicJson(path.join(attempt.directory, "builder.json"), { startedAt, finishedAt: new Date().toISOString(), containerName: attempt.containerName, sessionDirectory: path.join(local.agentDirectory, "sessions"), provider: role.provider ?? config.provider, model: role.model ?? config.model, effort: config.effort ?? "medium", code: result.agent.code, timedOut: result.agent.timedOut, usage: result.agent.usage, executionDigest: state.execution?.digest, environmentKey: environment.key, runner: dockerRunner.evidence(local, result.agent) });
+        await atomicJson(path.join(attempt.directory, "builder.json"), { startedAt, finishedAt: new Date().toISOString(), containerName: attempt.containerName, sessionRetention: "operation-scoped; removed after confirmed stop", provider: role.provider ?? config.provider, model: role.model ?? config.model, effort: config.effort ?? "medium", code: result.agent.code, timedOut: result.agent.timedOut, usage: result.agent.usage, executionDigest: state.execution?.digest, environmentKey: environment.key, runner: dockerRunner.evidence(local, result.agent) });
         const usage: Usage = spent = { tokens: result.agent.usage.totalTokens, costUsd: result.agent.usage.costUsd, complete: result.agent.usageComplete };
         // Builder totals enter the acceptance journal; reviewer usage is added
         // separately by the controller, avoiding double-counting live telemetry.
@@ -115,7 +113,6 @@ export function processWorker(config: Config, runDirectory: string, testCommand:
       await atomicJson(path.join(attempt.directory, "verification.json"), { ...proof, execution: state.execution });
       if (!proof.run.passed) return { passed: false, gates, review: "not-run", blocked: proof.run.firstFailure?.kind === "environment-blocked", reason: proof.run.firstFailure?.detail ?? "Gates failed." };
       const reviewer = layout(attempt, result.candidate.directory, true);
-      await privateAgentDirectory(config.agentDirectory, reviewer.agentDirectory, {piPackage:config.piPackageDirectory,provider:config.provider!,validityMs:config.agentTimeoutMs});
       await control?.record({ type: "phase", attemptId: attempt.id, phase: "reviewing", modelRole: "reviewer" });
       const request = { title: task.title, criteria: task.criteria, diff: await renderDiff(attempt.baseline.directory, result.candidate.directory, result.candidate.changes), provider: config.provider, model: config.model, effort: config.effort ?? "medium", timeoutMs: config.agentTimeoutMs };
       const reviewed = await runRpcAgent({ ...reviewer, purpose: "review" }, { goal: reviewPrompt(request), provider: request.provider, model: request.model, effort: request.effort, timeoutMs: request.timeoutMs, skills: false }, () => {}, {

@@ -167,7 +167,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
     throw new ConfigError(
       `Pi's data directory ${agentDirectory === "" ? "is unset" : `is not at ${agentDirectory}`}.`,
       "Set HARNESS_AGENT_DIR to Pi's data directory (the one holding its provider credential). "
-      + "It is mounted writable, so it must not be inside the project.",
+      + "The host reads it to make a selected-provider copy; it must not be inside the project.",
     );
   }
 
@@ -178,7 +178,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Config
     const relative = path.relative(parent, child);
     return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
   };
-  if ([live, canonical(`${live}-harness`)].some(protectedPath => inside(protectedPath, writable) || inside(writable, protectedPath))) throw new ConfigError("Pi's writable data directory overlaps the live project or its harness state.", "Select a separate HARNESS_AGENT_DIR outside the project, its harness state and their ancestors.");
+  if ([live, canonical(`${live}-harness`)].some(protectedPath => inside(protectedPath, writable) || inside(writable, protectedPath))) throw new ConfigError("Pi's canonical data directory overlaps the live project or its harness state.", "Select a separate HARNESS_AGENT_DIR outside the project, its harness state and their ancestors.");
 
   const skills = setting(environment, "HARNESS_SKILLS");
   if (skills !== undefined && !existsSync(skills)) {

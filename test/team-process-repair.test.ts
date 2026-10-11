@@ -1,3 +1,4 @@
+import {installFixtureCatalog} from './model-fixture.ts';
 import { writeRpcFixture } from "./rpc-fixture.ts";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
@@ -18,7 +19,9 @@ test("M5 Docker: one repair receives the rejected diff and passes fresh componen
     await writeFile(path.join(project, "package.json"), JSON.stringify({ type: "module", scripts: { test: "node --test test/*.test.mjs" } }));
     await writeFile(path.join(project, "test/component.test.mjs"), "import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';assert.equal(typeof readFileSync('api.txt','utf8'),'string');");
     await writeFile(path.join(root, "checks/system.mjs"), "import assert from 'node:assert/strict';import {readFileSync,existsSync} from 'node:fs';assert.equal(existsSync('/pi-agent'),false);assert.equal(readFileSync('/work/api.txt','utf8'),'accepted');");
-    await writeRpcFixture(pi, `const fs=require('node:fs'),args=process.argv.slice(2),goal=args.at(-1);if(args.includes('read,grep')){console.log(JSON.stringify({verdict:'pass',unmet:[],unaccounted:[],notes:[]}))}else{const repair=goal.includes('Integration repair of');if(repair&&!goal.includes('Rejected candidate diff'))throw Error('missing repair context');fs.writeFileSync('api.txt',repair?'accepted':'broken');fs.writeFileSync('.harness-claim.json',JSON.stringify({files:['api.txt'],deletions:[],criteria:[{criterion:'works',verifiedBy:'test/component.test.mjs'}]}));console.log(JSON.stringify({type:'turn_end',message:{provider:'fixture',model:'fixture',usage:{totalTokens:1,cost:{total:0}}}}));}`);
+    await installFixtureCatalog(pi);
+    await writeFile(path.join(agent,'auth.json'),JSON.stringify({fixture:{type:'api_key',key:'fixture-selected'},unrelated:{type:'api_key',key:'fixture-unrelated'}}));
+    await writeRpcFixture(pi, `const fs=require('node:fs');require('node:assert/strict').deepEqual(JSON.parse(fs.readFileSync('/pi-agent/auth.json')),{fixture:{type:'api_key',key:'fixture-selected'}});const args=process.argv.slice(2),goal=args.at(-1);if(args.includes('read,grep')){console.log(JSON.stringify({verdict:'pass',unmet:[],unaccounted:[],notes:[]}))}else{const repair=goal.includes('Integration repair of');if(repair&&!goal.includes('Rejected candidate diff'))throw Error('missing repair context');fs.writeFileSync('api.txt',repair?'accepted':'broken');fs.writeFileSync('.harness-claim.json',JSON.stringify({files:['api.txt'],deletions:[],criteria:[{criterion:'works',verifiedBy:'test/component.test.mjs'}]}));console.log(JSON.stringify({type:'turn_end',message:{provider:'fixture',model:'fixture',usage:{totalTokens:1,cost:{total:0}}}}));}`);
     const tasks = [{ id: "api", title: "API", criteria: ["works"], priority: "must" as const, status: "todo" as const, dependsOn: [], changeScope: ["api.txt"] }];
     await writeFile(path.join(project, "features.json"), JSON.stringify(tasks));
     const plan = parseTeamPlan({ version: 1, roles: [{ id: "b", instructions: "build", skills: [] }], skills: [], checks: [{ id: "system", path: "checks", files: ["system.mjs"], command: ["node", "/harness-checks/system.mjs"], after: ["api"] }] }, tasks);
@@ -32,6 +35,7 @@ test("M5 Docker: one repair receives the rejected diff and passes fresh componen
       assert.equal(JSON.parse(await readFile(path.join(a.directory, "integration-verification.json"), "utf8")).run.passed, Boolean(a.repairOf));
       await assert.rejects(readFile(path.join(a.directory, "agent/auth.json")), { code: "ENOENT" });
     }
+    assert.equal(JSON.parse(await readFile(path.join(agent,'auth.json'),'utf8')).unrelated.key,'fixture-unrelated');
     assert.equal(await readFile(path.join(state.baseline.directory, "api.txt"), "utf8"), "accepted");
     await assert.rejects(readFile(path.join(project, "api.txt")), { code: "ENOENT" });
   } finally { await rm(root, { recursive: true, force: true }); }

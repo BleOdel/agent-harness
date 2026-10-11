@@ -1,3 +1,4 @@
+import {projectRoute,prepareEvidence} from './feasibility-project.ts';
 import {applyOutlinePatch,outlinePatchDigest,requestOutlinePatch,type OutlinePatchReply,type InvalidOutlinePatch} from './outline-patch.ts';
 import {createHash} from 'node:crypto';
 import {caseKind,routeBlueprint,type Behaviour} from './evidence-kind.ts';
@@ -17,7 +18,7 @@ import { OperatorError } from '../verbs/io.ts';
 import { proposalDigest, parseDraftReview, type DraftReview } from './repair.ts';
 import { requestScopedReview,reviewScopes,scopeDigest,type ReviewLedger } from './scoped-review.ts';
 export interface Blueprint { version:1; contract:string; coverage:Coverage[]; cases:Behaviour[]; }
-export interface Preparation { browserCapabilities?:string; pendingOutlinePatch?:OutlinePatchReply; outlinePatchHistory?:OutlinePatchReply[]; routingHistory?:unknown[]; reviewLedger?:ReviewLedger; version:1; blueprint:Blueprint; cases:AcceptanceCase[]; pendingCase?:{id:string;raw:unknown;repairs:number;blockerClarifications?:number}; splits?:number; pendingSplit?:{id:string;raw:unknown;review?:DraftReview}; retiredCases?:{id:string;raw:unknown;repairs:number}[]; outlineRepairs?:number; outlineReview?:{digest:string;review:DraftReview}; }
+export interface Preparation { evidenceDigest?:string; browserCapabilities?:string; pendingOutlinePatch?:OutlinePatchReply; outlinePatchHistory?:OutlinePatchReply[]; routingHistory?:unknown[]; reviewLedger?:ReviewLedger; version:1; blueprint:Blueprint; cases:AcceptanceCase[]; pendingCase?:{id:string;raw:unknown;repairs:number;blockerClarifications?:number}; splits?:number; pendingSplit?:{id:string;raw:unknown;review?:DraftReview}; retiredCases?:{id:string;raw:unknown;repairs:number}[]; outlineRepairs?:number; outlineReview?:{digest:string;review:DraftReview}; }
 export const MAX_CASE_BYTES = 16 * 1024;
 class OversizedCase extends OperatorError {}
 const stub = (task:Feature,c:Behaviour):AcceptanceCase => caseKind(c)==='browser'
@@ -44,7 +45,7 @@ export function parsePreparedCase(raw:unknown,task:Feature,selected:Blueprint['c
  return {id:entry.id,description:entry.description,tasks:entry.tasks,steps:entry.steps,...(selected.kind?{kind:selected.kind}:{})};
 }
 export const blueprintProposal=(task:Feature,b:Blueprint):Proposal=>parseProposal({...b,manifest:{version:1,cases:b.cases.map(c=>stub(task,c))}},task);
-export const outlineFingerprint=(task:Feature,b:Blueprint):string=>{const digest=proposalDigest(blueprintProposal(task,b));return b.cases.some(c=>caseKind(c)==='browser')?createHash('sha256').update(digest+browserCapabilityDigest()).digest('hex'):digest;};
+export const outlineFingerprint=(task:Feature,b:Blueprint,evidenceDigest?:string):string=>{const base=proposalDigest(blueprintProposal(task,b)),digest=evidenceDigest?createHash('sha256').update(base+evidenceDigest).digest('hex'):base;return b.cases.some(c=>caseKind(c)==='browser')?createHash('sha256').update(digest+browserCapabilityDigest()).digest('hex'):digest;};
 /** Only ungenerated behaviours may be partitioned; host code preserves the interface and coverage. */
 export function partitionBlueprint(task:Feature,b:Blueprint,id:string,raw:unknown):Blueprint {
  const value=raw as {cases?:Blueprint['cases']};
@@ -96,18 +97,21 @@ export function initializePreparation(task:Feature,blueprint:Blueprint,saved?:Pr
  if(priorCapabilities&&priorCapabilities!==currentCapabilities&&pending&&!state.pendingSplit&&caseKind(blueprint.cases[cases.length]!)==='browser'&&raw&&typeof raw==='object'&&!Array.isArray(raw)&&'blocker' in raw&&raw.blocker==='missing-action'){
   (state.retiredCases??=[]).push(structuredClone(pending));delete state.pendingCase;
  }
- const digest=outlineFingerprint(task,blueprint);
+ if(saved?.evidenceDigest!==undefined){if(!/^[a-f0-9]{64}$/.test(saved.evidenceDigest))throw new OperatorError('Invalid evidence feasibility fingerprint.');state.evidenceDigest=saved.evidenceDigest;}
+ const digest=outlineFingerprint(task,blueprint,state.evidenceDigest);
  if(!rerouted&&saved?.outlineReview?.digest===digest)state.outlineReview={digest,review:parseDraftReview(saved.outlineReview.review)};
  if(rerouted&&saved)(state.routingHistory??=[]).push(structuredClone({...saved,routingHistory:undefined}));
  return state;
 }
-export async function draftInParts(task:Feature,services:{reviewCase?:(p:Proposal,scope:string,ledger:ReviewLedger,save:(p:Proposal,l:ReviewLedger)=>Promise<void>)=>Promise<unknown>;plan:()=>Promise<unknown>;generate:(id:string,blueprint:Blueprint)=>Promise<unknown>;save:(state:Preparation)=>Promise<void>;reviewOutline?:(blueprint:Blueprint)=>Promise<DraftReview>;repairOutline?:(blueprint:Blueprint,issues:string[],previous?:InvalidOutlinePatch)=>Promise<unknown>;clarifyBlocker?:(id:string,blueprint:Blueprint,raw:unknown,error:string)=>Promise<unknown>;repairCase?:(id:string,blueprint:Blueprint,raw:unknown,error:string)=>Promise<unknown>;splitCase?:(id:string,blueprint:Blueprint)=>Promise<unknown>;reviewSplit?:(blueprint:Blueprint,original:Blueprint['cases'][number])=>Promise<DraftReview>;progress?:(text:string)=>void},saved?:Preparation):Promise<Proposal> {
+export async function draftInParts(task:Feature,services:{feasibility?:(b:Blueprint)=>Promise<unknown>;reviewCase?:(p:Proposal,scope:string,ledger:ReviewLedger,save:(p:Proposal,l:ReviewLedger)=>Promise<void>)=>Promise<unknown>;plan:()=>Promise<unknown>;generate:(id:string,blueprint:Blueprint)=>Promise<unknown>;save:(state:Preparation)=>Promise<void>;reviewOutline?:(blueprint:Blueprint)=>Promise<DraftReview>;repairOutline?:(blueprint:Blueprint,issues:string[],previous?:InvalidOutlinePatch)=>Promise<unknown>;clarifyBlocker?:(id:string,blueprint:Blueprint,raw:unknown,error:string)=>Promise<unknown>;repairCase?:(id:string,blueprint:Blueprint,raw:unknown,error:string)=>Promise<unknown>;splitCase?:(id:string,blueprint:Blueprint)=>Promise<unknown>;reviewSplit?:(blueprint:Blueprint,original:Blueprint['cases'][number])=>Promise<DraftReview>;progress?:(text:string)=>void},saved?:Preparation):Promise<Proposal> {
  let blueprint=parseBlueprint(saved?.blueprint??await services.plan(),task);
  const state=initializePreparation(task,blueprint,saved),cases=state.cases;
  await services.save(state);
+ const checkFeasibility=async()=>{const report=await services.feasibility?.(blueprint);if(report&&typeof report==='object'&&'digest' in report){if(typeof report.digest!=='string'||!/^[a-f0-9]{64}$/.test(report.digest))throw new OperatorError('Invalid evidence feasibility receipt.');state.evidenceDigest=report.digest;if(state.outlineReview?.digest!==outlineFingerprint(task,blueprint,state.evidenceDigest))delete state.outlineReview;await services.save(state);}};
+ await checkFeasibility();
  if(services.reviewOutline){
   for(;;){
-   const currentDigest=outlineFingerprint(task,blueprint);
+   const currentDigest=outlineFingerprint(task,blueprint,state.evidenceDigest);
    if(!state.outlineReview){services.progress?.('Reviewing the interface before generating executable checks…');state.outlineReview={digest:currentDigest,review:parseDraftReview(await services.reviewOutline(blueprint))};await services.save(state);}
    if(state.outlineReview.review.verdict==='pass')break;
    const issues=state.outlineReview.review.issues;
@@ -115,7 +119,7 @@ export async function draftInParts(task:Feature,services:{reviewCase?:(p:Proposa
    if(cases.length||state.pendingCase)throw new OperatorError('The behaviour outline needs revision before generating checks.',remedy);
    let next:Blueprint|undefined,previous:InvalidOutlinePatch|undefined;
    if(state.pendingOutlinePatch){
-    try{const candidate=parseBlueprint(applyOutlinePatch(blueprint,state.pendingOutlinePatch.raw),task);if(outlineFingerprint(task,candidate)===currentDigest)throw new OperatorError('Outline repair made no change.');next=candidate;}
+    try{const candidate=parseBlueprint(applyOutlinePatch(blueprint,state.pendingOutlinePatch.raw),task);if(outlineFingerprint(task,candidate,state.evidenceDigest)===currentDigest)throw new OperatorError('Outline repair made no change.');next=candidate;}
     catch(error){previous={raw:state.pendingOutlinePatch.raw,error:(error as Error).message};}
    }
    if(!next){
@@ -130,7 +134,7 @@ export async function draftInParts(task:Feature,services:{reviewCase?:(p:Proposa
     // Validate on the next pass, including after a crash at this checkpoint.
     continue;
    }
-   blueprint=next;state.blueprint=next;delete state.pendingOutlinePatch;delete state.outlineReview;await services.save(state);
+   blueprint=next;state.blueprint=next;delete state.pendingOutlinePatch;delete state.outlineReview;await services.save(state);await checkFeasibility();
   }
  }
  const currentProposal=()=>parseProposal({...blueprint,manifest:{version:1,cases:blueprint.cases.map(c=>cases.find(g=>g.id===c.id)??stub(task,c))}},task);
@@ -193,7 +197,8 @@ export async function draftInParts(task:Feature,services:{reviewCase?:(p:Proposa
      blueprint=next;state.blueprint=next;
      if(state.reviewLedger){const after=currentProposal();state.reviewLedger.entries=state.reviewLedger.entries.filter(e=>e.scope!=='$contract'&&e.digest===scopeDigest(task,before,e.scope)&&cases.some(c=>c.id===e.scope)).map(e=>({...e,digest:scopeDigest(task,after,e.scope)}));}
      state.outlineReview={digest:outlineFingerprint(task,next),review:state.pendingSplit.review};
-     delete state.pendingCase;delete state.pendingSplit;await services.save(state);
+     delete state.pendingCase;delete state.pendingSplit;await services.save(state);await checkFeasibility();
+     if(services.reviewOutline&&!state.outlineReview){state.outlineReview={digest:outlineFingerprint(task,blueprint,state.evidenceDigest),review:parseDraftReview(await services.reviewOutline(blueprint))};await services.save(state);if(state.outlineReview.review.verdict!=='pass')throw new OperatorError('Partitioned evidence needs renewed interface review.',state.outlineReview.review.issues.join('\n'));}
      continue prepareCases;
     }
     if(!services.repairCase||state.pendingCase.repairs>=2)throw new OperatorError(`The harness could not prepare this behaviour: ${selected.description}`,`${problem}\nCompleted checks and this response are saved. Nothing was approved. Use harness checks setup to revise the behaviour in ordinary language.`);
@@ -211,8 +216,11 @@ export async function draftInParts(task:Feature,services:{reviewCase?:(p:Proposa
  await reviewGenerated();
  return parseProposal({version:1,contract:blueprint.contract,coverage:blueprint.coverage,manifest:{version:1,cases}},task);
 }
-export async function prepareInParts(project:string,task:Feature,feedback:string,previous:Proposal|undefined,save:(state:Preparation)=>Promise<void>,progress:(text:string)=>void,saved?:Preparation,previousIssues:readonly string[]=[],overrides:{review?:typeof requestScopedReview;source?:string}={}):Promise<Proposal>{
+export async function prepareInParts(project:string,task:Feature,feedback:string,previous:Proposal|undefined,save:(state:Preparation)=>Promise<void>,progress:(text:string)=>void,saved?:Preparation,previousIssues:readonly string[]=[],overrides:{review?:typeof requestScopedReview;source?:string;route?:()=>Promise<unknown>;feasibility?:(b:Blueprint)=>Promise<unknown>}={}):Promise<Proposal>{
+ await (overrides.route??(()=>projectRoute(project)))();
+ let atomic:Awaited<ReturnType<typeof prepareEvidence>>|undefined;
  return draftInParts(task,{
+  feasibility:overrides.feasibility??(async b=>{atomic=await prepareEvidence(project,task,b,progress);return atomic;}),
   reviewCase:(p,scope,ledger,checkpoint)=>reviewScopes(task,p,{durableRepairs:true,syntax:syntaxIssues,review:(id,candidate,issues)=>(overrides.review??requestScopedReview)(project,task,candidate,id,issues,progress),repair:(id,candidate,issues)=>repairCaseCode(project,task,candidate,id,issues),save:checkpoint,progress},ledger,scope),
   plan:()=>prepareOutline(project,task,overrides.source??'',feedback,previous,previousIssues,progress),
   generate:async(id,b)=>{
@@ -246,7 +254,7 @@ export async function prepareInParts(project:string,task:Feature,feedback:string
    JSON.stringify({contract:b.contract,selected:b.cases.find(c=>c.id===id),taskId:task.id,raw,error}),
   ].join('\n\n'));},
   repairOutline:(b,issues,previous)=>requestOutlinePatch(project,task,b,issues,previous),
-  reviewOutline:async b=>{const p=blueprintProposal(task,b);return requestScopedReview(project,task,p,'$contract',[],progress);},
+  reviewOutline:async b=>{const p=blueprintProposal(task,b);return requestScopedReview(project,task,p,'$contract',atomic?['Also independently review these atomic evidence obligations: verify that each required result, interface anchor and capability supports its criterion. Missing observations or inappropriate anchor quotations block interface freeze. These are proposed designs, not runtime evidence. '+JSON.stringify(atomic)]:[],progress);},
   save,progress,
  },saved);
 }

@@ -1,3 +1,4 @@
+import {isolatePiCredentials} from '../agent/credential-lease.ts';
 import { OperatorError } from "../verbs/io.ts";
 /** Linux Docker is the only installed runner. Its containment policy is not project-configurable. */
 import { spawn } from "node:child_process";
@@ -10,8 +11,12 @@ export const dockerRunner: Runner = {
  reference: { id: "docker", version: 1 },
  prepare(layout, network, command, interactive = false) { return { executable: layout.dockerExecutable, args: buildRunArguments(layout, network, command, interactive), layout }; },
  async execute(layout, args, options) {
-  try { return await run(layout.dockerExecutable, args, options); }
-  finally { await this.cleanup(layout); }
+  const isolated=await isolatePiCredentials(layout,args,options?.timeoutMs??300000);
+  try { return await run(isolated.layout.dockerExecutable, isolated.args, options); }
+  finally {
+   try{await this.cleanup(isolated.layout);}catch(error){if(isolated.layout.agentDirectory===layout.agentDirectory)throw error;throw new OperatorError(`Cannot confirm the Pi container stopped: ${(error as Error).message}`, `Recover container ${layout.containerName} before removing retained credential workspace ${isolated.layout.agentDirectory}.`);}
+   await isolated.dispose();
+  }
  },
  connect(launch) { return spawn(launch.executable, launch.args, { stdio: ["pipe", "pipe", "pipe"] }); },
  async inspect(layout, probe = run) {

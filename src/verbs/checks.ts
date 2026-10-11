@@ -1,3 +1,4 @@
+import {migrateChecks,approveMigration} from '../acceptance/migration.ts';
 import {regenerateSavedCheck} from "../acceptance/regenerate.ts";
 import {prepareChecks,checkWorkflowStatus} from '../acceptance/workflow.ts';
 import {parseCheckLimits} from '../acceptance/budget.ts';
@@ -68,6 +69,9 @@ export async function setupChecks(project: string, io: Dialogue, manual = false)
 }
 
 export async function checks(project: string, args: readonly string[]): Promise<void> {
+  if(args.length===2&&args[0]==='migrate'&&args[1]==='--approve')return approveMigration(project,terminalDialogue());
+  if(args[0]==='migrate'){const flags=[...args.slice(1)];let prepare=false,restart=false,window:number|undefined;while(flags.length){const flag=flags.shift();if(flag==='--prepare'&&!prepare)prepare=true;else if(flag==='--restart'&&!restart)restart=true;else if(flag==='--window-ms'&&window===undefined&&/^\d+$/.test(flags[0]??''))window=Number(flags.shift());else throw new OperatorError('Use: harness checks migrate [--prepare [--restart]] [--window-ms 100–10000]');}if(restart&&!prepare)throw new OperatorError('--restart requires --prepare.');return migrateChecks(project,prepare,window,say,restart);}
+
   if(args[0]==='prepare'){const status=await prepareChecks(project,terminalDialogue(),parseCheckLimits(args.slice(1)));if(status==='blocked')process.exitCode=1;return;}
   if(args.length===2&&args[0]==='regenerate')return regenerateSavedCheck(project,terminalDialogue(),args[1]!);
   if(args.length===1&&args[0]==='status')return checkWorkflowStatus(project,say);

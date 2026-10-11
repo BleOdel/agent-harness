@@ -1,3 +1,4 @@
+import {isolatePiCredentials} from './credential-lease.ts';
 import {assertContentAllowed} from '../workspace/secret-content.ts';
 import { assertModelEffort } from "../model-settings.ts";
 /** Pi 0.80.6 JSONL transport. A command acknowledgement is never completion. */
@@ -104,7 +105,9 @@ export function buildRpcArguments(layout: SandboxLayout, request: AgentRequest):
 export async function runRpcAgent(layout: SandboxLayout, request: AgentRequest, output: (text: string) => void, hooks: RpcHooks = {}) {
   await assertModelEffort(layout.piPackageDirectory, request);
   await assertRpcVersion(layout.piPackageDirectory); hooks.signal?.throwIfAborted();
-  const child = dockerRunner.connect({ executable: layout.dockerExecutable, args: buildRpcArguments(layout, request), layout });
+  const isolated=await isolatePiCredentials(layout,buildRpcArguments(layout,request),request.timeoutMs);
+  layout=isolated.layout;
+  let child;try{child=dockerRunner.connect({ executable: layout.dockerExecutable, args: isolated.args, layout });}catch(error){await isolated.dispose();throw error;}
   const lifecycle = new RpcLifecycle(), events = new EventStream(); events.onTurn = hooks.turn;
   let stderr = "", closing = false, failure: Error | undefined;
   let resolveSettled!: () => void, rejectSettled!: (error: Error) => void;
@@ -141,6 +144,7 @@ export async function runRpcAgent(layout: SandboxLayout, request: AgentRequest, 
     return { code: 0, stdout: lifecycle.text, stderr, timedOut: false, usageComplete: lifecycle.usageComplete, usage: { ...events.current(), requestedEffort: request.effort ?? "medium" }, observedReads: events.skillReads(), providerError: events.failure() };
   } finally {
     closing = true; hooks.ready?.(undefined); clearTimeout(timer); hooks.signal?.removeEventListener("abort", abort); peer.close(); child.kill("SIGKILL"); await closed;
-    await dockerRunner.cleanup(layout);
+    try{await dockerRunner.cleanup(layout);}catch{throw new Error(`Cannot confirm RPC container ${layout.containerName} stopped; credential workspace retained at ${layout.agentDirectory}.`);}
+    await isolated.dispose();
   }
 }

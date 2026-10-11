@@ -756,3 +756,10 @@ test('host SIGKILL leaves an honest durable attempt reference and reserves its r
   assert.equal(await readFile(path.join(f.project,'app.js'),'utf8'),'export const value = 1;\n');
  }finally{if(workerPid)try{process.kill(workerPid,'SIGKILL');}catch{}child?.kill('SIGKILL');if(reference){await rm(path.dirname(reference.source),{recursive:true,force:true});await rm(reference.controller,{recursive:true,force:true});}await f.close();}
 });
+test('a known dependency-bearing web route stops before builder dispatch and preserves source',async()=>{
+ const f=await fixture([item('api')],'changed');
+ try{const pkg=JSON.parse(await readFile(f.project+'/package.json','utf8'));pkg.dependencies={example:'1.0.0'};await writeFile(f.project+'/package.json',JSON.stringify(pkg));
+ const {draftProduct,approveProduct}=await import('../src/product/spec.ts');await approveProduct(f.project,await draftProduct(f.project,'web','prototype',[]));
+ const result=await f.run('work','api');assert.notEqual(result.code,0);assert.match(result.text,/feasibility/);assert.match(result.text,/preview/);assert.deepEqual(await f.calls(),[]);assert.equal(await readFile(f.project+'/app.js','utf8'),'export const value = 1;\n');
+ }finally{await f.close();}
+});

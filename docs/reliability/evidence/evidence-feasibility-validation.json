@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "kind": "local-evidence-feasibility-foundation",
+  "at": "2026-10-11T17:18:26.260820+00:00",
+  "status": "passed-at-documented-scope",
+  "task": "hr-019",
+  "taskCompleted": false,
+  "source": {
+    "baseCommit": "a8abfdee94eaa1015ae575157ef1dfe111b16d37",
+    "state": "second uncommitted overlay on qualified credential/migration batch",
+    "codeTreeSha256": "45c2cc38c15b11fb00c8e395291d9e37f9a5e4035ea9e982aa64f7011e941933",
+    "changedCode": {
+      "test/evidence-feasibility.test.ts": "187f820588bd13ce7b16ba6268f262fbf7251027f1dfe136daeee679e3dfb0b2",
+      "test/acceptance-recipes.test.ts": "82e143e48350817a7c5e2c01701bbad4ddc645abf0550803f65060f5ab282878",
+      "test/work-flow.test.ts": "c40435d849fab6b824f9df2b1158aad71b00acb20f0e6c69d49104d1d44cafba",
+      "src/acceptance/preparation.ts": "1150a37e7f52098f387493dc13b71e826be4f57b6c660c81aaf1d9497157f88f",
+      "src/acceptance/draft.ts": "8580936dce13891ecc53ab71428728bcd105575ae1d46de1b9ea0210f865b6cd",
+      "src/acceptance/planning-context.ts": "b5413bd2a5571720a4fcacaa32a671f1d688e95470b7104a6cea6bbe5c54df56",
+      "src/acceptance/feasibility-project.ts": "c4c08d123c8b003d66cceb22225baa525454de1e5ea69984818c6a61722e1a93",
+      "src/acceptance/feasibility.ts": "d22da3f926c3c188ca02e2f959d8047b7e22a254710bcbe559dd6267f8cb3629",
+      "src/verbs/work.ts": "3c7c071d77f993401ab55cadf92f4cfdf32076d0b8e9e2585f76e812f8a245fa",
+      "src/verbs/team.ts": "96f3aa5baad79ed0145f6e098ba6d61ecd8f718e3f6f49d664e58b610e6bc81f"
+    }
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "tests": 1134,
+    "passed": 1062,
+    "skipped": 72,
+    "failed": 0,
+    "outputSha256": "d501fbe1453eba0dad67e5d897d5f15a25f088cd70721c38d49122a2584ddca1"
+  },
+  "requiredSmoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-11T17:10:39.625Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-timing-docker.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "10e727de6e9e26edfa268933b25fe177359b0fe1952fdad2f126ca1d5599cdcb",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-11T17:12:36.400Z"
+  },
+  "controls": "docs/reliability/evidence/evidence-feasibility-controls.json",
+  "boundedTrial": "docs/reliability/evidence/evidence-feasibility-trial.json",
+  "limitations": [
+    "hr-019 remains open: desktop/ML target and delivery obligation routing need complete integration; the full retained author outline has not been replayed.",
+    "Known ordinary Node/Python route gaps are refused before requests; model discovery is not an exhaustive semantic proof.",
+    "New atomic obligations are unapproved design records. Manual observations remain unresolved and application verification still runs separately.",
+    "Routine missing-anchor amendment resolution remains hr-020; the current gate retains diagnoses for a later scoped resolution."
+  ]
+}

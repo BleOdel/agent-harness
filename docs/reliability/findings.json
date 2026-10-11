@@ -372,18 +372,30 @@
         "THREAT_MODEL.md:108",
         "THREAT_MODEL.md:159"
       ],
-      "status": "open",
+      "status": "verified",
       "tasks": [
         "hr-006"
       ],
-      "regressions": [],
-      "resolutionEvidence": [],
+      "regressions": [
+        "test/credential-lanes.test.ts",
+        "test/credential-refresh.test.ts"
+      ],
+      "resolutionEvidence": [
+        {
+          "kind": "regression",
+          "path": "test/credential-lanes.test.ts"
+        },
+        {
+          "kind": "negative-control",
+          "path": "docs/reliability/evidence/credential-migration-controls.json"
+        }
+      ],
       "qualification": {
-        "state": "inspection-only",
-        "trigger": "Use synthetic tokens to prove builders cannot read unrelated provider entries or rewrite host credentials. Verify concurrent refresh, expiry, interruption and cleanup without exposing real secrets. Record destination-policy limitations rather than claiming total exfiltration prevention.",
-        "regression": null,
-        "execution": null,
-        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence."
+        "state": "fixed",
+        "trigger": "Synthetic multi-provider auth passed through ordinary, planning, review and RPC launches.",
+        "regression": "test/credential-lanes.test.ts",
+        "execution": "docs/reliability/evidence/credential-migration-validation.json",
+        "limitation": "Selected access credential remains exposed; bridge egress is unrestricted. Unknown cleanup retains owner-only workspace; no full broker or abrupt-controller-death credential garbage collection claim."
       }
     },
     {

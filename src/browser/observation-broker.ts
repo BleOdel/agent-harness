@@ -1,7 +1,7 @@
 /** Only the host holds expectations. The isolated driver receives bounded retry/next acknowledgements. */
 import {assessObservation,type Journey} from './schema.ts';
 import {observationWindow,type TimedSample} from './timing.ts';
-import {boundedOutput} from '../desktop/output.ts';
+import {readObservationFrame} from './observation-frame.ts';
 import {atomicWrite} from '../planning/store.ts';
 export class BrowserObservationBroker {
  spec:Journey;clock:()=>number;sequence=0;lastAt=-1;lastFrame='';steps:unknown[]=[];lastObservations:unknown[]=[];refs=new Map<string,string>();
@@ -37,7 +37,7 @@ export class BrowserObservationBroker {
 }
 export async function serveObservations(root:string,broker:BrowserObservationBroker,stopped:()=>boolean):Promise<void>{
  while(!stopped()){
-  try{const bytes=await boundedOutput(root+'/output','current.json',256*1024),reply=broker.consume(JSON.parse(bytes.toString()));if(reply)await atomicWrite(root+'/checks/decision.json',JSON.stringify(reply));}
+  try{const bytes=await readObservationFrame(root+'/output'),reply=bytes?broker.consume(JSON.parse(bytes.toString())):undefined;if(reply)await atomicWrite(root+'/checks/decision.json',JSON.stringify(reply));}
   catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT')throw e;}
   await new Promise(r=>setTimeout(r,20));
  }

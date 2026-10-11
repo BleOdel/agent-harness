@@ -138,4 +138,16 @@ incomplete windows fail. Real Chromium and restored-defect evidence live in
 `evidence/browser-timing-validation.json` and `evidence/browser-timing-controls.json`.
 See [browser semantics](../../BROWSER.md#bounded-asynchronous-observations) for
 sampling limits, deadlines and retained evidence. F02 is fixed at this scope;
-existing-check migration (hr-017) and broader end-to-end qualification remain open.
+existing-check migration is available through `checks migrate`; broader end-to-end qualification remains open.
+
+
+## Saved-check migration and credentials
+
+The hr-006/hr-017 batch is qualified in [credential-migration-validation.json](evidence/credential-migration-validation.json). All contained Pi lanes select one provider and keep refresh credentials on the host. Migration reports current check/helper versions together, retains original bytes, reviews compatible changes within a bounded allowance and leaves approval explicit. Historical runs cannot acquire new observation semantics. See the README migration commands and THREAT_MODEL.md for retained-credential and pending-transaction limits.
+
+
+## Early evidence feasibility
+
+Ordinary preparation now records unapproved atomic observations in `acceptance/evidence-planning.json` and a digest-bound `evidence-design.json` after feasibility succeeds. Each criterion has retained provider replies, stable observation IDs, exact proposed-contract anchors, evidence kind and needed capabilities. Missing controls, validation feedback and inspection scopes are reported together before executable generation. Known unsupported ordinary Node/Python routes stop before model dispatch; absent installations and unqualified runtimes are separate diagnoses. A digest change invalidates interface-review reuse. Human observations remain pending even when automated design is feasible.
+
+This is the hr-019 foundation, not complete cross-platform route admission. Desktop/ML delivery requirements still need their full provider integration. Discovery uses the existing explicit request/time allowance, saves completed criteria, and allows one bounded format correction. Its output is not approval or runtime application evidence. Missing routine interface choices remain retained for the scoped amendment work in hr-020. Qualification and the authorized synthetic trial are in `evidence/evidence-feasibility-validation.json`.

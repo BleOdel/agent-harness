@@ -590,6 +590,9 @@ Run them inside your project.
 | `harness checks review` | resume preparation, review and approve a saved check draft |
 | `harness checks regenerate <case-id>` | regenerate one unsuitable check and independently review it, preserving completed peers |
 | `harness checks use-recipe [case-id]` | replace a generated web/SQLite boundary probe with reviewed settings for a tested runner |
+| `harness checks migrate` | inventory all saved helper/browser migrations without a provider request |
+| `harness checks migrate --prepare` | independently review compatible draft updates in a bounded resumable batch |
+| `harness checks migrate --approve` | explicitly approve the prepared expectation proposal, requiring fresh application verification |
 | `harness checks repair [case-id]` | repair one blocked check, retaining the other checks |
 | `harness checks simplify [case-id]` | split a rejected or blocked design into smaller reviewed checks; no exhausted repair quota is required |
 | `harness checks approve <file>` | explicitly approve a JSON acceptance specification |
@@ -1911,7 +1914,7 @@ copied. Provider/model precedence is role, harness configuration, then the host
 Pi settings' `defaultProvider`/`defaultModel`. Only those two defaults are read;
 resolved values are frozen into the accepted roles.
 Team builders and reviewers use the pinned Pi RPC transport described below.
-Check preparation and team snapshots renew OAuth in Pi's canonical host store under
+All Pi lanes, including ordinary work and planning, renew OAuth in Pi's canonical host store under
 Pi's credential lock before dispatch. Their private copies contain only the selected
 provider and no OAuth refresh token. Workers cannot overwrite the host login. If a
 credential cannot cover the bounded operation, dispatch stops; use Pi `/login` in
@@ -2212,3 +2215,12 @@ Run `harness capabilities [--json]` for the current implementation scope and kno
 ### Inspecting source for credential content
 
 Run `harness source inspect` before sharing source with agents. The harness blocks recognized credential patterns in source copies and screens diffs and artifact exports. Findings show paths, rule IDs and file hashes without showing values. Confirmed synthetic fixtures can receive an exact path/content exception with `harness source allow`; `harness source revoke` removes it. Private configuration paths remain excluded. See [source-selection rules, commands and limitations](docs/reliability/README.md#source-selection-boundary).
+
+
+### Migrating saved check versions
+
+`harness checks migrate` reports affected active drafts, approvals, pending preparation and staged evidence without a model call or project changes. `harness checks migrate --prepare` grants up to four model requests within 600 seconds, at most 180 seconds per request. Repeat the same command to reuse migration reviews; every allowance is retained separately. This is a request/time limit, not a price cap.
+
+Old no-request or absence checks must receive an explicit finite window, for example `harness checks migrate --prepare --window-ms 1000`. This changes the expectation and requires renewed approval. Original bytes are retained in the adjacent acceptance/migration directory. A failed review or concurrent edit stops publication. Unknown formats remain unchanged. Use `--prepare --restart` only to begin a new reviewed migration after inputs or the runner changed; it archives the previous journal.
+
+`harness checks migrate --approve` displays the prepared complete approval proposal and asks for explicit approval. It neither tests nor applies an application. Saved source and historical execution receipts are retained; run fresh verification under the new expectations. Pending simplification/recipe transactions and standalone browser journeys keep their respective review/recovery workflows.

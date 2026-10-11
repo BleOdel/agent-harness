@@ -1,0 +1,729 @@
+{
+  "packet": {
+    "task": {
+      "id": "author-form-qualification",
+      "title": "Synthetic anonymous author form",
+      "priority": "must",
+      "status": "todo",
+      "dependsOn": [],
+      "criteria": [
+        "Content note is optional. Other requires explanatory text and shows a visible validation error when it is empty; other categories allow an empty explanation.",
+        "Inspect expanded compose and preview: neither offers author-name, image/upload, link, rich-text or tag controls."
+      ]
+    },
+    "blueprint": {
+      "version": 1,
+      "contract": "Native select #note is labelled Content note. The compose form is #compose and preview is #preview. Category values are none, grief, abuse, self-harm, substance-use, mental-health, other. No explanatory control, validation message or expansion mechanism has been specified yet.",
+      "coverage": [
+        {
+          "criterion": 1,
+          "cases": [
+            "notes"
+          ]
+        },
+        {
+          "criterion": 2,
+          "cases": [
+            "fields"
+          ]
+        }
+      ],
+      "cases": [
+        {
+          "id": "notes",
+          "kind": "browser",
+          "description": "Observe optional content notes and Other explanation validation."
+        },
+        {
+          "id": "fields",
+          "kind": "browser",
+          "description": "Observe the absence of forbidden controls in expanded compose and preview."
+        }
+      ]
+    },
+    "allowance": {
+      "provider": "openai-codex",
+      "model": "gpt-6-astra",
+      "reasoning": "high",
+      "maxRequests": 2,
+      "maxSeconds": 360,
+      "requestSeconds": 180
+    },
+    "purpose": "Qualify whether semantic discovery identifies missing explanation, validation-error and expansion/inspection anchors together. This synthetic fixture contains no real submissions, secrets or repository source. No approval, application build or live-project write is requested."
+  },
+  "result": {
+    "version": 1,
+    "startedAt": "2026-10-11T17:15:25.655Z",
+    "allowance": {
+      "provider": "openai-codex",
+      "model": "gpt-6-astra",
+      "reasoning": "high",
+      "maxRequests": 2,
+      "maxSeconds": 360,
+      "requestSeconds": 180
+    },
+    "observations": [
+      {
+        "id": "ob-df6845163630731024ef6e97",
+        "criterion": 1,
+        "caseId": "notes",
+        "kind": "browser",
+        "observation": "Observe the labelled native category selector and its complete options. The browser entry route is unspecified.",
+        "anchors": [
+          {
+            "name": "entry route",
+            "quote": null
+          },
+          {
+            "name": "category control and label",
+            "quote": "Native select #note is labelled Content note."
+          },
+          {
+            "name": "category options",
+            "quote": "Category values are none, grief, abuse, self-harm, substance-use, mental-health, other."
+          }
+        ],
+        "capabilities": [
+          "browser.goto",
+          "browser.text",
+          "browser.count",
+          "browser.select",
+          "browser.accessibility"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "notes",
+            "detail": "entry route: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      },
+      {
+        "id": "ob-e276680378a22297d8540ddb",
+        "criterion": 1,
+        "caseId": "notes",
+        "kind": "browser",
+        "observation": "Observe an editable explanatory field for content-note categories. Its identity and availability are unspecified; if it is initially hidden, the expansion trigger must also be specified.",
+        "anchors": [
+          {
+            "name": "compose scope",
+            "quote": "The compose form is #compose and preview is #preview."
+          },
+          {
+            "name": "explanatory field",
+            "quote": null
+          },
+          {
+            "name": "explanatory field visibility conditions",
+            "quote": null
+          },
+          {
+            "name": "expansion trigger if needed",
+            "quote": null
+          }
+        ],
+        "capabilities": [
+          "browser.select",
+          "browser.click",
+          "browser.count",
+          "browser.fill"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "notes",
+            "detail": "explanatory field: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "notes",
+            "detail": "explanatory field visibility conditions: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "notes",
+            "detail": "expansion trigger if needed: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      },
+      {
+        "id": "ob-33ddb2697293b817f75f4f1b",
+        "criterion": 1,
+        "caseId": "notes",
+        "kind": "browser",
+        "observation": "Observe that choosing none permits proceeding without a content note or explanation. The action that proceeds and the observable accepted result are unspecified.",
+        "anchors": [
+          {
+            "name": "none option",
+            "quote": "Category values are none, grief, abuse, self-harm, substance-use, mental-health, other."
+          },
+          {
+            "name": "compose and preview scopes",
+            "quote": "The compose form is #compose and preview is #preview."
+          },
+          {
+            "name": "proceed control",
+            "quote": null
+          },
+          {
+            "name": "accepted no-note result",
+            "quote": null
+          }
+        ],
+        "capabilities": [
+          "browser.select",
+          "browser.click",
+          "browser.text"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "notes",
+            "detail": "proceed control: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "notes",
+            "detail": "accepted no-note result: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      },
+      {
+        "id": "ob-a263ab8d84a9b1e746977365",
+        "criterion": 1,
+        "caseId": "notes",
+        "kind": "browser",
+        "observation": "Observe that Other with an empty explanation is rejected with a visible validation error. The explanatory field, validation trigger, and error presentation are unspecified.",
+        "anchors": [
+          {
+            "name": "Other option",
+            "quote": "Category values are none, grief, abuse, self-harm, substance-use, mental-health, other."
+          },
+          {
+            "name": "explanatory field",
+            "quote": null
+          },
+          {
+            "name": "validation trigger",
+            "quote": null
+          },
+          {
+            "name": "visible empty-Other validation error",
+            "quote": null
+          }
+        ],
+        "capabilities": [
+          "browser.select",
+          "browser.fill",
+          "browser.click",
+          "browser.text",
+          "browser.screenshot"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "notes",
+            "detail": "explanatory field: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "notes",
+            "detail": "validation trigger: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "notes",
+            "detail": "visible empty-Other validation error: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      },
+      {
+        "id": "ob-4d6130424c025490977988af",
+        "criterion": 1,
+        "caseId": "notes",
+        "kind": "browser",
+        "observation": "Observe that supplying explanatory text satisfies Other's explanation requirement. The explanatory field, revalidation trigger, and observable successful validation result are unspecified.",
+        "anchors": [
+          {
+            "name": "category control",
+            "quote": "Native select #note is labelled Content note."
+          },
+          {
+            "name": "explanatory field",
+            "quote": null
+          },
+          {
+            "name": "revalidation trigger",
+            "quote": null
+          },
+          {
+            "name": "successful Other validation result",
+            "quote": null
+          }
+        ],
+        "capabilities": [
+          "browser.select",
+          "browser.fill",
+          "browser.click",
+          "browser.text"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "notes",
+            "detail": "explanatory field: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "notes",
+            "detail": "revalidation trigger: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "notes",
+            "detail": "successful Other validation result: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      },
+      {
+        "id": "ob-d658e6429673d2f8921b1e92",
+        "criterion": 1,
+        "caseId": "notes",
+        "kind": "browser",
+        "observation": "Observe independently for grief, abuse, self-harm, substance-use, and mental-health that an empty explanation is allowed. The explanatory field, validation action, and accepted result are unspecified.",
+        "anchors": [
+          {
+            "name": "non-Other category options",
+            "quote": "Category values are none, grief, abuse, self-harm, substance-use, mental-health, other."
+          },
+          {
+            "name": "explanatory field",
+            "quote": null
+          },
+          {
+            "name": "validation action",
+            "quote": null
+          },
+          {
+            "name": "accepted empty-explanation result",
+            "quote": null
+          }
+        ],
+        "capabilities": [
+          "browser.select",
+          "browser.fill",
+          "browser.click",
+          "browser.text"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "notes",
+            "detail": "explanatory field: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "notes",
+            "detail": "validation action: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "notes",
+            "detail": "accepted empty-explanation result: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      },
+      {
+        "id": "ob-3b8900d0e6e7def7464fc462",
+        "criterion": 2,
+        "caseId": "fields",
+        "kind": "browser",
+        "observation": "Inspect expanded compose and observe no author-name control. Expansion and the absence guarantee are unspecified.",
+        "anchors": [
+          {
+            "name": "compose inspection scope",
+            "quote": "The compose form is #compose and preview is #preview."
+          },
+          {
+            "name": "compose expansion trigger",
+            "quote": null
+          },
+          {
+            "name": "absence of author-name controls",
+            "quote": null
+          }
+        ],
+        "capabilities": [
+          "browser.accessibility",
+          "browser.count"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "compose expansion trigger: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "absence of author-name controls: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      },
+      {
+        "id": "ob-327f6607de55709942eb0c0c",
+        "criterion": 2,
+        "caseId": "fields",
+        "kind": "browser",
+        "observation": "Inspect expanded preview and observe no author-name control. Expansion and the absence guarantee are unspecified.",
+        "anchors": [
+          {
+            "name": "preview inspection scope",
+            "quote": "The compose form is #compose and preview is #preview."
+          },
+          {
+            "name": "preview expansion trigger",
+            "quote": null
+          },
+          {
+            "name": "absence of author-name controls",
+            "quote": null
+          }
+        ],
+        "capabilities": [
+          "browser.accessibility",
+          "browser.count"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "preview expansion trigger: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "absence of author-name controls: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      },
+      {
+        "id": "ob-719458f1756d92d05ec9c2e3",
+        "criterion": 2,
+        "caseId": "fields",
+        "kind": "browser",
+        "observation": "Inspect expanded compose and observe no image or upload controls. Expansion and the absence guarantee are unspecified.",
+        "anchors": [
+          {
+            "name": "compose inspection scope",
+            "quote": "The compose form is #compose and preview is #preview."
+          },
+          {
+            "name": "compose expansion trigger",
+            "quote": null
+          },
+          {
+            "name": "absence of image/upload controls",
+            "quote": null
+          }
+        ],
+        "capabilities": [
+          "browser.accessibility",
+          "browser.count"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "compose expansion trigger: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "absence of image/upload controls: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      },
+      {
+        "id": "ob-11e096c218daeb81e805085c",
+        "criterion": 2,
+        "caseId": "fields",
+        "kind": "browser",
+        "observation": "Inspect expanded preview and observe no image or upload controls. Expansion and the absence guarantee are unspecified.",
+        "anchors": [
+          {
+            "name": "preview inspection scope",
+            "quote": "The compose form is #compose and preview is #preview."
+          },
+          {
+            "name": "preview expansion trigger",
+            "quote": null
+          },
+          {
+            "name": "absence of image/upload controls",
+            "quote": null
+          }
+        ],
+        "capabilities": [
+          "browser.accessibility",
+          "browser.count"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "preview expansion trigger: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "absence of image/upload controls: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      },
+      {
+        "id": "ob-d7fe7ddeb10813c2518b19d6",
+        "criterion": 2,
+        "caseId": "fields",
+        "kind": "browser",
+        "observation": "Inspect expanded compose and observe no link controls. Expansion and the absence guarantee are unspecified.",
+        "anchors": [
+          {
+            "name": "compose inspection scope",
+            "quote": "The compose form is #compose and preview is #preview."
+          },
+          {
+            "name": "compose expansion trigger",
+            "quote": null
+          },
+          {
+            "name": "absence of link controls",
+            "quote": null
+          }
+        ],
+        "capabilities": [
+          "browser.accessibility",
+          "browser.count"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "compose expansion trigger: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "absence of link controls: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      },
+      {
+        "id": "ob-c5d82efcdedd585953707338",
+        "criterion": 2,
+        "caseId": "fields",
+        "kind": "browser",
+        "observation": "Inspect expanded preview and observe no link controls. Expansion and the absence guarantee are unspecified.",
+        "anchors": [
+          {
+            "name": "preview inspection scope",
+            "quote": "The compose form is #compose and preview is #preview."
+          },
+          {
+            "name": "preview expansion trigger",
+            "quote": null
+          },
+          {
+            "name": "absence of link controls",
+            "quote": null
+          }
+        ],
+        "capabilities": [
+          "browser.accessibility",
+          "browser.count"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "preview expansion trigger: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "absence of link controls: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      },
+      {
+        "id": "ob-62718719bd2ab13f2480e27a",
+        "criterion": 2,
+        "caseId": "fields",
+        "kind": "browser",
+        "observation": "Inspect expanded compose and observe no rich-text controls. Expansion and the absence guarantee are unspecified.",
+        "anchors": [
+          {
+            "name": "compose inspection scope",
+            "quote": "The compose form is #compose and preview is #preview."
+          },
+          {
+            "name": "compose expansion trigger",
+            "quote": null
+          },
+          {
+            "name": "absence of rich-text controls",
+            "quote": null
+          }
+        ],
+        "capabilities": [
+          "browser.accessibility",
+          "browser.count"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "compose expansion trigger: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "absence of rich-text controls: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      },
+      {
+        "id": "ob-040d2772025c63b014f34f79",
+        "criterion": 2,
+        "caseId": "fields",
+        "kind": "browser",
+        "observation": "Inspect expanded preview and observe no rich-text controls. Expansion and the absence guarantee are unspecified.",
+        "anchors": [
+          {
+            "name": "preview inspection scope",
+            "quote": "The compose form is #compose and preview is #preview."
+          },
+          {
+            "name": "preview expansion trigger",
+            "quote": null
+          },
+          {
+            "name": "absence of rich-text controls",
+            "quote": null
+          }
+        ],
+        "capabilities": [
+          "browser.accessibility",
+          "browser.count"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "preview expansion trigger: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "absence of rich-text controls: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      },
+      {
+        "id": "ob-0a258e6132665fd6ff35feff",
+        "criterion": 2,
+        "caseId": "fields",
+        "kind": "browser",
+        "observation": "Inspect expanded compose and observe no tag controls. Expansion and the absence guarantee are unspecified; the named Content note select does not establish absence of tag controls.",
+        "anchors": [
+          {
+            "name": "compose inspection scope",
+            "quote": "The compose form is #compose and preview is #preview."
+          },
+          {
+            "name": "compose expansion trigger",
+            "quote": null
+          },
+          {
+            "name": "absence of tag controls",
+            "quote": null
+          }
+        ],
+        "capabilities": [
+          "browser.accessibility",
+          "browser.count"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "compose expansion trigger: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "absence of tag controls: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      },
+      {
+        "id": "ob-1d006dfc8d81006ea73d4554",
+        "criterion": 2,
+        "caseId": "fields",
+        "kind": "browser",
+        "observation": "Inspect expanded preview and observe no tag controls. Expansion and the absence guarantee are unspecified.",
+        "anchors": [
+          {
+            "name": "preview inspection scope",
+            "quote": "The compose form is #compose and preview is #preview."
+          },
+          {
+            "name": "preview expansion trigger",
+            "quote": null
+          },
+          {
+            "name": "absence of tag controls",
+            "quote": null
+          }
+        ],
+        "capabilities": [
+          "browser.accessibility",
+          "browser.count"
+        ],
+        "gaps": [
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "preview expansion trigger: missing an exact interface anchor in the proposed contract."
+          },
+          {
+            "kind": "missing-interface",
+            "stage": "fields",
+            "detail": "absence of tag controls: missing an exact interface anchor in the proposed contract."
+          }
+        ]
+      }
+    ],
+    "spend": {
+      "requests": 2,
+      "recorded": 2,
+      "reportedTokens": 4552,
+      "reportedCostUsd": 0.14032
+    },
+    "status": "completed",
+    "finishedAt": "2026-10-11T17:16:34.474Z",
+    "qualification": {
+      "status": "passed-with-limitations",
+      "assertions": [
+        "Both criterion replies parse with exact copied anchors or explicit null choices.",
+        "Missing explanatory field and empty-Other validation anchors are identified.",
+        "Missing expanded compose and preview inspection anchors are identified in the same allowance."
+      ],
+      "limits": [
+        "Single deliberately incomplete synthetic author form; not the complete saved blog outline or a model-quality corpus.",
+        "Model also proposes repeated and potentially over-specific anchors; semantic minimality needs independent review.",
+        "No executable application tests, live project changes or approvals."
+      ]
+    }
+  }
+}

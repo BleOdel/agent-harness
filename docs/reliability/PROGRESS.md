@@ -1,8 +1,8 @@
-# Reliability progress — bounded browser evidence
+# Reliability progress — evidence feasibility foundation
 
-Completed tasks: hr-001, hr-002, hr-003, hr-004, hr-005, hr-007, hr-008, hr-009, hr-010, hr-011, hr-012, hr-013, hr-014, hr-015, hr-016 and hr-018 — **16 of 45**. The remaining 29 tasks are open. Registry completion records defects; it does not solve all of them.
+Completed tasks: hr-001, hr-002, hr-003, hr-004, hr-005, hr-006, hr-007, hr-008, hr-009, hr-010, hr-011, hr-012, hr-013, hr-014, hr-015, hr-016, hr-017 and hr-018 — **18 of 45**. The remaining 27 tasks are open. Registry completion records defects; it does not solve all of them.
 
-The registry covers all 25 findings: 10 fixed at their documented audit scope, 2 reproduced and 13 inspection-only or partially repaired gaps. F01, F13 and F14 now link current positive regressions and restored-defect controls. Historical audit evidence remains unchanged. Noninteractive preparation and peer-review invalidation remain known desired-behavior failures. Browser timing is now qualified at the documented finite-window scope. The full end-to-end reliability program is not complete.
+The registry covers all 25 findings: 11 fixed at their documented audit scope, 2 reproduced and 12 inspection-only or partially repaired gaps. F01, F13 and F14 now link current positive regressions and restored-defect controls. Historical audit evidence remains unchanged. Noninteractive preparation and peer-review invalidation remain known desired-behavior failures. Browser timing is now qualified at the documented finite-window scope. The full end-to-end reliability program is not complete.
 
 The lifecycle boundary now includes strict event fields, canonical owner paths, atomic expected-record updates under the project writer lock, concurrent-process tests, retained request reservations and opt-in legacy archives. Legacy inspection preserves original text and cannot produce approval or passing application evidence. No existing project was migrated. Controller adoption and orchestration remain hr-024; common evidence admission remains hr-023; the shared application journal now implements hr-010.
 
@@ -75,3 +75,23 @@ application builds or external publication were used. Next: hr-017 migration of
 existing browser checks and approvals; hr-006 credential isolation remains open.
 
 Final hr-015/016 validation: `npm run check` passed 1,039 of 1,110 tests, with 71 explicit optional/known-defect skips and no failures. Browser qualification passed 24/24; required Docker/Chromium smoke passed 13/13, both without skips. Five deliberately restored defects were detected, including the original real Chromium immediate-snapshot regression.
+
+
+## Credential isolation and saved-check migration
+
+hr-006 routes ordinary building, planning, acceptance preparation, reviewers and team RPC through the selected-provider host-refresh boundary. Workers receive owner-only temporary auth/session directories with no unrelated providers, host settings or OAuth refresh token. Confirmed cleanup removes them. Selected access-token exposure, unrestricted bridge egress and leftovers after abrupt host death remain explicit in THREAT_MODEL.md; this does not claim a credential broker.
+
+hr-017 adds `checks migrate` inventory, bounded independently reviewed draft migration, durable originals and crash-resume checkpoints. Negative windows need an explicit choice; migrated approvals use a separate operator approval action. Staged receipts, retired designs and source remain unchanged. Pending simplification/recipe transactions and standalone browser approvals are reported rather than silently rebased. Broader peer-review invalidation is still hr-022. The live blog inventory found two browser checks requiring window choices; no live project state was edited.
+
+The real smoke lane exposed an atomic browser-frame replacement race. A bounded descriptor reader now retries an unlinked previous frame while refusing actual links and oversized output. Restoring the race fails its regression.
+
+Validation: `npm run check` passed 1,052 of 1,124 tests, with 72 explicit skips and no failures. Credential/Pi/Docker qualification passed 15/15 without skips. Required Docker/Chromium smoke passed 13/13. Seven deliberate defects were detected. Exact identities and limits: `evidence/credential-migration-validation.json` and `evidence/credential-migration-controls.json`. No paid model calls or dependencies were added. Next dependency-ready design work: hr-019 complete evidence feasibility and hr-023 common evidence admission.
+
+
+## Evidence feasibility foundation (hr-019 remains open)
+
+Preparation now derives stable atomic observation IDs, required controls/results/scopes and capability requirements per criterion before executable generation. Missing anchors are collected together; interrupted discovery resumes from retained criterion replies. Exact contract quotations and supported actions are checked on the host. A changed evidence design invalidates the corresponding interface review, including cached drafts. Ordinary Node/Python route gaps are checked before planner, builder and team dispatch. Runtime installation/qualification gaps remain separate from missing interface choices and human observations.
+
+Validation: `npm run check` passed 1,062 of 1,134 tests, with 72 explicit skips and no failures. Required Docker/Chromium smoke passed 13/13 with no skips. Five deliberate defects were caught. The explicitly authorized two-request GPT-6 Astra high trial completed with 4,552 reported tokens and $0.14032 estimated usage; it identified explanation, validation and expanded-form anchors in one synthetic form. This does not qualify every project or prove minimality of model-discovered anchors.
+
+Evidence: `evidence/evidence-feasibility-validation.json`, `evidence/evidence-feasibility-controls.json` and `evidence/evidence-feasibility-trial.json`. hr-019 is intentionally still open: full desktop/ML target and delivery routing and a retained-author-outline replay remain. Routine interface amendments (hr-020), common evidence admission (hr-023) and controller adoption remain separate tasks. The completed count stays **18 of 45**. No blog state, checks or application source was changed.

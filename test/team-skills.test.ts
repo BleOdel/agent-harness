@@ -35,12 +35,12 @@ test("attempt auth and sessions are private copies; observations distinguish suc
   const root = await mkdtemp(path.join(os.tmpdir(), "harness-auth-"));
   try {
     const source = path.join(root, "source"); await mkdir(source);
-    await writeFile(path.join(source, "auth.json"), '{"fixture":"private"}');
+    await writeFile(path.join(source, "auth.json"), '{"fixture":{"type":"api_key","key":"private"}}');
     await writeFile(path.join(source, "settings.json"), '{"extensions":["untrusted"],"skills":["extra"]}');
-    const a = await privateAgentDirectory(source, path.join(root, "a"));
-    const b = await privateAgentDirectory(source, path.join(root, "b"));
+    const a = await privateAgentDirectory(source, path.join(root, "a"), {provider:"fixture",piPackage:root,validityMs:1000});
+    const b = await privateAgentDirectory(source, path.join(root, "b"), {provider:"fixture",piPackage:root,validityMs:1000});
     await writeFile(path.join(a, "auth.json"), "changed by attempt");
-    assert.equal(await readFile(path.join(b, "auth.json"), "utf8"), '{"fixture":"private"}');
+    assert.equal(await readFile(path.join(b, "auth.json"), "utf8"), '{"fixture":{"type":"api_key","key":"private"}}');
     await assert.rejects(readFile(path.join(a, "settings.json")), { code: "ENOENT" });
     assert.notEqual(a, b);
     const stream = new EventStream();

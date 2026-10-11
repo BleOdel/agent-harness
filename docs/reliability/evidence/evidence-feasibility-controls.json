@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "at": "2026-10-11T17:15:52.860932+00:00",
+  "controls": [
+    {
+      "id": "early-route-refusal",
+      "file": "src/acceptance/feasibility.ts",
+      "mutation": " assertRoute(input); =>  // deliberately removed route refusal",
+      "exitCode": 1,
+      "detected": true,
+      "outputSha256": "870fff32a48a30f4c161ebe40b1ef939f22addfddf3746a99df62f7420fdd74a"
+    },
+    {
+      "id": "aggregate-missing-anchors",
+      "file": "src/acceptance/feasibility.ts",
+      "mutation": "if(a.quote===null||!b.contract.includes(a.quote as string)) => if(false)",
+      "exitCode": 1,
+      "detected": true,
+      "outputSha256": "4480a6cfac6b7dcf44704f623715d1c3be4b360b19ca61641c17ffaeafe5d5d1"
+    },
+    {
+      "id": "cached-outline-bypass",
+      "file": "src/acceptance/preparation.ts",
+      "mutation": "await checkFeasibility(); => if(!state.outlineReview)await checkFeasibility();",
+      "exitCode": 1,
+      "detected": true,
+      "outputSha256": "aaefaa23c7f2e94a2732ebb33933d89c85b98e830b031a814b4899f6b197967b"
+    },
+    {
+      "id": "manual-evidence-loss",
+      "file": "src/acceptance/feasibility.ts",
+      "mutation": "if(kind==='manual')gaps.push => if(false)gaps.push",
+      "exitCode": 1,
+      "detected": true,
+      "outputSha256": "68af99d543e6685a0605ed80a8dbee7c747aac41c9f72f420426e8749eb9e860"
+    },
+    {
+      "id": "invented-anchor",
+      "file": "src/acceptance/feasibility.ts",
+      "mutation": "a.quote===null||!b.contract.includes(a.quote as string) => a.quote===null",
+      "exitCode": 1,
+      "detected": true,
+      "outputSha256": "f228a100380fb30b2a67105d10c4ff7cf7769c5b7cc2f7c84a21510ce86b6765"
+    }
+  ],
+  "allDetected": true
+}

@@ -1,3 +1,5 @@
+import {projectRoute} from '../acceptance/feasibility-project.ts';
+import {caseKind} from '../acceptance/evidence-kind.ts';
 import { projectTestCommand } from "../project/profile.ts";
 import { assertExecutionCompatible } from "../project/execution.ts";
 import { requireChecks, verifyAcceptance, type AcceptanceResult } from "../acceptance/checks.ts";
@@ -86,6 +88,7 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
       await assertExecutionCompatible(existing.execution, canonical, config, testCommand, true);
       const pendingTasks = existing.plan.tasks.filter(t => !existing.integrated.includes(t.id) && t.status !== "done" && t.priority !== "wont").map(t => t.id);
       const approved = pendingTasks.length ? await requireChecks(canonical, pendingTasks) : undefined;
+      if(approved)await projectRoute(canonical,approved.manifest.cases.filter(c=>c.tasks.includes('*')||c.tasks.some(t=>pendingTasks.includes(t))).map(caseKind));
       await assertRpcVersion(config.piPackageDirectory);
       const control = await TeamControl.start(directory);
       let state;
@@ -121,6 +124,7 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
     const pendingTasks = plan.tasks.filter(t => t.status !== "done" && t.priority !== "wont").map(t => t.id);
     if (!pendingTasks.length) { say("Nothing left to work on. No team dispatch."); return; }
     const approved = await requireChecks(canonical, pendingTasks);
+    await projectRoute(canonical,approved.manifest.cases.filter(c=>c.tasks.includes('*')||c.tasks.some(t=>pendingTasks.includes(t))).map(caseKind));
     const directory = await createTeam(canonical, plan, path.dirname(profile), policy, testCommand, config);
     say(`team: ${path.basename(directory)}\nstate: ${directory}\nconcurrency: ${policy.maxWorkers ?? 1}; results stay in staging`);
     const control = await TeamControl.start(directory);

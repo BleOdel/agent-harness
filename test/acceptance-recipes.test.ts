@@ -31,7 +31,7 @@ test('a reviewed routine outline compiles without model generation and still rec
  const saved={version:1 as const,blueprint,cases:[],outlineReview:{digest:proposalDigest(blueprintProposal(task,blueprint)),review:{verdict:'pass' as const,issues:[],limitations:[]}}};
  // Compilation must remain deterministic; inject the separate independent review.
  let reviews=0;
- const p=await prepareInParts('/no-such-project',task,'',undefined,async()=>{},()=>{},saved,[],{review:async(_project,_task,proposal,scope)=>{reviews++;assert.equal(scope,'web');assert.ok(proposal.manifest.cases[0]!.steps[0]!.recipe);return {verdict:'pass',issues:[],limitations:[]};}});
+ const p=await prepareInParts('/no-such-project',task,'',undefined,async()=>{},()=>{},saved,[],{route:async()=>{},feasibility:async()=>{},review:async(_project,_task,proposal,scope)=>{reviews++;assert.equal(scope,'web');assert.ok(proposal.manifest.cases[0]!.steps[0]!.recipe);return {verdict:'pass',issues:[],limitations:[]};}});
  assert.equal(reviews,1);
  assert.equal(p.manifest.cases[0]!.steps[0]!.recipe?.kind,'node-web-sqlite');assert.deepEqual(p.manifest.cases[0]!.steps[0]!.recipe?.publicPaths,['/api/feed']);assert.equal('validation' in p,false);
 });

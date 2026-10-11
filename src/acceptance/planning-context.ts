@@ -1,3 +1,4 @@
+import {projectRoute} from './feasibility-project.ts';
 import {readSelectedSource} from '../workspace/secret-content.ts';
 import { capabilitySummary } from '../reliability/catalog.ts';
 import {browserDesignPrompt} from './browser-design.ts';
@@ -11,6 +12,7 @@ export async function planningContext(project:string,task:Feature):Promise<Plann
  if(Buffer.byteLength(JSON.stringify(context))>64*1024)throw new OperatorError('Approved interface/source context exceeds the 64 KiB planning limit.','Split or explicitly revise duplicated context; no contract or requirement was truncated.');return context;
 }
 export async function prepareOutline(project:string,task:Feature,source:string,feedback:string,previous:Proposal|undefined,issues:readonly string[],progress:(s:string)=>void){
+ await projectRoute(project);
  const context=await planningContext(project,task),prior=previous?{contract:previous.contract,coverage:previous.coverage,behaviours:previous.manifest.cases.map(c=>({id:c.id,description:c.description}))}:undefined;
  progress('Implementation scope: '+capabilitySummary(JSON.parse(context.runtime).adapter.id));
  const identity=createHash('sha256').update(JSON.stringify({policy:3,task:taskDigest(task),source,context,feedback,prior,issues})).digest('hex'),directory=path.join(harnessDirectory(project),'acceptance');

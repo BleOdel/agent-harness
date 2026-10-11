@@ -104,7 +104,7 @@ export async function runPlanAttempt(original: SavedPlan, config: Config): Promi
     const rel = path.relative(parent, child); return rel === "" || (!rel.startsWith(`..${path.sep}`) && rel !== ".." && !path.isAbsolute(rel));
   };
   if (overlaps(agent, plan.state.project) || overlaps(plan.state.project, agent)
-    || overlaps(agent, plan.directory) || overlaps(plan.directory, agent)) throw new OperatorError("Pi's writable data directory must not overlap the project or planning state.");
+    || overlaps(agent, plan.directory) || overlaps(plan.directory, agent)) throw new OperatorError("Pi's canonical data directory must not overlap the project or planning state.");
   const items = plan.state.phase === "items";
   if (plan.state.phase === "ready") return plan;
   if (items) {

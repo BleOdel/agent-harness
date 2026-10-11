@@ -107,6 +107,7 @@ const USAGE = [
   "  harness add --from latest     import the items a plan proposed",
   "  harness checks regenerate <case-id>  replace one unsuitable check; keep peer reviews",
   "  harness checks prepare       prepare or resume checks with request/time limits",
+  "  harness checks migrate [--prepare] [--window-ms N]  report and batch-review stale checks",
   "  harness checks status        saved preparation status and reported usage",
   "  harness checks [setup | review | repair [case-id] | use-recipe [case-id] | simplify [case-id] [budget flags] | approve <file>]  review and approve application acceptance checks",
   "  harness evidence [setup | show] <run-id> record or inspect browser observations for saved source",

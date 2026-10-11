@@ -149,15 +149,25 @@ Shared-input assignments are exclusive. Bounded integration repair repeats all
 checks under the original role and scope. Workers receive no live project or controller-state mount. Each builder
 and reviewer receives a separate writable credential copy; skill bundles contain
 only role-selected definitions and declared resources and mount read-only.
-Check preparation and team credential snapshots refresh OAuth on the host first,
+Every Pi lane (planning, ordinary work, review, acceptance and team RPC) now
+uses an operation-scoped selected-provider snapshot and refreshes OAuth on the host first,
 using the installed Pi credential backend's lock and built-in provider. The
 replacement is saved to the canonical store before a snapshot is returned. Only
 the selected provider is copied; OAuth refresh tokens are blank in snapshots.
 Worker-modified credentials are never merged back. Lifetimes must cover the
 bounded operation; a short-lived renewal is still saved before dispatch is refused.
 A crash during a provider refresh can still require a fresh login. Private access
-credential copies can remain until explicit cleanup succeeds. Ordinary work/planning
-retain their existing Pi-directory mount policy; this change concerns copied sessions.
+credential copies are deleted after confirmed container stop; abrupt host death can
+leave owner-only temporary copies until the container is recovered and they are removed; uncertain cleanup
+retains the isolated path for recovery. The canonical multi-provider directory is
+never mounted into a worker. Worker-local sessions are ephemeral; explicit
+planning sessions in the saved planning workspace remain durable.
+
+This is credential isolation, not credential hiding: Pi and tool-capable workers
+can read the selected access/API credential and use unrestricted bridge egress.
+Complete hiding needs a separately designed host credential broker that proxies
+only authorized provider requests and enforces an egress policy. No such broker
+or protection against arbitrary secret encodings in worker output is claimed.
 
 A canonical project writer lock excludes concurrent harness mutations, including
 ordinary work and undo. It does not lock editors or other external tools. Explicit
@@ -229,7 +239,7 @@ retention lasts until the operator removes them. No host approval state is mount
 into the planner. Approval captures a plan outside the writable workspace; import
 checks the captured plan and generated proposal hashes and refuses incomplete
 managed plans. Bounded regular-file reads refuse symlinks and hard links in planning
-artifacts. The planner's writable Pi directory may not overlap the live project
+artifacts. The planner's canonical Pi directory may not overlap the live project
 or its saved planning state. Imported plan context cannot authorize unrelated
 work or bypass the normal gates. This does not make an approved plan correct:
 the operator still reviews scope and proposed tasks.

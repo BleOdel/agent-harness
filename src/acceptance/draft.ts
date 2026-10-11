@@ -1,7 +1,8 @@
+import {projectRoute} from './feasibility-project.ts';
 import {assertContentAllowed} from '../workspace/secret-content.ts';
 import {atomicWrite} from '../planning/store.ts';
 import {CheckRequestInterrupted} from './request-failure.ts';
-import {checkRequestBudget,checkRequestWindow,ensureCheckBudget} from './budget.ts';
+import {checkRequestBudget,ensureCheckBudget} from './budget.ts';
 import {CheckResponse} from './response.ts';
 import {serverRuntimePrompt} from './server-runtime.ts';
 import { assertModelEffort, modelLabel } from "../model-settings.ts";
@@ -14,7 +15,6 @@ import { type Feature } from '../features.ts';
 import { parseCheckDraft, type Approval, type CheckManifest } from './checks.ts';
 import { loadConfig } from '../config.ts';
 import { captureBaseline, assertLiveBaseline } from '../workspace/candidate.ts';
-import { privateAgentDirectory } from '../team/inputs.ts';
 import { readProfile } from '../project/profile.ts';
 import { getAdapter } from '../adapters/registry.ts';
 import { CONTAINER_PI_PACKAGE, buildRunArguments, type SandboxLayout } from '../containment/sandbox.ts';
@@ -70,6 +70,7 @@ export function draftPrompt(task: Feature, feedback = '', previous?: Proposal, o
 export interface CheckRequestOptions {tools?:'read'|'none';stage?:string;}
 export function checkToolArguments(options:CheckRequestOptions):string[]{return [...(options.tools==='none'?['--no-tools']:['--tools','read,grep']),'--no-context-files','--no-prompt-templates'];}
 export async function requestCheckJson(project: string, prompt: string, options:CheckRequestOptions={}): Promise<unknown> {
+ await projectRoute(project);
  assertContentAllowed("acceptance prompt",prompt,false);
  ensureCheckBudget();
  if(options.tools==='none'&&Buffer.byteLength(prompt)>128*1024)throw new OperatorError('Explicit planning/review packet exceeds 128 KiB. No request was sent.');
@@ -84,7 +85,7 @@ export async function requestCheckJson(project: string, prompt: string, options:
  process.once('SIGINT', cancel); process.once('SIGTERM', cancel);
  try {
   const baseline = await captureBaseline(project, path.join(root, 'source'), adapter.source.generatedDirectories);
-  const agentDirectory = await privateAgentDirectory(config.agentDirectory, path.join(root, 'agent'), {piPackage:config.piPackageDirectory,provider:config.provider!,validityMs:checkRequestWindow(config.agentTimeoutMs)});
+  const agentDirectory = config.agentDirectory;
   const layout: SandboxLayout = { dockerExecutable: config.dockerExecutable, imageId: config.imageId, containerName: `harness-check-draft-${path.basename(root).toLowerCase()}`, workDirectory: baseline.directory, agentDirectory, piPackageDirectory: config.piPackageDirectory, purpose: 'review', user: `${process.getuid?.() ?? 501}:${process.getgid?.() ?? 20}`, ...(adapter.executionEnvironment ? { environment: adapter.executionEnvironment } : {}) };
   const runtime = '\n\nVerification runner context: Linux Docker with --network none. Non-loopback interfaces may be absent; do not rely on their presence to prove loopback binding. A non-vacuous observation of Linux /proc/net/tcp and /proc/net/tcp6 LISTEN records at the chosen server port is valid. Require an observed listener and check all matching addresses. Each step gets a separate offline container; no GUI, emulator or GPU. Project requirements (not installed toolchain evidence):\n' + JSON.stringify({ adapter: profile.adapter, runner: profile.runner, requirements: profile.requirements }) + `\nEach verification command also has a host-enforced wall-clock timeout of ${config.gateTimeoutMs} ms.`;
   const constraints = options.tools==='none'?'':await existingContracts(baseline.directory, Object.keys(baseline.files));

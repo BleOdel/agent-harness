@@ -31,10 +31,10 @@ async function backend(auth:string,s:CredentialSelection):Promise<CredentialBack
 }
 export async function credentialSnapshot(source:string,selection?:CredentialSelection,adapter?:CredentialBackend):Promise<string|undefined>{
  const file=path.join(source,'auth.json'),stat=await lstat(file).catch((e:NodeJS.ErrnoException)=>{if(e.code==='ENOENT')return undefined;throw e;});
- if(!stat)return undefined;if(!stat.isFile())throw new OperatorError('Authentication input must be a regular file.');
+ if(!stat)return undefined;if(stat.size>1024*1024)throw new OperatorError('Authentication input exceeds its bounded size.');if(!stat.isFile())throw new OperatorError('Authentication input must be a regular file.');
  const raw=await readFile(file,'utf8');let parsed:Record<string,Credential>;
  try{parsed=data(raw);}catch{throw new OperatorError('Pi credential store is not valid JSON.');}
- if(!selection){if(Object.values(parsed).some(c=>c?.type==='oauth'))throw new OperatorError('OAuth snapshots require an explicit provider and host refresh.');return raw;}
+ if(!selection){if(Object.keys(parsed).length)throw new OperatorError('Credential snapshots require an explicit provider and host refresh.');return '{}';}
  if(!selection.provider||!Number.isFinite(selection.validityMs)||selection.validityMs<0)throw new OperatorError('Invalid credential snapshot selection.');
  const initial=parsed[selection.provider];if(!initial)return '{}';
  if(initial.type!=='oauth')return JSON.stringify({[selection.provider]:initial});

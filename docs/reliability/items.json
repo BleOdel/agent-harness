@@ -92,7 +92,7 @@
     "id": "hr-006",
     "title": "Isolate Pi credentials consistently across agent lanes",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Every lane uses the same selected-provider credential mechanism; no tool-capable worker mounts the canonical multi-provider Pi auth directory writable.",
       "Refresh and persist canonical authentication on the host, serialize refresh where necessary, exclude refresh credentials from worker copies and clean up operation-scoped credentials after owned children exit. If a provider cannot support this route, expose the limitation before dispatch.",
@@ -300,7 +300,7 @@
     "id": "hr-017",
     "title": "Migrate helper and browser semantics without losing unrelated work",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Produce one migration report identifying every affected check, changed helper/observation semantics and required review, instead of stopping at one stale pin per invocation.",
       "Preserve source, proposals, completed unaffected checks and prior approvals as history; do not copy a new digest onto an old review.",
