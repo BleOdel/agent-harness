@@ -1,3 +1,5 @@
+import {commandProgress,reportCommandFailure} from './protocol.ts';
+import {CheckRequestInterrupted} from '../acceptance/request-failure.ts';
 import {withWriter} from '../workspace/writer-lock.ts';
 import {withContainmentSignal} from '../containment/process.ts';
 import {withOperationPhase} from '../workflow/operations.ts';
@@ -435,7 +437,7 @@ async function workUnlocked(argv: readonly string[], signal: AbortSignal): Promi
                 timeoutMs: config.agentTimeoutMs,
                 skills: execution!.skills.length > 0,
                 diagnosticFile: path.join(diagnosticsDirectory, `builder-${attempt}.log`),
-            }, (chunk) => process.stdout.write(chunk), (usage) => {
+            }, (chunk) => {if(!commandProgress(chunk))process.stdout.write(chunk);}, (usage) => {
                 inFlight = usage;
                 void mark("building");
             }));
@@ -465,8 +467,10 @@ async function workUnlocked(argv: readonly string[], signal: AbortSignal): Promi
                     throw new ImplementationInterrupted(failure, runId);
                 throw failure;
             }
-            if (agent.providerError)
+            if (agent.providerError) {
+                reportCommandFailure(new CheckRequestInterrupted('provider',agent.providerError));
                 throw await stop('error', `agent: ${agent.providerError}`, 'Restore provider authentication or resolve the provider error before retrying.', { interruption: classifyWorkFailure(agent.providerError) });
+            }
             if (agent.code !== 0)
                 throw await stop('error', `agent: exited ${String(agent.code)}`, agent.stderr, { interruption: signal.aborted ? 'cancelled' : 'exit' });
             const submission = built.submission;

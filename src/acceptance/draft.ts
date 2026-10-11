@@ -1,3 +1,4 @@
+import {say} from '../verbs/io.ts';
 import {parseInterfaceChoices,type InterfaceChoice} from './interface-contract.ts';
 import {projectRoute} from './feasibility-project.ts';
 import {assertContentAllowed} from '../workspace/secret-content.ts';
@@ -78,7 +79,7 @@ export async function requestCheckJson(project: string, prompt: string, options:
  if(options.tools==='none'&&Buffer.byteLength(prompt)>128*1024)throw new OperatorError('Explicit planning/review packet exceeds 128 KiB. No request was sent.');
  const config = loadConfig({ ...process.env, HARNESS_PROJECT: project });
  await assertModelEffort(config.piPackageDirectory, config);
- process.stdout.write(`Model: ${modelLabel(config)}\n`);
+ say(`Model: ${modelLabel(config)}`);
  const profile = await readProfile(project, true);
  const adapter = getAdapter(profile.adapter);
  const root = await mkdtemp(path.join(os.tmpdir(), 'harness-check-draft-'));
@@ -101,8 +102,8 @@ export async function requestCheckJson(project: string, prompt: string, options:
   let result;
   try {result = await withContainmentSignal(controller.signal, () => runContained(layout, buildRunArguments(layout, 'bridge', command), { timeoutMs: allowance.timeoutMs, maxOutputBytes: 8 * 1024 * 1024,onOutput:chunk=>response.push(chunk) }));}
   finally {response.finish();await atomicWrite(receiptFile,JSON.stringify({...receipt,status:result?.timedOut?'timeout':result?.outputLimited?'output-limit':result?.code===0&&!response.failure?'returned':'interrupted',elapsedMs:Date.now()-started,turns:response.turnCount,toolCalls:response.toolCalls,usage:response.usage,reportingComplete:response.complete,assistantText:response.text,partialAssistantText:response.partialText},null,2)+'\n');await allowance.record(response.usage,response.complete&&result?.code===0&&!result.timedOut&&!result.outputLimited);}
-  if(response.complete)process.stdout.write(`Provider reported: ${response.usage.totalTokens.toLocaleString('en-GB')} tokens · $${response.usage.costUsd.toFixed(4)} estimate\n`);
-  else process.stdout.write('Provider usage reporting incomplete or unavailable.\n');
+  if(response.complete)say(`Provider reported: ${response.usage.totalTokens.toLocaleString('en-GB')} tokens · $${response.usage.costUsd.toFixed(4)} estimate`);
+  else say('Provider usage reporting incomplete or unavailable.');
   if(response.failure)throw new CheckRequestInterrupted('provider',response.failure);
   if(result.code!==0||result.timedOut||result.outputLimited)throw new CheckRequestInterrupted(result.timedOut?'timeout':result.outputLimited?'output-limit':'provider',`Check drafting did not complete${result.timedOut?` within ${Math.round(allowance.timeoutMs/1000)} seconds`:` (exit ${result.code})`}. ${result.stderr.slice(-1500)}`);
   await assertLiveBaseline(project, baseline);

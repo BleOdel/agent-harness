@@ -25,7 +25,8 @@ test('Docker: staged web candidate is previewed with isolated data then applied 
   ]}));await approveChecks(project,file);
   await writeFile(path.join(pi,'dist/cli.js'),`const fs=require('node:fs');const args=process.argv.slice(2);if(args.includes('read,grep')){console.log(JSON.stringify({verdict:'pass',unmet:[],unaccounted:[],notes:[]}));}else{fs.writeFileSync('app.js','export const value=2;\\n');fs.writeFileSync('.harness-claim.json',JSON.stringify({files:['app.js'],deletions:[],criteria:[{criterion:'Return 2',verifiedBy:'test/app.test.js'}]}));}`);
   const {NODE_TEST_CONTEXT:_test,NODE_OPTIONS:_options,...env}=process.env,cli=path.resolve(import.meta.dirname,'../src/cli.ts');
-  const built=await run(process.execPath,[cli,'continue','value'],{env,timeoutMs:60000,maxOutputBytes:100000});assert.equal(built.code,0,built.stdout+built.stderr);assert.match(built.stdout,/Staged as r1/);assert.match(built.stdout,/awaits final review/);
+  const built=await run(process.execPath,[cli,'continue','value','--json'],{env,timeoutMs:60000,maxOutputBytes:100000});assert.equal(built.code,3,built.stdout+built.stderr);
+  const events=built.stdout.trim().split('\n').map(line=>JSON.parse(line));assert.equal(events.filter(e=>e.type==='terminal').length,1);assert.equal(events.at(-1).data.outcome,'decision_required');assert.ok(events.at(-1).data.decision.choices.some((c:{command?:string})=>c.command==='harness stage review r1'));assert.match(built.stdout,/Staged as r1/);assert.match(built.stdout,/awaits final review/);
   assert.equal(await readFile(path.join(project,'app.js'),'utf8'),'export const value=1;\n');
   const s=await readStage(project,'r1');assert.deepEqual(s.manual.map(c=>c.id),['speech']);
   await assert.rejects(recordStageReview(project,s,{environment:'synthetic test only',observations:[{id:'speech',passed:true,notes:'Synthetic test attestation, not actual screen-reader proof'}],approved:true}),/Preview this exact/);

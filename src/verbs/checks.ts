@@ -1,9 +1,9 @@
+import {workflowCommand} from '../workflow/commands.ts';
 import {configureInterfaceChoices} from '../acceptance/interface-choices.ts';
 import {migrateChecks,approveMigration} from '../acceptance/migration.ts';
 import {regenerateSavedCheck} from "../acceptance/regenerate.ts";
-import {prepareChecks,checkWorkflowStatus} from '../acceptance/workflow.ts';
 import {parseCheckLimits} from '../acceptance/budget.ts';
-import { guidedSetup, readGuidedDraft, reviewGuidedDraft, resumePreparation, repairSavedCheck, simplifySavedCheck, useRecipeSavedCheck } from "../acceptance/guided.ts";
+import { guidedSetup, readGuidedDraft, reviewGuidedDraft, resumePreparation, simplifySavedCheck, useRecipeSavedCheck } from "../acceptance/guided.ts";
 import { randomUUID } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
@@ -70,17 +70,15 @@ export async function setupChecks(project: string, io: Dialogue, manual = false)
 }
 
 export async function checks(project: string, args: readonly string[]): Promise<void> {
+  if(["prepare","repair","status"].includes(args[0]??""))return workflowCommand(project,"checks",args);
   if(args[0]==='choices'&&(args.length===2||args.length===3&&args[2]==='--revoke'))return configureInterfaceChoices(project,args[1]!,terminalDialogue(),args[2]==='--revoke');
   if(args.length===2&&args[0]==='migrate'&&args[1]==='--approve')return approveMigration(project,terminalDialogue());
   if(args[0]==='migrate'){const flags=[...args.slice(1)];let prepare=false,restart=false,window:number|undefined;while(flags.length){const flag=flags.shift();if(flag==='--prepare'&&!prepare)prepare=true;else if(flag==='--restart'&&!restart)restart=true;else if(flag==='--window-ms'&&window===undefined&&/^\d+$/.test(flags[0]??''))window=Number(flags.shift());else throw new OperatorError('Use: harness checks migrate [--prepare [--restart]] [--window-ms 100–10000]');}if(restart&&!prepare)throw new OperatorError('--restart requires --prepare.');return migrateChecks(project,prepare,window,say,restart);}
 
-  if(args[0]==='prepare'){const status=await prepareChecks(project,terminalDialogue(),parseCheckLimits(args.slice(1)));if(status==='blocked')process.exitCode=1;return;}
   if(args.length===2&&args[0]==='regenerate')return regenerateSavedCheck(project,terminalDialogue(),args[1]!);
-  if(args.length===1&&args[0]==='status')return checkWorkflowStatus(project,say);
   if (args.length === 1 && args[0] === "setup") return setupChecks(project, terminalDialogue());
   if (args.length === 2 && args[0] === "setup" && args[1] === "--manual") return setupChecks(project, terminalDialogue(), true);
   if ((args.length===1||args.length===2) && args[0]==="use-recipe") return useRecipeSavedCheck(project,terminalDialogue(),args[1]);
-  if ((args.length===1||args.length===2) && args[0]==="repair") return repairSavedCheck(project,terminalDialogue(),args[1]);
   if(args[0]==='simplify'){
     const options=args.slice(1),scope=options[0]&&!options[0].startsWith('--')?options.shift():undefined;
     return simplifySavedCheck(project,terminalDialogue(),scope,undefined,parseCheckLimits(options,'simplify [case-id]'));
@@ -107,6 +105,6 @@ export async function checks(project: string, args: readonly string[]): Promise<
     say("Next: harness checks prepare (bounded preparation from your plan), or harness checks approve <file> (JSON document).");
     say("Use application behaviour, not a test runner's claim that tests passed. The host checks expectations outside the candidate process."); return;
   }
-  if (args.length !== 2 || args[0] !== "approve") throw new OperatorError("Use: harness checks [choices <task-id> [--revoke] | prepare [--max-requests N] [--max-seconds N] [--request-seconds N] | regenerate <case-id> | status | setup [--manual] | review | repair [case-id] | use-recipe [case-id] | simplify [case-id] [--max-requests N] [--max-seconds N] [--request-seconds N] | approve <file>]");
+  if (args.length !== 2 || args[0] !== "approve") throw new OperatorError("Use: harness checks [choices <task-id> [--revoke] | prepare [task-id] [--json] [--max-requests N] [--max-seconds N] [--request-seconds N] | regenerate <case-id> | status | setup [--manual] | review | repair [case-id] [--task task-id] [--json] [--max-requests N] | use-recipe [case-id] | simplify [case-id] [--max-requests N] [--max-seconds N] [--request-seconds N] | approve <file>]");
   await withWriter(project, "checks", async () => { const approval = await approveChecks(project, path.resolve(args[1]!)); say(`Approved ${approval.manifest.cases.length} acceptance cases. These exact expectations will be checked before application.`); });
 }

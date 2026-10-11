@@ -75,7 +75,7 @@ test('F14 confirmed remote permission denial can be retried without resetting re
   assert.equal((await uploadGitHub(project,draft.id,client)).status,'uploaded');assert.equal(creates,2);
  }finally{await rm(root,{recursive:true,force:true});}
 });
-test('F16 explicit preparation without a terminal reaches project validation',known,async()=>{
+test('F16 explicit preparation without a terminal reaches project validation',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'audit-tty-'));
  try{
   await mkdir(root+'/agent');await writeFile(root+'/config','# isolated\n');

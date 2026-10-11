@@ -1,3 +1,4 @@
+import {workflowEvent} from '../workflow/protocol.ts';
 /** A command's explicit request/time allowance covers drafting, repairs and format corrections. */
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {OperatorError} from '../verbs/io.ts';
@@ -30,6 +31,7 @@ export async function checkRequestBudget(configTimeout:number):Promise<{timeoutM
  c.state.requests++;await c.save();
  if(c.deadline-c.now()<minimumWindow(c,configTimeout)){c.state.requests--;await c.save();throw new CheckBudgetExceeded();}
  c.write(`Model request ${c.state.requests}/${c.limits.maxRequests}; ${Math.max(0,Math.ceil((c.deadline-c.now())/1000))}s remaining in this allowance.`);
+ workflowEvent('allowance',{limits:{...c.limits},requestsReserved:c.state.requests,remainingMs:Math.max(0,c.deadline-c.now())});
  let recorded=false;
  return {timeoutMs:Math.max(1,Math.min(configTimeout,c.limits.requestSeconds*1000,c.deadline-c.now())),record:async(usage,complete)=>{
   if(recorded)return;recorded=true;
@@ -38,6 +40,7 @@ export async function checkRequestBudget(configTimeout:number):Promise<{timeoutM
   if(complete||usage.costUsd>0)c.state.reportedCostUsd=(c.state.reportedCostUsd??0)+usage.costUsd;
   if(!complete)c.state.unreported=(c.state.unreported??0)+1;
   await c.save();
+  workflowEvent('usage',{...c.state,complete:!c.state.unreported&&(c.state.recorded??0)===c.state.requests});
   c.write(describeCheckSpend(c.state));
  }};
 }

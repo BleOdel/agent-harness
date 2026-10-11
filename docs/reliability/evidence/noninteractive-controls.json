@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "controls": [
+    {
+      "name": "require-terminal",
+      "file": "src/workflow/commands.ts",
+      "test": "test/workflow-command.test.ts",
+      "pattern": "noninteractive API never asks",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "d388ddf6141e9e44c7a77d6ad33ce590985185b05484b69c084a50cd8a251244"
+    },
+    {
+      "name": "auto-approve",
+      "file": "src/guide/dialogue.ts",
+      "test": "test/workflow-command.test.ts",
+      "pattern": "noninteractive confirmation",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "57ae82fe1c9ebd28e8e1a642ff8973f5054c69d6a894488154da02b55bcb7a75"
+    },
+    {
+      "name": "provider-becomes-pause",
+      "file": "src/workflow/commands.ts",
+      "test": "test/workflow-command.test.ts",
+      "pattern": "command terminal distinguishes provider_failure",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "4b10165bb9b8700fe2a6f40dcfb49df18d08fc7e5b51d26f0e0517bcfd81cd86"
+    },
+    {
+      "name": "omit-checkpoint-event",
+      "file": "src/workflow/protocol.ts",
+      "test": "test/workflow-command.test.ts",
+      "pattern": "events follow durable",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "04c6c4273b606529bdd954352c371717792a6686b9a9a064a48441b0a8976417"
+    },
+    {
+      "name": "late-event-after-terminal",
+      "file": "src/workflow/protocol.ts",
+      "test": "test/workflow-command.test.ts",
+      "pattern": "late progress cannot",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "7d6d8104ce24e8d8e0b470ee7b9c06689b32335cade3bf20711ece7768da43fd"
+    },
+    {
+      "name": "extra-repair-request",
+      "file": "src/acceptance/budget.ts",
+      "test": "test/workflow-command.test.ts",
+      "pattern": "explicit repair persists",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "42ef6397926057987c7b8605947e66349943c93754223d173fb82e91140fad68"
+    }
+  ],
+  "method": "Six independent deliberate source defects in a separate disposable copy. Each regression failed an assertion, with original source restored between controls. No provider requests."
+}

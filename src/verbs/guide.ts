@@ -1,3 +1,4 @@
+import {workflowInvocation,executeWorkflowCommand} from '../workflow/commands.ts';
 import {pendingStage} from '../staging/store.ts';
 import {guideTorch} from "../guide/torch.ts";
 import {guideMetal} from "../guide/metal.ts";
@@ -25,15 +26,19 @@ import { canonicalProject, recoverWriter } from "../workspace/writer-lock.ts";
 import { OperatorError } from "./io.ts";
 
 export type GuideCommand = (project: string, args: readonly string[]) => Promise<number>;
-const execute: GuideCommand = (project, args) => new Promise((resolve, reject) => {
+export async function executeGuideCommand(project: string, args: readonly string[], io?: Dialogue): Promise<number> {
+ const invocation=workflowInvocation(args[0],args.slice(1));
+ if(invocation)return (await executeWorkflowCommand(project,invocation.request,{...invocation,...(io?{dialogue:io}:{})})).exitCode;
+ return new Promise((resolve, reject) => {
   const child = spawn(process.execPath, [path.resolve(import.meta.dirname, "../cli.ts"), ...args], {
     stdio: "inherit", env: { ...process.env, HARNESS_PROJECT: project },
   });
   child.once("error", reject);
   child.once("close", code => resolve(code ?? 1));
-});
+ });
+};
 
-export async function guide(configuredProject: string, io: Dialogue = terminalDialogue(), command: GuideCommand = execute): Promise<void> {
+export async function guide(configuredProject: string, io: Dialogue = terminalDialogue(), command: GuideCommand = (p,args)=>executeGuideCommand(p,args,io)): Promise<void> {
   io.write("Harness guide — saved plans and project state determine the next step.");
   io.write(`Shell folder: ${process.cwd()}`);
   io.write(`Configured project: ${configuredProject}`);

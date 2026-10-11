@@ -701,20 +701,32 @@
         "src/verbs/checks.ts:75",
         "src/guide/dialogue.ts:6"
       ],
-      "status": "open",
+      "status": "verified",
       "tasks": [
         "hr-025"
       ],
       "regressions": [
-        "test/reliability-defects.test.ts"
+        "test/reliability-defects.test.ts",
+        "test/workflow-command.test.ts",
+        "test/workflow-command-cli.test.ts",
+        "test/workflow-command-docker.test.ts"
       ],
-      "resolutionEvidence": [],
+      "resolutionEvidence": [
+        {
+          "kind": "regression",
+          "path": "test/workflow-command-cli.test.ts"
+        },
+        {
+          "kind": "negative-control",
+          "path": "docs/reliability/evidence/noninteractive-controls.json"
+        }
+      ],
       "qualification": {
-        "state": "reproduced",
-        "trigger": "Invoke explicit checks prepare with stdin closed and an empty isolated project; require project validation without demanding a terminal.",
-        "regression": "test/reliability-defects.test.ts",
-        "execution": "docs/reliability/evidence/foundation-validation.json",
-        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix."
+        "state": "fixed",
+        "trigger": "Explicit preparation, repair, continuation and status with ordinary pipes, closed stdin and redirected output.",
+        "regression": "test/workflow-command-cli.test.ts",
+        "execution": "docs/reliability/evidence/noninteractive-validation.json",
+        "limitation": "Local deterministic Pi replies qualify the installed Docker boundary without a real provider. Approval remains explicit; other interviews and dashboard mutations are outside this command protocol."
       }
     },
     {

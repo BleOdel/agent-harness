@@ -1,3 +1,4 @@
+import {reportCommandFailure} from './protocol.ts';
 import type { OperationPhase } from './operations.ts';
 import type { CheckLimits } from '../acceptance/budget.ts';
 import { OperatorError } from '../verbs/io.ts';
@@ -125,6 +126,7 @@ export async function driveContinuation(state: ContinueState, s: ContinueService
         }
     }
     catch (error) {
+        reportCommandFailure(error);
         await set(error instanceof ImplementationInterrupted ? 'paused' : 'attention', 'diagnosis', `${(error as Error).message}${error instanceof OperatorError && error.remedy ? '\n' + error.remedy : ''}`);
         return state;
     }

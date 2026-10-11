@@ -1,3 +1,4 @@
+import {reportCommandFailure} from './protocol.ts';
 /** Shared preparation transitions; adapters provide evidence operations, not retry decisions. */
 import type { PreparationNextAction, PreparationSelection } from './preparation-selection.ts';
 import { CheckBudgetExceeded, ensureCheckBudget, type CheckLimits, type CheckSpend } from '../acceptance/budget.ts';
@@ -130,6 +131,7 @@ export async function driveCheckWorkflow(state: WorkflowState, services: Service
                 }
             }
             if (error instanceof CheckBudgetExceeded || error instanceof CheckRequestInterrupted) {
+                reportCommandFailure(error);
                 await services.save();
                 services.write(error.message);
                 if (error instanceof CheckRequestInterrupted)
@@ -168,6 +170,7 @@ export async function driveCheckWorkflow(state: WorkflowState, services: Service
                     continue;
                 }
             }
+            reportCommandFailure(error);
             await services.save();
             services.write(state.problem);
             if (error instanceof OperatorError && error.remedy)

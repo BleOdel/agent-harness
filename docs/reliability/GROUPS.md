@@ -13,4 +13,4 @@ The operator requested grouped implementation on 11 October 2026. These groups s
 
 Each group is developed in a disposable copy and applied only after its gates pass. Commit/push remains a separate operator instruction. A completed group is not completion of the 45-task program. Unknown capabilities and unresolved manual evidence remain explicit.
 
-Current delivery: Group 1 is complete. Group 2 has completed hr-023 and hr-024, including final cross-controller status and recovery reconciliation. hr-025–hr-027 remain: structured/noninteractive commands, cumulative allowances and bounded continuation. Overall: **24/45 tasks complete; 21 remain**. See [completion qualification](evidence/reconciliation-validation.json).
+Current delivery: Group 1 is complete. Group 2 has completed hr-023–hr-025, including cross-controller recovery reconciliation and noninteractive commands. hr-026–hr-027 remain: cumulative allowances and bounded continuation. Overall: **25/45 tasks complete; 20 remain**. See [latest qualification](evidence/noninteractive-validation.json).

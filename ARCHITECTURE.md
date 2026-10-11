@@ -1661,3 +1661,21 @@ flowchart TD
 ```
 
 The operation service owns execution reservations; domain stores own verification and completion facts. Stage updates now require an unchanged read receipt under that same writer. An old review cannot revive a discarded candidate. Status never repairs old records; action dispatch rereads and validates them. Conflicting journals, uncertain resources and malformed state require inspection. Qualification: [hr-024 reconciliation](docs/reliability/evidence/reconciliation-validation.json).
+
+## Noninteractive operation boundary
+
+```mermaid
+flowchart LR
+  CLI[CLI: pipes or terminal] --> API[Shared workflow command API]
+  Guide[Interactive guide] --> API
+  API --> Controllers[Prepare / repair / continue / status controllers]
+  Controllers --> Journal[Durable operation reservations and checkpoints]
+  Controllers --> Gates[Existing approval and evidence gates]
+  API --> Events[Version 1 events and terminal outcome]
+```
+
+The four command families use `workflow/commands.ts`; `workflow/protocol.ts`
+emits invocation events after durable reservations/checkpoints. Text and JSON
+clients share controllers. Noninteractive dialogue returns concrete pending
+decisions and cannot approve. Events are notifications; retained domain records
+remain recovery authority. [Protocol and scope](docs/reliability/COMMAND-PROTOCOL.md).

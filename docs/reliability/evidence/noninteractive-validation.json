@@ -1,0 +1,192 @@
+{
+  "version": 1,
+  "kind": "local-noninteractive-command-validation",
+  "taskStatus": {
+    "hr-025": "done",
+    "completed": 25,
+    "total": 45
+  },
+  "source": {
+    "baseCommit": "05f4fbb16a0c0f7717dc5dd6578a0418d3d7afd1",
+    "codeTreeSha256": "13a6632d0caba1eedfb5229b5df89a0e88da7fda041114260d45da320e0e0db7",
+    "changedFiles": {
+      "src/acceptance/budget.ts": "06342eeb53c0957bf4cfb61bd0f5f8225b7f602d27c3026e4df5602f7b4e411f",
+      "src/acceptance/draft.ts": "35e0ed8c75b52015448e1a7f6f6270f9d782c1dc2b051557c922ec5841763dc1",
+      "src/cli.ts": "5cceadac66cb60085e493ec4d0589d13dc5e716abb643def5e57d7f8ad5cd6bc",
+      "src/guide/dialogue.ts": "46e350195186557fcaa53b337be68b9f36d3949af7bfedd9a4b5be40751c3913",
+      "src/verbs/checks.ts": "9c819dab37fe9e409cf27e343b3781c1c802815f5c7ea6722d89130bfcbe9f6d",
+      "src/verbs/continue.ts": "b6e85dc3d1286115cb14b7bf4973c25b1e734dca7ee0586e2f474b3173f94468",
+      "src/verbs/guide.ts": "6532f26deb45d8440f3a7958be1f45f7d4fc48be9ce87922e7d3fbbec9fae4b6",
+      "src/verbs/io.ts": "3bec7205d35e2c32ad7c4ef2b8d677eb926a172fae4ec2e3c192faee63c064ea",
+      "src/workflow/commands.ts": "6ebd41d47c0f353b67215f98ba7bc16920eeea1a63356ecff8703ccb008f5eb8",
+      "src/workflow/controller.ts": "9862ba4ada9ab26bbffcf714741592d47a085301d21370245230031ff6b5c41e",
+      "src/workflow/operations.ts": "4acf2dec3e72ff542212d6cb1b460d9f03844acf45e05ffa0d86a8c57b18a6d0",
+      "src/workflow/preparation.ts": "29cb88fd806c1527d80250c816e5b3912af0213b1e351f4b9a56aad528614003",
+      "src/workflow/protocol.ts": "034200a2a6ef725d88b116c08f98d076d5742c0d6928787e2ead6079b0e5b5dc",
+      "src/workflow/work.ts": "f5a836829ea976633fe96080dca73408144c420ad4b11e13fad4352407c3aa5b",
+      "test/active-preparation-repair.test.ts": "bac4c939daf4ba7c872e42689734eec080cf2dc770fe400572a67c1879e5cbee",
+      "test/reliability-defects.test.ts": "f7b39d5bcb984982b1504294af71ce7d0e0c0a1c13c2467648173f60b01f5883",
+      "test/staged-preview-docker.test.ts": "1cba9f1eb7940fd0b1d4748c8c55f0aa058f788881554be083e07ecc4e696738",
+      "test/workflow-command-cli.test.ts": "eba231e2fd257977fda1714b956c9cb37777fa88fb313a4c61e5b4b2f4771b4f",
+      "test/workflow-command-docker.test.ts": "383f44f2dfd4a83710661ba49ca81435425f4e2aea7d641bd9fd12e68b2fbcdb",
+      "test/workflow-command.test.ts": "3a98e43334eadc69a991c6611365f93823d821f7348ab36a8e2d5da7b02abb5c"
+    }
+  },
+  "node": "v26.5.0",
+  "requiredRegressions": [
+    "test/workflow-command.test.ts",
+    "test/workflow-command-cli.test.ts",
+    "test/workflow-command-docker.test.ts",
+    "test/active-preparation-repair.test.ts",
+    "test/reliability-defects.test.ts"
+  ],
+  "fullSuite": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "counts": {
+      "tests": 1297,
+      "pass": 1225,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 72,
+      "todo": 0
+    },
+    "logSha256": "8c32172db2730622425d49787bcbd613e4686c7bfea223bca07c2dbd1f8f5137"
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-11T22:55:35.776Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-timing-docker.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "f3e911acebb64375eaf4077e6ea1687fe324906cf76539c9aca4d2e250c407b8",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-11T22:57:19.600Z"
+  },
+  "dockerCommands": {
+    "tests": [
+      "test/workflow-command-docker.test.ts"
+    ],
+    "exitCode": 0,
+    "counts": {
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "logSha256": "1a020c8ad70e93fc69eb0e71fb2a09d30c958aa2d66c352394ca8ff31cca820f",
+    "provider": "Local deterministic Pi replies and empty fixture credentials; no network model request."
+  },
+  "negativeControls": {
+    "count": 6,
+    "detected": 6,
+    "artifact": "docs/reliability/evidence/noninteractive-controls.json"
+  },
+  "criteria": [
+    {
+      "criterion": 1,
+      "implementation": [
+        "src/workflow/commands.ts",
+        "src/cli.ts",
+        "src/verbs/checks.ts",
+        "src/verbs/continue.ts"
+      ],
+      "tests": [
+        "test/workflow-command-cli.test.ts",
+        "test/workflow-command-docker.test.ts",
+        "test/active-preparation-repair.test.ts"
+      ],
+      "proof": "Explicit task/allowance input, closed stdin and redirected stdout reach domain controllers without a PTY. Selected repair preserves its owning preparation. Status performs no dispatch."
+    },
+    {
+      "criterion": 2,
+      "implementation": [
+        "src/workflow/protocol.ts",
+        "src/workflow/operations.ts",
+        "src/acceptance/budget.ts"
+      ],
+      "tests": [
+        "test/workflow-command.test.ts",
+        "test/workflow-command-cli.test.ts",
+        "test/workflow-command-docker.test.ts"
+      ],
+      "proof": "Version-1 ordered events, one terminal result, stable exit codes, durable reservation/checkpoint before notification, real provider-failure and allowance-pause fixtures, late-event suppression."
+    },
+    {
+      "criterion": 3,
+      "implementation": [
+        "src/guide/dialogue.ts",
+        "src/workflow/commands.ts"
+      ],
+      "tests": [
+        "test/workflow-command.test.ts",
+        "test/workflow-command-cli.test.ts",
+        "test/active-preparation-repair.test.ts"
+      ],
+      "proof": "Task selection and confirmation produce concrete pending choices, never read stdin or approve; ready checks require explicit review. Repair spend is persisted before request and a second request exceeding the allowance is refused."
+    },
+    {
+      "criterion": 4,
+      "implementation": [
+        "src/verbs/guide.ts",
+        "src/workflow/commands.ts"
+      ],
+      "tests": [
+        "test/workflow-command.test.ts"
+      ],
+      "proof": "Interactive dialogue and guide command adapter use the same operation API; explicit confirmation and caller output routing remain intact."
+    },
+    {
+      "criterion": 5,
+      "tests": [
+        "test/workflow-command-cli.test.ts",
+        "test/workflow-command-docker.test.ts",
+        "test/reliability-defects.test.ts"
+      ],
+      "proof": "Public CLI subprocesses use pipes/closed stdin and files for redirected output; real installed Docker runs deterministic local Pi responses. F16 now runs in default suite. Six deliberate defects are caught."
+    }
+  ],
+  "limitations": [
+    "Protocol covers prepare, selected repair, continue and status. Interactive interviews/review and unrelated platform commands remain separate. Dashboard mutation remains hr-031/hr-032/hr-037.",
+    "Events are live notifications, not a replay log or approval/evidence authority. Abrupt process death or a broken output pipe can leave no terminal; inspect retained state before resuming.",
+    "Request/time limits are not dollar-cost caps. Cumulative accounting and autonomous bounded continuation remain hr-026/hr-027.",
+    "Success describes the requested operation only. A successful status read or selected repair does not certify or approve an application. Choice IDs are not authorization tokens.",
+    "Installed runtime evidence is local Linux arm64 Docker/Chromium with synthetic fixtures, not hosted CI, real providers or other platforms. No live blog state, credentials, new dependencies, paid model calls, commits or pushes.",
+    "Final documentation evidence and disposable claim are produced after qualification; executable code/tests are unchanged."
+  ],
+  "repairNotes": [
+    "The default-skipped Docker stage fixture originally expected legacy exit 0 on approval pending. It was updated to expect decision_required/exit 3 and assert parseable terminal choices, retaining all preview and explicit-application safeguards. The updated fixture was run directly and in final installed smoke; no application source changed after the final full-suite launch.",
+    "A guide-adapter regression exposed output bypassing the caller dialogue; fixed before final qualification.",
+    "Continuation status retains its prior saved build-attempt details in JSON progress; compatibility test verifies read-only state."
+  ]
+}

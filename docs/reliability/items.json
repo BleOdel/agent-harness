@@ -461,7 +461,7 @@
     "id": "hr-025",
     "title": "Provide noninteractive commands and structured progress events",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Explicit prepare, repair, continue and status commands run without a TTY when required task and allowance inputs are supplied.",
       "Expose versioned structured events and stable terminal outcomes for success, paused allowance, decision required, capability failure and provider failure.",
@@ -473,7 +473,7 @@
       "hr-024"
     ],
     "kind": "implementation",
-    "planContext": "Operator-authorized implementation backlog. Preserve operator-owned requirements and exact candidate/evidence identity; keep changes in a disposable workspace, preserve legacy records and recovery, and do not weaken checks. No new runtime dependency or external publication is authorized by this item. Use the repository test/claim workflow and applicable real runtime qualification. Do not run paid model trials without the agreed bounded allowance. Milestone M3; audit findings F16, F17; size M. Likely scope: verbs/checks.ts; guide/dialogue.ts; workflow command adapters. Full accepted scope must come from docs/reliability/PLAN.md."
+    "planContext": "Operator-authorized implementation backlog. Preserve operator-owned requirements and exact candidate/evidence identity; keep changes in a disposable workspace, preserve legacy records and recovery, and do not weaken checks. No new runtime dependency or external publication is authorized by this item. Use the repository test/claim workflow and applicable real runtime qualification. Do not run paid model trials without the agreed bounded allowance. Milestone M3; audit findings F16, F17; size M. Likely scope: verbs/checks.ts; guide/dialogue.ts; workflow command adapters. Full accepted scope must come from docs/reliability/PLAN.md. Completed by the shared workflow command API, version-1 NDJSON events, explicit pending decisions, stable terminal outcomes and retained repair allowances. CLI pipes and interactive guide share controllers. See COMMAND-PROTOCOL.md and evidence/noninteractive-validation.json. Approval, dashboard mutation and cumulative cross-invocation allowances remain separate."
   },
   {
     "id": "hr-026",

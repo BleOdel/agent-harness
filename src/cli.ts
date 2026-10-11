@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --experimental-strip-types
+import {workflowInvocation,executeWorkflowCommand} from './workflow/commands.ts';
 import {recoverOperation,describeWorkflowStatus} from './workflow/reconciliation.ts';
 import {recoverPendingApplication} from './workspace/application.ts';
 import {sourcePolicyCommand} from './verbs/source.ts';
@@ -125,6 +126,7 @@ const USAGE = [
   "  harness team undo <id>        journal a batch reversal",
   "  harness team recover <id>     reconcile attempts or finish a pending application",
   "  harness recover-application  finish or roll back an interrupted application",
+  "  harness status [--json]    read shared workflow status",
   "  harness recover-operation <id> <revision> reconcile interrupted execution",
   "  harness recover-lock <token> recover a dead writer explicitly",
   "  harness run [--max N]         work items until one needs you",
@@ -147,11 +149,13 @@ async function main(): Promise<void> {
   const [verb, ...rest] = process.argv.slice(2);
   const project = path.resolve(process.env.HARNESS_PROJECT ?? process.cwd());
 
+  const invocation=workflowInvocation(verb,rest);
+  if(invocation){const outcome=await executeWorkflowCommand(project,invocation.request,invocation);process.exitCode=outcome.exitCode;return;}
   switch (verb) {
     case "source": return sourcePolicyCommand(project,rest);
     case "capabilities": return capabilitiesCommand(rest);
     case "stage": return stageCommand(project,rest);
-    case "continue": return continueCommand(project,rest);
+    case "continue": await continueCommand(project,rest); return;
     case "worktree": return worktreeCommand(project,rest);
     case "performance": return performanceCommand(project,rest);
     case "security": return securityCommand(project,rest);

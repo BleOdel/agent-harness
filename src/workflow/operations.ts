@@ -1,3 +1,4 @@
+import {workflowEvent} from './protocol.ts';
 /** Execution ownership, not acceptance evidence. Domain records remain the source of verification facts. */
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {createHash, randomUUID} from 'node:crypto';
@@ -145,6 +146,7 @@ export async function checkpointOperation(project: string, value: OperationCheck
     next.checkpoints.push(structuredClone(saved));
     next.progress = structuredClone(saved);
   });
+  workflowEvent('checkpoint',{...saved},frame.session.record.id);
 }
 export function trackedCommand(command: string): boolean {
   return command === 'recover-application' || command === 'application recovery' || command === 'operation recovery' || command === 'undo' || /^work(?: |$)/u.test(command) || command === 'continue' || /^team(?: |$)/.test(command) || /^checks(?: |$)/.test(command) || /^stage /.test(command);
@@ -169,6 +171,7 @@ function childDispatch<T>(parent: Frame, command: string, action: () => Promise<
 async function dispatch<T>(session: Session, command: string, parent: string | null, action: () => Promise<T>, phase?: PhaseIdentity): Promise<T> {
   const id = randomUUID(), frame: Frame = {session, dispatch: id, closed: false, child: null};
   await update(session, next => { next.dispatches.push({id, parent, command, state: 'reserved', ...(phase ? {phase} : {})}); });
+  workflowEvent('dispatch', {dispatchId:id,parent,command,...(phase?{phase}:{})},session.record.id);
   let result!: T, failure: unknown, failed = false;
   try { result = await context.run(frame, action); }
   catch (error) { failure = error; failed = true; }

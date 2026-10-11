@@ -1,3 +1,4 @@
+import {commandProgress} from '../workflow/protocol.ts';
 /**
  * The one place the operator surface writes to a terminal.
  *
@@ -8,7 +9,7 @@
  */
 
 export function say(line = ""): void {
-  process.stdout.write(`${line}\n`);
+  if (!commandProgress(line)) process.stdout.write(`${line}\n`);
 }
 
 export class OperatorError extends Error {

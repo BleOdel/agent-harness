@@ -37,6 +37,13 @@ acceptance: feed passed against operator-approved expectations
 applied as r5. undo with: npm run undo -- r5
 ```
 
+For scripts, `harness checks prepare <task-id> --max-requests 3 --json`,
+`harness checks repair <case-id> --max-requests 2 --json`,
+`harness continue <task-id> --max-builds 1 --json` and `harness status --json`
+work without a terminal. JSON mode emits ordered NDJSON events and a terminal
+outcome; missing input or approval returns explicit choices instead of prompting.
+See the [command protocol and exit codes](docs/reliability/COMMAND-PROTOCOL.md).
+
 During check preparation, outline corrections update only affected sections.
 Completed replies are saved for resume, and unrelated behaviours stay intact.
 Independent review and your approval are still required; manual observations

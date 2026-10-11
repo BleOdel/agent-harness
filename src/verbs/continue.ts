@@ -46,7 +46,7 @@ async function totalCheckRequests(project: string): Promise<number> {
     const {runs} = await readPreparationWorkflow(project);
     return runs.reduce((n, r) => n + r.spend.requests, 0);
 }
-export async function continueCommand(project: string, args: readonly string[], dialogue?: Dialogue): Promise<void> {
+export async function continueCommand(project: string, args: readonly string[], dialogue?: Dialogue): Promise<import("../workflow/controller.ts").ContinueState | undefined> {
     project = await canonicalProject(project);
     if (args.length === 1 && args[0] === 'status') {
         const workflow = await describeWorkflowStatus(project, say);
@@ -70,7 +70,7 @@ export async function continueCommand(project: string, args: readonly string[], 
     if (!Number.isInteger(maxBuilds) || maxBuilds < 1 || maxBuilds > 10)
         throw new OperatorError('--max-builds must be 1..10.');
     const limits = parseCheckLimits(flags), io = dialogue ?? (process.stdin.isTTY && process.stdout.isTTY ? terminalDialogue() : { write: say, ask: async () => { throw new OperatorError('Approval requires your review.', 'Run harness checks review in a terminal, then harness continue.'); } });
-    await withWriter(project, 'continue', async () => {
+    return withWriter(project, 'continue', async () => {
         const saved = await readContinuation(project), features = await readFeatures(project);
         if (!features?.ok)
             throw new OperatorError('Accept planned work items before continuing.', 'Use harness guide.');
@@ -115,7 +115,6 @@ export async function continueCommand(project: string, args: readonly string[], 
                 throw new OperatorError('Configured project differs from the continuation project.'); await work(["--stage", task]); },
         });
         io.write(`Saved progress: harness continue status. ${output.status === 'paused' ? 'Grant a new allowance when ready: harness continue --renew.' : output.status === 'complete' ? 'Review the result in the dashboard.' : 'Decisions and diagnoses are saved; no log copying is required to retain them.'}`);
-        if (output.status === 'attention')
-            process.exitCode = 1;
+        return output;
     });
 }

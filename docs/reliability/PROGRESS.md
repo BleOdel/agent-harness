@@ -1,8 +1,8 @@
 # Reliability progress — Group 2: evidence and command ownership
 
-Completed tasks: hr-001–hr-024 — **24 of 45**. The remaining 21 tasks are open. [Grouped delivery](GROUPS.md) Group 2 has completed common evidence admission and durable operation adoption; hr-025–hr-027 (structured commands, cumulative allowances and bounded continuation) remain. The chronological entries below retain the scope and counts at each earlier checkpoint; the final hr-024 reconciliation entry supersedes their open-task statements.
+Completed tasks: hr-001–hr-025 — **25 of 45**. The remaining 20 tasks are open. [Grouped delivery](GROUPS.md) Group 2 has completed common evidence admission, durable operation adoption and noninteractive commands. hr-026–hr-027 (cumulative allowances and bounded continuation) remain. The chronological entries below retain earlier counts; the hr-025 entry supersedes their open-task statements.
 
-The registry covers all 25 findings: 12 fixed at their documented audit scope, 1 reproduced and 12 inspection-only or partially repaired gaps. F01, F13 and F14 now link current positive regressions and restored-defect controls. Historical audit evidence remains unchanged. Noninteractive preparation remains a known desired-behavior failure. Group 1 fixes dependency-scoped peer-review invalidation; unknown legacy dependencies still require fresh review. Browser timing is now qualified at the documented finite-window scope. The full end-to-end reliability program is not complete.
+The registry covers all 25 findings: 13 fixed at their documented audit scope and 12 inspection-only or partially repaired gaps. F01, F13 and F14 now link current positive regressions and restored-defect controls. Historical audit evidence remains unchanged. F16 noninteractive preparation is now fixed and its desired-behavior regression runs in the default suite. Group 1 fixes dependency-scoped peer-review invalidation; unknown legacy dependencies still require fresh review. Browser timing is now qualified at the documented finite-window scope. The full end-to-end reliability program is not complete.
 
 At the foundation checkpoint, the lifecycle boundary included strict event fields, canonical owner paths, atomic expected-record updates under the project writer lock, concurrent-process tests, retained request reservations and opt-in legacy archives. Legacy inspection preserves original text and cannot produce approval or passing application evidence. No existing project was migrated. Controller adoption and orchestration remain hr-024. Common evidence admission is now implemented by hr-023 below; the shared application journal implements hr-010.
 
@@ -203,3 +203,22 @@ Stage saves and updates now share writer ownership. Updates require the exact ob
 Qualification: `evidence/reconciliation-validation.json` maps every hr-024 criterion to the current and prior migration tests. It includes full build/tests, installed Docker/Chromium smoke, deterministic preparation and implementation recovery trials, process-kill/concurrent-recovery tests, CLI/dashboard agreement, retained legacy records and six deliberate-defect controls. No paid model request, dependency, blog state or credential was changed. This completes hr-024, not the full reliability program; hr-025–hr-045 remain open.
 
 Final hr-024 qualification: `npm run check` passed 1,203 of 1,275 tests, with 72 explicit skips and zero failures. Installed Docker/Chromium smoke passed 13/13; deterministic Docker preparation/implementation recovery passed 2/2. Six deliberate defects were detected.
+
+## hr-025 — Noninteractive commands and structured progress
+
+Explicit prepare, selected-case repair, continue and status share one command
+API with the interactive guide. Closed stdin and redirected output need no PTY.
+Version-1 NDJSON includes ordered reservation, checkpoint, allowance, usage,
+decision and terminal events. Missing information/approval returns concrete
+choices; provider and capability failures remain distinct from allowance pauses.
+Selected repairs persist their allowance before dispatch. Approval and application
+remain separate; a successful repair/status read is not a completed application.
+
+See [command protocol](COMMAND-PROTOCOL.md),
+[qualification](evidence/noninteractive-validation.json) and
+[deliberate-defect controls](evidence/noninteractive-controls.json).
+F16 is closed at this command scope. F17 dashboard mutation remains open;
+cumulative budgets and bounded autonomous continuation remain hr-026/hr-027.
+No live blog state, credentials, paid model calls or dependencies were changed.
+
+Final hr-025 qualification: `npm run check` passed 1,225 of 1,297 tests, with 72 explicit skips and zero failures. Installed Docker/Chromium smoke passed 13/13; deterministic public CLI/Docker qualification passed 1/1. Six deliberate defects were detected.

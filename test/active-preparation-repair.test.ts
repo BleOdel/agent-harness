@@ -42,3 +42,13 @@ test('phase advancement shares operation identity while a fresh operation supers
  await writeFile(dir+'/preparation.json',JSON.stringify({...record,operation:next}));assert.equal((await readActivePreparation(dir))!.name,'preparation.json');
  await writeFile(dir+'/review-progress.json',JSON.stringify({...record,operation:{...next,id:'conflicting'}}));await assert.rejects(readActivePreparation(dir),/Conflicting/);
 }));
+
+import {executeWorkflowCommand} from '../src/workflow/commands.ts';
+test('noninteractive repair API resumes the exact retained case without prompts or approval',()=>fixture(async({project,dir}:any)=>{
+ const outcome=await executeWorkflowCommand(project,{command:'repair',args:['three','--task','author','--max-requests','1']},{json:true,emit:()=>{},services:{repair:async(p,io,id)=>repairSavedCheck(p,io,id,async(_p,_task,proposal,scope,ledger,save)=>{
+  assert.equal(scope,'three');ledger.entries[2]!.review={verdict:'pass',issues:[],limitations:[]};await save(proposal,ledger);return {proposal,ledger};
+ })}});
+ assert.equal(outcome.outcome,'success');const after=JSON.parse(await readFile(dir+'/preparation.json','utf8'));
+ assert.equal(after.state.reviewLedger.entries[2].review.verdict,'pass');assert.equal(after.state.cases.length,3);
+ await assert.rejects(readFile(dir+'/approved.json'),{code:'ENOENT'});
+}));
