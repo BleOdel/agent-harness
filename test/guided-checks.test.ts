@@ -206,3 +206,15 @@ for(const legacy of [true,false])test(`new task preparation hides an old complet
  await utimes(dir+'/review-progress.json',1,1);await writeFile(dir+'/preparation.json',JSON.stringify({version:1,taskId:next.id,taskDigest:taskDigest(next),sourceDigest,feedback:'',...(operation?{operation}:{})}));
  assert.equal(await readGuidedDraft(project),undefined);assert.equal(await readyCheckDraft(project),false);
 }));
+
+import {continuationSnapshot,continueCommand} from '../src/verbs/continue.ts';
+import {saveContinuation,readContinuation} from '../src/workflow/store.ts';
+test('continuation recognizes only a current task-scoped reviewed draft and reviews without preparation allowance',()=>fixture(async project=>{
+ await guidedSetup(project,task,dialogue(['','3']),async()=>parseProposal(proposal(),task));
+ assert.equal(await readyCheckDraft(project,'unrelated'),false);
+ assert.equal((await continuationSnapshot(project,task.id)).checks,'ready');
+ await saveContinuation(project,{version:1,task:task.id,status:'paused',message:'Budget used',updated:new Date().toISOString(),attempts:0,maxBuilds:2,recoveries:0,events:[],checkDeadline:1,checkRequestBase:3});
+ const io=dialogue(['3']);await continueCommand(project,[task.id],io);
+ assert.equal(io.lines.filter(s=>s.includes('Review actions')).length,1);assert.equal((await readContinuation(project))!.status,'approval');assert.equal((await readContinuation(project))!.checkDeadline,1);assert.equal(await readApproval(project),undefined);
+ await writeFile(path.join(project,'changed.js'),'// changed');assert.equal((await continuationSnapshot(project,task.id)).checks,'blocked');
+}));

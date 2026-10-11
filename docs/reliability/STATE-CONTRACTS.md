@@ -71,3 +71,16 @@ Sibling scopes cannot run concurrently on the same inherited operation frame. An
 CLI and dashboard obtain the recorded phase from one projection. `returned` still means only that the callback returned. Pauses, attention, approval and completion remain backed by saved domain records; neither a phase label nor recovery generates evidence or authorization. Journal recovery retains the original intent's operation ID even though a new operation performs recovery.
 
 This is phase-dispatch adoption, not full domain-state consolidation. Preparation selection, continuation allowances and team event reduction still use their compatibility stores. Completing hr-024 requires consolidating those phase-selection/status transitions with explicit migration and reconciliation of old records. Request accounting and retry policy remain hr-026/hr-027.
+
+
+## Guarded controller state and continuation selection
+
+`src/workflow/state.ts` owns read/compare/write for `continuation.json` and `acceptance/workflow.json`. These files remain the single domain-state authority at their original paths. A read captures the exact bytes, canonical project and record kind in a private in-process expectation. A write requires that expectation (or an absent file), the project writer, an active operation owner, and an unchanged operation record. The expectation is checked again immediately before atomic publication. New revision and operation IDs are host-assigned; a copied stale object cannot silently overwrite a current record.
+
+Legacy version-1 records remain readable without writes. On the first guarded update, their original bytes are retained in `operations/legacy/<kind>-<sha256>.json`; the current file receives revision 1. Subsequent revisions increase without refreshing build, request or recovery allowances. Explicit `continue --renew` archives the old allowance and transfers its expected-state binding to the new allowance. Status reads never renew or migrate anything. Preparation request totals and CLI/dashboard continuation status read through the same validated stores.
+
+State publication precedes the operation checkpoint. If a process dies in between, the domain file is authoritative for its saved counters/status, while operation dispatch remains uncertain. The operator still recovers the dead writer explicitly; no callback is automatically replayed. Digest checkpoints do not prove task completion or permission to apply.
+
+`selectContinuationPhase` prioritizes an existing stage, completed task and blocked requirements before preparation, review or build. A current independently reviewed draft for the selected task goes directly to approval, even when preparation allowance has expired. Source/task/approval/runtime bindings are revalidated; a different task's draft cannot authorize that transition. Review is followed by a fresh domain snapshot before any build. Existing approval and verification gates remain mandatory.
+
+The remaining hr-024 adoption covers preparation's internal phase-selection/status transitions and ordinary-work/team compatibility controllers; this batch does not replace immutable team events or application journals with a status snapshot. End-to-end autonomous recovery and cumulative cost/request policy remain separate tasks.

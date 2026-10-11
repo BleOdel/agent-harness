@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "controls": [
+    {
+      "name": "stale-overwrite",
+      "file": "src/workflow/state.ts",
+      "test": "test/workflow-state.test.ts",
+      "pattern": "stale continuation writers",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "cf4908f29a7b260d432d426ac29c2a8eb6524bab52eb057e077bbe553a1d93f6"
+    },
+    {
+      "name": "skip-legacy-archive",
+      "file": "src/workflow/state.ts",
+      "test": "test/workflow-state.test.ts",
+      "pattern": "read-only legacy status",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "253a2e3183e8e5011ccb72e90141edff5b45aa2ef998f157a450b001e316f0f9"
+    },
+    {
+      "name": "ready-enters-build",
+      "file": "src/workflow/controller.ts",
+      "test": "test/workflow-state.test.ts",
+      "pattern": "a ready draft resumes",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "2bf6f7b06ec79af0a8385ddfb7da30a7819ffd3889ed054cf7feaff3988d08c1"
+    },
+    {
+      "name": "wrong-task-draft",
+      "file": "src/acceptance/guided.ts",
+      "test": "test/guided-checks.test.ts",
+      "pattern": "continuation recognizes only",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "c78d70539497b02610bd83af2158ae189cc3aad95263c485d8e406beeb9ac78f"
+    },
+    {
+      "name": "revision-reset",
+      "file": "src/workflow/state.ts",
+      "test": "test/workflow-state.test.ts",
+      "pattern": "read-only legacy status",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "c037514df85ec5a89f54cf70eb182ee604db8098ee8307d0c320bb8100b30645"
+    },
+    {
+      "name": "stale-after-review",
+      "file": "src/workflow/controller.ts",
+      "test": "test/workflow-state.test.ts",
+      "pattern": "phase selection puts",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "26750eff0435433da944b2205f78fc4301c77feebdb89dfe808fad80fc6aed89"
+    }
+  ],
+  "method": "Six independently introduced defects in a separate disposable copy; each selected regression failed an assertion. Original source restored between controls. No model calls."
+}

@@ -144,3 +144,14 @@ Fixed two ownership gaps discovered during adoption: returning with an unawaited
 Qualification includes real process death across phase boundaries and 13 application-journal boundaries, stale-state rejection before side effects, phase provenance, continuation resume without rebuilding staged work, and actual ordinary-work dispatch observations using deterministic external-process fixtures. Seven deliberately restored defects are detected. Full-suite and installed Docker/Chromium qualification are recorded in `evidence/phase-dispatch-validation.json`; mutation results are in `evidence/phase-dispatch-controls.json`.
 
 hr-024 remains open for shared phase-selection/status authority and legacy reconciliation beyond dispatch. This is not a claim that the whole reliability plan or unattended workflow is complete. Completed task count remains **23/45**. No blog state, model credentials or installed dependencies were changed; no paid model requests were made.
+
+
+## Guarded domain status and direct approval resume (hr-024; task remains open)
+
+Continuation and preparation status now share an expected-state writer. Stale objects, foreign-project state, replaced operation owners and aliased files cannot replace current progress. Legacy records stay readable and are archived byte-for-byte on first mutation. Explicit renewal retains its previous-state expectation; ordinary resume preserves spent attempts, retry reservations and deadlines. CLI/dashboard continuation reads and continuation request totals use the validated domain stores.
+
+Continuation now recognizes a current task-scoped reviewed draft and routes directly to approval, avoiding preparation/model work with an expired allowance. The shared phase selector prioritizes retained stages and task completion and reconciles again after review. A stale source or unrelated draft does not qualify.
+
+Qualification covers the real approval/renewal commands with deterministic model fixtures, stale writers, legacy migration, alias rejection and real process termination before/after status publication. Six deliberate defects are tested; full-suite and installed Docker/Chromium results are retained in `evidence/controller-state-validation.json` and `evidence/controller-state-controls.json`.
+
+hr-024 remains open for the remaining preparation/work/team domain-controller migration; **23/45 tasks are complete**. No paid model request, live blog change or dependency change was made.

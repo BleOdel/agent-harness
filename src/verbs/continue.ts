@@ -1,13 +1,14 @@
+import {inheritControllerState} from '../workflow/state.ts';
 import { describeOperation, withOperationPhase } from '../workflow/operations.ts';
 import { pendingStage } from '../staging/store.ts';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { readFeatures, nextItems, unmetDependencies } from '../features.ts';
 import { readApproval, requireStagingChecks } from '../acceptance/checks.ts';
-import { prepareChecks } from '../acceptance/workflow.ts';
-import { reviewGuidedDraft } from '../acceptance/guided.ts';
+import { prepareChecks, readPreparationWorkflow } from '../acceptance/workflow.ts';
+import { reviewGuidedDraft, readyCheckDraft } from '../acceptance/guided.ts';
 import { parseCheckLimits, defaultCheckLimits, withCheckBudget } from '../acceptance/budget.ts';
-import { readArtifact, atomicWrite } from '../planning/store.ts';
+import { atomicWrite } from '../planning/store.ts';
 import { harnessDirectory } from '../record/record.ts';
 import { canonicalProject, withWriter } from '../workspace/writer-lock.ts';
 import { driveContinuation, type ContinueState, type ContinueSnapshot } from '../workflow/controller.ts';
@@ -29,7 +30,8 @@ export async function continuationSnapshot(project: string, taskId: string): Pro
         return { done: false, checks: 'blocked', reason: waiting.length ? `Waiting for prerequisites: ${waiting.join(', ')}.` : 'The task explicitly requests human input. Review its recorded reason before resuming.' };
     const approval = await readApproval(project);
     if (!approval?.manifest.cases.some(c => c.tasks.includes('*') || c.tasks.includes(taskId))) {
-        return { done: false, checks: 'missing' };
+        try { return { done: false, checks: await readyCheckDraft(project, taskId) ? 'ready' : 'missing' }; }
+        catch (error) { return {done:false, checks:'blocked', reason:(error as Error).message}; }
     }
     try {
         await requireStagingChecks(project, [taskId]);
@@ -40,12 +42,7 @@ export async function continuationSnapshot(project: string, taskId: string): Pro
     }
 }
 async function totalCheckRequests(project: string): Promise<number> {
-    const raw = await readArtifact(path.join(harnessDirectory(project), 'acceptance'), 'workflow.json', 8 * 1024 * 1024);
-    if (!raw)
-        return 0;
-    const runs = JSON.parse(raw).runs;
-    if (!Array.isArray(runs) || runs.some(r => !Number.isSafeInteger(r?.spend?.requests) || r.spend.requests < 0))
-        throw new OperatorError('Invalid saved request accounting.');
+    const {runs} = await readPreparationWorkflow(project);
     return runs.reduce((n, r) => n + r.spend.requests, 0);
 }
 export async function continueCommand(project: string, args: readonly string[], dialogue?: Dialogue): Promise<void> {
@@ -91,6 +88,7 @@ export async function continueCommand(project: string, args: readonly string[], 
         if (saved && (!reuse))
             await atomicWrite(path.join(harnessDirectory(project), `continuation-${randomUUID()}.json`), JSON.stringify(saved, null, 2) + '\n');
         const state: ContinueState = reuse ? saved : { version: 1, task, status: 'running', message: 'Starting saved work.', updated: new Date().toISOString(), attempts: 0, maxBuilds, recoveries: saved?.task === task ? saved.recoveries : 0, events: [], checkLimits: limits };
+        if (saved && !reuse) inheritControllerState(saved, state);
         const configured = state.checkLimits ?? defaultCheckLimits;
         io.write(`Continuing ${task}: up to ${configured.maxRequests} preparation requests in ${configured.maxSeconds}s, ${configured.requestSeconds}s per request; ${state.maxBuilds} build dispatches with the existing build/gate timeouts. Approval remains yours. This is not a dollar-cost cap.`);
         const output = await driveContinuation(state, {

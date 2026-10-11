@@ -9,6 +9,7 @@ export class ImplementationInterrupted extends OperatorError {
 export type ContinueStatus = 'running' | 'paused' | 'attention' | 'approval' | 'complete';
 export interface ContinueState {
     operationId?: string;
+    revision?: number;
     version: 1;
     task: string;
     status: ContinueStatus;
@@ -29,8 +30,17 @@ export interface ContinueState {
 export interface ContinueSnapshot {
     stage?: string;
     done: boolean;
-    checks: 'missing' | 'approved' | 'blocked';
+    checks: 'missing' | 'ready' | 'approved' | 'blocked';
     reason?: string;
+}
+/** Domain facts take priority over allowance exhaustion; ready approval never needs a model turn. */
+export function selectContinuationPhase(state:ContinueState,snapshot:ContinueSnapshot):'staged'|'complete'|'blocked'|'prepare'|'review'|'budget'|'build' {
+    if(snapshot.stage)return 'staged';
+    if(snapshot.done)return 'complete';
+    if(snapshot.checks==='blocked')return 'blocked';
+    if(snapshot.checks==='missing')return 'prepare';
+    if(snapshot.checks==='ready')return 'review';
+    return state.attempts>=state.maxBuilds?'budget':'build';
 }
 export interface ContinueServices {
     dispatch?: <T>(phase: OperationPhase, action: () => Promise<T>) => Promise<T>;
@@ -55,28 +65,33 @@ export async function driveContinuation(state: ContinueState, s: ContinueService
     try {
         for (;;) {
             const snap = await s.snapshot();
-            if (snap.stage) {
+            const phase = selectContinuationPhase(state,snap);
+            if (phase === 'staged') {
                 await set('approval', 'staged', `Candidate ${snap.stage} passed automated checks and awaits final review. Preview: harness stage preview ${snap.stage}. Record observations and apply: harness stage review ${snap.stage}. No rebuild or model request is needed.`);
                 return state;
             }
-            if (snap.done) {
+            if (phase === 'complete') {
                 await set('complete', 'review', 'Task is complete. Review the applied result and retained evidence. Nothing was published.');
                 return state;
             }
-            if (snap.checks === 'blocked') {
+            if (phase === 'blocked') {
                 await set('attention', 'decision', snap.reason ?? 'The approved verification requirements need a decision.');
                 return state;
             }
-            if (snap.checks === 'missing') {
+            if (phase === 'prepare') {
                 await set('running', 'prepare', 'Preparing the saved requirements; recoverable failures stay inside the allowance.');
                 const outcome = await dispatch('preparing', s.prepare);
                 if (outcome !== 'ready') {
                     await set(outcome === 'paused' ? 'paused' : 'attention', 'prepare', outcome === 'paused' ? 'Preparation stopped at its allowance or provider limit. All checkpoints are retained.' : 'Preparation needs a decision or a harness capability fix. The saved diagnosis is attached in acceptance/workflow.json.');
                     return state;
                 }
+            }
+            if (phase === 'prepare' || phase === 'review') {
                 await set('approval', 'review', 'The proposed checks and interface choices are ready for your approval.');
                 await dispatch('reviewing', s.review);
                 const approved = await s.snapshot();
+                const next = selectContinuationPhase(state,approved);
+                if (next === 'staged' || next === 'complete') continue;
                 if (approved.checks !== 'approved') {
                     await set(approved.checks === 'blocked' ? 'attention' : 'approval', 'review', approved.reason ?? 'Approval is still needed. No implementation started.');
                     return state;

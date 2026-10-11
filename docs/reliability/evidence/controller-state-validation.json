@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "kind": "local-controller-state-validation",
+  "scope": "hr-024 continuation phase selection and guarded continuation/preparation status; remaining preparation/work/team domain-controller adoption stays open",
+  "source": {
+    "baseCommit": "08e42d1735b660aed7f13c61601eb05d89355dc0",
+    "codeTreeSha256": "f00440759ee095b96ccc774056493ed69dd82d85cfc97a2b5654ac77fa7b3e16",
+    "changedFiles": {
+      "src/acceptance/guided.ts": "0a38f68fde9176058e091a29e618ad1a359d41828f08bdcabf3e2cffad4c62b7",
+      "src/acceptance/workflow.ts": "f34268074e1a1611b9b6f2a9a6c6069dcc6b5e7c6163965a2fbe9a3d4e033ebc",
+      "src/verbs/continue.ts": "b3a57f0ccc1cb13845e79c3e8a54a6eae1bfb7fc26aba0a8db085b5fa794de24",
+      "src/view/workspace.ts": "5d4508e3b911423c6b59663e3e882704b1e80fc2bc8a80e2b8823b107855f1b7",
+      "src/workflow/controller.ts": "227caa28872ab4574ca121dbdce697ccdff94247e7f9d5fb2b7574da979145dd",
+      "src/workflow/operations.ts": "a924ef72ebcb7b4ad34d4b9befb3a91c6479fc586fb6551a454490219282f1ca",
+      "src/workflow/state.ts": "b6a24c74cfa368aa5bfdfcfc602df3d5fca7eae3ac99c3726ce1f498e2bcb8ca",
+      "src/workflow/store.ts": "b30916c63fbce1628e2ec8b33ad1e376c9e04e7c82d55d6b41cc0cbdec7d96aa",
+      "test/guided-checks.test.ts": "36571b2142374609465462e028c0c237d680100f66a04846a0722b9e9940bed5",
+      "test/workflow-state.test.ts": "534206d18a27f3aac90b1360299f340533f452fbe31e7d58591fb47d0fd6e1a2"
+    }
+  },
+  "node": "v26.5.0",
+  "fullSuite": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "counts": {
+      "tests": 1226,
+      "pass": 1154,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 72,
+      "todo": 0
+    },
+    "logSha256": "8ba511d44f30fd57ad35642604f2006937cd684a53b73f0eb4055b9347079553"
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-11T20:09:32.073Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-timing-docker.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "64307666f6a60002b39b104360eb43b20c46bffde1385e71d73624caa8989b4e",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-11T20:11:31.890Z"
+  },
+  "negativeControls": {
+    "count": 6,
+    "detected": 6,
+    "artifact": "docs/reliability/evidence/controller-state-controls.json"
+  },
+  "requiredRegressions": [
+    "test/workflow-state.test.ts",
+    "test/guided-checks.test.ts",
+    "test/continuation.test.ts",
+    "test/workflow-phases.test.ts",
+    "test/workflow-ownership.test.ts",
+    "test/staged-review.test.ts",
+    "test/work-flow.test.ts",
+    "test/check-workflow.test.ts"
+  ],
+  "limitations": [
+    "Operation status and checkpoint hashes are execution bookkeeping, not approval or application evidence.",
+    "Status publication and its operation checkpoint are separate atomic writes; recovery reads the domain file and treats interrupted dispatch as uncertain.",
+    "Existing preparation internals and work/team controllers still own their deeper domain transitions. hr-024 remains open; cumulative budgets and automatic retry policy are separate tasks.",
+    "Expected raw-state bindings live only in process memory and are rebuilt by reading retained records on restart. A fresh or copied object cannot overwrite an existing record without explicit renewal inheritance.",
+    "No live blog changes, credential access, paid models or new dependencies. Runtime qualification covers installed Linux arm64 Docker/Chromium and local Node, not all platforms.",
+    "Evidence reports and the disposable claim were generated after qualification; executable source and tests remain unchanged."
+  ]
+}

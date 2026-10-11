@@ -125,6 +125,15 @@ export function currentOperationId(project: string): string | undefined {
   const frame = context.getStore();
   return frame && !frame.closed && !frame.session.closed && frame.session.lease.project === canonical(project) ? frame.session.record.id : undefined;
 }
+/** Domain-state publication requires the same live lease and recorded operation revision. */
+export async function assertOperationOwner(project: string): Promise<string> {
+  const frame = context.getStore();
+  if (!frame || frame.closed || frame.session.closed || frame.session.lease.project !== canonical(project)) throw new OperatorError('Controller state requires its active operation owner.');
+  await frame.session.writes;
+  await frame.session.lease.assertOwned();
+  if (JSON.stringify(await readOperation(project)) !== JSON.stringify(frame.session.record)) throw new OperatorError('Stale operation or owner; refusing controller state replacement.');
+  return frame.session.record.id;
+}
 export async function checkpointOperation(project: string, value: OperationCheckpoint): Promise<void> {
   checkpoint(value);
   const frame = context.getStore();

@@ -1,10 +1,11 @@
-import { checkpointSavedFile, describeOperation, withOperationPhase } from '../workflow/operations.ts';
+import {readControllerState, saveControllerState, validateStateRevision} from '../workflow/state.ts';
+import { describeOperation, withOperationPhase } from '../workflow/operations.ts';
 import { caseKind, routeBlueprint } from './evidence-kind.ts';
 import { readActivePreparation } from './active-preparation.ts';
 import { CheckRequestInterrupted, transientCheckFailure } from './request-failure.ts';
 /** One resumable controller; checkpoints and writer locks remain owned by existing check operations. */
 import path from 'node:path';
-import { mkdir, readdir } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import { CheckBudgetExceeded, withCheckBudget, ensureCheckBudget, defaultCheckLimits, validateCheckLimits, describeCheckSpend, type CheckLimits, type CheckSpend } from './budget.ts';
 import { parseProposal } from './draft.ts';
 import { blueprintProposal, parseBlueprint } from './preparation.ts';
@@ -12,7 +13,7 @@ import { assertServerRuntimes } from './server-runtime.ts';
 import { assertRecipeStep } from './recipes/catalog.ts';
 import { ScopeRepairBlocked, scopeDigest } from './scoped-review.ts';
 import { readyCheckDraft, resumePreparation, repairSavedCheck, guidedSetup } from './guided.ts';
-import { readArtifact, atomicWrite } from '../planning/store.ts';
+import { readArtifact } from '../planning/store.ts';
 import { canonicalProject, withWriter } from '../workspace/writer-lock.ts';
 import { choose, type Dialogue } from '../guide/dialogue.ts';
 import { readFeatures } from '../features.ts';
@@ -33,6 +34,8 @@ export interface PreparationNextAction {
     command: string;
 }
 export interface WorkflowState {
+    revision?: number;
+    operationId?: string;
     version: 1;
     nextAction?: PreparationNextAction;
     interruptions?: string[];
@@ -181,23 +184,26 @@ export async function driveCheckWorkflow(state: WorkflowState, services: Service
     return 'blocked';
 }
 const directory = (project: string) => project + '-harness/acceptance';
-async function loadState(project: string): Promise<WorkflowState> {
-    const raw = await readArtifact(directory(project), 'workflow.json', 8 * 1024 * 1024);
-    if (!raw)
-        return { version: 1, retried: [], runs: [] };
-    const s = JSON.parse(raw) as WorkflowState;
+export async function readPreparationWorkflow(project: string): Promise<WorkflowState> {
+    return await readControllerState(project, 'preparation', parseWorkflowState) ?? {version:1, retried:[], runs:[]};
+}
+export function parseWorkflowState(raw:unknown):WorkflowState {
+    const s = raw as WorkflowState;
     if (!s || s.version !== 1 || !Array.isArray(s.retried) || s.retried.some(v => typeof v !== 'string') || !Array.isArray(s.runs))
         throw new OperatorError('Invalid saved preparation workflow.');
+    validateStateRevision(s);
     if (s.interruptions !== undefined && (!Array.isArray(s.interruptions) || s.interruptions.length > 1000 || s.interruptions.some(k => typeof k !== 'string')))
         throw new OperatorError('Invalid interruption history.');
     for (const r of s.runs) {
-        if (!r || typeof r.started !== 'string' || !['running', 'ready', 'paused', 'blocked'].includes(r.status) || !r.limits || !r.spend || !Number.isInteger(r.spend.requests) || r.spend.requests < 0)
+        if (!r || typeof r.started !== 'string' || !['running', 'ready', 'paused', 'blocked'].includes(r.status) || !r.limits || !r.spend || !Number.isSafeInteger(r.spend.requests) || r.spend.requests < 0)
             throw new OperatorError('Invalid saved preparation allowance.');
         validateCheckLimits(r.limits);
         for (const value of [r.spend.reportedTokens, r.spend.reportedCostUsd, r.spend.unreported, r.spend.recorded])
             if (value !== undefined && (!Number.isFinite(value) || value < 0))
                 throw new OperatorError('Invalid saved preparation usage.');
     }
+    if (!Number.isSafeInteger(s.runs.reduce((n,r)=>n+r.spend.requests,0)))
+        throw new OperatorError('Invalid saved request accounting total.');
     if (s.pendingRetry && (typeof s.pendingRetry.key !== 'string' || typeof s.pendingRetry.scope !== 'string' || !Number.isInteger(s.pendingRetry.epoch) || s.pendingRetry.epoch < 1))
         throw new OperatorError('Invalid saved preparation retry.');
     return s;
@@ -206,13 +212,10 @@ export async function prepareChecks(project: string, io: Dialogue, limits: Check
     validateCheckLimits(limits);
     project = await canonicalProject(project);
     return withWriter(project, 'checks prepare', async () => {
-        const state = await loadState(project), run: WorkflowRun = { started: new Date().toISOString(), limits, spend: { requests: 0 }, status: 'running' };
+        const state = await readPreparationWorkflow(project), run: WorkflowRun = { started: new Date().toISOString(), limits, spend: { requests: 0 }, status: 'running' };
         state.runs.push(run);
-        await mkdir(directory(project), { recursive: true, mode: 0o700 });
         const save = async () => {
-            const file = path.join(directory(project), 'workflow.json');
-            await atomicWrite(file, JSON.stringify(state, null, 2) + '\n');
-            await checkpointSavedFile(file, 'preparation', run.status === 'ready' ? 'approval' : run.status === 'blocked' ? 'attention' : run.status === 'paused' ? 'paused' : 'checkpoint');
+            await saveControllerState(project, 'preparation', state, parseWorkflowState, run.status === 'ready' ? 'approval' : run.status === 'blocked' ? 'attention' : run.status === 'paused' ? 'paused' : 'checkpoint');
         };
         io.write(`Preparation allowance: ${limits.maxRequests} model requests, ${limits.maxSeconds}s total, ${limits.requestSeconds}s per request. Completed reviews are reused; approval remains separate.`);
         await save();
@@ -338,7 +341,7 @@ export async function checkWorkflowStatus(project: string, write: (s: string) =>
     project = await canonicalProject(project);
     await describeOperation(project, write);
     await describeCheckProgress(project, write);
-    const state = await loadState(project), last = state.runs.at(-1);
+    const state = await readPreparationWorkflow(project), last = state.runs.at(-1);
     const pendingRaw = await readArtifact(directory(project), 'simplification.json', 8 * 1024 * 1024);
     if (pendingRaw) {
         const pending = JSON.parse(pendingRaw), saved = pending.state;

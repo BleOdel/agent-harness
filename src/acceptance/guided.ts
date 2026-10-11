@@ -65,8 +65,8 @@ export async function readGuidedDraft(project: string, recovering = false): Prom
  saved.manifest = recovering ? parseCheckDraft(saved.manifest) : parseChecks(saved.manifest);
  return saved;
 }
-export async function readyCheckDraft(project:string):Promise<boolean>{
- const saved=await readGuidedDraft(project,true);if(!saved||!isReviewed(saved))return false;
+export async function readyCheckDraft(project:string,taskId?:string):Promise<boolean>{
+ const saved=await readGuidedDraft(project,true);if(!saved||(taskId!==undefined&&saved.taskId!==taskId)||!isReviewed(saved))return false;
  await assertCurrent(project,saved);
  try{parseChecks(saved.manifest);assertServerRuntimes(saved.manifest);return true;}catch{return false;}
 }

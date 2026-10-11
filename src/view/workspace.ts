@@ -3,7 +3,7 @@ import {assertContentAllowed} from '../workspace/secret-content.ts';
 import {fileIdentity,identityMode} from '../workspace/file-identity.ts';
 import {sourceExclusion} from '../workspace/changes.ts';
 import {listStages} from '../staging/store.ts';
-import {parseContinuation} from '../workflow/store.ts';
+import {readContinuation} from '../workflow/store.ts';
 import type {ContinueState} from '../workflow/controller.ts';
 import {productReport,type ProductReport} from '../product/report.ts';
 /** Bounded, read-only projections. Viewing never creates stores or repairs journals. */
@@ -71,7 +71,7 @@ export async function readWorkspace(project:string):Promise<WorkspaceInfo>{
  const read=async(label:string,fn:()=>Promise<void>)=>{try{await fn();}catch(e){out.warnings.push(`${label} unavailable: ${(e as Error).message}`);}};
  await read('Operation ownership',async()=>{const operation=await readOperation(canonical);if(operation){out.operation=operation;out.documents.push({name:'Durable operation ownership',text:JSON.stringify(operation,null,2),status:'Last recorded execution; not application evidence or a liveness claim'});}});
  await read('Staged candidates',async()=>{const stages=await listStages(project);out.stages=stages.filter(s=>s.status==='pending'||s.status==='applying').map(s=>({id:s.id,task:s.task,status:s.status,manual:s.manual.length}));for(const s of stages.slice(0,10))out.documents.push({name:`Staged candidate ${s.id}: ${s.task}`,text:JSON.stringify({status:s.status,candidate:s.candidate.digest,gates:s.gates,manual:s.manual,operator:s.operator,preview:`harness stage preview ${s.id}`,review:`harness stage review ${s.id}`},null,2),status:'Retained candidate; manual evidence is operator-reported'});});
- await read('Continuation',async()=>{const c=await json(root,'continuation.json');if(c){out.continuation=parseContinuation(c);out.documents.push({name:'Continuation progress and diagnosis',text:JSON.stringify(c,null,2),status:'Last recorded workflow state'});}});
+ await read('Continuation',async()=>{const c=await readContinuation(project);if(c){out.continuation=c;out.documents.push({name:'Continuation progress and diagnosis',text:JSON.stringify(c,null,2),status:'Last recorded workflow state'});}});
  await read('Project setup',async()=>{const p=await json(root,'project.json');if(p)out.profile=parseProfile(p);});
  await read('Acceptance checks',async()=>{const a=await json(root,'acceptance/approved.json') as Approval|undefined;if(a){const manifest=parseChecks(a.manifest);if(a.version!==1||a.digest!==approvalDigest(manifest,a.browserRuntime))throw Error('Approval does not match the saved checks');out.approval={...a,manifest};out.documents.push({name:'Approved acceptance checks',text:JSON.stringify(manifest,null,2),status:'Operator approved'});}const draft=await bytes(root,'acceptance/draft.json');if(draft)out.documents.push({name:'Acceptance-check draft',text:draft.toString(),status:'Draft — approval not implied'});});
  await read('Planning',async()=>{
