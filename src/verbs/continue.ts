@@ -1,5 +1,6 @@
+import {describeWorkflowStatus} from '../workflow/reconciliation.ts';
 import {inheritControllerState} from '../workflow/state.ts';
-import { describeOperation, withOperationPhase } from '../workflow/operations.ts';
+import { withOperationPhase } from '../workflow/operations.ts';
 import { pendingStage } from '../staging/store.ts';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -48,10 +49,10 @@ async function totalCheckRequests(project: string): Promise<number> {
 export async function continueCommand(project: string, args: readonly string[], dialogue?: Dialogue): Promise<void> {
     project = await canonicalProject(project);
     if (args.length === 1 && args[0] === 'status') {
-        await describeOperation(project, say);
+        const workflow = await describeWorkflowStatus(project, say);
         const s = await readContinuation(project);
         if (!s) {
-            say('No continuation saved. Start with harness continue.');
+            say(workflow.action ? 'No continuation saved; follow the workflow action above.' : 'No continuation saved. Start with harness continue.');
             return;
         }
         say(`${s.task}: ${s.status} (last recorded) · ${s.attempts}/${s.maxBuilds} build dispatches`);

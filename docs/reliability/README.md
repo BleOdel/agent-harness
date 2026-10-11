@@ -185,14 +185,8 @@ Older receipts are read without rewriting them or inventing missing observations
 
 ## Current Group 2 increment
 
-The command-ownership foundation is implemented for hr-024. Work, continuation, checks, staging and teams now record one durable execution owner with pre-dispatch reservations and referenced checkpoints. This does not yet replace all domain phase controllers; hr-024 remains open. See [progress](PROGRESS.md), [state boundaries](STATE-CONTRACTS.md), and [qualification](evidence/operation-ownership-validation.json). No model allowance or approval changes implicitly.
+hr-024 is complete. Ordinary builds, continuation, preparation, staging and team compatibility adapters share durable operation ownership, phase reservations and guarded checkpoint transitions. CLI and dashboard next-action guidance now comes from one read-only reconciliation service. Existing journals remain the authority for source changes, cleanup and approval.
 
-Phase-dispatch adoption and its remaining scope are documented in [PROGRESS.md](PROGRESS.md) and [STATE-CONTRACTS.md](STATE-CONTRACTS.md). hr-024 is still open; execution receipts are not acceptance evidence.
+Use `harness look`, `harness continue status` or `harness checks status` for the current recovery priority. If a stopped writer retains its lock, recover that exact token first. `harness recover-operation <id> <revision>` is only offered after application/worker recovery is clear; it records interrupted execution without applying source or completing a task. It refuses stale guidance and performs no model request. Do not remove journals or force task status to bypass recovery.
 
-Guarded continuation/preparation status and direct approval resume are described in [state contracts](STATE-CONTRACTS.md) and [controller-state qualification](evidence/controller-state-validation.json). Remaining domain-controller adoption keeps hr-024 open.
-
-Preparation status and resume now share phase selection and a bounded retry controller. See [preparation qualification](evidence/preparation-selection-validation.json); hr-024 remains open for the documented compatibility adapters.
-
-The latest hr-024 batch moves team event transitions into shared workflow storage, makes status read-only, and binds controller/application decisions to their exact journal read. See [team journal qualification](evidence/team-journal-validation.json). hr-024 remains open.
-
-Ordinary-build orchestration and preparation checkpoint writes now share guarded workflow services. Exact-byte checks reject stale writes, deletion and implementation resume; late callbacks cannot publish. See [qualification](evidence/build-checkpoints-validation.json) and [state contracts](STATE-CONTRACTS.md). Final cross-controller reconciliation/qualification keeps hr-024 open.
+[Completion qualification](evidence/reconciliation-validation.json) maps all five criteria to current tests and the earlier ownership, phase, controller, preparation, team and ordinary-build batches. [State contracts](STATE-CONTRACTS.md) explain remaining boundaries. Structured commands, cumulative allowances and autonomous retry policy remain hr-025–hr-027.

@@ -1,3 +1,4 @@
+import {describeWorkflowStatus} from '../workflow/reconciliation.ts';
 import {pendingApplication} from '../workspace/application.ts';
 import {unfinishedWorkAttempts,attemptNotice} from '../workspace/work-attempts.ts';
 import {listMetal,readMetalState} from "../metal/store.ts";
@@ -49,6 +50,7 @@ export function stateOfItem(feature: Feature, runs: readonly RunRecord[]): strin
 }
 
 export async function look(project: string): Promise<void> {
+  const workflow=await describeWorkflowStatus(project,say);
   const pending=await pendingApplication(project);if(pending)say(`Application ${pending.id} requires recovery: ${pending.version===2?'harness recover-application':'harness team recover '+pending.teamRunId}.`);
   for(const attempt of await unfinishedWorkAttempts(project))say(attemptNotice(attempt));
   for(const a of await listMetal(project)){const s=await readMetalState(project,a.id);say(`METAL ${a.spec.title} · ${s.status} · epoch ${s.checkpoint?.model.completed??0}/${a.spec.epochs} · ${a.id}`);}
@@ -111,7 +113,7 @@ export async function look(project: string): Promise<void> {
     say();
     const { next, waiting, steppedOver } = chooseNext(list.features, (id) =>
       runs.filter((run) => run.goal === id).at(-1)?.outcome);
-    say(next === undefined
+    say(workflow.action ? "The workflow action above takes priority over starting another task." : next === undefined
       ? waiting.length > 0 || list.features.some((f) => f.status === "blocked" && f.priority !== "wont")
         ? "Work is waiting on prerequisites or operator input."
         : steppedOver.length > 0 ? "No eligible work: previous no-change items are being stepped over." : "Nothing left to work on."

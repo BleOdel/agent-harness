@@ -125,10 +125,12 @@ test('staged application preserves a concurrent mode-only change',()=>fixture(as
 }));
 
 test('legacy staged journals finish existing intent but cannot authorize a fresh candidate',()=>fixture(async(root,p)=>{
- const {createHash}=await import('node:crypto');const {stageBinding,writeStage}=await import('../src/staging/store.ts');const {assertSnapshot}=await import('../src/workspace/candidate.ts');
+ const {createHash}=await import('node:crypto');const {stageBinding}=await import('../src/staging/store.ts');const {assertSnapshot}=await import('../src/workspace/candidate.ts');
  const {stage}=await staged(root,p);await approveStage(p,stage);await assert.rejects(applyStage(p,'r1',async point=>{if(point==='intent')throw Error('fixture crash');}),/fixture crash/);
  const saved=await readStage(p,'r1');for(const snapshot of [saved.baseline,saved.candidate]){delete (snapshot as {identityVersion?:number}).identityVersion;const files=snapshot.files as Record<string,string>;for(const name of Object.keys(files))files[name]=files[name]!.slice(7);(snapshot as {digest:string}).digest=createHash('sha256').update(JSON.stringify(Object.entries(files).sort(([a],[b])=>a.localeCompare(b)))).digest('hex');}
- delete saved.acceptance.evidenceDigest;delete (saved.review as {evidenceDigest?:string}).evidenceDigest;const reviewPacket=JSON.parse(await readFile(saved.review.evidencePath!,'utf8'));reviewPacket.sourceDigest=saved.candidate.digest;await writeFile(saved.review.evidencePath!,JSON.stringify(reviewPacket));saved.acceptance.candidateDigest=saved.candidate.digest;saved.operator!.binding=stageBinding(saved);const evidence=JSON.parse(await readFile(saved.acceptance.evidencePath,'utf8'));evidence.candidateDigest=saved.candidate.digest;await writeFile(saved.acceptance.evidencePath,JSON.stringify(evidence));await writeStage(saved);
+ delete saved.acceptance.evidenceDigest;delete (saved.review as {evidenceDigest?:string}).evidenceDigest;const reviewPacket=JSON.parse(await readFile(saved.review.evidencePath!,'utf8'));reviewPacket.sourceDigest=saved.candidate.digest;await writeFile(saved.review.evidencePath!,JSON.stringify(reviewPacket));saved.acceptance.candidateDigest=saved.candidate.digest;saved.operator!.binding=stageBinding(saved);const evidence=JSON.parse(await readFile(saved.acceptance.evidencePath,'utf8'));evidence.candidateDigest=saved.candidate.digest;await writeFile(saved.acceptance.evidencePath,JSON.stringify(evidence));
+ // Manufacture a historical journal directly: current stage writes correctly refuse a pending application.
+ await writeFile(p+'-harness/staging/r1/state.json',JSON.stringify(saved)+'\n');
  await assert.rejects(assertSnapshot(saved.candidate),/Legacy/);await applyStage(p,'r1');assert.equal(await readFile(path.join(p,'app.js'),'utf8'),'after');
 }));
 
@@ -146,4 +148,17 @@ test('staged evidence references reject a source-review change after operator ob
  const {stage}=await staged(root,p);await approveStage(p,stage);
  const packet=JSON.parse(await readFile(stage.review.evidencePath!,'utf8'));packet.extra='replacement';await writeFile(stage.review.evidencePath!,JSON.stringify(packet));
  await assert.rejects(applyStage(p,'r1'),/artifact changed/);assert.equal(await readFile(path.join(p,'app.js'),'utf8'),'before');
+}));
+
+test('stale stage review cannot overwrite a discarded candidate or resurrect its approval',()=>fixture(async(root,p)=>{
+ await staged(root,p);const older=await readStage(p,'r1'),newer=await readStage(p,'r1');const {writeStage}=await import('../src/staging/store.ts');
+ newer.status='discarded';await writeStage(newer);const raw=await readFile(path.join(p+'-harness/staging/r1/state.json'),'utf8');
+ await assert.rejects(recordStageReview(p,older,{environment:'source inspection',observations:[{id:'speech',passed:true,notes:'observed'}],approved:true}),/Stale staged/);
+ assert.equal(await readFile(path.join(p+'-harness/staging/r1/state.json'),'utf8'),raw);
+ await assert.rejects(writeStage({...newer,status:'pending'}),/receipt|Read/i);
+}));
+test('shared status prioritizes retained stage review over stale continuation approval or complete labels',()=>fixture(async(root,p)=>{
+ const {readWorkflowStatus}=await import('../src/workflow/reconciliation.ts');const {saveContinuation}=await import('../src/workflow/store.ts');
+ await staged(root,p);await saveContinuation(p,{version:1,task:'story',status:'complete',message:'Old completion',updated:new Date().toISOString(),attempts:1,maxBuilds:2,recoveries:0,events:[]});
+ assert.equal((await readWorkflowStatus(p)).action?.command,'harness stage review r1');
 }));

@@ -1,0 +1,205 @@
+{
+  "version": 1,
+  "kind": "local-cross-controller-reconciliation-validation",
+  "scope": "Final hr-024 completion: shared CLI/dashboard recovery projection, exact-operation reconciliation and owned stage compare-and-swap, qualified together with previous controller migrations.",
+  "taskStatus": {
+    "hr-024": "done",
+    "completed": 24,
+    "total": 45
+  },
+  "source": {
+    "baseCommit": "c103e8b13a0df9cad1a67626b1fd552af7cb7dda",
+    "codeTreeSha256": "285aa2a7fb31851465f4871cf420cf6cba333537816aed7dc600ec745786b114",
+    "changedFiles": {
+      "src/acceptance/workflow.ts": "5a2fdc472a06db4a967107f205dc3c99e2e51ccebc2f3c06ab66a2449958f35a",
+      "src/cli.ts": "968470183cff46e04ccc95c84d2be894c927d454db01813a6162c17a74676c2d",
+      "src/staging/store.ts": "111ac20f3f4563f07788a27bb83a8669e9948293a4233d0539c66b5bc4add990",
+      "src/verbs/continue.ts": "8c4e53da6480b21d522dbc2309e09fe5884038aac928a553d2b543878b71407c",
+      "src/verbs/look.ts": "67c435f2b3fcafc359bed5b22491c4d369f3d787289e2719b1ba87b6233e72e8",
+      "src/verbs/stage.ts": "1e33e2a92bb462a4164e488f26c67d58ced82e4b387b72a4cca50bddab391113",
+      "src/view/guidance.ts": "7e1abdc8bd9e26150b8bdb348ab0ad4b18b5caaa4cab5c16fcb17f521b754077",
+      "src/view/workspace.ts": "274b5121f536296dfdbbf0ff32fa2270de5e8a00b780a55fd8dfceba70f5625f",
+      "src/workflow/operations.ts": "ac6cc793a8ec4feb3a85dd1efae2b34bc746fae98ffe4afc856b1bdf8ed7fe5d",
+      "src/workflow/reconciliation.ts": "9be8bb6ce95d2b5b544fa0c85e681a6a1c6546729fe07bee0e523cf216833762",
+      "test/staged-review.test.ts": "f93dd8eb1bcbe984faafcc6943a2f03faf14d8c13bbc919343b1ba718e74c50a",
+      "test/workflow-reconciliation.test.ts": "7e95053f2c377df098dc0bca0992d5bfd1bbf6268ef65feef53cf9eff1ebe094"
+    }
+  },
+  "node": "v26.5.0",
+  "fullSuite": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "counts": {
+      "tests": 1275,
+      "pass": 1203,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 72,
+      "todo": 0
+    },
+    "logSha256": "035d82e0182dbf69f2742bdd22a7c2d2e4730a8f6aae4603fc8c4e6096dc345d"
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-11T22:29:20.270Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-timing-docker.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "d33387049cd5301e558ca8e77d97c5c4eb9bcaae13c43d831337fc9fd5535604",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-11T22:31:26.721Z"
+  },
+  "dockerRecovery": {
+    "tests": [
+      "test/check-preparation-process.test.ts",
+      "test/work-resume-docker.test.ts"
+    ],
+    "exitCode": 0,
+    "counts": {
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "logSha256": "59c465c19045fd6c3118bdbd58daee32d0f8ec27941030354deb72e69e99a519",
+    "provider": "local deterministic fixture; empty fixture credentials; no network model request"
+  },
+  "negativeControls": {
+    "count": 6,
+    "detected": 6,
+    "artifact": "docs/reliability/evidence/reconciliation-controls.json"
+  },
+  "criteria": [
+    {
+      "criterion": 1,
+      "implementation": [
+        "src/workflow/operations.ts",
+        "src/workflow/reconciliation.ts",
+        "src/workflow/state.ts"
+      ],
+      "tests": [
+        "test/workflow-ownership.test.ts",
+        "test/workflow-phases.test.ts",
+        "test/workflow-reconciliation.test.ts"
+      ],
+      "proof": "Reservations precede callbacks; checkpoints bind their producing dispatch; returned execution never implies passing task evidence. Recovery/status preserve interruption and domain priority."
+    },
+    {
+      "criterion": 2,
+      "implementation": [
+        "src/workflow/work.ts",
+        "src/workflow/controller.ts",
+        "src/staging/store.ts",
+        "src/workflow/preparation.ts",
+        "src/workflow/preparation-store.ts",
+        "src/workflow/team-store.ts"
+      ],
+      "tests": [
+        "test/work-flow.test.ts",
+        "test/continuation.test.ts",
+        "test/staged-review.test.ts",
+        "test/preparation-selection.test.ts",
+        "test/preparation-store.test.ts",
+        "test/team-workflow-store.test.ts"
+      ],
+      "proof": "Existing command adapters use owned workflow controllers/stores; domain schemas and dedicated approval/application boundaries remain compatible."
+    },
+    {
+      "criterion": 3,
+      "implementation": [
+        "src/workspace/writer-lock.ts",
+        "src/workflow/operations.ts",
+        "src/workflow/reconciliation.ts",
+        "src/staging/store.ts"
+      ],
+      "tests": [
+        "test/workflow-ownership.test.ts",
+        "test/workflow-reconciliation.test.ts",
+        "test/staged-review.test.ts",
+        "test/work-checkpoints.test.ts"
+      ],
+      "proof": "Expected ID/revision and private exact-byte receipts reject stale actions. Stage/continuation/preparation/team/run effects carry operation identity. Two competing recoveries produce one new owner; CLI/dashboard agree on domain recovery priority."
+    },
+    {
+      "criterion": 4,
+      "implementation": [
+        "src/workflow/reconciliation.ts",
+        "src/staging/store.ts",
+        "src/workflow/team-store.ts",
+        "src/workflow/state.ts"
+      ],
+      "tests": [
+        "test/workflow-reconciliation.test.ts",
+        "test/staged-review.test.ts",
+        "test/team-workflow-store.test.ts",
+        "test/workflow-state.test.ts"
+      ],
+      "proof": "Legacy records and journals remain readable without status writes. Interrupted reservations remain uncertain. New reconciliation and touched staging safety code are formatted; journal recovery does not manufacture missing historical facts."
+    },
+    {
+      "criterion": 5,
+      "tests": [
+        "test/workflow-ownership.test.ts",
+        "test/workflow-phases.test.ts",
+        "test/workflow-reconciliation.test.ts",
+        "test/preparation-store.test.ts",
+        "test/team-workflow-store.test.ts",
+        "test/staged-review.test.ts",
+        "test/check-preparation-process.test.ts",
+        "test/work-resume-docker.test.ts"
+      ],
+      "proof": "Real process death and competing prepare/repair, continue/work, stage/apply and team/work commands; exact checkpoint replay, stale review refusal, concurrent recovery and installed Docker interrupted-work trials. One writer and retained durable outcome; no automatic approval."
+    }
+  ],
+  "priorAdoptionEvidence": [
+    "operation-ownership-validation.json",
+    "phase-dispatch-validation.json",
+    "controller-state-validation.json",
+    "preparation-selection-validation.json",
+    "team-journal-validation.json",
+    "build-checkpoints-validation.json"
+  ],
+  "limitations": [
+    "Status uses two matching bounded domain reads, not a transaction lock. A copied command rereads state under its writer; the status fingerprint is not permission or verification evidence.",
+    "Explicit operation recovery records interruption without applying source, changing approvals or marking tasks complete. Outstanding worker/application recovery blocks it. Unknown worker cleanup remains operator-attended.",
+    "Operation and domain publications remain separate durable writes; missing pins cannot grant application approval. Multi-file application and preparation migrations retain their original intent/marker recovery.",
+    "Standalone team journals outside managed project directories retain their local serialized compatibility store rather than inventing a project operation ID.",
+    "This completes hr-024, not autonomous build guarantees or the full program. hr-025 through hr-045 remain, including structured/noninteractive commands, cumulative budgets and bounded continuation.",
+    "No live blog state, credential changes, paid model requests, new dependencies or external publication. Installed runtime qualification is Linux arm64 Docker/Chromium; it does not qualify other platforms.",
+    "Documentation evidence and disposable claim were generated after qualification; executable code and tests are unchanged."
+  ],
+  "repairNotes": [
+    "The first full suite caught a dashboard malformed-data warning regression; the existing warning was restored and the final suite rerun.",
+    "A stopped-team CLI/dashboard guidance mismatch was exposed by a regression, fixed, and qualified on the final unchanged source."
+  ]
+}

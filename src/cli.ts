@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --experimental-strip-types
+import {recoverOperation,describeWorkflowStatus} from './workflow/reconciliation.ts';
 import {recoverPendingApplication} from './workspace/application.ts';
 import {sourcePolicyCommand} from './verbs/source.ts';
 import { capabilitiesCommand } from './verbs/capabilities.ts';
@@ -124,6 +125,7 @@ const USAGE = [
   "  harness team undo <id>        journal a batch reversal",
   "  harness team recover <id>     reconcile attempts or finish a pending application",
   "  harness recover-application  finish or roll back an interrupted application",
+  "  harness recover-operation <id> <revision> reconcile interrupted execution",
   "  harness recover-lock <token> recover a dead writer explicitly",
   "  harness run [--max N]         work items until one needs you",
   "  harness look",
@@ -183,10 +185,14 @@ async function main(): Promise<void> {
     case "recover-application":
       if(rest.some(a=>a!=='--rollback')||rest.length>1)throw new OperatorError('Use: harness recover-application [--rollback]');
       await recoverPendingApplication(project,{rollback:rest.includes('--rollback')});say('Application recovery complete.');return;
+    case "recover-operation":
+      if(rest.length!==2||!/^[-a-f0-9]{36}$/.test(rest[0]!)||!/^\d+$/.test(rest[1]!)||!Number.isSafeInteger(Number(rest[1])))throw new OperatorError('Use: harness recover-operation <operation-id> <revision>');
+      await recoverOperation(project,rest[0]!,Number(rest[1]));say('Interrupted execution reconciled. No tasks or approvals were changed.');return;
     case "recover-lock":
       if (rest.length !== 1) throw new OperatorError("Use: harness recover-lock <owner-token>");
       await recoverWriter(project, rest[0]!);
-      say("Writer lock recovered. Reconcile interrupted team attempts before starting new work.");
+      say("Writer lock recovered. Worker and application recovery remain separate.");
+      await describeWorkflowStatus(project,say);
       return;
     case "add":
       return add(project, rest);

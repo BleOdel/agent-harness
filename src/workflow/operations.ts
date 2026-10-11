@@ -147,7 +147,7 @@ export async function checkpointOperation(project: string, value: OperationCheck
   });
 }
 export function trackedCommand(command: string): boolean {
-  return command === 'recover-application' || command === 'application recovery' || command === 'undo' || /^work(?: |$)/u.test(command) || command === 'continue' || /^team(?: |$)/.test(command) || /^checks(?: |$)/.test(command) || /^stage /.test(command);
+  return command === 'recover-application' || command === 'application recovery' || command === 'operation recovery' || command === 'undo' || /^work(?: |$)/u.test(command) || command === 'continue' || /^team(?: |$)/.test(command) || /^checks(?: |$)/.test(command) || /^stage /.test(command);
 }
 /** The phase scope owns dispatch, not the evidence verdict produced by its callback. */
 export async function withOperationPhase<T>(project: string, kind: OperationPhase, reference: string, action: () => Promise<T>): Promise<T> {
@@ -188,7 +188,7 @@ function commandPhase(command: string): PhaseIdentity | undefined {
     : /^checks (repair|simplify|regenerate)/.test(command) ? 'repairing'
     : command === 'checks review' || command === 'checks approve' || command === 'checks recipe' || command === 'stage review' ? 'reviewing'
     : command === 'stage apply' || command === 'undo' ? 'applying'
-    : command === 'recover-application' || command === 'application recovery' ? 'recovering' : undefined;
+    : command === 'recover-application' || command === 'application recovery' || command === 'operation recovery' ? 'recovering' : undefined;
   return kind ? {kind, reference: command} : undefined;
 }
 export async function withOperation<T>(lease: Lease, command: string, action: () => Promise<T>): Promise<T> {
@@ -237,7 +237,7 @@ export function operationProjection(record: DurableOperation): {detail: string; 
   const selected = phases.findLast(d => d.state === 'reserved' || d.state === 'uncertain') ?? phases.at(-1);
   return {
     detail: selected ? `Recorded phase: ${selected.phase!.kind} · ${selected.phase!.reference} · ${selected.state}.` : 'No phase dispatch is recorded.',
-    unresolved: record.state === 'running' || record.state === 'interrupted',
+    unresolved: record.state === 'running' || record.state === 'interrupted' || record.dispatches.some(d => d.state === 'uncertain' || d.state === 'reserved'),
   };
 }
 export async function describeOperation(project: string, write: (message: string) => void): Promise<void> {

@@ -1,3 +1,4 @@
+import {describeWorkflowStatus} from '../workflow/reconciliation.ts';
 import path from 'node:path';
 import {requireStagingChecks} from '../acceptance/checks.ts';
 import {readFeatures} from '../features.ts';
@@ -28,7 +29,7 @@ export async function rejectStage(project:string,id:string,reason:string):Promis
 }
 export async function stageCommand(project:string,args:readonly string[],provided?:Dialogue):Promise<void>{
  const [action='list',id,...extra]=args;if(extra.length)throw new OperatorError('Use harness stage list | inspect <id> | preview <id> | review <id> | apply <id> | reject <id> | discard <id>.');
- if(action==='list'&&!id){for(const s of await listStages(project))say(`${s.id}: ${s.task} · ${s.status} · ${s.manual.length} manual checks`);return;}
+ if(action==='list'&&!id){await describeWorkflowStatus(project,say);for(const s of await listStages(project))say(`${s.id}: ${s.task} · ${s.status} · ${s.manual.length} manual checks`);return;}
  if(!id)throw new OperatorError('A staged run ID is required. Use harness stage list.');
  if(action==='inspect'){const s=await readStage(project,id);say(`${s.id}: ${s.task} · ${s.status}\nCandidate: ${s.candidate.directory}\nAutomated evidence: ${s.acceptance.evidencePath}`);for(const m of s.manual)say(`Manual: ${m.id}\n${m.instructions}`);say(await renderDiff(s.baseline.directory,s.candidate.directory,s.candidate.changes));return;}
  if(!['preview','review','apply','reject','discard'].includes(action))throw new OperatorError('Unknown stage action.');

@@ -1,3 +1,4 @@
+import {readWorkflowStatus,type WorkflowStatus} from '../workflow/reconciliation.ts';
 import {readOperation,type DurableOperation} from '../workflow/operations.ts';
 import {assertContentAllowed} from '../workspace/secret-content.ts';
 import {fileIdentity,identityMode} from '../workspace/file-identity.ts';
@@ -42,7 +43,7 @@ export interface WorkspaceInfo {
  warnings:string[];documents:DocumentView[];outputs:(Artifact&{preview?:string})[];releases:Release[];reviews:ReviewView[];
  stages?:{id:string;task:string;status:string;manual:number}[];
  continuation?:ContinueState;
- operation?:DurableOperation;
+ operation?:DurableOperation;workflow?:WorkflowStatus;
  product?:ProductReport;productError?:string;
  plan?:PlanState;approval?:Approval;profile?:ProjectProfile;ordinary?:LiveStatus;
 }
@@ -69,7 +70,7 @@ async function stagedDiff(root:string,before:Snapshot,after:Snapshot):Promise<Fi
 export async function readWorkspace(project:string):Promise<WorkspaceInfo>{
  const canonical=await realpath(project),root=harnessDirectory(canonical),out=emptyWorkspace();
  const read=async(label:string,fn:()=>Promise<void>)=>{try{await fn();}catch(e){out.warnings.push(`${label} unavailable: ${(e as Error).message}`);}};
- await read('Operation ownership',async()=>{const operation=await readOperation(canonical);if(operation){out.operation=operation;out.documents.push({name:'Durable operation ownership',text:JSON.stringify(operation,null,2),status:'Last recorded execution; not application evidence or a liveness claim'});}});
+ await read('Operation ownership',async()=>{out.workflow=await readWorkflowStatus(canonical);const operation=out.workflow.operation;if(operation){out.operation=operation;out.documents.push({name:'Durable operation ownership',text:JSON.stringify(operation,null,2),status:'Last recorded execution; not application evidence or a liveness claim'});}});
  await read('Staged candidates',async()=>{const stages=await listStages(project);out.stages=stages.filter(s=>s.status==='pending'||s.status==='applying').map(s=>({id:s.id,task:s.task,status:s.status,manual:s.manual.length}));for(const s of stages.slice(0,10))out.documents.push({name:`Staged candidate ${s.id}: ${s.task}`,text:JSON.stringify({status:s.status,candidate:s.candidate.digest,gates:s.gates,manual:s.manual,operator:s.operator,preview:`harness stage preview ${s.id}`,review:`harness stage review ${s.id}`},null,2),status:'Retained candidate; manual evidence is operator-reported'});});
  await read('Continuation',async()=>{const c=await readContinuation(project);if(c){out.continuation=c;out.documents.push({name:'Continuation progress and diagnosis',text:JSON.stringify(c,null,2),status:'Last recorded workflow state'});}});
  await read('Project setup',async()=>{const p=await json(root,'project.json');if(p)out.profile=parseProfile(p);});

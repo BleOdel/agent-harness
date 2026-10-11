@@ -1,7 +1,8 @@
+import {describeWorkflowStatus} from '../workflow/reconciliation.ts';
 import { driveCheckWorkflow, type WorkflowState, type WorkflowRun, type WorkflowOutcome } from '../workflow/preparation.ts';
 import { readPreparationSelection, assertPreparationSelection } from '../workflow/preparation-selection.ts';
 import { readControllerState, saveControllerState, validateStateRevision } from '../workflow/state.ts';
-import { describeOperation, withOperationPhase } from '../workflow/operations.ts';
+import { withOperationPhase } from '../workflow/operations.ts';
 import { caseKind, routeBlueprint } from './evidence-kind.ts';
 /** One resumable controller; checkpoints and writer locks remain owned by existing check operations. */
 import path from 'node:path';
@@ -165,7 +166,11 @@ async function describeCheckProgress(project: string, write: (s: string) => void
 }
 export async function checkWorkflowStatus(project: string, write: (s: string) => void): Promise<void> {
     project = await canonicalProject(project);
-    await describeOperation(project, write);
+    const workflow = await describeWorkflowStatus(project, write);
+    if (workflow.action && workflow.action.kind !== 'preparation') {
+        write('The workflow action above takes priority over saved preparation guidance.');
+        return;
+    }
     await describeCheckProgress(project, write);
     const state = await readPreparationWorkflow(project), last = state.runs.at(-1);
     const pendingRaw = await readArtifact(directory(project), 'simplification.json', 8 * 1024 * 1024);

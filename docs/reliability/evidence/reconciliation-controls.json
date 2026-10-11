@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "controls": [
+    {
+      "name": "ignore-recovery-priority",
+      "file": "src/workflow/reconciliation.ts",
+      "test": "test/workflow-reconciliation.test.ts",
+      "pattern": "application recovery takes priority",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "9afaf4597c49e616c4df4463d051fdb2983a522691ef4183923fcb35042e45e1"
+    },
+    {
+      "name": "ignore-writer-owner",
+      "file": "src/workflow/reconciliation.ts",
+      "test": "test/workflow-reconciliation.test.ts",
+      "pattern": "a retained writer prevents",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "11f9fa3bcfffecfe713c918bdbd0613602f9e3172c2133750afa6b6b0fe4350d"
+    },
+    {
+      "name": "ignore-uncertain-children",
+      "file": "src/workflow/operations.ts",
+      "test": "test/workflow-reconciliation.test.ts",
+      "pattern": "failed operations with uncertain",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "0941849c9e33a3eec967ddc183b08d12a0434d1feab87a280c6e3bde41c970b6"
+    },
+    {
+      "name": "overwrite-newer-stage",
+      "file": "src/staging/store.ts",
+      "test": "test/staged-review.test.ts",
+      "pattern": "stale stage review",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "ca72e1cd9071393b3caef990e21289bf14d048548be11fd5d9ab8567442dfa2b"
+    },
+    {
+      "name": "discard-worker-recovery",
+      "file": "src/workflow/reconciliation.ts",
+      "test": "test/workflow-reconciliation.test.ts",
+      "pattern": "unfinished implementation references",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "0d3f86512b0d0fb7a2c243968127efed69551e7701fd7ab7cf2a73866e1ee4b3"
+    },
+    {
+      "name": "ignore-recovery-revision",
+      "file": "src/workflow/reconciliation.ts",
+      "test": "test/workflow-reconciliation.test.ts",
+      "pattern": "explicit operation recovery is revision-bound",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "7584f1ebaedcff50123cb32ea649e5d1df7de574d1cbd0a1c7a0b09c9ad44557"
+    }
+  ],
+  "method": "Six independent deliberate source defects in a separate disposable copy. Each selected regression failed an assertion; original source restored between controls. No model requests."
+}

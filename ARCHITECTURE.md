@@ -1639,4 +1639,25 @@ flowchart TD
 
 The preparation store snapshots all managed records before provider work, serializes writes, and refuses publication or deletion if any captured sibling changes. It covers outline planning/replies, preparation, scoped review, guided drafts, simplification, recipe migration and per-scope regeneration. Late callbacks cannot write after their scope closes. Historical replies and approval records keep their own lifecycles. JSON schemas and exact bytes are preserved because migration markers hash them.
 
-Each file replacement is atomic; a multi-file migration still uses its retained completion marker for recovery. A checkpoint or retired implementation is not task completion or authorization. Qualification and remaining hr-024 completion work are recorded in [the reliability progress](docs/reliability/PROGRESS.md).
+Each file replacement is atomic; a multi-file migration still uses its retained completion marker for recovery. A checkpoint or retired implementation is not task completion or authorization. Qualification and hr-024 completion are recorded in [the reliability progress](docs/reliability/PROGRESS.md).
+
+
+### Cross-controller status and recovery
+
+```mermaid
+flowchart TD
+    Domains[Writer, application, worker and domain journals] --> Read[Read-only reconciliation: two matching observations]
+    Read --> Priority{Recovery priority}
+    Priority --> Owner[Retained owner or recovery guard]
+    Priority --> Journal[Application / unfinished worker or team]
+    Priority --> Stage[Pending candidate review]
+    Priority --> Execution[Unresolved operation: exact ID and revision]
+    Priority --> Resume[Current task and saved checkpoints]
+    Read --> UI[CLI status and dashboard next action]
+    Execution --> Guard[Writer lock and expected revision]
+    Guard --> Recheck[Recheck domain recovery blockers]
+    Recheck --> History[Retain interruption and uncertainty]
+    History --> NoProof[No source application or approval implied]
+```
+
+The operation service owns execution reservations; domain stores own verification and completion facts. Stage updates now require an unchanged read receipt under that same writer. An old review cannot revive a discarded candidate. Status never repairs old records; action dispatch rereads and validates them. Conflicting journals, uncertain resources and malformed state require inspection. Qualification: [hr-024 reconciliation](docs/reliability/evidence/reconciliation-validation.json).

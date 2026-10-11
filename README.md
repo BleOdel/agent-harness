@@ -624,6 +624,7 @@ Run them inside your project.
 | `harness team undo <id>` | journal a batch reversal |
 | `harness team recover <id> [--rollback]` | reconcile workers or recover a pending application |
 | `harness recover-lock <token>` | recover an exact dead writer lock |
+| `harness recover-operation <id> <revision>` | reconcile interrupted execution after worker/application recovery; does not apply or approve work |
 | `harness look` | what happened, what is pending, what escalated and why |
 | `harness show <run-id>` | the exact diff a run applied |
 | `harness view [--open]` | the whole record as a page you can read |
@@ -2224,3 +2225,10 @@ Run `harness source inspect` before sharing source with agents. The harness bloc
 Old no-request or absence checks must receive an explicit finite window, for example `harness checks migrate --prepare --window-ms 1000`. This changes the expectation and requires renewed approval. Original bytes are retained in the adjacent acceptance/migration directory. A failed review or concurrent edit stops publication. Unknown formats remain unchanged. Use `--prepare --restart` only to begin a new reviewed migration after inputs or the runner changed; it archives the previous journal.
 
 `harness checks migrate --approve` displays the prepared complete approval proposal and asks for explicit approval. It neither tests nor applies an application. Saved source and historical execution receipts are retained; run fresh verification under the new expectations. Pending simplification/recipe transactions and standalone browser journeys keep their respective review/recovery workflows.
+
+
+### Shared workflow status and recovery
+
+`harness look`, `harness continue status`, `harness checks status`, `harness stage list` and the dashboard share the same recovery priority. Retained writers, interrupted application journals and unfinished workers take precedence over resumable tasks. Inspect the suggested action; a recorded execution state is not evidence that a task passed.
+
+After recovering an exact stopped-writer token, status may offer `harness recover-operation <id> <revision>`. This records an interrupted execution under the current writer, preserving uncertain dispatch history. It runs no model and does not change source, approvals or task completion. A changed revision or pending application/worker recovery stops it. Existing application and team recovery commands remain responsible for their own journals and resources. See the [state contract](docs/reliability/STATE-CONTRACTS.md#final-cross-controller-reconciliation-hr-024-complete).

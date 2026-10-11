@@ -1,0 +1,146 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { withWriter } from '../src/workspace/writer-lock.ts';
+import { readOperation, withOperationPhase, operationProjection } from '../src/workflow/operations.ts';
+import { readWorkflowStatus, describeWorkflowStatus, recoverOperation } from '../src/workflow/reconciliation.ts';
+import { readWorkspace } from '../src/view/workspace.ts';
+import { nextAction } from '../src/view/guidance.ts';
+async function fixture(t: import('node:test').TestContext) { const root = await mkdtemp(path.join(tmpdir(), 'reconciliation-')); t.after(() => rm(root, { recursive: true, force: true })); const project = root + '/app'; await mkdir(project); return project; }
+async function interrupted(project: string) { await withWriter(project, 'work', () => withOperationPhase(project, 'building', 'r1', async () => { })); const op = (await readOperation(project))!; op.state = 'running'; op.dispatches.at(-1)!.state = 'reserved'; await writeFile(project + '-harness/operations/current.json', JSON.stringify(op)); return op; }
+test('application recovery takes priority over old execution and continuation labels on CLI and dashboard', async (t) => {
+    const project = await fixture(t);
+    await interrupted(project);
+    await writeFile(project + '-harness/application.json', JSON.stringify({ version: 2, id: 'application-1234', intentDigest: 'a'.repeat(64) }));
+    const status = await readWorkflowStatus(project);
+    assert.equal(status.action?.command, 'harness recover-application');
+    assert.equal(status.action?.kind, 'application');
+    const lines: string[] = [];
+    await describeWorkflowStatus(project, s => lines.push(s));
+    assert.ok(lines.some(s => s.includes(status.action!.command)));
+    const {checkWorkflowStatus} = await import('../src/acceptance/workflow.ts');
+    const checkLines:string[]=[];await checkWorkflowStatus(project,s=>checkLines.push(s));
+    assert.ok(checkLines.some(s=>s.includes('harness recover-application')));
+    assert.ok(!checkLines.some(s=>s.includes('Start or resume with harness checks prepare')));
+    const data = await readWorkspace(project);
+    assert.equal(nextAction([], [], [], data).command, status.action?.command);
+    const bytes = await readFile(project + '-harness/operations/current.json', 'utf8');
+    await readWorkflowStatus(project);
+    assert.equal(await readFile(project + '-harness/operations/current.json', 'utf8'), bytes);
+});
+test('a retained writer prevents application recovery guidance from implying it is safe to act', async (t) => {
+    const project = await fixture(t);
+    await withWriter(project, 'work', async () => { await writeFile(project + '-harness/application.json', JSON.stringify({ version: 2, id: 'application-1234', intentDigest: 'a'.repeat(64) })); const status = await readWorkflowStatus(project); assert.equal(status.action?.kind, 'owner'); assert.match(status.action!.message, /writer|owner/i); assert.notEqual(status.action!.command, 'harness recover-application'); await rm(project + '-harness/application.json'); });
+});
+test('conflicting or malformed recovery markers withhold mutating recovery commands', async (t) => {
+    const project = await fixture(t);
+    await mkdir(project + '-harness');
+    await writeFile(project + '-harness/application.json', JSON.stringify({ version: 2, id: 'application-1234', intentDigest: 'a'.repeat(64) }));
+    await writeFile(project + '-harness/staged-application.json', JSON.stringify({ version: 1, id: 'r3' }));
+    assert.equal((await readWorkflowStatus(project)).action?.kind, 'attention');
+    await rm(project + '-harness/application.json');
+    assert.equal((await readWorkflowStatus(project)).action?.command, 'harness stage apply r3');
+    await writeFile(project + '-harness/staged-application.json', '{"id":"../../outside"}');
+    assert.equal((await readWorkflowStatus(project)).action?.kind, 'attention');
+});
+test('explicit operation recovery is revision-bound, archives uncertainty and never marks a task complete', async (t) => {
+    const project = await fixture(t), op = await interrupted(project);
+    await writeFile(project + '/features.json', JSON.stringify([{ id: 'task', title: 'Task', criteria: ['Expected'], priority: 'must', status: 'todo', dependsOn: [] }]));
+    const status = await readWorkflowStatus(project);
+    assert.equal(status.action?.kind, 'operation');
+    assert.match(status.action!.command, /recover-operation/);
+    await assert.rejects(recoverOperation(project, op.id, op.revision + 1), /Stale/i);
+    assert.equal((await readOperation(project))?.id, op.id);
+    await recoverOperation(project, op.id, op.revision);
+    const history = JSON.parse(await readFile(project + '-harness/operations/history/' + op.id + '.json', 'utf8'));
+    assert.equal(history.state, 'interrupted');
+    assert.equal(history.dispatches.at(-1).state, 'uncertain');
+    assert.equal(JSON.parse(await readFile(project + '/features.json', 'utf8'))[0].status, 'todo');
+    assert.equal((await readOperation(project))?.state, 'returned');
+    assert.equal((await readWorkflowStatus(project)).action, undefined);
+    await assert.rejects(recoverOperation(project, op.id, op.revision), /Stale/i);
+});
+test('unfinished implementation references block operation-only recovery even without an application journal', async (t) => {
+    const project = await fixture(t), op = await interrupted(project);
+    const { saveWorkAttempt } = await import('../src/workspace/work-attempts.ts');
+    await saveWorkAttempt(project, { runId: 'r1', task: 'task', attempt: 1, source: '/tmp/unverified', controller: '/tmp/controller', container: 'fixture', status: 'quarantined' });
+    assert.equal((await readWorkflowStatus(project)).action?.kind, 'worker');
+    await assert.rejects(recoverOperation(project, op.id, op.revision), /worker|unfinished/i);
+    assert.equal((await readOperation(project))?.id, op.id);
+});
+test('failed operations with uncertain children stay unresolved', async (t) => {
+    const project = await fixture(t), op = await interrupted(project);
+    op.state = 'failed';
+    op.dispatches.forEach(d => { if (d.state === 'reserved')
+        d.state = 'uncertain'; });
+    assert.equal(operationProjection(op).unresolved, true);
+});
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { recoverWriter, writerPath } from '../src/workspace/writer-lock.ts';
+test('killed controller requires lock recovery, then two operation recoveries produce only one new owner', async (t) => {
+    const project = await fixture(t);
+    const source = `import {withWriter} from ${JSON.stringify(new URL('../src/workspace/writer-lock.ts', import.meta.url).href)};
+ await withWriter(process.argv[1],'checks prepare',async()=>{process.send('ready');await new Promise(()=>setInterval(()=>{},1000));});`;
+    const child = spawn(process.execPath, ['--input-type=module', '-e', source, project], { stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+    t.after(() => { if (child.exitCode === null && child.signalCode === null)
+        child.kill('SIGKILL'); });
+    let stderr = '';
+    child.stderr!.on('data', c => stderr += c);
+    await Promise.race([once(child, 'message'), once(child, 'exit').then(() => { throw Error(stderr || 'early exit'); })]);
+    const op = (await readOperation(project))!;
+    assert.equal((await readWorkflowStatus(project)).action?.kind, 'owner');
+    const exit = once(child, 'exit');
+    child.kill('SIGKILL');
+    await exit;
+    const lock = JSON.parse(await readFile(await writerPath(project), 'utf8'));
+    assert.equal((await readWorkflowStatus(project)).action?.command, `harness recover-lock ${lock.token}`);
+    await recoverWriter(project, lock.token);
+    assert.equal((await readWorkflowStatus(project)).action?.command, `harness recover-operation ${op.id} ${op.revision}`);
+    const results = await Promise.allSettled([recoverOperation(project, op.id, op.revision), recoverOperation(project, op.id, op.revision)]);
+    assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
+    const rejected = results.find(r => r.status === 'rejected');
+    assert.ok(rejected && rejected.status === 'rejected');
+    assert.match(String(rejected.reason), /locked|Stale/);
+    const current = (await readOperation(project))!;
+    assert.equal(current.previous, op.id);
+    assert.equal(current.command, 'operation recovery');
+    assert.equal(current.state, 'returned');
+    const history = JSON.parse(await readFile(project + '-harness/operations/history/' + op.id + '.json', 'utf8'));
+    assert.equal(history.state, 'interrupted');
+    assert.equal(history.dispatches[0].state, 'uncertain');
+    assert.equal((await readWorkflowStatus(project)).action, undefined);
+});
+test('team journal recovery outranks operation-only recovery and leaves legacy projection bytes untouched', async (t) => {
+    const project = await fixture(t), root = project + '-harness/teams/team-fixture';
+    const { createState, appendEvent, readState } = await import('../src/team/state.ts');
+    const { parseTeamPlan } = await import('../src/team/schema.ts');
+    const plan = parseTeamPlan({ version: 1, roles: [{ id: 'builder', instructions: 'Build', skills: [] }], skills: [], contracts: {} }, [{ id: 'one', title: 'One', priority: 'must', status: 'todo', criteria: ['Works'], dependsOn: [], assignedRole: 'builder', changeScope: ['src/**'] }]);
+    await mkdir(root, { recursive: true });
+    await createState(root, plan, { directory: '/host/baseline', digest: 'a'.repeat(64), files: {} }, { maxAttempts: 2, maxDispatches: 10, maxMs: 600000, maxCostUsd: 10 }, 'team-fixture');
+    const op = await interrupted(project);
+    await writeFile(root + '/state.json', 'legacy projection left untouched');
+    assert.equal((await readWorkflowStatus(project)).action?.command, "harness team recover 'team-fixture'");
+    assert.equal(nextAction([], [], [], await readWorkspace(project)).command, "harness team recover 'team-fixture'");
+    await assert.rejects(recoverOperation(project, op.id, op.revision), /Team recovery/);
+    assert.equal(await readFile(root + '/state.json', 'utf8'), 'legacy projection left untouched');
+    await appendEvent(root, { type: 'stopped', reason: 'fixture cleanup' }, await readState(root));
+    assert.equal((await readWorkflowStatus(project)).action?.command, "harness team inspect 'team-fixture'");
+    assert.equal(nextAction([], [], [], await readWorkspace(project)).command, "harness team inspect 'team-fixture'");
+});
+test('completed and reopened tasks use domain state instead of stale continuation labels', async (t) => {
+    const project = await fixture(t);
+    const { saveContinuation, readContinuation } = await import('../src/workflow/store.ts');
+    const tasks = [{ id: 'task', title: 'Task', criteria: ['Expected'], priority: 'must', status: 'done', dependsOn: [] }];
+    await writeFile(project + '/features.json', JSON.stringify(tasks));
+    await saveContinuation(project, { version: 1, task: 'task', status: 'paused', message: 'old pause', updated: new Date().toISOString(), attempts: 1, maxBuilds: 1, recoveries: 0, events: [] });
+    assert.match((await readWorkflowStatus(project)).action!.title, /Reconcile completed/);
+    const saved = (await readContinuation(project))!;
+    saved.status = 'complete'; saved.message = 'complete'; await saveContinuation(project, saved);
+    assert.equal((await readWorkflowStatus(project)).action, undefined);
+    tasks[0]!.status = 'todo';
+    await writeFile(project + '/features.json', JSON.stringify(tasks));
+    assert.match((await readWorkflowStatus(project)).action!.message, /reopened/);
+});

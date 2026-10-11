@@ -45,6 +45,8 @@ Implementation checkpoint v2 adds a classified `failure` with `workerStopped: tr
 Application intent v2 is common to work, staged/team apply and undo. The published pointer pins intent contents; intent pins before/after manifests and the single reserved record. An optional stage/team effect is completed idempotently after source and feature publication. A persisted rollback decision cannot switch direction after another crash. Per-file replacement uses expected content and executable mode; source, features, history and final controller status each have durable recovery boundaries. Completed or rolled-back journals retain originals and reserve their record IDs. Legacy v1 journals finish through their original readers and cannot authorize fresh work.
 
 
+> The adoption sections below are chronological. Their remaining-work statements describe earlier checkpoints; final reconciliation below records hr-024 completion.
+
 ## Durable execution ownership (hr-024 foundation)
 
 `src/workflow/operations.ts` owns command execution in `operations/current.json`, under the existing canonical project writer lock. It is distinct from the approval-bound lifecycle interchange records: unknown task/source/runtime bindings are not invented. Existing domain controllers remain the authority for their complete phase records until the remaining hr-024 adoption.
@@ -117,3 +119,21 @@ Ordinary-build orchestration now lives in `workflow/work.ts`, leaving signal han
 The new regressions cover competing prepare/repair processes, process death after publication, resume from exact retained bytes, stale sibling replacement and deletion, nested dispatch exclusion, late callbacks, receipt-bound implementation retirement/restore, and recipe selection changed during an operator choice. Six deliberately introduced defects are caught. Full-suite, installed Docker/Chromium and deterministic Docker preparation evidence is retained in `evidence/build-checkpoints-validation.json`; mutation results are in `evidence/build-checkpoints-controls.json`.
 
 This batch completes these two migration portions. hr-024 remains open for final cross-controller status/recovery reconciliation and completion qualification against every task criterion; **23/45 tasks remain complete**. Atomic replacement applies to one file; existing migration markers still govern multi-file recovery. No paid model requests, live blog changes, credentials, new dependencies or approval changes were made.
+
+
+## Final cross-controller reconciliation (hr-024 complete)
+
+| Authority | Shared next-action rule | Mutation boundary |
+|---|---|---|
+| Writer/recovery guard | Inspect retained owner; recover an exact dead local owner token explicitly | Existing token, host and process checks; no worker liveness inference |
+| Application journals / applying stage | Recover original shared or legacy intent before new work | Existing source identities, intent digest, writer and idempotent publication |
+| Unfinished ordinary worker / team journal | Inspect worker resources or invoke team recovery before operation-only reconciliation | No checkpoint invention; worker cleanup and immutable team events remain authoritative |
+| Pending stage / staged team | Review retained candidate before rebuilding | Exact stage read receipt and bytes; final evidence and operator review remain required |
+| Unresolved operation only | Recover exact operation ID and revision | Expected operation under writer; interrupted/uncertain history; no domain success |
+| Continuation, implementation, preparation | Reconcile current task state and resume retained work | Existing source/task/runtime/approval receipts and allowances revalidated by dispatch |
+
+The status service reads all relevant domain records twice, returns a fingerprint and withholds a mutating recommendation if the readings differ or parsing fails. This is a read-only observation, not a lock, authorization token or guarantee of freshness after rendering. Each mutating command rereads under its writer and validates its own evidence/expected version. `recover-operation` additionally requires the displayed operation ID and revision, checks for recovery blockers before acquiring ownership, and compares domain records again under that ownership. A concurrent domain change stops recovery without rewriting those records. Legacy team inspection replays events without repairing its cache. Command-specific status must not append a lower-priority dispatch suggestion after a recovery action.
+
+Stage metadata keeps its existing version-one schema. A private process-local receipt binds the canonical project, stage ID and original bytes. Save/update uses the shared writer; updates compare bytes before work and before atomic replacement and pin the result to the producing operation. Restart requires a new read. Copies, foreign receipts and stale reviews cannot overwrite current decisions. Retained application journals keep their own recovery path and must not be edited through standalone stage writes.
+
+All five hr-024 criteria are qualified by `evidence/reconciliation-validation.json`, including the preceding adoption batches. This does not promise automatic cleanup of unknown processes, autonomous permission decisions, new cumulative budgets or correctness on untested platforms. Recovery can still require operator inspection when evidence or owned resources are uncertain. The common operation journal records execution; domain journals and verified evidence retain their distinct purposes.

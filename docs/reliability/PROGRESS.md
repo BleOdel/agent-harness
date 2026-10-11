@@ -1,6 +1,6 @@
 # Reliability progress — Group 2: evidence and command ownership
 
-Completed tasks: hr-001–hr-023 — **23 of 45**. The remaining 22 tasks are open. [Grouped delivery](GROUPS.md) Group 2 has completed common evidence admission; hr-024–hr-027 (durable ownership, structured commands, cumulative allowances and continuation) remain.
+Completed tasks: hr-001–hr-024 — **24 of 45**. The remaining 21 tasks are open. [Grouped delivery](GROUPS.md) Group 2 has completed common evidence admission and durable operation adoption; hr-025–hr-027 (structured commands, cumulative allowances and bounded continuation) remain. The chronological entries below retain the scope and counts at each earlier checkpoint; the final hr-024 reconciliation entry supersedes their open-task statements.
 
 The registry covers all 25 findings: 12 fixed at their documented audit scope, 1 reproduced and 12 inspection-only or partially repaired gaps. F01, F13 and F14 now link current positive regressions and restored-defect controls. Historical audit evidence remains unchanged. Noninteractive preparation remains a known desired-behavior failure. Group 1 fixes dependency-scoped peer-review invalidation; unknown legacy dependencies still require fresh review. Browser timing is now qualified at the documented finite-window scope. The full end-to-end reliability program is not complete.
 
@@ -190,3 +190,16 @@ Ordinary-build orchestration now lives in `workflow/work.ts`, leaving signal han
 The new regressions cover competing prepare/repair processes, process death after publication, resume from exact retained bytes, stale sibling replacement and deletion, nested dispatch exclusion, late callbacks, receipt-bound implementation retirement/restore, and recipe selection changed during an operator choice. Six deliberately introduced defects are caught. Full-suite, installed Docker/Chromium and deterministic Docker preparation evidence is retained in `evidence/build-checkpoints-validation.json`; mutation results are in `evidence/build-checkpoints-controls.json`.
 
 This batch completes these two migration portions. hr-024 remains open for final cross-controller status/recovery reconciliation and completion qualification against every task criterion; **23/45 tasks remain complete**. Atomic replacement applies to one file; existing migration markers still govern multi-file recovery. No paid model requests, live blog changes, credentials, new dependencies or approval changes were made.
+
+
+## Final cross-controller reconciliation (hr-024 complete)
+
+`workflow/reconciliation.ts` supplies one read-only next-action projection to `look`, `continue status`, `checks status`, `stage list` and the dashboard. It gives retained ownership and recovery journals priority, then unfinished workers/teams, staged reviews, unresolved execution and resumable domain work. Two successive domain reads must agree; malformed or changing records withhold a dispatch recommendation. It never creates a checkpoint, rewrites a team cache, approves evidence or marks tasks done. Task records override stale continuation completion labels.
+
+After explicit dead-writer recovery, `harness recover-operation <id> <revision>` reconciles an otherwise orphaned execution receipt under the writer lock. It refuses stale revisions and outstanding application or worker recovery, archives interrupted reservations as uncertain, and changes no application source, approval or task status. Application, stage and team recovery retain their original validation and cleanup paths. A live process is not proof of health; unfinished ordinary-worker pointers still require resource/source inspection, not automatic conversion into resume checkpoints.
+
+Stage saves and updates now share writer ownership. Updates require the exact object read and exact saved bytes, checked again immediately before replacement. An older review cannot overwrite a newer discarded candidate or restore its approval. Legacy interrupted-stage journals still finish their existing intent; legacy fixture construction remains separate from the guarded mutation API.
+
+Qualification: `evidence/reconciliation-validation.json` maps every hr-024 criterion to the current and prior migration tests. It includes full build/tests, installed Docker/Chromium smoke, deterministic preparation and implementation recovery trials, process-kill/concurrent-recovery tests, CLI/dashboard agreement, retained legacy records and six deliberate-defect controls. No paid model request, dependency, blog state or credential was changed. This completes hr-024, not the full reliability program; hr-025–hr-045 remain open.
+
+Final hr-024 qualification: `npm run check` passed 1,203 of 1,275 tests, with 72 explicit skips and zero failures. Installed Docker/Chromium smoke passed 13/13; deterministic Docker preparation/implementation recovery passed 2/2. Six deliberate defects were detected.
