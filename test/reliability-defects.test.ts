@@ -92,7 +92,7 @@ test('F18 an unrelated peer description does not invalidate a case code review',
 import {approveChecks,verifyAcceptance} from "../src/acceptance/checks.ts";
 import {loadConfig} from "../src/config.ts";
 const baseCase={id:"ui",tasks:["ui"],kind:"browser",steps:[],browser:{version:1,title:"Async completion",entry:"server.js",port:4173,timeoutSeconds:20}};
-test('F02 Chromium waits for an asynchronously rendered expected result',{skip:process.env.HARNESS_KNOWN_DEFECTS!=='1'||process.env.HARNESS_VERIFY_BROWSER!=='1'},async()=>{
+test('F02 Chromium waits for an asynchronously rendered expected result',{skip:process.env.HARNESS_VERIFY_BROWSER!=='1'},async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'audit-browser-')),project=root+'/app';await mkdir(project);
  try{
   await writeFile(project+'/package.json','{"type":"module"}');

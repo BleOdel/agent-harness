@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { run } from '../run.ts';
 import { sourceFiles } from '../workspace/candidate.ts';
 
-export const smokeTests = ['test/asset-helper-docker.test.ts', 'test/browser-acceptance.test.ts', 'test/browser-capabilities.test.ts', 'test/staged-preview-docker.test.ts'];
+export const smokeTests = ['test/asset-helper-docker.test.ts', 'test/browser-acceptance.test.ts', 'test/browser-timing-docker.test.ts', 'test/browser-capabilities.test.ts', 'test/staged-preview-docker.test.ts'];
 const immutable = (v: unknown): v is string => typeof v === 'string' && /^sha256:[a-f0-9]{64}$/u.test(v);
 export function assessSmokeTap(output: string, code: number | null, incomplete: boolean) {
   const number = (name: string) => {

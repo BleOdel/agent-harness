@@ -1,3 +1,4 @@
+import {observationProtocol} from './protocol.mjs';
 import {repeatedInput} from './input.ts';
 import {observeStorage} from './storage.mjs';
 import {readFile,writeFile} from 'node:fs/promises';
@@ -5,8 +6,9 @@ import {chromium} from '/opt/browser-tools/node_modules/playwright/index.mjs';
 import AxeBuilder from '/opt/browser-tools/node_modules/@axe-core/playwright/dist/index.mjs';
 const spec=JSON.parse(await readFile('/harness-checks/actions.json','utf8'));
 const origin=`http://127.0.0.1:${spec.port}`;
-const report={version:1,steps:[],errors:[]},sessions=new Map(),captures=new Map();
-let browser,session,page,pageCount=0;
+const report={version:2,steps:[],errors:[]},sessions=new Map(),captures=new Map();
+let browser,session,page,pageCount=0,requestTotal=0;
+const journeyDeadline=Date.now()+spec.timeoutSeconds*1000,exchange=observationProtocol(journeyDeadline);
 const onError=error=>{if(report.errors.length<20)report.errors.push(String(error.message).slice(0,2000));};
 async function selectPage(name){
  if(!session.pages.has(name)){if(++pageCount>12)throw Error('Page limit reached.');const p=await session.context.newPage();p.setDefaultTimeout(5000);p.setDefaultNavigationTimeout(10000);p.on('pageerror',onError);session.pages.set(name,p);}
@@ -20,6 +22,7 @@ async function selectContext(name){
   // This is the only interception path, including for newly opened contexts.
   await context.route('**/*',async route=>{
    const request=route.request(),url=new URL(request.url());if(url.origin!==origin)return route.abort();
+   if(++requestTotal>1000){onError(Error('Browser request observation limit exceeded.'));return route.abort();}
    const key=request.method()+' '+url.pathname;s.counts.set(key,(s.counts.get(key)||0)+1);
    const fault=s.faults.get(key);if(fault==='abort')return route.abort('connectionfailed');
    if(fault==='503')return route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:{code:'service_unavailable',message:'Service temporarily unavailable',details:null}})});
@@ -31,9 +34,10 @@ async function selectContext(name){
 const input=step=>{if(step.valueRepeat!==undefined)return repeatedInput(step.valueRepeat);const value=step.valueFrom===undefined?step.value:captures.get(step.valueFrom);if(typeof value!=='string')throw Error('Missing captured input.');return value;};
 try{
  browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});await selectContext('main');
- const deadline=Date.now()+20000;
+ const deadline=Math.min(journeyDeadline,Date.now()+20000);
  while(true){try{await session.context.request.get(origin,{timeout:1000,maxRedirects:0});break;}catch(e){if(Date.now()>deadline)throw Error('Application did not become ready within 20 seconds.');await new Promise(r=>setTimeout(r,150));}}
  for(let i=0;i<spec.steps.length;i++){
+  if(Date.now()>=journeyDeadline)throw Error('Browser journey deadline exceeded.');
   const step=spec.steps[i],o={action:step.action};const element=step.selector?page.locator(step.selector):undefined;
   if(step.action==='context')await selectContext(step.name);
   if(step.action==='page')await selectPage(step.name);
@@ -56,18 +60,24 @@ try{
    const stream=await download.createReadStream();if(!stream)throw Error('Download has no readable data.');let size=0;const chunks=[];
    try{for await(const bytes of stream){size+=bytes.length;if(size>65536)throw Error('Download exceeds 64 KiB.');chunks.push(bytes);}o.value=new TextDecoder('utf-8',{fatal:true}).decode(Buffer.concat(chunks));}finally{await download.delete();}
   }
-  if(step.action==='storage')Object.assign(o,await observeStorage(page));
   if(step.action==='network'){const key=step.method+' '+step.path;if(step.mode==='normal')session.faults.delete(key);else session.faults.set(key,step.mode);}
-  if(step.action==='requestCount')o.value=session.counts.get(step.method+' '+step.path)||0;
-  if(step.action==='attribute')o.values=await element.evaluateAll((es,name)=>es.map(e=>e.getAttribute(name)),step.name);
-  if(step.action==='text'){await element.first().waitFor({state:'visible'});o.values=await element.allTextContents();}
-  if(step.action==='count')o.value=await element.count();
   if(step.action==='focused')o.value=await element.evaluate(e=>e===document.activeElement);
   if(step.action==='viewport')await page.setViewportSize({width:step.width,height:step.height});
   if(step.action==='motion')await page.emulateMedia({reducedMotion:step.value});
   if(step.action==='overflow')Object.assign(o,await page.evaluate(()=>({client:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth})));
   if(step.action==='accessibility'){const result=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']).analyze();o.violations=result.violations.map(v=>v.id);await writeFile(`/work/axe-${i}.json`,JSON.stringify({violations:result.violations,incomplete:result.incomplete}));}
   if(step.action==='screenshot'){o.file=`screen-${i}.png`;await page.screenshot({path:'/work/'+o.file,fullPage:false});}
+  if(step.observation){
+   while(true){
+    if(step.action==='storage')Object.assign(o,await observeStorage(page));
+    if(step.action==='requestCount')o.value=session.counts.get(step.method+' '+step.path)||0;
+    if(step.action==='attribute')o.values=await element.evaluateAll((es,name)=>es.map(e=>e.getAttribute(name)),step.name);
+    if(step.action==='text')o.values=await element.first().isVisible()?await element.allTextContents():[];
+    if(step.action==='count')o.value=await element.count();
+    if(await exchange(i,o)==='next')break;
+    await new Promise(r=>setTimeout(r,100));
+   }
+  }else if(await exchange(i,o)!=='next')throw Error('Unexpected retry of a browser action.');
   report.steps.push(o);
   if(Buffer.byteLength(JSON.stringify(report))>768*1024)throw Error('Browser observation limit exceeded.');
  }

@@ -1,6 +1,8 @@
+import {observationWindow,assessTiming,type ObservationWindow} from './timing.ts';
 import {capabilityActions,validateCapability,assessCapability,type CapabilityStep} from './capabilities.ts';
 import {OperatorError} from '../verbs/io.ts';
-export type Step = {action:'goto';path:string}|{action:'click';selector:string}|{action:'press';selector:string;key:string}|{action:'text';selector:string;expected:string}|{action:'count';selector:string;expected:number}|{action:'focused';selector:string}|{action:'viewport';width:number;height:number}|{action:'motion';value:'reduce'|'no-preference'}|{action:'reload'|'overflow'|'accessibility'|'screenshot'}|CapabilityStep;
+type BasicStep = {action:'goto';path:string}|{action:'click';selector:string}|{action:'press';selector:string;key:string}|{action:'text';selector:string;expected:string}|{action:'count';selector:string;expected:number}|{action:'focused';selector:string}|{action:'viewport';width:number;height:number}|{action:'motion';value:'reduce'|'no-preference'}|{action:'reload'|'overflow'|'accessibility'|'screenshot'}|CapabilityStep;
+export type Step=BasicStep&{observation?:ObservationWindow};
 export interface Journey {version:1;title:string;entry:string;port:number;databaseEnv?:string;timeoutSeconds:number;steps:Step[];}
 export interface Assessment {passed:boolean;checks:number;failures:string[];screenshots:string[];}
 function fail(m:string):never{throw new OperatorError(m);}
@@ -12,7 +14,9 @@ export function parseJourney(raw:unknown):Journey{
  if(s.version!==1||!text(s.title,120)||!s.title.trim()||/[\r\n\x1b]/u.test(s.title)||!text(s.entry,200)||!/^[\w-]+(?:\/[\w.-]+)*\.(?:js|mjs|cjs)$/u.test(s.entry)||s.entry.split('/').some(p=>p==='..'||p==='.')||!int(s.port,1024,65535)||!int(s.timeoutSeconds,10,300)||!Array.isArray(s.steps)||s.steps.length<1||s.steps.length>60)fail('Browser journeys need a title, local Node entry, port 1024–65535, 10–300 seconds and 1–60 steps.');
  if(s.databaseEnv!==undefined&&(!text(s.databaseEnv,80)||!/^([A-Z][A-Z0-9_]*_)?(DB|DATABASE)(_PATH|_FILE)?$/u.test(s.databaseEnv)))fail('Use an application database variable such as TO_BE_HEARD_DB.');
  let checks=0;const refs=new Set<string>(),contexts=new Set<string>(['main']),pages=new Set<string>(['main/main']),active={context:'main'};
- for(const rawStep of s.steps){
+ for(const original of s.steps){
+  const window=observationWindow(original);if(window&&window.milliseconds>Number(s.timeoutSeconds)*1000)fail('Observation exceeds the journey deadline.');
+  const {observation:_,...rawStep}=original as Record<string,unknown>;
   if(rawStep&&typeof rawStep==='object'&&capabilityActions.has(String((rawStep as Record<string,unknown>).action))){checks+=validateCapability(rawStep as Record<string,unknown>,refs,contexts,pages,active);continue;}
   const step=object(rawStep,['action','selector','value','expected','key','path','width','height']);
   const fields:Record<string,string[]>={goto:['path'],fill:['selector','value'],click:['selector'],press:['selector','key'],text:['selector','expected'],count:['selector','expected'],focused:['selector'],viewport:['width','height'],motion:['value'],reload:[],overflow:[],accessibility:[],screenshot:[]};
@@ -30,15 +34,12 @@ export function parseJourney(raw:unknown):Journey{
  if(!checks)fail('Include an observable text, count, focus, overflow or accessibility expectation.');
  return structuredClone(s) as unknown as Journey;
 }
-export function actionRequest(s:Journey){return {version:1,port:s.port,timeoutSeconds:s.timeoutSeconds,steps:s.steps.map(step=>{const {expected:_,expectedFrom:__,absentFrom:___,...action}=step as Step&{expected?:unknown;expectedFrom?:unknown;absentFrom?:unknown};return action;})};}
-export function assessJourney(spec:Journey,raw:unknown):Assessment{
- const r=object(raw,['version','steps','errors']);
- if(r.version!==1||!Array.isArray(r.steps)||r.steps.length!==spec.steps.length||!Array.isArray(r.errors)||r.errors.length>100||r.errors.some(e=>!text(e,2000)))fail('Incomplete browser observations.');
- const failures=[...(r.errors as string[])],screenshots:string[]=[];let checks=0;const refs=new Map<string,string>();
- spec.steps.forEach((step,i)=>{
-  if(capabilityActions.has(step.action)){checks+=assessCapability(step as CapabilityStep,(r.steps as unknown[])[i],refs,failures);return;}
+export function actionRequest(s:Journey){return {version:2,port:s.port,timeoutSeconds:s.timeoutSeconds,steps:s.steps.map(step=>{const {expected:_,expectedFrom:__,absentFrom:___,...action}=step as Step&{expected?:unknown;expectedFrom?:unknown;absentFrom?:unknown};return {...action,...(observationWindow(step)?{observation:observationWindow(step)}:{})};})};}
+export function assessObservation(step:Step,raw:unknown,i:number,refs:Map<string,string>,failures:string[],screenshots:string[]=[]):number{
+ let checks=0;
+  if(capabilityActions.has(step.action))return assessCapability(step as CapabilityStep,raw,refs,failures);
   const extra:Record<string,string[]>={goto:['status'],reload:['status'],text:['values'],count:['value'],focused:['value'],overflow:['client','scroll'],accessibility:['violations'],screenshot:['file']};
-  const keys=['action',...(extra[step.action]??[])],o=object((r.steps as unknown[])[i],keys);
+  const keys=['action',...(extra[step.action]??[])],o=object(raw,keys);
   if(o.action!==step.action||Object.keys(o).length!==keys.length)fail('Browser observation order or shape changed.');
   const mismatch=(m:string)=>failures.push(`Step ${i+1}: ${m}`);
   if(step.action==='goto'||step.action==='reload'){checks++;if(!int(o.status,100,599))fail('Invalid navigation response.');if(o.status!==200)mismatch('application navigation did not return 200.');}
@@ -48,6 +49,16 @@ export function assessJourney(spec:Journey,raw:unknown):Assessment{
   if(step.action==='overflow'){checks++;if(!int(o.client,1,1920)||!int(o.scroll,1,100000))fail('Invalid viewport observation.');if(Number(o.scroll)>Number(o.client)+1)mismatch('horizontal page overflow.');}
   if(step.action==='accessibility'){checks++;if(!Array.isArray(o.violations)||o.violations.length>200||o.violations.some(v=>!text(v,200)))fail('Invalid accessibility observations.');if(o.violations.length)mismatch(`axe violations: ${o.violations.join(', ')}.`);}
   if(step.action==='screenshot'){if(o.file!==`screen-${i}.png`)fail('Invalid screenshot filename.');screenshots.push(o.file as string);}
+ return checks;
+}
+export function assessJourney(spec:Journey,raw:unknown):Assessment{
+ const r=object(raw,['version','steps','errors']);
+ if(r.version!==2||!Array.isArray(r.steps)||r.steps.length!==spec.steps.length||!Array.isArray(r.errors)||r.errors.length>100||r.errors.some(e=>!text(e,2000)))fail('Incomplete browser observations or obsolete observation version.');
+ const failures=[...(r.errors as string[])],screenshots:string[]=[];let checks=0;const refs=new Map<string,string>();
+ spec.steps.forEach((step,i)=>{
+  if(observationWindow(step)){
+   const result=assessTiming(step,(r.steps as unknown[])[i],sample=>{const issues:string[]=[];return {checks:assessObservation(step,sample,i,new Map(refs),issues),failures:issues};});checks+=result.checks;failures.push(...result.failures);
+  }else checks+=assessObservation(step,(r.steps as unknown[])[i],i,refs,failures,screenshots);
  });
  return {passed:failures.length===0,checks,failures,screenshots};
 }

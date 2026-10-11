@@ -84,7 +84,7 @@
         "src/browser/controller.ts",
         "src/browser/schema.ts"
       ],
-      "status": "open",
+      "status": "verified",
       "tasks": [
         "hr-001",
         "hr-015",
@@ -94,15 +94,34 @@
         "hr-039"
       ],
       "regressions": [
-        "test/reliability-defects.test.ts"
+        "test/reliability-defects.test.ts",
+        "test/browser-timing.test.ts",
+        "test/browser-timing-docker.test.ts"
       ],
-      "resolutionEvidence": [],
+      "resolutionEvidence": [
+        {
+          "kind": "regression",
+          "path": "test/reliability-defects.test.ts"
+        },
+        {
+          "kind": "regression",
+          "path": "test/browser-timing.test.ts"
+        },
+        {
+          "kind": "regression",
+          "path": "test/browser-timing-docker.test.ts"
+        },
+        {
+          "kind": "negative-control",
+          "path": "docs/reliability/evidence/browser-timing-controls.json"
+        }
+      ],
       "qualification": {
-        "state": "reproduced",
+        "state": "fixed",
         "trigger": "Click a real Chromium fixture whose visible result changes 750 ms later; require the expected completion within the journey timeout.",
         "regression": "test/reliability-defects.test.ts",
-        "execution": "docs/reliability/evidence/foundation-validation.json",
-        "limitation": "Fresh desired-behavior test fails. This is a reproduced defect, not operational qualification or a fix. This port covers delayed positive DOM observation; delayed negative-request windows remain part of the implementation task."
+        "execution": "docs/reliability/evidence/browser-timing-validation.json",
+        "limitation": "Qualified on local Linux arm64 Chromium for bounded positive and explicit finite negative windows. DOM/storage are sampled; no continuous or future absence proof. Existing-check migration and broader qualification remain hr-017/hr-037/hr-039."
       }
     },
     {

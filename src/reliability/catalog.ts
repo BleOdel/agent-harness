@@ -16,10 +16,10 @@ const empty = (): Capability['stages'] => ({ build: unsupported(), test: unsuppo
   preview: unsupported(), manualReview: unsupported(), apply: unsupported(), recovery: unsupported(),
   package: unsupported(), securityPerformance: unsupported(), release: unsupported() });
 const review = stage('limited', 'Human observations and explicit final approval are separate from automation.', 'src/staging/store.ts');
-const apply = stage('limited', 'Existing apply routes; ordinary apply/undo crash recovery remains audit F04.', 'src/verbs/work.ts', 'src/staging/apply.ts');
-const recovery = stage('limited', 'Timeout and gate checkpoints exist; provider-error retention remains audit F05.', 'src/workspace/work-checkpoints.ts');
+const apply = stage('limited', 'Journalled ordinary, staged and team apply/undo with explicit recovery; requires current candidate evidence.', 'src/verbs/work.ts', 'src/staging/apply.ts');
+const recovery = stage('limited', 'Unverified stopped-worker source retention and fresh verification on resume; unconfirmed cleanup remains explicit.', 'src/workspace/work-checkpoints.ts');
 const release = stage('limited', 'Artifact staging and GitHub delivery; not full product-build provenance.', 'src/releases/controller.ts', 'src/releases/github.ts');
-const browser = stage('limited', 'Chromium on a dependency-free Node server; observation timing remains audit F02.', 'src/browser/controller.ts');
+const browser = stage('limited', 'Chromium on a dependency-free Node server; host-controlled eventual observations and explicit finite absence windows. DOM/storage remain sampled.', 'src/browser/controller.ts');
 const preview = stage('implemented', 'Isolated exact-candidate preview of dependency-free Node server.', 'src/staging/preview.ts');
 const node = (dependencies: boolean): Capability => ({
   id: dependencies ? 'node-dependencies' : 'node-basic', title: dependencies ? 'Single-package Node with dependencies' : 'Dependency-free Node CLI/API/web',
@@ -59,7 +59,7 @@ const entries: Capability[] = [node(false), node(true), {
   recipe('linux-electron', 'Linux Electron GUI recipe', 'src/desktop/runtime.ts', ['Provisioned Linux desktop Docker image', 'Display/GUI instrumentation'], ['Electron packaging/journey recipe, not all Linux desktop frameworks.'], true),
   recipe('macos-electron', 'macOS Electron GUI recipe', 'src/native/gui/controller.ts', ['Provisioned macOS VM and GUI permissions'], ['Selected package/protocol only; qualification is not inherited from historical demonstrations.'], true),
   recipe('macos-native', 'SwiftUI/AppKit GUI recipe', 'src/native/apple/controller.ts', ['Provisioned Mac VM', 'Xcode/Swift toolchain and GUI permissions'], ['Selected native protocol; not arbitrary Xcode project support.'], true),
-  recipe('torch-cpu', 'PyTorch CPU classifier and clustering', 'src/torch/workflow.ts', ['Pinned CPU Python/PyTorch runtime', 'Approved data, recipe and evaluation thresholds'], ['Fixed supervised/deep-learning classifier and unsupervised kmeans.', 'Checkpoint structural validation gap F13; do not claim complete recovery until qualified.'], false),
+  recipe('torch-cpu', 'PyTorch CPU classifier and clustering', 'src/torch/workflow.ts', ['Pinned CPU Python/PyTorch runtime', 'Approved data, recipe and evaluation thresholds'], ['Fixed supervised/deep-learning classifier and unsupervised kmeans.', 'Strict recipe checkpoint validation and explicit retained-checkpoint fallback; complete recovery still needs current pinned-runtime evidence.'], false),
   recipe('metal-regression', 'Metal regression recipe', 'src/metal/workflow.ts', ['Provisioned compatible Mac/Metal runtime', 'Approved recipe/data'], ['Selected training recipe, not arbitrary GPU frameworks.'], false),
   { ...recipe('small-llm-trial', 'Small language-model fine-tuning diagnostic', 'src/torch/llm-trial.py', ['Pinned small model and CPU dependencies', 'Explicit download/runtime allowance'], ['Fixed tiny synthetic-data experiment; no general user-corpus training or model quality/safety certification.'], false), level: 'diagnostic' },
   { id: 'torch-mac-gpu', title: 'PyTorch GPU inside Mac VM', level: 'diagnostic', qualification: 'diagnostic-failed', prerequisites: ['Compatible provisioned Mac VM'], limits: ['Recorded compatibility probe failed; this is not a supported GPU training route.'], stages: empty() },

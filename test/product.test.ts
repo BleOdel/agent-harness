@@ -1,3 +1,4 @@
+import {observationFixture} from './fixtures/browser-observations.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp, realpath, mkdir, writeFile, readFile, rm} from 'node:fs/promises';
@@ -141,7 +142,7 @@ test('browser pass requires actual observations with matching artifact provenanc
  const a=await saveBrowserApproval(f.project,{version:1,title:'Reader',entry:'server.js',port:4173,timeoutSeconds:30,steps:[{action:'goto',path:'/'},{action:'text',selector:'h1',expected:'Stories'}]},runtime);
  const j=await newRun(f.project,a,'/usr/local/bin/docker');j.source=source.digest;j.identity=sha256(JSON.stringify({source:j.source,approval:a.digest,runtime}));j.status='passed';
  await saveBrowserRun(f.project,j);assert.equal((await productReport(f.project)).checks.find(c=>c.id==='browser')?.status,'failed');
- const bytes=Buffer.from(JSON.stringify({version:1,steps:[{action:'goto',status:200},{action:'text',values:['Stories']}],errors:[]}));
+ const bytes=Buffer.from(JSON.stringify(observationFixture(a.journey,{version:1,steps:[{action:'goto',status:200},{action:'text',values:['Stories']}],errors:[]})));
  const artifact=await putArtifact(f.project,'browser-observations.json',bytes,{producer:j.id,input:j.source,environment:j.identity,verification:'unverified'});j.report=artifact.id;j.artifacts=[artifact.id];await saveBrowserRun(f.project,j);
  assert.equal((await productReport(f.project)).checks.find(c=>c.id==='browser')?.status,'passed');
  const unrelated=await putArtifact(f.project,'browser-observations.json',bytes,{producer:'another-run',input:j.source,environment:j.identity,verification:'unverified'});j.report=unrelated.id;await saveBrowserRun(f.project,j);

@@ -262,7 +262,7 @@
     "id": "hr-015",
     "title": "Wait for bounded positive browser observations",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Define eventual positive observations for text, counts, attributes and request events, with per-action and whole-journey deadlines.",
       "Keep expected values and pass/fail comparison host-owned; collect timestamped observations through a trusted bounded protocol without exposing approval authority to the app.",
@@ -282,7 +282,7 @@
     "id": "hr-016",
     "title": "Measure negative browser claims over explicit windows",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Require an explicit bounded interval or trustworthy completion boundary for no-request and absence claims; absence at one immediate sample is insufficient.",
       "Keep the browser and relevant listeners alive through the declared interval and record its start, end and observed events.",
@@ -553,7 +553,7 @@
       "Browser verification and human preview run the exact same candidate identity using isolated disposable data and the prepared dependency artifact.",
       "Record preview observations against that candidate; source or lockfile drift invalidates the receipt and prevents final application.",
       "Cancel, controller loss and failed readiness clean up owned servers/containers without deleting the candidate or unrelated evidence.",
-      "Validation evidence: Complete verification → preview → manual observation → staged readiness for an Express app and built frontend. Repeat with stale receipts, missing dependencies and forced process loss."
+      "Validation evidence: Complete verification \u2192 preview \u2192 manual observation \u2192 staged readiness for an Express app and built frontend. Repeat with stale receipts, missing dependencies and forced process loss."
     ],
     "dependsOn": [
       "hr-015",
@@ -727,7 +727,7 @@
     "status": "todo",
     "criteria": [
       "Use the approved blog requirements and saved progress in an isolated qualification copy; do not reset live source, approvals or history.",
-      "Complete author-experience preparation → initial design/evidence approval → implementation → real browser checks → candidate preview → required manual observations → explicit apply.",
+      "Complete author-experience preparation \u2192 initial design/evidence approval \u2192 implementation \u2192 real browser checks \u2192 candidate preview \u2192 required manual observations \u2192 explicit apply.",
       "Inject timeout, transient provider failure, browser failure and controller restart through deterministic runs; preserve completed work without operator probe edits or copied logs.",
       "A live bounded trial uses the existing configured provider only after deterministic gates pass; record every interruption and unresolved obligation. Remaining blog milestones retain their own existing backlog.",
       "Do not count an author-milestone pass as completion of the whole blog or as evidence of production readiness.",

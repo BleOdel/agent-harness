@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "kind": "local-browser-timing-validation",
+  "at": "2026-10-11T16:13:22.670162+00:00",
+  "status": "passed",
+  "source": {
+    "baseCommit": "c574e79ccf6ed5be49b82c149e979e332cf0b00b",
+    "state": "disposable uncommitted overlay",
+    "codeTreeSha256": "954f815c6df48f027169b5f1510354a47c9f580f5478bd621230f511d7c661ce",
+    "hashDefinition": "SHA256 of compact sorted JSON path-to-SHA256 map for src/**, test/**, package.json, package-lock.json and tsconfig.json; documentation and .DS_Store excluded.",
+    "changedCode": {
+      "src/acceptance/browser-design.ts": "5c55a155cd82af8d3752b9e1733971618f52001d609ea428380ea4be5a41cda4",
+      "src/browser/capabilities.ts": "2c24228e88e790fc3ac1c259d9aacb0808ef49ea43c993693d2076afb8d3752e",
+      "src/browser/controller.ts": "d7c05debea9fe6adcebbf996e0dc464b8020404f30f1b9eff566c893c50c7636",
+      "src/browser/instrumentation/driver.mjs": "a712a58fc7574d7fa71d61592f9c3af2a713de4a72dc6c7c8fad0f46f42d030a",
+      "src/browser/instrumentation/protocol.mjs": "82ad59c871c285a382629a9d0e7afc15a320e74cc5c6e29581f959ee2b4db08c",
+      "src/browser/observation-broker.ts": "d637f15609a13cdbf3d29351e138467411d4e6c1d434402bc4264229d4b86510",
+      "src/browser/runtime.ts": "ce921ba2076573f4317deaa8da23fde1dc06fd21b1930ea71cdd1df6b9fd7b91",
+      "src/browser/schema.ts": "d0abc75e3a0518c705edfe7d0b27c35aa86011a5c4819c9bd9cc5d20636d5b9a",
+      "src/browser/timing.ts": "f6950c9c8c66143ee1bb5beb39a2771292c88e2aa57ed023a2611bf056285231",
+      "src/guide/browser.ts": "7e2865cb8bb5733a77a43cb605d0bc808e1874431fee2146d171b0e942a53008",
+      "src/reliability/catalog.ts": "ff1d25b4770fb7b5d5c26a364ff7f5e137af008c6741d9b3e41fcf071f7fb8df",
+      "src/reliability/smoke.ts": "ee94af0956be4d41612e3cd1d8c57e4f9d65969270d889022aa8083ba3671c5d",
+      "src/verify-browser.ts": "4ff3d54e64cb3e369a9f0d53e272d05df2a65e48b1e760b4e6e9437c3c21d827",
+      "test/browser-capabilities.test.ts": "444481dcbbe81e294533ee4eafde4cf1f28c66e5560de78b67dd4af725768306",
+      "test/browser-timing-docker.test.ts": "287d0d3bc167583a072ad78d63d2fa4e9cc14e84824ebd55e1710ae05d2f274f",
+      "test/browser-timing.test.ts": "bd08e41e67e72edbcbe8cb5fe8e73dd8570590ef8d77b1a50df3bea435318a2c",
+      "test/browser.test.ts": "7ea7415f34c8721d1a5ea2799a0f837433492362fb14e0dba04eb14b103775e0",
+      "test/fixtures/browser-observations.ts": "0b0dc65ddab2d105a25a0f9850521a7031bf29dd6f069cf7eaa4f015d1db54ef",
+      "test/product.test.ts": "68c7640bae5e1c0df4386055264eb600f4791f4da2a63281e4a278a2dcc7e4d1",
+      "test/reliability-defects.test.ts": "ab84c83d8500e8e45d86f7d06d75e8e895c7ff64b3ea34862ff50a61ccaae955"
+    }
+  },
+  "requiredRegressions": [
+    "test/reliability-defects.test.ts",
+    "test/browser-timing.test.ts",
+    "test/browser-timing-docker.test.ts"
+  ],
+  "negativeControls": "docs/reliability/evidence/browser-timing-controls.json",
+  "auditRegression": {
+    "command": "HARNESS_VERIFY_BROWSER=1 node --test --test-name-pattern='^F02' test/reliability-defects.test.ts",
+    "tests": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0
+  },
+  "limitations": [
+    "Local Linux arm64 Chromium only; no hosted CI, cross-platform, native or ML qualification.",
+    "DOM/storage sampled approximately every 100 ms plus collection and protocol delay; shorter transients can be missed.",
+    "Request counts are cumulative per selected profile; no absence claim beyond recorded finite interval.",
+    "Legacy approvals/files retained, no project silently migrated or reapproved; batch migration remains hr-017.",
+    "No paid model calls, new dependencies or application-source changes.",
+    "Browser observations do not certify hostile-page security, complete accessibility or usability.",
+    "Evidence receipts and progress metadata are finalized after execution; codeTreeSha256 binds the tested source."
+  ],
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-11T16:13:00.498Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-timing-docker.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "a572b3c89870017acc29f6bfe9b4a0e6be2cc452f0c46952669708db08422931",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-11T16:15:25.357Z"
+  },
+  "browser": {
+    "command": "npm run verify:browser",
+    "exitCode": 0,
+    "tests": 24,
+    "passed": 24,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0
+  },
+  "check": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "tests": 1110,
+    "pass": 1039,
+    "fail": 0,
+    "skipped": 71,
+    "cancelled": 0
+  }
+}

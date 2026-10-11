@@ -29,6 +29,7 @@ export async function browserSetup(project:string,io:Dialogue=terminalDialogue()
    if(action===7||action===8)steps.push({action:'viewport',width:action===7?320:1280,height:900});
    if(action===9)steps.push({action:'overflow'});if(action===10)steps.push({action:'accessibility'});if(action===11)steps.push({action:'screenshot'});if(action===12)steps.push({action:'reload'});
    if(action===13)steps.push({action:'goto',path:await io.ask('Local path (for example /#stories):')});
+   const last=steps.at(-1);if(last&&((last.action==='count'&&last.expected===0)||(last.action==='text'&&last.expected===''))){const milliseconds=Number(await io.ask('Observe absence for how many milliseconds (100–10000)?'));last.observation={mode:'during',milliseconds};}
    if(steps.length>=60)break;
   }
   raw={version:1,title,entry,port:4173,timeoutSeconds,steps,...(databaseEnv?{databaseEnv}:{})};

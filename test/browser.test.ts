@@ -1,6 +1,9 @@
+import {observationFixture} from './fixtures/browser-observations.ts';
+import type {Journey} from '../src/browser/schema.ts';
+const assessJourney=(j:Journey,raw:unknown)=>assessHostJourney(j,observationFixture(j,raw));
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseJourney,actionRequest,assessJourney} from '../src/browser/schema.ts';
+import {parseJourney,actionRequest,assessJourney as assessHostJourney} from '../src/browser/schema.ts';
 const raw={version:1,title:'Read at narrow width',entry:'src/server.js',port:4173,timeoutSeconds:30,steps:[{action:'goto',path:'/'},{action:'text',selector:'h1',expected:'Stories'},{action:'overflow'},{action:'accessibility'}]};
 test('browser journeys require observable expectations and confined startup/navigation',()=>{
  assert.equal(parseJourney(raw).entry,'src/server.js');

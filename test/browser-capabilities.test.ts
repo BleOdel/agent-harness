@@ -1,7 +1,10 @@
+import {observationFixture} from './fixtures/browser-observations.ts';
+import type {Journey} from '../src/browser/schema.ts';
+const assessJourney=(j:Journey,raw:unknown)=>assessHostJourney(j,observationFixture(j,raw));
 import test from 'node:test';import assert from 'node:assert/strict';
-import {parseJourney,assessJourney,actionRequest} from '../src/browser/schema.ts';
+import {parseJourney,assessJourney as assessHostJourney,actionRequest} from '../src/browser/schema.ts';
 const base={version:1,title:'Private author key',entry:'server.js',port:4173,timeoutSeconds:45};
-const steps=[{action:'goto',path:'/'},{action:'capture',selector:'#key',name:'key',source:'text'},{action:'click',selector:'#copy'},{action:'clipboard',expectedFrom:'key'},{action:'download',selector:'#download',expectedFrom:'key'},{action:'storage',absentFrom:'key'},{action:'context',name:'other'},{action:'goto',path:'/'},{action:'fill',selector:'#key',valueFrom:'key'},{action:'text',selector:'#result',expected:'Loaded'}];
+const steps=[{action:'goto',path:'/'},{action:'capture',selector:'#key',name:'key',source:'text'},{action:'click',selector:'#copy'},{action:'clipboard',expectedFrom:'key'},{action:'download',selector:'#download',expectedFrom:'key'},{action:'storage',absentFrom:'key',observation:{mode:'during',milliseconds:200}},{action:'context',name:'other'},{action:'goto',path:'/'},{action:'fill',selector:'#key',valueFrom:'key'},{action:'text',selector:'#result',expected:'Loaded'}];
 test('browser capabilities validate references, preserve host expectations and refuse script/network escapes',()=>{
  const j=parseJourney({...base,steps});const sent=actionRequest(j);
  assert.ok(!JSON.stringify(sent).includes('expectedFrom'));assert.ok(!JSON.stringify(sent).includes('absentFrom'));assert.ok(!JSON.stringify(sent).includes('Loaded'));assert.ok(JSON.stringify(sent).includes('valueFrom'));
@@ -33,18 +36,18 @@ document.querySelector('#submit').onclick=async()=>{const result=document.queryS
  const runtime=await inspectBrowser();const sequence=[
  {action:'goto',path:'/'},{action:'capture',selector:'#key',name:'key',source:'text'},
  {action:'click',selector:'#copy'},{action:'text',selector:'#copied',expected:'Copied'},{action:'clipboard',expectedFrom:'key'},
- {action:'download',selector:'#download',expectedFrom:'key'},{action:'storage',absentFrom:'key'},
+ {action:'download',selector:'#download',expectedFrom:'key'},{action:'storage',absentFrom:'key',observation:{mode:'during',milliseconds:200}},
  {action:'paste',selector:'#story',value:'Hello'},{action:'text',selector:'#count',expected:'5'},
  {action:'network',path:'/api/save',method:'POST',mode:'abort'},{action:'click',selector:'#submit'},{action:'text',selector:'#result',expected:'Disconnected'},
  {action:'network',path:'/api/save',method:'POST',mode:'503'},{action:'click',selector:'#submit'},{action:'text',selector:'#result',expected:'Unavailable'},
  {action:'network',path:'/api/save',method:'POST',mode:'normal'},{action:'click',selector:'#submit'},{action:'text',selector:'#result',expected:'Saved'},
  {action:'requestCount',path:'/api/save',method:'POST',expected:3},{action:'attribute',selector:'#result',name:'role',expected:'alert'},
  {action:'click',selector:'#remember'},{action:'page',name:'stale'},{action:'goto',path:'/'},{action:'text',selector:'#saved',expected:'fixture-private-key'},
- {action:'context',name:'independent'},{action:'goto',path:'/'},{action:'text',selector:'#saved',expected:'Empty'},{action:'storage',absentFrom:'key'},
+ {action:'context',name:'independent'},{action:'goto',path:'/'},{action:'text',selector:'#saved',expected:'Empty'},{action:'storage',absentFrom:'key',observation:{mode:'during',milliseconds:200}},
  {action:'fill',selector:'#story',valueFrom:'key'},{action:'text',selector:'#count',expected:'19'}];
  const a=await saveApproval(project,{...base,steps:sequence},runtime);const good=await verifyBrowser(project,a.id);assert.equal(good.status,'passed',good.message);assert.ok(good.assessment!.checks>=12);
  for(const broken of ['copy','download','storage','indexed','cache','cookie']){
-  const b=await saveApproval(project,{...base,title:broken,steps:[{action:'goto',path:'/?broken='+broken},{action:'text',selector:'#ready',expected:'Ready'},{action:'capture',selector:'#key',name:'key',source:'text'},...(broken==='copy'?[{action:'click',selector:'#copy'},{action:'text',selector:'#copied',expected:'Copied'},{action:'clipboard',expectedFrom:'key'}]:broken==='download'?[{action:'download',selector:'#download',expectedFrom:'key'}]:[{action:'storage',absentFrom:'key'}])]},runtime);
+  const b=await saveApproval(project,{...base,title:broken,steps:[{action:'goto',path:'/?broken='+broken},{action:'text',selector:'#ready',expected:'Ready'},{action:'capture',selector:'#key',name:'key',source:'text'},...(broken==='copy'?[{action:'click',selector:'#copy'},{action:'text',selector:'#copied',expected:'Copied'},{action:'clipboard',expectedFrom:'key'}]:broken==='download'?[{action:'download',selector:'#download',expectedFrom:'key'}]:[{action:'storage',absentFrom:'key',observation:{mode:'during',milliseconds:200}}])]},runtime);
   const bad=await verifyBrowser(project,b.id);assert.equal(bad.status,'failed',broken);assert.match(bad.message,/differs|private marker/);assert.deepEqual(bad.containers,[]);
  }
  assert.equal(await readFile(project+'/server.js','utf8'),server);

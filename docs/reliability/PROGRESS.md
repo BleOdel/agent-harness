@@ -1,8 +1,8 @@
-# Reliability progress — recovery and active preparation
+# Reliability progress — bounded browser evidence
 
-Completed tasks: hr-001, hr-002, hr-003, hr-004, hr-005, hr-007, hr-008, hr-009, hr-010, hr-011, hr-012, hr-013, hr-014 and hr-018 — **14 of 45**. The remaining 31 tasks are open. Registry completion records defects; it does not solve all of them.
+Completed tasks: hr-001, hr-002, hr-003, hr-004, hr-005, hr-007, hr-008, hr-009, hr-010, hr-011, hr-012, hr-013, hr-014, hr-015, hr-016 and hr-018 — **16 of 45**. The remaining 29 tasks are open. Registry completion records defects; it does not solve all of them.
 
-The registry covers all 25 findings: 9 fixed at their documented audit scope, 3 reproduced and 13 inspection-only or partially repaired gaps. F01, F13 and F14 now link current positive regressions and restored-defect controls. Historical audit evidence remains unchanged. Browser timing, noninteractive preparation and peer-review invalidation remain known desired-behavior failures. The full end-to-end reliability program is not complete.
+The registry covers all 25 findings: 10 fixed at their documented audit scope, 2 reproduced and 13 inspection-only or partially repaired gaps. F01, F13 and F14 now link current positive regressions and restored-defect controls. Historical audit evidence remains unchanged. Noninteractive preparation and peer-review invalidation remain known desired-behavior failures. Browser timing is now qualified at the documented finite-window scope. The full end-to-end reliability program is not complete.
 
 The lifecycle boundary now includes strict event fields, canonical owner paths, atomic expected-record updates under the project writer lock, concurrent-process tests, retained request reservations and opt-in legacy archives. Legacy inspection preserves original text and cannot produce approval or passing application evidence. No existing project was migrated. Controller adoption and orchestration remain hr-024; common evidence admission remains hr-023; the shared application journal now implements hr-010.
 
@@ -57,3 +57,21 @@ Final hr-011 validation: `npm run check` passed 1,001 of 1,071 tests, with 70 ex
 hr-012 validates checkpoint candidates and retained bytes before promotion, records explicit older-checkpoint selection without resetting budgets, and preserves honest recovery evidence. hr-013 distinguishes confirmed HTTP rejection from ambiguous GitHub mutations and allows safe retry under the original approval. hr-014 uses operation/phase ownership for saved preparation, repairs generated cases in their original ledger, and reconciles durable retry grants including legacy records.
 
 Validation: `npm run check` passed 1,032 of 1,102 tests, with 70 explicit skips and no failures. CPU qualification passed 76/76 without skips. Docker/Chromium smoke passed 12/12. Seven deliberate defects were caught. Evidence: `evidence/recovery-preparation-validation.json` and `evidence/recovery-preparation-controls.json`. No paid model calls, external releases or dependencies were added. Next dependency-ready acceptance task: hr-015 bounded positive browser observations; hr-016 negative windows follows it. hr-006 credential isolation is also still open.
+
+
+hr-015 and hr-016 add host-owned eventual positive comparisons and explicit
+negative observation windows. The driver streams bounded timestamped samples;
+zero requests need a complete interval, observed transient violations remain
+failures, and cancellation or timeout cannot count as success. Delayed positive
+text/count/attribute/request observations can settle without arbitrary sleeps.
+Expected values remain outside the app and driver. Protocol and approval pins
+change; old files remain retained and are not silently reapproved.
+
+Evidence and deliberately restored defects are recorded in
+`evidence/browser-timing-validation.json` and `evidence/browser-timing-controls.json`.
+DOM/storage are sampled, not continuous monitoring; request counts are cumulative.
+No claim extends beyond the approved interval. No paid models, new dependencies,
+application builds or external publication were used. Next: hr-017 migration of
+existing browser checks and approvals; hr-006 credential isolation remains open.
+
+Final hr-015/016 validation: `npm run check` passed 1,039 of 1,110 tests, with 71 explicit optional/known-defect skips and no failures. Browser qualification passed 24/24; required Docker/Chromium smoke passed 13/13, both without skips. Five deliberately restored defects were detected, including the original real Chromium immediate-snapshot regression.

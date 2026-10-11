@@ -10,7 +10,7 @@ Use `harness capabilities` (or `--json`) for implementation scope. Doctor and ac
 
 ## Operational qualification
 
-`npm run verify:smoke -- --output /absolute/path/outside/source` requires HARNESS_DOCKER, HARNESS_IMAGE_ID and HARNESS_BROWSER_IMAGE_ID. Image values must be immutable local sha256 IDs. The command does not pull images, contact model providers or publish anything. It creates isolated empty Pi/config directories and runs the asset-helper, Chromium acceptance/capability and staged-preview fixture suites. Missing images, failed tests, required skips, incomplete output and source drift cannot qualify.
+`npm run verify:smoke -- --output /absolute/path/outside/source` requires HARNESS_DOCKER, HARNESS_IMAGE_ID and HARNESS_BROWSER_IMAGE_ID. Image values must be immutable local sha256 IDs. The command does not pull images, contact model providers or publish anything. It creates isolated empty Pi/config directories and runs the asset-helper, Chromium acceptance/capability/timing and staged-preview fixture suites. Missing images, failed tests, required skips, incomplete output and source drift cannot qualify.
 
 Hosted CI prepares the pinned Node and browser runtimes, executes the same command and retains its report and TAP diagnostics. The job runs on push and pull requests with read-only repository permissions, no persisted checkout credential and no model/release secrets. Local evidence is not proof that the hosted job has already run. Browser package versions/lockfile and the multi-platform Node registry digest are pinned; operating-system package downloads during image construction remain an explicitly recorded build input, not a claim of bit-identical image rebuilds.
 
@@ -128,3 +128,14 @@ operation. Bounded preparation also saves this structured `nextAction` in
 `acceptance/workflow.json`. It is guidance, not approval or application evidence.
 Final operator approval is still separate. Broader orchestration, migration,
 review-invalidation and browser timing tasks remain on the roadmap.
+
+
+## Browser timing qualification
+
+hr-015/016 implement default bounded eventual positives and explicitly approved
+negative windows. The host compares timestamped observations; interrupted or
+incomplete windows fail. Real Chromium and restored-defect evidence live in
+`evidence/browser-timing-validation.json` and `evidence/browser-timing-controls.json`.
+See [browser semantics](../../BROWSER.md#bounded-asynchronous-observations) for
+sampling limits, deadlines and retained evidence. F02 is fixed at this scope;
+existing-check migration (hr-017) and broader end-to-end qualification remain open.

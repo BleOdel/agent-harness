@@ -45,8 +45,8 @@ Other actions: click, fill, press, count, focused, reload and motion. Motion tak
 `value: "reduce"` or `"no-preference"`; the initial browser preference is reduce.
 Supported keys are Tab, Shift+Tab, Enter, Space, Escape, ArrowUp, ArrowDown, Backspace, Delete and ControlOrMeta+A.
 Text checks require exactly one matching element with exact text. Goto/reload
-require HTTP 200 and reject redirects. For asynchronously loaded UI, put a visible
-text observation before counting dependent elements. Navigation paths stay on the
+require HTTP 200 and reject redirects. Text, count, attribute and positive request
+observations wait up to five seconds by default. Navigation paths stay on the
 isolated application's origin. A journey has 1–60 actions and a 10–300s limit.
 
 ## Isolation and evidence
@@ -186,3 +186,53 @@ The preview and observations are tied to the retained candidate; edited source,
 requirements, checks or execution settings cannot reuse them. This is operator
 attestation, not a substitute for Chromium evidence or automatic screen-reader
 certification. Preview containers have no external network or credential mounts.
+
+## Bounded asynchronous observations
+
+Positive `text`, `count`, `attribute` and `requestCount` assertions repeatedly
+observe until the host finds a match or the action deadline expires. The default
+is five seconds; an explicit window can be 100–10,000 milliseconds:
+
+```json
+{"action":"text","selector":"#state","expected":"Saved","observation":{"mode":"eventually","milliseconds":3000}}
+```
+
+Zero counts, empty text and storage-absence checks require an explicit `during`
+window. An immediate zero cannot establish that nothing happened:
+
+```json
+{"action":"requestCount","path":"/submit","method":"POST","expected":0,"observation":{"mode":"during","milliseconds":1000}}
+```
+
+The browser and request listeners stay alive for the whole interval. Request
+counts are cumulative in the selected profile, including matching requests before
+the window starts. DOM and storage observations are sampled roughly every 100 ms
+plus collection and host round-trip time: a shorter transient between samples
+can be missed. Every observed violation fails even if the last sample is clean.
+A successful result describes only the recorded finite interval, not future
+behavior, continuous DOM absence or comprehensive privacy/security assurance.
+
+The application never receives the expectations. The trusted driver sends
+bounded, timestamped observations to the host; the host compares them and returns
+only retry/next acknowledgements through a read-only driver mount. Reports use
+version 2 and retain sample timestamps, values, requested interval and errors.
+Positive timeouts report the last value and elapsed interval. Interrupted or
+incomplete windows retain unverified diagnostics and cannot pass.
+
+The whole journey's 10–300 second deadline includes browser startup and all
+observations. Bounds are 200 samples per action, 256 KiB per frame, 768 KiB of
+host observation state, 6,000 frames and 1,000 intercepted requests per journey.
+Host acknowledgements have a five-second deadline. Reaching a limit fails the
+run; it does not truncate the evidence into a passing result. Existing required
+navigation, page-error and request assertions remain in effect.
+
+These semantics change the runtime/protocol pin. Existing files and approvals
+are retained; legacy version-1 reports cannot qualify current journeys. Review
+and approve the current runtime, adding explicit windows to negative assertions.
+Batch migration is still planned under hr-017; no existing project is silently
+migrated or reapproved.
+
+`npm run verify:browser` also exercises delayed completion and requests, optimistic
+Saving/Complete UI, transient forbidden content, clean and violated negative
+windows, late page errors, timeout and cancellation using real Chromium. The
+required operational smoke includes this timing fixture with no allowed skips.

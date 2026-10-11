@@ -1,3 +1,4 @@
+import {BrowserObservationBroker,serveObservations} from './observation-broker.ts';
 import {randomUUID} from 'node:crypto';
 import {mkdir,readFile,writeFile,rm} from 'node:fs/promises';import path from 'node:path';
 import {run} from '../run.ts';import {OperatorError} from '../verbs/io.ts';
@@ -35,6 +36,7 @@ async function executeBrowser(project:string,a:Approval,sourceProject:string,not
  const docker=browserDocker(),runtime=await inspectBrowser(docker,a.runtime.image);
  if(JSON.stringify(runtime)!==JSON.stringify(a.runtime))fail('Browser runtime or protocol changed. Review and approve the journey for the current environment.');
  const j=await newRun(project,a,docker),root=await runRoot(project,j.id),abort=new AbortController();
+ let broker:BrowserObservationBroker|undefined;
  const cancel=()=>abort.abort();process.on('SIGINT',cancel);process.on('SIGTERM',cancel);
  try{
   const baseline=await captureBaseline(sourceProject,path.join(root,'source'));
@@ -49,11 +51,17 @@ async function executeBrowser(project:string,a:Approval,sourceProject:string,not
   const started=await run(docker,appArguments(j,app,baseline.directory,a.journey),{timeoutMs:15000,maxOutputBytes:10000,signal:abort.signal});
   if(started.code!==0||started.timedOut||started.outputLimited)fail(`App container failed to start: ${started.stderr.slice(-1500)}`);
   const began=Date.now(),progress=setInterval(()=>notify(`Browser journey: ${Math.floor((Date.now()-began)/1000)}s elapsed; ${a.journey.timeoutSeconds}s limit.`),10000);
-  const result=await run(docker,driverArguments(j,driver,app,root,a.journey),{timeoutMs:(a.journey.timeoutSeconds+5)*1000,maxOutputBytes:128*1024,signal:abort.signal}).finally(()=>clearInterval(progress));
+  broker=new BrowserObservationBroker(a.journey);let ended=false;const protocolAbort=new AbortController();
+  const execution=run(docker,driverArguments(j,driver,app,root,a.journey),{timeoutMs:(a.journey.timeoutSeconds+5)*1000,maxOutputBytes:128*1024,signal:AbortSignal.any([abort.signal,protocolAbort.signal])}).finally(()=>{ended=true;clearInterval(progress);});
+  const observing=serveObservations(root,broker,()=>ended).catch(error=>{protocolAbort.abort();throw error;});
+  const settled=await Promise.allSettled([execution,observing]);
+  if(settled[1].status==='rejected')throw settled[1].reason;
+  if(settled[0].status==='rejected')throw settled[0].reason;
+  const result=settled[0].value;
   const log=await putArtifact(project,'browser.log',Buffer.from(result.stdout+'\n'+result.stderr),{producer:j.id,input:j.source,environment:j.identity,verification:'unverified'});j.artifacts.push(log.id);await saveBrowserRun(project,j);
   if(result.timedOut||result.code===124||result.code===137)fail('Browser journey timed out. Saved diagnostics remain available; retry starts fresh.');
   if(result.code!==0||result.outputLimited)fail(`Browser driver failed. ${result.stderr.slice(-1500)}`);
-  const bytes=await boundedOutput(root+'/output','observations.json',1024*1024),observations=JSON.parse(bytes.toString());
+  const driverReport=JSON.parse((await boundedOutput(root+'/output','observations.json',1024*1024)).toString()),observations=broker.finish(driverReport),bytes=Buffer.from(JSON.stringify(observations));
   const report=await putArtifact(project,'browser-observations.json',bytes,{producer:j.id,input:j.source,environment:j.identity,verification:'unverified'});j.report=report.id;j.artifacts.push(report.id);
   j.assessment=assessJourney(a.journey,observations);let total=bytes.length;
   const files=[...j.assessment.screenshots,...a.journey.steps.flatMap((s,i)=>s.action==='accessibility'?[`axe-${i}.json`]:[])];
@@ -61,7 +69,9 @@ async function executeBrowser(project:string,a:Approval,sourceProject:string,not
   await assertSnapshot(baseline);await assertLiveBaseline(sourceProject,baseline);
   if(!j.assessment.passed)fail(j.assessment.failures.join('\n'));
   j.status='passed';j.message=`${j.assessment.checks} browser checks passed. These observations do not establish complete accessibility or replace source acceptance.`;
- }catch(e){j.status=abort.signal.aborted?'interrupted':'failed';j.message=(e as Error).message;}
+ }catch(e){j.status=abort.signal.aborted?'interrupted':'failed';j.message=(e as Error).message;
+  if(broker&&!j.report&&j.source&&j.identity)try{const bytes=Buffer.from(JSON.stringify(broker.report([j.message.slice(0,2000)])));if(bytes.length<=1024*1024){const a=await putArtifact(project,'browser-observations.json',bytes,{producer:j.id,input:j.source,environment:j.identity,verification:'unverified'});j.report=a.id;j.artifacts.push(a.id);}}catch{/* Retention failure cannot turn an incomplete observation into success. */}
+ }
  finally{
   process.off('SIGINT',cancel);process.off('SIGTERM',cancel);
   if(j.source&&j.identity&&j.containers[0]){
