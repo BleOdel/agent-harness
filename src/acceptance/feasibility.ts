@@ -6,9 +6,11 @@ import {getCapability,capabilityCatalog,type Stage} from '../reliability/catalog
 import {caseKind,type EvidenceKind} from './evidence-kind.ts';
 import type {Blueprint} from './preparation.ts';
 import {OperatorError} from '../verbs/io.ts';
+import type {ProductKind} from '../product/spec.ts';
+import type {EvidenceTarget} from '../product/evidence/schema.ts';
 export type GapKind='unsupported-capability'|'missing-installation'|'unqualified-runtime'|'human-observation'|'missing-interface';
 export interface EvidenceGap {kind:GapKind;stage:string;detail:string;}
-export interface RouteInput {profile:ProjectProfile;dependencies:boolean;kinds:readonly EvidenceKind[];sensitive:boolean;requiredStages?:Stage[];}
+export interface RouteInput {profile:ProjectProfile;dependencies:boolean;kinds:readonly EvidenceKind[];sensitive:boolean;requiredStages?:Stage[];product?:{kind:ProductKind;digest:string;targets:EvidenceTarget[]};}
 export interface AtomicObligation {id:string;criterion:number;caseId:string;kind:EvidenceKind;observation:string;anchors:{name:string;quote:string|null}[];capabilities:string[];gaps:EvidenceGap[];}
 export interface EvidenceCheckpoint {version:1;identity:string;criteria:{number:number;raw:unknown;previousReplies?:unknown[]}[];obligations:AtomicObligation[];issues:EvidenceGap[];}
 export interface EvidenceDesign extends EvidenceCheckpoint {digest:string;status:'design-ready';applicationVerified:false;unresolved:AtomicObligation[];}
@@ -21,10 +23,17 @@ export function routeIssues(input:RouteInput):EvidenceGap[]{
  if(p.runner.id!=='docker'||p.runner.version!==1||p.requirements.os!=='linux'||p.requirements.gui||p.requirements.gpu||p.requirements.emulator||p.requirements.cpu>2||p.requirements.memoryMiB>2048)add('build','The selected ordinary agent runner cannot meet this OS, GUI, GPU, emulator or resource requirement. Select an implemented recipe/runner explicitly.');
  const id=p.adapter.id==='node-npm'?(input.dependencies?'node-dependencies':'node-basic'):p.adapter.id==='python-pip'?'python-single':undefined;
  if(!id){add('build','No ordinary build adapter for '+p.adapter.id);return issues;}
- const route=getCapability(id),stages=new Set<Stage>(['build','test','apply',...(input.requiredStages??[])]);
+ const route=getCapability(id),stages=new Set<Stage>(['build','test','apply','recovery','package','release',...(input.requiredStages??[])]);
  if(input.kinds.includes('browser')){stages.add('ui');stages.add('preview');}
  if(input.sensitive)stages.add('securityPerformance');
- for(const stage of stages){const provider=route.stages[stage];if(['gap','unsupported'].includes(provider.support))add(stage,provider.reason);}
+ for(const stage of stages){const provider=route.stages[stage];if(!provider)add(stage,'No provider for this required delivery stage.');else if(['gap','unsupported'].includes(provider.support))add(stage,provider.reason);}
+ const product=input.product;
+ if(product&&['desktop','ml'].includes(product.kind)){
+  const expected=product.kind==='desktop'?['linux-electron','macos-electron','macos-native']:['cpu-regression','torch-cpu','metal-regression'];
+  if(!product.targets.length)issues.push({kind:'missing-interface',stage:'product/'+(product.kind==='desktop'?'ui':'model'),detail:'Select the required '+product.kind+' evidence target with harness product setup before generating checks.'});
+  for(const target of product.targets)if(!expected.includes(target.provider))add('product/'+target.provider,'No supported '+product.kind+' evidence route for this provider.');
+  if(product.kind==='ml')add('product/integration','Recipe evaluation and checkpoint evidence do not establish application-to-model integration. A complete product integration evidence provider is not implemented; use the separate recipe workflow without claiming application completion.');
+ }
  return issues;
 }
 export function assertRoute(input:RouteInput):void {const gaps=routeIssues(input);if(gaps.length)throw new OperatorError('Evidence feasibility is blocked before a provider request.',gaps.map(g=>`${g.kind} / ${g.stage}: ${g.detail}`).join('\n'));}

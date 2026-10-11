@@ -338,7 +338,7 @@
     "id": "hr-019",
     "title": "Plan atomic evidence and check complete feasibility before freezing",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Map each criterion to stable atomic obligations containing required observations, evidence type, interface anchors and capability requirements before generating executable checks.",
       "Reject known unsupported project/runtime combinations deterministically before any provider request. After bounded model-assisted discovery of semantic details, resolve the full route through build, verification, preview, apply and required product/delivery evidence before executable generation or build dispatch.",

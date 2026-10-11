@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "at": "2026-10-11T17:34:04.245528+00:00",
+  "controls": [
+    {
+      "id": "missing-desktop-selection",
+      "file": "src/acceptance/feasibility.ts",
+      "mutation": "if(!product.targets.length) => if(false)",
+      "exitCode": 1,
+      "detected": true,
+      "outputSha256": "419492b581b88f3e903eb61432219a99c26e5cc5d1da8943604d094e7f86dd86"
+    },
+    {
+      "id": "model-integration-claim",
+      "file": "src/acceptance/feasibility.ts",
+      "mutation": "if(product.kind==='ml')add => if(false)add",
+      "exitCode": 1,
+      "detected": true,
+      "outputSha256": "812ad88bc7d235aa9430e5502019d0011080698cd63d0be3b226c8a7ea377b06"
+    },
+    {
+      "id": "changed-approval",
+      "file": "src/acceptance/feasibility-targets.ts",
+      "mutation": "!selected||selected.approvalDigest!==target.approvalDigest||selected.runtime!==target.runtime => !selected",
+      "exitCode": 1,
+      "detected": true,
+      "outputSha256": "5dbcff1a619a3cae1729f71ad77a06483db33d9dcc375d0583424e0be0261583"
+    },
+    {
+      "id": "changed-runtime",
+      "file": "src/acceptance/feasibility-targets.ts",
+      "mutation": "if(await inspect.runtime(target,project)!==target.runtime) => if(false)",
+      "exitCode": 1,
+      "detected": true,
+      "outputSha256": "5e2feddf926af7ec2fe921aa2abff7f7ef3718cfd9d82d5546805c6aa0e6e9fa"
+    },
+    {
+      "id": "selected-image",
+      "file": "src/acceptance/feasibility-targets.ts",
+      "mutation": "return body.runtime.image; => return 'harness-desktop:e6';",
+      "exitCode": 1,
+      "detected": true,
+      "outputSha256": "8e488ff3f16ebb803f53d778012c7fc2a8d4516a54b68774a8d4c49378a79b78"
+    },
+    {
+      "id": "workspace-early-refusal",
+      "file": "src/acceptance/feasibility-project.ts",
+      "mutation": "if(pkg.workspaces!==undefined) => if(false)",
+      "exitCode": 1,
+      "detected": true,
+      "outputSha256": "ff4922f46267092668c3931082d95f20c1eb03be13229f8ea8220324bcc75513"
+    }
+  ],
+  "allDetected": true
+}

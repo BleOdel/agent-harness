@@ -1,0 +1,233 @@
+{
+  "version": 1,
+  "provenance": {
+    "description": "Retained author-experience outline before content-note control amendment; no story submissions.",
+    "preparationSha256": "e16010163f2f4185a5b40a3c4312b2595acd5027194da1e0b3c3c55e6b7214c3",
+    "selection": "state.routingHistory[1].blueprint"
+  },
+  "task": {
+    "id": "author-experience",
+    "title": "Anonymous submission and story management",
+    "priority": "must",
+    "status": "todo",
+    "dependsOn": [
+      "local-story-service"
+    ],
+    "criteria": [
+      "The compose and preview flow requires a 5\u2013100 character title, a 100\u201310,000 character plain-text body, and acknowledgements that the story is the author's to share, avoids identifying others, and follows content rules; it provides live counts and optional agreed content notes while offering no author name, image, link, rich-text, or tag fields.",
+      "One unfinished draft is automatically stored in the browser, displays its saved time, restores after navigation or reload, clears after successful submission, requires confirmation to discard, and is accompanied by a shared-device warning.",
+      "Validation, stale-write, and recoverable server failures preserve attempted prose and present inline errors plus an accessible error summary or current server revision as appropriate.",
+      "Successful submission presents the raw management key once with copy and download options and does not retain it unless the author explicitly chooses Save on this device.",
+      "Your stories accepts a key entered in another browser, lists stories represented by locally saved keys using masked labels, warns before local reveal or copy, and supports Forget on this device without deleting server content.",
+      "Author views accurately present pending, rejected, published, edited-pending, and removed states and author-visible moderation reasons; they support revise/resubmit, approved-revision isolation, conflict recovery, and invalid or no longer valid keys without implying key expiration.",
+      "A key-authorized author can permanently delete a story in every state only after explicit no-undo confirmation; the interface forgets that browser's key and does not promise removal from backups, caches, screenshots, operating-system remnants, or readers' copies.",
+      "The author flow states that there are no identity accounts, browsers communicate with a shared local server, story text may identify its writer, saved drafts or keys are risky on shared devices, lost keys cannot be recovered, and the prototype does not provide production-grade anonymity."
+    ]
+  },
+  "blueprint": {
+    "version": 1,
+    "contract": "Runtime and isolation: start the service in `/work` with `node src/server.js`, `PORT=0`, and `TO_BE_HEARD_DB` set to an absolute path in a newly created temporary directory outside `/work`. Readiness is one stdout line matching `Listening at http://127.0.0.1:<port>`, emitted only after database bootstrap. The printed authority is the accepted Host and serves both the browser application and API. Every probe starts and stops its server within one command, uses timeouts, terminates it in `finally`, and removes the database directory including SQLite sidecars. No external network is contacted.\n\nTransport: the server listens only on IPv4 loopback. `GET /` succeeds with 200 HTML, and each same-origin browser asset referenced by that HTML succeeds with 200. Only documented methods are allowed; unsupported methods return the public 405 `method_not_allowed` error. The printed authority is the only accepted Host. If an Origin header is supplied on any route, including application, asset, and API reads, it must exactly equal the printed origin. Safe reads may omit Origin. Every POST, PUT, and bodyless author DELETE requires the exact Origin. Host or Origin failures return the public 403 `forbidden_request` error. JSON requests require `Content-Type: application/json`; missing or incompatible media types return 415 `unsupported_media_type`. Author DELETE has no body. Malformed JSON returns 400 `invalid_request`. The request-body limit is 1,048,576 bytes inclusive; a body exceeding it returns 413 `request_too_large` before parsing or field validation.\n\nErrors: API errors are exactly `{error:{code,message,details}}`, with no additional members and with `details` either null or a non-array object. Status, code, and message are those exported by `src/contracts.js`. Transport, malformed-request, media-type, method, and size failures use public error contracts. Author ownership and write conflicts use author contracts. Moderation conflicts and unavailable errors use moderator contracts.\n\nDatabase: `TO_BE_HEARD_DB` identifies the active `node:sqlite` database outside public assets. It stores stories, revisions, publication and removal state, moderation decisions including optional internal notes, reports, and indexed key digests. Table and column names and timestamp representation are implementation-defined. Each management-key SHA-256 digest is stored as lowercase 64-character hexadecimal TEXT in an indexed column and is computed from the exact UTF-8 management-key string. Lifecycle, deletion, report-resolution, and reset operations are atomic and use transactions and prepared statements. Restarting with the same database preserves active state and moderation history.\n\nShared validation: IDs and revision IDs are opaque non-empty strings. Versions are unquoted tokens matching `^v[1-9][0-9]*$` and represent positive JavaScript safe integers. Author writes place the version in a quoted `If-Match` entity tag such as `\"v1\"`; missing, malformed, weak, or unquoted author preconditions return author 400 `validation_failed`. Moderator bodies carry unquoted version tokens. Titles contain 5\u2013100 characters and bodies 100\u201310,000 characters. Content-note, report, and moderation categories are exactly those exported by `src/contracts.js`. JSON request objects reject unknown members, and required members cannot be omitted. A non-null content note is exactly `{category,text}`; `text` is a required string, may be empty except for category `other`, and must be non-empty for `other`. Optional report notes are strings when present. Optional `internalNote` values are non-empty strings. Required moderation explanations and restoration rationales are non-empty strings. No additional length limit is imposed by this contract on these auxiliary text fields.\n\nPublic reads: `GET /api/stories` succeeds with 200 and exactly `{stories:[card]}`. An unnoted card is exactly `{id,title,publishedAt,updatedAt,readingMinutes,author,contentNote,sample,excerpt}`; a content-noted card has the same members except that `excerpt` is omitted. `author` is `Anonymous`, `sample` is boolean, `readingMinutes` is a positive integer, `publishedAt` is parseable, and `updatedAt` is null or parseable. `contentNote` is null or exactly `{category,text}`. Cards are ordered by original publication time newest-first; timestamp ties have no prescribed order. `GET /api/stories/:id` succeeds with 200 and exactly `{story:{id,title,publishedAt,updatedAt,readingMinutes,author,contentNote,sample,body?}}`. An unnoted story includes its approved body; a noted story omits body. `POST /api/stories/:id/continue` requires exact Origin, JSON content type, and exactly `{}`; it succeeds with 200 and the same story shape with the approved body included. Pending, rejected-without-approved-content, removed, deleted, unknown, and invalid IDs are absent from the feed and return the neutral public 404 `story_unavailable` error from detail, continue, and report routes.\n\nSubmission: `POST /api/stories` accepts exactly `{title,body,contentNote,acknowledgement}`. `acknowledgement` must be true. Success is 201 exactly `{story:{id,state,version,revisionId},managementKey}`, with state `pending`. Newly submitted work is not publicly readable.\n\nManagement keys: every successful submission creates an independent opaque key backed by 256 cryptographically random bits. Only its indexed SHA-256 digest is persisted. The raw key may occur only as the exact value of the creating response's `managementKey` member and in authorized request headers. It never occurs in URLs, response headers, logs, database records, other fields in the creation response, or later responses. When scanning a creation response, only that response's newly issued exact key is exempt in its own `managementKey` value; that field is still scanned for every previously issued raw key and straightforward canonical byte encodings. Author requests use `Authorization: StoryKey <key>`. Keys do not expire, and there is no recovery, replacement, reveal, or moderator override.\n\nAuthor API and key-to-story ownership: `GET /api/author/story` has no story identifier. A valid key resolves only its associated story and succeeds with 200 exactly `{story:{id,state,version,workingRevision,approvedRevision,rejectionReason,removalReason}}`. Revisions are null or exactly `{revisionId,title,body,contentNote}`. Reasons are null or exactly `{category,explanation}`. Internal moderator notes never appear. `PUT /api/author/story` likewise targets only the story associated with its valid key, requires quoted `If-Match`, accepts exactly `{title,body,contentNote,acknowledgement}`, and succeeds with 200 exactly `{story:{id,state,version,revisionId}}`. A key for story B is valid on these key-only endpoints and reads or updates story B; it must never read or alter story A. Editing pending or rejected work creates pending work and clears the old rejection reason. Editing published work creates `edited-pending` while retaining its approved revision publicly. A stale precondition returns 409 `stale_write` with `details.currentStory` and does not overwrite current state. Editing a removed story returns 409 `story_removed`. `DELETE /api/author/story` requires a valid key and exact Origin, has no body, and succeeds with empty 204 after deleting only the story associated with that key. Thus deleting with key B deletes story B and leaves story A unchanged. Missing, malformed, unknown, deleted-story, and reset-invalidated keys return 401 `invalid_management_key` without mutation. There is no cross-story 401 case because these author endpoints contain no target story identifier.\n\nModeration API: moderation is unauthenticated and local-only and exposes no permanent-delete operation. `GET /api/moderation/submissions` succeeds with 200 exactly `{items:[{storyId,revisionId,version,title,body,contentNote,submittedAt}]}`, ordered oldest-first. It contains current pending new and edited revisions; resubmission receives a new queue time. `POST /api/moderation/stories/:id/approve` accepts exactly `{revisionId,version}` or that object plus `internalNote`. Reject accepts exactly `{revisionId,version,category,explanation}` or that object plus `internalNote`. Remove accepts exactly `{version,category,explanation}` or that object plus `internalNote`. Restore accepts exactly `{version,rationale}` or that object plus `internalNote`. Each success is 200 exactly `{story:{id,state,version}}` and durably records the decision. Approval and rejection require the exact current revision and version. Any stale version, including a current revision paired with an old version, returns 409 `stale_decision` without mutation or a decision record. Rejection of new work produces `rejected`; rejection of an edited published revision retains the approved revision publicly and exposes the rejection reason privately. Approval atomically publishes the reviewed revision. Removal immediately makes approved content private and resolves all open reports. Editing or approval cannot undo removal. Restore is a distinct action that republishes only the last approved revision. `GET /api/moderation/removed` succeeds with 200 exactly `{items:[{storyId,version,title,removedAt,removalReason}]}` and excludes internal notes. `GET /api/moderation/stories/:id/decisions` succeeds with 200 exactly `{decisions:[{action,revisionId,category,explanation,rationale,internalNote,createdAt}]}`, oldest-first. Actions are `approve`, `reject`, `remove`, or `restore`; inapplicable fields are null, and `createdAt` is parseable. This is the sole response interface exposing internal moderator notes. `DELETE /api/moderation/stories/:id` returns public 405 `method_not_allowed`.\n\nReports: `POST /api/stories/:id/reports` requires a non-empty `X-Report-Token` and accepts exactly `{reason}` or `{reason,note}`. Success is 201 exactly `{report:{id,createdAt}}`. Reporting does not hide the story. Reusing a token for the same story returns 409 `report_already_submitted`; the same token may report a different story. `GET /api/moderation/reports` succeeds with 200 exactly `{groups:[{storyId,version,reports:[{id,reason,note,createdAt}]}]}`. Omitted notes appear as null. Groups are ordered by oldest unresolved report; ties and order within a group are unspecified. The group version is the current version usable for removal. `POST /api/moderation/reports/:id/dismiss` accepts exactly `{}` and succeeds with empty 204, resolving only that report. Removing a story resolves every remaining open report for it. Resolved report information is retained, but its schema and representation are implementation-defined and no literal SQLite text representation is required.\n\nReset: `POST /api/moderation/reset/prepare` accepts exactly `{}` and succeeds with 200 exactly `{confirmationToken}` without changing active data. `POST /api/moderation/reset/confirm` accepts exactly `{confirmationToken}` and succeeds with empty 204. A valid token is single-use and atomically restores the original samples while erasing submissions, revisions, moderation decisions and internal notes, reports, and old key digests. Invalid or consumed tokens return moderator 400 `validation_failed` without mutation. Reset has no browser-storage interface and cannot erase browser-local drafts or saved keys.\n\nSeeds: a fresh database exposes 5\u20137 published, pairwise-distinct-ID stories, all with `sample:true`, varied body lengths and emotions. At least one is non-graphic and content-noted. Fresh moderation submission, report, and removed queues are empty. Samples are clearly fictional and contain no real submissions, identifying details, graphic material, or medical advice.\n\nDeletion and neutral responses: author deletion removes the associated story, revisions, moderation reasons and decisions including internal notes, reports, and key digest from the active database. Subsequent public detail, continue, and report requests return the same 404 `story_unavailable` body and security headers as an unknown ID and disclose no lifecycle or removal reason. Pending, rejected, removed, deleted, unknown, and invalid-ID responses may differ only in request-specific transport or correlation metadata. Before excluding or normalizing variable headers such as request IDs, timing, tracing, or CSP nonces, checks inspect their original values and straightforward URL/base64-decoded forms for lifecycle states and moderation reasons. Opaque encodings remain a source-review limitation.\n\nSecurity presentation: HTML uses one Content-Security-Policy with unique directive names, same-origin resource and reporting destinations, no report-to groups, no report-only policy, `object-src 'none'`, restrictive `base-uri` and `form-action`, and `frame-ancestors 'none'`. The effective script policy disallows inline and evaluated scripts, wildcard sources, data/blob sources, and non-same-origin script sources. User prose is transported as JSON text and browser code must render it as text rather than executable markup. Management keys and request bodies are not logged.\n\nAdditional proposed interface choices:\nProposed browser entry points: `/#share` for composition and preview; `/#your-stories` for key entry and story management. Both use the existing application document. Preview, submission result, and individual management views need no additional URL contract.\n\nAuthor interface identifiers are semantic accessible names, not CSS selectors: navigation links `Share a story` and `Your stories`; composition controls `Title`, `Story`, and `Content note`; key-entry control `Management key`; primary actions `Preview`, `Submit story`, and `Manage story`. Revision views distinguish regions named `Your attempted revision`, `Current server revision`, and `Approved revision` when those regions are applicable. Local key actions use `Save on this device`, `Reveal key`, `Copy key`, and `Forget on this device`; the submission result also exposes `Download key`. Destructive confirmation actions distinguish `Discard draft` from `Permanently delete story`, with `Cancel` available. These names provide browser-facing acceptance anchors without prescribing DOM structure, module exports, or storage serialization.\n\nLimitations: the packet does not include the reader router, author implementation, validation implementation, or browser-storage implementation contents. Compatibility with existing fragment routes and character-count semantics is therefore unverified. The supplied runner has no browser/GUI; actual clipboard, download, persistence, accessibility, and rendered author journeys require separate browser evidence and cannot be established by API results alone.\n\nLive-count interface choices: In composition and revision editing, Title and Story each have exactly one visible live-count output. Each output exposes role=\"status\" and aria-label=\"Title character count\" or aria-label=\"Story character count\" respectively. Its entire text is exactly \"N / 100\" for Title or \"N / 10000\" for Story, where N is the current control value length (UTF-16 code units, before submission trimming), with no thousands separators or extra text. Empty controls show \"0 / 100\" and \"0 / 10000\". Counts update immediately after typing, pasting, replacement and deletion without navigation or reload. For the permitted input-prevention choice, Title and Story controls enforce maximum lengths of 100 and 10000 respectively; attempted extra input is prevented. Minimum valid lengths remain 5 and 100, and the existing preview, validation, acknowledgement and submission requirements remain unchanged.\n\nAcknowledgement and preview interface choices: Composition and preview expose the same native checkbox with the exact accessible name \"This story is mine to share, avoids identifying others, and follows the content rules.\" It starts unchecked, can be toggled by click or Space, and retains its state when moving between composition and preview. Preview is a separate action and does not require the checkbox to be accepted. Preview validates the title and body and stays in composition with accessible errors and preserved prose for invalid lengths; valid inputs open a region named \"Story preview\" displaying the entered title and body as literal text. Submit story is offered only in this valid preview flow and cannot send a submission unless the checkbox is checked. Checking it explicitly acknowledges all three commitments and supplies acknowledgement:true to the existing API; the browser must not acknowledge on the author's behalf. A rejected validation attempt never clears or implicitly accepts the checkbox. These controls also apply when revising/resubmitting a story; API fields and existing validation limits are unchanged.",
+    "coverage": [
+      {
+        "criterion": 1,
+        "cases": [
+          "criterion-1-browser-limits-counts",
+          "criterion-1-browser-preview-ack",
+          "criterion-1-browser-notes-fields"
+        ],
+        "limitation": "Unapproved design, not executed evidence. The supplied runner has no browser/GUI; all cases require separately recorded real-browser evidence and cannot be satisfied by HTTP checks. Supplied sources omit the author implementation and character-count semantics; ASCII boundaries avoid inventing Unicode or whitespace rules. Prerequisite backend checks are not repeated."
+      },
+      {
+        "criterion": 2,
+        "cases": [
+          "criterion-2-draft-autosave-restore",
+          "criterion-2-draft-discard-confirmation",
+          "criterion-2-draft-clear-on-submission"
+        ],
+        "limitation": "Unapproved design only; no checks were executed. The runner has no browser/GUI, and supplied source contents omit the author and browser-storage implementations. These cases require separately recorded real-browser evidence; HTTP results cannot establish them. Storage format and autosave timing are unspecified."
+      },
+      {
+        "criterion": 3,
+        "cases": [
+          "criterion-3-validation-prose",
+          "criterion-3-stale-prose",
+          "criterion-3-recoverable-prose",
+          "criterion-3-screen-reader-announcements"
+        ],
+        "limitation": "Unapproved design only; no checks were executed. Supported Chromium actions can observe prose preservation, inline errors, summaries, current revisions, keyboard access and DOM accessibility, and can inject connection failures and 503 responses. DOM/axe observations cannot establish actual screen-reader announcements or complete accessibility. Announcement verification remains an unresolved manual obligation requiring a real screen reader and separately reviewed evidence, not a passing automated check. Author implementation contents are absent; server-validation setup must use supported application interactions rather than invented HTTP fixtures. Prerequisite backend checks are not regenerated."
+      },
+      {
+        "criterion": 4,
+        "cases": [
+          "criterion-4-key-result",
+          "criterion-4-no-automatic-retention",
+          "criterion-4-explicit-device-save"
+        ],
+        "limitation": "Unapproved design only; no checks executed. The supplied runner has no browser/GUI, and author UI and browser-storage implementation contents are absent. Rendered presentation, clipboard, download, one-time display, and opt-in persistence require separately recorded real-browser evidence; prerequisite backend checks do not establish them."
+      },
+      {
+        "criterion": 5,
+        "cases": [
+          "criterion-5-cross-browser-entry",
+          "criterion-5-masked-local-keys",
+          "criterion-5-forget-local-only"
+        ],
+        "limitation": "Unapproved design only. The supplied runner has no browser/GUI, and author UI and browser-storage implementation contents are absent from the packet. These cases require separately recorded real-browser evidence, including clipboard and persistence observations; prerequisite backend checks or HTTP responses cannot establish them."
+      },
+      {
+        "criterion": 6,
+        "cases": [
+          "criterion-6-author-state-presentation",
+          "criterion-6-revision-journey",
+          "criterion-6-conflict-recovery"
+        ],
+        "limitation": "Unapproved design only. These are separate browser evidence obligations, not HTTP checks or regenerated prerequisite backend checks. The supplied runner has no browser/GUI, and author implementation contents were not supplied; rendered behavior and executable browser coverage remain unverified."
+      },
+      {
+        "criterion": 7,
+        "cases": [
+          "criterion-7-confirm-delete-all-states",
+          "criterion-7-forget-deleted-key",
+          "criterion-7-deletion-limit-copy"
+        ],
+        "limitation": "Unapproved design only. The supplied runner has no browser/GUI, and author UI and browser-storage implementation contents are absent. These cases require separately recorded browser evidence; prerequisite backend results cannot establish them."
+      },
+      {
+        "criterion": 8,
+        "cases": [
+          "criterion-8-account-server-disclosure",
+          "criterion-8-anonymity-disclosure",
+          "criterion-8-local-storage-key-warnings"
+        ],
+        "limitation": "Unapproved design only. Supplied source excerpts do not establish rendered author disclosures, and the offline runner has no browser/GUI. All cases require separately recorded browser evidence; HTTP or source-text checks cannot establish their passage."
+      }
+    ],
+    "cases": [
+      {
+        "id": "criterion-1-browser-limits-counts",
+        "description": "Separate browser evidence: Open Share a story. Title and Story show live counts that update on typing, pasting, and deleting without reload. Using ASCII prose and otherwise valid inputs, verify empty values, titles of 4 or 101 characters, and bodies of 99 or 10001 characters cannot be submitted through the UI; preventing excess input is acceptable. Titles of 5 and 100 characters and bodies of 100 and 10000 characters are accepted by the compose/preview flow.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-1-browser-preview-ack",
+        "description": "Separate browser evidence: Valid composition offers Preview before final Submit story, and preview displays the entered title and body faithfully. HTML-like and Markdown-like prose remains literal text, not rendered markup, executable content, or rich formatting. Submission requires explicit acknowledgement covering all three commitments: the story is the author's to share, avoids identifying others, and follows content rules. Leaving any required acknowledgement unaccepted prevents submission; accepting all commitments permits submission of otherwise valid work.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-1-browser-notes-fields",
+        "description": "Separate browser evidence: Content note is optional; no note permits preview and submission. Its category choices are exactly grief or loss, abuse or violence, self-harm or suicide, substance use, mental health, and other. Selected notes appear accurately in preview. Other permits explanatory text and requires non-empty text; other categories permit empty explanatory text. Inspect compose and preview, including expanded controls: neither offers author-name, image/upload, link, rich-text, or tag fields or tools.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-2-draft-autosave-restore",
+        "description": "Separate browser evidence: Enter unfinished title and story text without explicitly saving. Observe a displayed saved time and a warning that drafts stay in this browser and may be visible to others using a shared device. Navigate away and return, then reload; the same prose restores. Edit it and allow autosave; subsequent navigation and reload restore only the latest unfinished draft, not multiple drafts. A separate clean browser profile does not restore this draft.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-2-draft-discard-confirmation",
+        "description": "Separate browser evidence: With an automatically saved draft, choose Discard draft. Require confirmation before clearing anything. Choose Cancel and verify the prose remains and restores after reload. Repeat and confirm discard; return to composition and reload to verify the discarded draft no longer restores.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-2-draft-clear-on-submission",
+        "description": "Separate browser evidence: Start with an automatically saved draft and complete a successful submission through the author interface, using the existing submission contract as a prerequisite rather than retesting backend validation. Return to composition and reload; the submitted draft no longer restores. Enter new unfinished prose and verify it becomes the single restorable draft.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-3-validation-prose",
+        "description": "Browser evidence: In compose/preview and revision editing, trigger validation failures, including a server-returned validation failure. Verify the attempted title and body remain unchanged and editable, affected controls have associated inline errors, and an error summary identifies the errors. Verify keyboard users can reach affected controls and inspect DOM accessibility, including error associations and notification semantics. Correcting an error must not erase unrelated prose. Actual assistive-technology announcement verification is retained in criterion-3-screen-reader-announcements, not established by DOM or accessibility checks.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-3-stale-prose",
+        "description": "Browser evidence: Open the same author revision in two browser views, save different prose in one, then attempt to save the older view's distinct edits. Verify the stale view retains its attempted title and body in Your attempted revision, presents an inline conflict explanation, and displays the newer title and body in Current server revision for review without silently replacing the attempted prose. Verify keyboard access to the conflict information and revision regions, and inspect their DOM accessibility, accessible names and notification semantics. Actual assistive-technology announcement verification is retained in criterion-3-screen-reader-announcements. Backend conflict enforcement is prerequisite coverage, not a new check.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-3-recoverable-prose",
+        "description": "Browser evidence: During submission and revision saving, exercise a recoverable server-unavailable response and a connection failure using the supported network failure controls. Verify attempted title and body remain unchanged and editable, an inline failure message and error summary explain the unsuccessful operation, and no success state replaces the form. After service recovery, verify the author can retry using the retained prose without retyping it. Verify keyboard access and inspect DOM accessibility, including error-summary and notification semantics. Actual assistive-technology announcement verification is retained in criterion-3-screen-reader-announcements.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-4-key-result",
+        "description": "Separate real-browser evidence: after successful submission, the result displays the exact newly issued raw management key with Copy key and Download key actions. Copy places that key on the clipboard; Download produces a file containing that key.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-4-no-automatic-retention",
+        "description": "Separate real-browser evidence: without choosing Save on this device, the key is not written to application-managed browser storage, including after Copy key or Download key. Leaving the submission result and returning, reloading, or reopening the application does not redisplay or restore the unsaved key. User-requested clipboard and downloaded copies are not application-managed retention.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-4-explicit-device-save",
+        "description": "Separate real-browser evidence: Save on this device is an explicit author action, not a default selection or a side effect of submission, copying, or downloading. Choosing it retains the issued key in that browser across reload and reopening; an otherwise equivalent submission without that action does not.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-5-cross-browser-entry",
+        "description": "Separate browser evidence: with an existing story's key available outside browser A, open Your stories in browser B with independent, empty storage. Enter the key using Management key and Manage story; the corresponding story's management view opens without transferring browser A's storage.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-5-masked-local-keys",
+        "description": "Separate browser evidence: with multiple keys explicitly saved locally and another story's key saved only in a different browser, Your stories lists the locally represented stories using masked key labels, including after reload, without listing the other browser's saved story. Exercise Reveal key and Copy key independently: a warning precedes disclosure or clipboard modification; declining leaves the key masked and clipboard unchanged, while proceeding reveals or copies the exact selected key.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-5-forget-local-only",
+        "description": "Separate browser evidence: retain an external copy of a locally saved key and save it in another independent browser. Choose Forget on this device. Its saved entry disappears and remains absent after reload; other local entries and the other browser's saved entry remain. Enter the retained key again to open the same unchanged story, demonstrating that forgetting local access did not delete server content.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-6-author-state-presentation",
+        "description": "Separate browser evidence: open author management views for prepared pending, rejected, published, edited-pending, and removed stories. Verify accurate visible status, rejection/removal category and explanation, and no moderator-only notes. A rejected published edit must distinguish the rejected working revision from the still-approved public revision. Enter mistyped, deleted-story, and reset-invalidated keys; each displays invalid or no longer valid key guidance without suggesting expiration or showing successful management access.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-6-revision-journey",
+        "description": "Separate browser evidence: revise pending and rejected work through author controls; successful resubmission visibly returns to pending review and clears the prior rejection reason. Edit a published story using distinguishable title, body, and content-note changes. The author view distinguishes the working revision from Approved revision and shows edited-pending; rendered public reading surfaces retain only approved content while review is pending or the edit is rejected, and show the new content after approval. A removed story shows its reason and offers no author action that claims to restore publication; attempted editing must not present success or a republished state.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-6-conflict-recovery",
+        "description": "Separate browser evidence: load the same story in two author views, save a revision in one, then attempt a different revision from the stale view. Verify a visible conflict rather than success, with attempted title and body retained in Your attempted revision and the newer content shown in Current server revision. The author can review the current revision and deliberately retry an intended revision using the current version, reaching an accurate resulting status without silent overwrite or loss of attempted prose.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-7-confirm-delete-all-states",
+        "description": "Separate browser evidence: for key-authorized stories in pending, rejected, published, edited-pending, and removed states, deletion is available and requires explicit confirmation stating it is permanent and cannot be undone. Opening the confirmation does not delete; Cancel preserves the story and local key. Only confirming Permanently delete story initiates deletion, and successful deletion exits the deleted story's management view. Reuse prerequisite backend deletion evidence without repeating cascade or ownership checks.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-7-forget-deleted-key",
+        "description": "Separate browser evidence: after confirmed successful deletion of a story whose key was explicitly saved, its saved-key entry disappears and remains absent after navigation and reload. The interface no longer retains that story's key for management, reveal, or copy; unrelated saved keys remain unchanged. Cancellation or unsuccessful deletion does not trigger success-only key removal.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-7-deletion-limit-copy",
+        "description": "Separate browser evidence: inspect the rendered deletion confirmation and completion copy. They describe permanent deletion without promising erasure from backups, caches, screenshots, operating-system remnants, or readers' copies. No claim of complete erasure everywhere contradicts these limits.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-8-account-server-disclosure",
+        "description": "Separate browser evidence: navigate to the author flow through Share a story and Your stories. Verify visible author-facing guidance states that there are no identity accounts and browsers communicate with a shared local server, with server data shared across browsers on that computer.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-8-anonymity-disclosure",
+        "description": "Separate browser evidence: inspect guidance available within the compose/preview flow. Verify it explicitly warns that story text may identify its writer and that the prototype does not provide production-grade anonymity; surrounding copy must not contradict these limitations.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-8-local-storage-key-warnings",
+        "description": "Separate browser evidence: inspect draft guidance and management-key guidance in the author flow, including the submission result and Save on this device choice. Verify visible copy warns that saved drafts and keys are risky on shared devices and states that lost management keys cannot be recovered. Check disclosures only, not storage, recovery enforcement, or other criteria's key-handling mechanics.",
+        "kind": "browser"
+      },
+      {
+        "id": "criterion-3-screen-reader-announcements",
+        "description": "Unresolved manual obligation: Using a real screen reader with a browser, trigger client and server validation failures in composition and revision editing, a stale-write conflict between two author views, and recoverable server-unavailable and connection failures during submission and revision saving. Observe and record whether validation errors, conflict notifications and recoverable-failure notifications are actually announced. Verify the error summary or current server revision, as appropriate, and revision regions are discoverable and understandable through the screen reader. Capability blocker: the supported Chromium actions provide keyboard, DOM and accessibility observations but cannot run a screen reader or observe its actual announcements. This obligation remains unresolved until separate manual evidence is reviewed; automated accessibility results are not passing evidence for it.",
+        "kind": "manual"
+      }
+    ]
+  }
+}

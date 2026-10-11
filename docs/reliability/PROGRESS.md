@@ -1,6 +1,6 @@
-# Reliability progress — evidence feasibility foundation
+# Reliability progress — product-route feasibility
 
-Completed tasks: hr-001, hr-002, hr-003, hr-004, hr-005, hr-006, hr-007, hr-008, hr-009, hr-010, hr-011, hr-012, hr-013, hr-014, hr-015, hr-016, hr-017 and hr-018 — **18 of 45**. The remaining 27 tasks are open. Registry completion records defects; it does not solve all of them.
+Completed tasks: hr-001, hr-002, hr-003, hr-004, hr-005, hr-006, hr-007, hr-008, hr-009, hr-010, hr-011, hr-012, hr-013, hr-014, hr-015, hr-016, hr-017, hr-018 and hr-019 — **19 of 45**. The remaining 26 tasks are open. Registry completion records defects; it does not solve all of them.
 
 The registry covers all 25 findings: 11 fixed at their documented audit scope, 2 reproduced and 12 inspection-only or partially repaired gaps. F01, F13 and F14 now link current positive regressions and restored-defect controls. Historical audit evidence remains unchanged. Noninteractive preparation and peer-review invalidation remain known desired-behavior failures. Browser timing is now qualified at the documented finite-window scope. The full end-to-end reliability program is not complete.
 
@@ -95,3 +95,14 @@ Preparation now derives stable atomic observation IDs, required controls/results
 Validation: `npm run check` passed 1,062 of 1,134 tests, with 72 explicit skips and no failures. Required Docker/Chromium smoke passed 13/13 with no skips. Five deliberate defects were caught. The explicitly authorized two-request GPT-6 Astra high trial completed with 4,552 reported tokens and $0.14032 estimated usage; it identified explanation, validation and expanded-form anchors in one synthetic form. This does not qualify every project or prove minimality of model-discovered anchors.
 
 Evidence: `evidence/evidence-feasibility-validation.json`, `evidence/evidence-feasibility-controls.json` and `evidence/evidence-feasibility-trial.json`. hr-019 is intentionally still open: full desktop/ML target and delivery routing and a retained-author-outline replay remain. Routine interface amendments (hr-020), common evidence admission (hr-023) and controller adoption remain separate tasks. The completed count stays **18 of 45**. No blog state, checks or application source was changed.
+
+
+## Complete route preflight (hr-019)
+
+The feasibility gate now carries the protected product scope and selected desktop targets into discovery. Ordinary routes check build, verification, apply, recovery, packaging and release capability availability; browser/preview and sensitive-product stages remain explicit. Unsupported npm workspaces stop before planning. Desktop products require selected evidence targets, validated approval hashes and matching installed runtime fingerprints before generation or builder dispatch. Linux inspection uses the journey's exact immutable image rather than the global default. All selected platform failures are collected.
+
+ML product builds stop early because the existing recipe evidence cannot establish application-to-model integration. This is an explicit capability gap, not a removal of standalone CPU/Metal training workflows. Product completion and application evidence still have to be earned. Routine interface amendment recovery remains hr-020.
+
+The retained author outline replay covers eight criteria and 25 browser/manual cases, collecting the known missing category, explanation, validation and expanded-inspection anchors in one saved pass. The deterministic fixture isolates those known gaps; the earlier authorized Astra trial supplies the separately bounded semantic-discovery qualification. No new model request or blog mutation was made.
+
+Validation: `npm run check` passed 1,070 of 1,142 tests, with 72 explicit skips and no failures. Docker/Chromium smoke passed 13/13 with no skips. Installed Linux desktop preflight passed with a deliberately unavailable global default. Six restored defects were detected. Evidence and limitations: `evidence/feasibility-routes-validation.json` and `evidence/feasibility-route-controls.json`. hr-019 is complete at this preflight scope; the plan is **19 of 45** complete. Next: hr-020 routine scoped interface amendments and hr-023 common evidence admission.

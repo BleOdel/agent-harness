@@ -763,3 +763,10 @@ test('a known dependency-bearing web route stops before builder dispatch and pre
  const result=await f.run('work','api');assert.notEqual(result.code,0);assert.match(result.text,/feasibility/);assert.match(result.text,/preview/);assert.deepEqual(await f.calls(),[]);assert.equal(await readFile(f.project+'/app.js','utf8'),'export const value = 1;\n');
  }finally{await f.close();}
 });
+test('unselected desktop and incomplete ML product routes stop before builder dispatch',async()=>{
+ for(const kind of ['desktop','ml'] as const){const f=await fixture([item('api')],'changed');
+  try{const {draftProduct,approveProduct}=await import('../src/product/spec.ts');await approveProduct(f.project,await draftProduct(f.project,kind,'prototype',[]));
+   const result=await f.run('work','api');assert.notEqual(result.code,0);assert.match(result.text,/feasibility/);assert.match(result.text,kind==='desktop'?/product\/ui/:/product\/integration/);assert.deepEqual(await f.calls(),[]);assert.equal(await readFile(f.project+'/app.js','utf8'),'export const value = 1;\n');
+  }finally{await f.close();}
+ }
+});

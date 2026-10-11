@@ -1,4 +1,4 @@
-import {projectRoute} from '../acceptance/feasibility-project.ts';
+import {assertDispatchRoute} from '../acceptance/feasibility-project.ts';
 import {beginApplication,finishApplication,loadApplication} from '../workspace/application.ts';
 import {applicationFeatures} from '../features.ts';
 import {withContainmentSignal} from '../containment/process.ts';
@@ -202,7 +202,7 @@ async function workUnlocked(argv: readonly string[],signal:AbortSignal): Promise
   const existingStage=await pendingStage(project);
   if(existingStage)throw new OperatorError(`Candidate ${existingStage.id} is awaiting final review or application.`, `Run harness stage review ${existingStage.id}, or harness stage reject ${existingStage.id} to retain feedback and resume building.`);
   const approvedChecks = await requireStagingChecks(project, acceptanceTasks);
-  await projectRoute(project,approvedChecks.manifest.cases.filter(c=>c.tasks.includes('*')||c.tasks.some(t=>acceptanceTasks.includes(t))).map(caseKind));
+  await assertDispatchRoute(project,approvedChecks.manifest.cases.filter(c=>c.tasks.includes('*')||c.tasks.some(t=>acceptanceTasks.includes(t))).map(caseKind));
   const manualCases=approvedChecks.manifest.cases.filter(c=>caseKind(c)==='manual'&&(c.tasks.includes('*')||c.tasks.some(t=>acceptanceTasks.includes(t))));
   const staging=explicitlyStaged||manualCases.length>0;
   if(staging&&!work.feature)throw new OperatorError('Staged delivery requires an accepted task ID.','Use harness add or the saved planning workflow before building a staged candidate.');

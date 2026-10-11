@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "kind": "product-route-feasibility-qualification",
+  "at": "2026-10-11T17:37:19.233840+00:00",
+  "task": "hr-019",
+  "status": "passed-at-documented-scope",
+  "source": {
+    "baseCommit": "d066ecaa5a5ca8aaa98aa05f80571cb4da8d3448",
+    "codeTreeSha256": "dced96835d384751402b2abb417e5aeaa0948f85feb0fcc014d38cc8fc9d1e36",
+    "hashDefinition": "Compact sorted path-to-SHA256 JSON for src/**, test/** and named package/TypeScript manifests; ignores node_modules and Finder metadata.",
+    "changedCode": {
+      "test/feasibility-product-routes.test.ts": "4656c0207c001e0af72296fda883f3381f8539f4ec1d2714353f0c570d279e59",
+      "test/work-flow.test.ts": "d00366f63aeff2c2c5db5b33172fcbd6bf449e91b3dc10305207006fdb81fd45",
+      "src/acceptance/feasibility-project.ts": "c4e60eb75d5e2e9cdaaf3aaa95d936d2de6f5b982d219c2d66ad5bdf5bee4577",
+      "src/acceptance/feasibility-targets.ts": "777f4ac05d33162219caea6a12d7e056e377b9a785c007654890c4cb09d57342",
+      "src/acceptance/feasibility.ts": "78bc77ddb26a4d48044ac377d53db83ad4aa5d2565e5dafffa7321f04b679386",
+      "src/verbs/work.ts": "07aa070de22ddd895e62304da699b7826301050b1b6777a8a8ad52ca7d7f5fd5",
+      "src/verbs/team.ts": "e590ec52f0f74384ea6e5734810d1ce15ad2fdfdfa18b03dfd69e45f9e52a573",
+      "test/fixtures/author-evidence-outline.json": "502b123bc1632ff28d4cd1c552cdbf1a982f0b387bf89866498781aeca76951d"
+    }
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "tests": 1142,
+    "pass": 1070,
+    "fail": 0,
+    "skipped": 72,
+    "outputSha256": "446af3bdb15cc1d4509e3bcbd0384c4fcfb18199b2c4cd7a90e1ef9aa1ca329f"
+  },
+  "requiredSmoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-11T17:33:42.939Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-timing-docker.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "489778e9d42e460da0f09937f1665d38ef7758e0db569b62743f6656edc6daf3",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-11T17:36:05.947Z"
+  },
+  "desktopPreflight": {
+    "version": 1,
+    "scope": "Installed Linux desktop preflight only; no application journey or model request",
+    "startedAt": "2026-10-11T17:35:16.305Z",
+    "root": "/private/tmp/feasibility-desktop-LTKosC",
+    "runtime": {
+      "image": "sha256:1f9a687f5880147cd1c739947e16eb4c0b8831aca300f6cddc59e68892de6549",
+      "arch": "arm64",
+      "node": "v26.5.0",
+      "electron": "44.3.0",
+      "playwright": "1.63.0",
+      "asar": "4.3.0",
+      "protocol": "2295302a6e2cce1f56c0cfdd9830fa880bbc3d1303362207082cb060c8b15636"
+    },
+    "status": "passed",
+    "observations": [
+      "Approved immutable Linux image was probed successfully despite an unavailable global default.",
+      "Selected approval and installed runtime hashes matched."
+    ],
+    "finishedAt": "2026-10-11T17:35:16.985Z"
+  },
+  "negativeControls": "docs/reliability/evidence/feasibility-route-controls.json",
+  "retainedAuthorReplay": {
+    "fixture": "test/fixtures/author-evidence-outline.json",
+    "sha256": "502b123bc1632ff28d4cd1c552cdbf1a982f0b387bf89866498781aeca76951d",
+    "criteria": 8,
+    "cases": 25,
+    "method": "Deterministic discovery fixture isolates missing content-note and expanded-inspection anchors; it retains all evidence kinds and cached replies. It does not assert semantic completeness of other cases."
+  },
+  "priorBoundedSemanticTrial": "docs/reliability/evidence/evidence-feasibility-trial.json",
+  "paidRequestsThisBatch": 0,
+  "limits": [
+    "Capability feasibility and runtime binding are not passing application evidence or release authorization.",
+    "ML product dispatch is conservatively blocked because recipe results do not establish application-model integration. Standalone recipe workflows remain separate.",
+    "Desktop selection and stale-runtime behavior have fixture coverage. Installed Linux arm64 preflight was exercised; this batch did not execute macOS apps or requalify Mac VM GUI behavior.",
+    "Human observations stay unresolved; routine missing-interface amendments are hr-020.",
+    "Node workspaces and dependency-bearing browser/preview routes remain unsupported; preflight now reports them earlier."
+  ]
+}
