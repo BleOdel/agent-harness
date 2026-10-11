@@ -1,8 +1,9 @@
+import {withPreparationWriter,atomicWrite} from '../workflow/preparation-store.ts';
 import {projectRoute} from './feasibility-project.ts';
 import {readSelectedSource} from '../workspace/secret-content.ts';
 import { capabilitySummary } from '../reliability/catalog.ts';
 import {browserDesignPrompt} from './browser-design.ts';
-import {createHash} from 'node:crypto';import path from 'node:path';import {mkdir,readFile} from 'node:fs/promises';import type {Feature} from '../features.ts';import {readApproval,acceptanceTaskScope} from './checks.ts';import {readProfile} from '../project/profile.ts';import {getAdapter} from '../adapters/registry.ts';import {sourceFiles} from '../workspace/candidate.ts';import {safePath} from '../workspace/safe-path.ts';import {readArtifact,atomicWrite} from '../planning/store.ts';import {harnessDirectory} from '../record/record.ts';import {requestCheckJson,taskDigest} from './draft.ts';import {planInStages,type PlanningContext,type OutlinePlanning} from './planning-stages.ts';import type {Proposal} from './draft.ts';import {OperatorError} from '../verbs/io.ts';
+import {createHash} from 'node:crypto';import path from 'node:path';import {mkdir,readFile} from 'node:fs/promises';import type {Feature} from '../features.ts';import {readApproval,acceptanceTaskScope} from './checks.ts';import {readProfile} from '../project/profile.ts';import {getAdapter} from '../adapters/registry.ts';import {sourceFiles} from '../workspace/candidate.ts';import {safePath} from '../workspace/safe-path.ts';import {readArtifact} from '../planning/store.ts';import {harnessDirectory} from '../record/record.ts';import {requestCheckJson,taskDigest} from './draft.ts';import {planInStages,type PlanningContext,type OutlinePlanning} from './planning-stages.ts';import type {Proposal} from './draft.ts';import {OperatorError} from '../verbs/io.ts';
 export async function planningContext(project:string,task:Feature):Promise<PlanningContext>{
  const approval=await readApproval(project),tasks=approval?(await acceptanceTaskScope(project,[task.id],approval)).filter(id=>id!==task.id):[];
  const cases=approval?.manifest.cases.filter(c=>c.tasks.includes('*')||c.tasks.some(t=>tasks.includes(t)))??[];
@@ -11,7 +12,7 @@ export async function planningContext(project:string,task:Feature):Promise<Plann
  const context={approvedContracts:[...new Set(cases.map(c=>c.contract).filter((v):v is string=>!!v))],sourceFacts:JSON.stringify({files:Object.keys(files).sort(),selectedSources:facts,limitation:'Only listed source contents were inspected; filenames alone establish no behavior.'}),prerequisites:JSON.stringify({approval:approval?.digest,tasks,checks:cases.map(c=>({id:c.id,tasks:c.tasks,description:c.description}))}),runtime:JSON.stringify({adapter:profile.adapter,runner:profile.runner,requirements:profile.requirements,commandChecks:'Offline Node/Python command container; no browser/GUI in command cases.',browserChecks:browserDesignPrompt(),manualChecks:'Human or unsupported capabilities remain unresolved obligations; never emit a fake passing command.'})};
  if(Buffer.byteLength(JSON.stringify(context))>64*1024)throw new OperatorError('Approved interface/source context exceeds the 64 KiB planning limit.','Split or explicitly revise duplicated context; no contract or requirement was truncated.');return context;
 }
-export async function prepareOutline(project:string,task:Feature,source:string,feedback:string,previous:Proposal|undefined,issues:readonly string[],progress:(s:string)=>void){
+async function prepareOutlineUnlocked(project:string,task:Feature,source:string,feedback:string,previous:Proposal|undefined,issues:readonly string[],progress:(s:string)=>void){
  await projectRoute(project);
  const context=await planningContext(project,task),prior=previous?{contract:previous.contract,coverage:previous.coverage,behaviours:previous.manifest.cases.map(c=>({id:c.id,description:c.description}))}:undefined;
  progress('Implementation scope: '+capabilitySummary(JSON.parse(context.runtime).adapter.id));
@@ -20,4 +21,8 @@ export async function prepareOutline(project:string,task:Feature,source:string,f
  const save=(state:OutlinePlanning)=>atomicWrite(path.join(directory,file),JSON.stringify(state,null,2)+'\n');
  progress(`Planning packet: ${Buffer.byteLength(JSON.stringify(context))} bytes; ${context.approvedContracts.length} inherited approved contract(s); ${task.criteria.length} criterion stages. No exploration tools.`);
  return planInStages(task,context,identity,{request:(stage,prompt)=>requestCheckJson(project,prompt,{tools:'none',stage:'planning-'+stage}),save,progress},old?.identity===identity?old:undefined,feedback,{prior,issues});
+}
+
+export async function prepareOutline(...args:Parameters<typeof prepareOutlineUnlocked>):Promise<Awaited<ReturnType<typeof prepareOutlineUnlocked>>>{
+ return withPreparationWriter(args[0],'checks outline',()=>prepareOutlineUnlocked(...args));
 }

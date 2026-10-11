@@ -456,7 +456,7 @@ receives host-approved plan/contract context, never private acceptance commands 
 the builder conversation. See [claim correction](src/agent/claim-repair.ts).
 
 Implementation: [checkpoint store](src/workspace/work-checkpoints.ts),
-[ordinary work](src/verbs/work.ts). `test/work-resume-docker.test.ts` exercises a real
+[ordinary-build controller](src/workflow/work.ts). `test/work-resume-docker.test.ts` exercises a real
 Docker timeout and continuation using a deterministic fake Pi with no provider calls.
 
 ## Acceptance evidence boundary
@@ -1617,3 +1617,26 @@ flowchart TD
 ```
 
 The attempt pointer is not a checkpoint. The application journal recovers a sequence of writes; it does not make the entire filesystem update atomic. Existing version-one staged/team journals retain their original recovery paths. See the [recovery contract](docs/reliability/README.md#implementation-and-application-recovery-hr-009--hr-010).
+
+
+### Ordinary builds and preparation checkpoints
+
+The `work` command handles signals; `workflow/work.ts` owns ordinary-build orchestration under the shared writer and operation service. Its existing build, gate, claim correction, source review, acceptance, staging and application phases retain their limits and evidence requirements. `workspace/work-checkpoints.ts` is a compatibility export for `workflow/work-checkpoints.ts`. Resume and retirement require an unchanged read receipt under the writer; terminal checkpoints cannot be restored or changed to another terminal outcome.
+
+```mermaid
+flowchart TD
+    Command[Work command: signals] --> Build[Workflow ordinary-build controller]
+    Build --> Owner[Canonical writer and operation reservations]
+    Build --> Saved[Guarded implementation checkpoints]
+    Build --> Gates[Existing gates, review and acceptance]
+    Gates --> Apply[Staging or journalled application]
+    Checks[Preparation / repair / recipe / regeneration adapters] --> Store[Workflow preparation checkpoint store]
+    Store --> Owner
+    Store --> Bytes[Expected bytes, durable replacement and operation pin]
+    Bytes --> Records[Existing domain records and migration markers]
+    Records --> Review[Explicit approval remains separate]
+```
+
+The preparation store snapshots all managed records before provider work, serializes writes, and refuses publication or deletion if any captured sibling changes. It covers outline planning/replies, preparation, scoped review, guided drafts, simplification, recipe migration and per-scope regeneration. Late callbacks cannot write after their scope closes. Historical replies and approval records keep their own lifecycles. JSON schemas and exact bytes are preserved because migration markers hash them.
+
+Each file replacement is atomic; a multi-file migration still uses its retained completion marker for recovery. A checkpoint or retired implementation is not task completion or authorization. Qualification and remaining hr-024 completion work are recorded in [the reliability progress](docs/reliability/PROGRESS.md).

@@ -1,3 +1,4 @@
+import {withPreparationWriter as withWriter,atomicWrite,removePreparationFile as rm} from '../workflow/preparation-store.ts';
 import {readPreparationSelection,assertPreparationSelection,type PreparationSelection} from '../workflow/preparation-selection.ts';
 import {caseKind} from './evidence-kind.ts';
 import {readActivePreparation,preparationOperation} from './active-preparation.ts';
@@ -9,16 +10,16 @@ import {simplifiableScopes, simplifyInParts, simplificationServices, type Simpli
 import {assertServerRuntimes} from './server-runtime.ts';
 import { validateProposal, proposalDigest, type DraftValidation } from "./repair.ts";
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { prepareInParts, blueprintProposal, parseBlueprint, type Preparation } from './preparation.ts';
 import { validateInScopes, scopeDigest, type ReviewLedger } from './scoped-review.ts';
 import path from 'node:path';
 import { readFeatures, type Feature } from '../features.ts';
-import { readArtifact, atomicWrite } from '../planning/store.ts';
+import { readArtifact } from '../planning/store.ts';
 import { sourceFiles } from '../workspace/candidate.ts';
 import { readProfile } from '../project/profile.ts';
 import { getAdapter } from '../adapters/registry.ts';
-import { withWriter } from '../workspace/writer-lock.ts';
+
 import { harnessDirectory } from '../record/record.ts';
 import { choose, confirmed, type Dialogue } from '../guide/dialogue.ts';
 import { readApproval, approveChecks, parseChecks, parseCheckDraft, type CheckManifest } from './checks.ts';
@@ -403,7 +404,11 @@ export async function useRecipeSavedCheck(project:string,io:Dialogue,caseId?:str
  const pendingRaw=await readArtifact(directory(project),'recipe-change.json',8*1024*1024),pending=pendingRaw?JSON.parse(pendingRaw):undefined;
  const current=async()=>{if(record.taskDigest!==taskDigest(await currentTask(project,task.id))||record.sourceDigest!==await sourceDigest(project))throw new OperatorError('Saved recipe inputs changed.','Use checks setup to prepare from current source and requirements.');};
  await current();
- if(pending?.committedDigest===digest(raw)){await withWriter(project,'checks recipe',()=>rm(path.join(directory(project),'recipe-change.json')));io.write('The recipe migration was already saved. Next: harness checks review.');return;}
+ if(pending?.committedDigest===digest(raw)){await withWriter(project,'checks recipe',async()=>{
+  await current();
+  if(await readArtifact(directory(project),'review-progress.json',8*1024*1024)!==raw||await readArtifact(directory(project),'recipe-change.json',8*1024*1024)!==pendingRaw)throw new OperatorError('Saved checks changed during recipe selection.');
+  await rm(path.join(directory(project),'recipe-change.json'));
+ });io.write('The recipe migration was already saved. Next: harness checks review.');return;}
  const candidates=p.manifest.cases.filter(c=>caseKind(c)==='command'&&(c.steps.some(s=>s.recipe)||recipeForDescription(c.description??'')));
  let scope=caseId??pending?.scope;
  if(!scope){const index=await choose(io,'Use a tested recipe for which check?',candidates.map(c=>c.description??c.id));if(index<0)return;scope=candidates[index]!.id;}
@@ -424,7 +429,7 @@ export async function useRecipeSavedCheck(project:string,io:Dialogue,caseId?:str
  if(pending&&(pending.baseDigest!==digest(raw)||pending.taskDigest!==record.taskDigest||pending.sourceDigest!==record.sourceDigest||pending.scope!==scope))throw new OperatorError('Pending recipe settings describe different inputs.','Use checks setup and Prepare again with changes to archive stale preparation.');
  io.write(recipeDescription(replacement.steps[0]!.recipe!));
  await withWriter(project,'checks recipe',async()=>{
-  await current();if(await readArtifact(directory(project),'review-progress.json',8*1024*1024)!==raw)throw new OperatorError('Saved checks changed during recipe selection.');
+  await current();if(await readArtifact(directory(project),'review-progress.json',8*1024*1024)!==raw||await readArtifact(directory(project),'recipe-change.json',8*1024*1024)!==pendingRaw)throw new OperatorError('Saved checks changed during recipe selection.');
   const approval=(await readApproval(project))?.digest??null;
   if(changed){const history=path.join(directory(project),'review-history');await mkdir(history,{recursive:true,mode:0o700});await atomicWrite(path.join(history,`${Date.now()}-${randomUUID()}-recipe-settings.json`),pendingRaw!);}
   const state=(!changed?pending:undefined)??{version:1,candidateDigest:proposalDigest(candidate),baseDigest:digest(raw),taskDigest:record.taskDigest,sourceDigest:record.sourceDigest,scope,settings,approvalDigest:approval,reviewStarted:false};

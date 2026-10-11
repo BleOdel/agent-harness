@@ -1,12 +1,13 @@
+import {withPreparationWriter as withWriter,atomicWrite,removePreparationFile as rm} from '../workflow/preparation-store.ts';
 import {caseKind} from './evidence-kind.ts';
 import {browserDesignPrompt} from './browser-design.ts';
 /** Replace one unsuitable executable check; reviewed peers and approvals are immutable. */
 import path from 'node:path';import {createHash,randomUUID} from 'node:crypto';
-import {mkdir,rm} from 'node:fs/promises';
-import {readArtifact,atomicWrite} from '../planning/store.ts';
+import {mkdir} from 'node:fs/promises';
+import {readArtifact} from '../planning/store.ts';
 import {readFeatures,type Feature} from '../features.ts';
 import {readProfile} from '../project/profile.ts';import {getAdapter} from '../adapters/registry.ts';
-import {sourceFiles} from '../workspace/candidate.ts';import {withWriter} from '../workspace/writer-lock.ts';
+import {sourceFiles} from '../workspace/candidate.ts';
 import {harnessDirectory} from '../record/record.ts';import {OperatorError} from '../verbs/io.ts';import type {Dialogue} from '../guide/dialogue.ts';
 import {readApproval,type AcceptanceCase} from './checks.ts';
 import {draftPrompt,requestCheckJson,parseProposal,taskDigest,type Proposal} from './draft.ts';

@@ -147,7 +147,7 @@ export async function checkpointOperation(project: string, value: OperationCheck
   });
 }
 export function trackedCommand(command: string): boolean {
-  return command === 'recover-application' || command === 'application recovery' || command === 'undo' || command === 'work' || command === 'continue' || /^team(?: |$)/.test(command) || /^checks(?: |$)/.test(command) || /^stage /.test(command);
+  return command === 'recover-application' || command === 'application recovery' || command === 'undo' || /^work(?: |$)/u.test(command) || command === 'continue' || /^team(?: |$)/.test(command) || /^checks(?: |$)/.test(command) || /^stage /.test(command);
 }
 /** The phase scope owns dispatch, not the evidence verdict produced by its callback. */
 export async function withOperationPhase<T>(project: string, kind: OperationPhase, reference: string, action: () => Promise<T>): Promise<T> {

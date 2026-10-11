@@ -194,3 +194,5 @@ Guarded continuation/preparation status and direct approval resume are described
 Preparation status and resume now share phase selection and a bounded retry controller. See [preparation qualification](evidence/preparation-selection-validation.json); hr-024 remains open for the documented compatibility adapters.
 
 The latest hr-024 batch moves team event transitions into shared workflow storage, makes status read-only, and binds controller/application decisions to their exact journal read. See [team journal qualification](evidence/team-journal-validation.json). hr-024 remains open.
+
+Ordinary-build orchestration and preparation checkpoint writes now share guarded workflow services. Exact-byte checks reject stale writes, deletion and implementation resume; late callbacks cannot publish. See [qualification](evidence/build-checkpoints-validation.json) and [state contracts](STATE-CONTRACTS.md). Final cross-controller reconciliation/qualification keeps hr-024 open.

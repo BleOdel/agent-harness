@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "kind": "local-build-preparation-checkpoint-validation",
+  "scope": "hr-024 ordinary-build orchestration migration, owned implementation checkpoint resume/retirement, shared exact-byte preparation checkpoint writes/deletions, and recipe selection race guard. Final cross-controller reconciliation/qualification remains open.",
+  "source": {
+    "baseCommit": "3896f8ebe335b1ea8b56720c2676621a8b99117c",
+    "codeTreeSha256": "c1368d953f664e6852e70cda962a4b3ce0f720cb206dc685029758899b4986a7",
+    "changedFiles": {
+      "src/acceptance/guided.ts": "afa5bed48b9d01a51431e9e92e40685391a4cac237e0d40d0b15bce62a6ecc22",
+      "src/acceptance/outline-response.ts": "bd1538db10fb198821e5747d799ca10e3434874216519aa095a4d2ad9c54b6df",
+      "src/acceptance/planning-context.ts": "a92d3b9cb9d2ac77087f2c660651ee9107f13084c1f25c589365ee230e0ce63b",
+      "src/acceptance/regenerate.ts": "f07a4035e87aba1eb16da5e11e89c62287270ac332e343d0730a2dd5f38f9204",
+      "src/verbs/work.ts": "332ea007337b3a8537d2597a7ffcdbdce62065ee50e078a53f6eb2d9a7dff2d5",
+      "src/workflow/operations.ts": "3f5de41e84bbe11df21ce0a32e058dcf65b727c8667c9c7f53c540dd80146fe3",
+      "src/workflow/preparation-store.ts": "58cd2d6ee216922431c1cc8e268e5e2e61d41d7a94228787f82886ba23fd5c6e",
+      "src/workflow/work-checkpoints.ts": "8744a92d4559a72292cdd687c4a9bd12915b497f0a9d16b42d9203436be880d4",
+      "src/workflow/work.ts": "46e3d224c9ca2260741451e5d4f35798464c6627d4bf18d7d5a442b62818b852",
+      "src/workspace/work-checkpoints.ts": "6a93946a43d9156e6952f32bb29d5c98e351ec48fbdbaeb517d877f95dfd81e3",
+      "test/preparation-store.test.ts": "e979d20a08fc4104501a9fcfbac2195dfc72f520c01f3d936e6488964ee08800",
+      "test/recipe-migration.test.ts": "e353b5b7553a2ac3c7327eeedfaa323b33b5d146865f6acfadc7e5f1232f4001",
+      "test/work-checkpoints.test.ts": "4a5212253fbe92faf3b2b33ca1ee311f5294afc73209c4a125f58e8b52771811"
+    }
+  },
+  "node": "v26.5.0",
+  "fullSuite": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "counts": {
+      "tests": 1264,
+      "pass": 1192,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 72,
+      "todo": 0
+    },
+    "logSha256": "57b90d218b8af3c1dcc91aa84b28056fe93a1ee737d9367273d0829b6c28fb50"
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-11T21:25:55.685Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-timing-docker.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "8a856b46277f3f08b83ff86b7cb62a6b267d1ef4fcec03402c71c50322d892cc",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-11T21:27:52.898Z"
+  },
+  "dockerRecovery": {
+    "tests": [
+      "test/check-preparation-process.test.ts",
+      "test/work-resume-docker.test.ts"
+    ],
+    "exitCode": 0,
+    "counts": {
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "logSha256": "1de44527bf529e38750c5b4d32d76f8debaa830c502ef7a3527e9906ffd2f992",
+    "provider": "local deterministic fixture; empty credentials; no network model request",
+    "setupNote": "The initial ordinary-build fixture stopped before executing because Pi bootstrap directories were unset. Final run supplied an isolated local fake-model catalog and empty auth.json."
+  },
+  "negativeControls": {
+    "count": 6,
+    "detected": 6,
+    "artifact": "docs/reliability/evidence/build-checkpoints-controls.json"
+  },
+  "requiredRegressions": [
+    "test/preparation-store.test.ts",
+    "test/work-checkpoints.test.ts",
+    "test/recipe-migration.test.ts",
+    "test/work-flow.test.ts",
+    "test/preparation-selection.test.ts",
+    "test/workflow-ownership.test.ts",
+    "test/workflow-phases.test.ts"
+  ],
+  "limitations": [
+    "Checkpoint state and operation journal pins are separate writes. A process death between them retains the domain record but cannot confer approval or task completion. Existing multi-file migration markers remain authoritative for migration recovery.",
+    "Read receipts are process-local. Restart rereads exact saved bytes under a new recovered owner; it does not refresh changed source or approvals implicitly.",
+    "Preparation consolidation covers active domain checkpoints, not immutable reply histories, operator approvals, or application journals. Their existing separate lifecycle and admission gates remain.",
+    "Ordinary build orchestration moved without changing its attempt limits, model dispatch policy, verification gates or final application requirements.",
+    "Final hr-024 cross-controller status/recovery reconciliation and full task completion qualification remain open. Completed backlog count stays 23/45.",
+    "No live blog changes, credential changes, paid model calls, new dependencies or external publication. Real-runtime tests use installed Linux arm64 Docker/Chromium.",
+    "Documentation evidence and disposable claim were generated after qualification; executable code and tests are unchanged."
+  ]
+}

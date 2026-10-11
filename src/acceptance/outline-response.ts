@@ -1,8 +1,9 @@
+import {withPreparationWriter,atomicWrite} from '../workflow/preparation-store.ts';
 /** Preserve a syntactically valid JSON reply before validating its outline schema. */
 import {mkdir} from 'node:fs/promises';import path from 'node:path';import {createHash,randomUUID} from 'node:crypto';
-import {readArtifact,atomicWrite} from '../planning/store.ts';import {harnessDirectory} from '../record/record.ts';import type {Feature} from '../features.ts';import {taskDigest} from './draft.ts';import {parseBlueprint,type Blueprint} from './preparation.ts';import {OperatorError} from '../verbs/io.ts';import {ensureCheckBudget,CheckBudgetExceeded} from './budget.ts';import {CheckRequestInterrupted} from './request-failure.ts';
+import {readArtifact} from '../planning/store.ts';import {harnessDirectory} from '../record/record.ts';import type {Feature} from '../features.ts';import {taskDigest} from './draft.ts';import {parseBlueprint,type Blueprint} from './preparation.ts';import {OperatorError} from '../verbs/io.ts';import {ensureCheckBudget,CheckBudgetExceeded} from './budget.ts';import {CheckRequestInterrupted} from './request-failure.ts';
 interface Receipt {version:1;identity:string;raw:unknown;repairs:number;replies:string[];}
-export async function retainedOutline(project:string,task:Feature,prompt:string,source:string,request:(prompt:string)=>Promise<unknown>,progress:(text:string)=>void):Promise<Blueprint>{
+async function retainedOutlineUnlocked(project:string,task:Feature,prompt:string,source:string,request:(prompt:string)=>Promise<unknown>,progress:(text:string)=>void):Promise<Blueprint>{
  const directory=path.join(harnessDirectory(project),'acceptance'),identity=createHash('sha256').update(JSON.stringify({task:taskDigest(task),prompt,source})).digest('hex');
  const stored=await readArtifact(directory,'outline-response.json',8*1024*1024);let state:Receipt|undefined=stored?JSON.parse(stored):undefined;
  if(state?.identity!==identity)state=undefined;
@@ -19,4 +20,8 @@ export async function retainedOutline(project:string,task:Feature,prompt:string,
   catch(e){if(e instanceof CheckRequestInterrupted||e instanceof CheckBudgetExceeded){state!.repairs--;await save();}throw e;}
   await retain(raw);
  }
+}
+
+export async function retainedOutline(...args:Parameters<typeof retainedOutlineUnlocked>):Promise<Awaited<ReturnType<typeof retainedOutlineUnlocked>>>{
+ return withPreparationWriter(args[0],'checks outline',()=>retainedOutlineUnlocked(...args));
 }

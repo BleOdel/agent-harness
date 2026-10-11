@@ -77,3 +77,12 @@ test('a prior pass cannot hide a stale recipe pin during ordinary review',async(
  const result=await reviewScopes(task,p,{syntax:async()=>[],review:async()=>{requests++;return pass;},repair:async()=>{throw Error('Pin refresh must not generate code');},save:async()=>{}},ledger,'boundary');
  assert.equal(requests,1);assert.notEqual(result.proposal.manifest.cases[0]!.steps[0]!.recipeRuntime,'0'.repeat(64));assert.equal(result.ledger.entries[0]!.repairs,0);
 });
+
+test('recipe selection cannot replace a checkpoint created while the operator was choosing settings',async()=>{
+ await fixture(async(project,dir,raw,approval)=>{
+  const pending='{"newer":"recipe selection"}';let requests=0;
+  const selecting={write:(_s:string)=>{},ask:async()=>{await writeFile(path.join(dir,'recipe-change.json'),pending);return '1';}};
+  await assert.rejects(useRecipeSavedCheck(project,selecting,undefined,{settings:webSpec,reviewer:async()=>{requests++;return pass;}}),/changed during recipe selection/);
+  assert.equal(requests,0);assert.equal(await readFile(path.join(dir,'recipe-change.json'),'utf8'),pending);assert.equal(await readFile(path.join(dir,'review-progress.json'),'utf8'),raw);assert.deepEqual(await readApproval(project),approval);
+ });
+});

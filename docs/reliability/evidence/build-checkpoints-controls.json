@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "controls": [
+    {
+      "name": "ignore-sibling-replacement",
+      "file": "src/workflow/preparation-store.ts",
+      "test": "test/preparation-store.test.ts",
+      "pattern": "preparation publication rejects",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "5187d40e511247e4fc2c9a8d657369d44214899f0b773353638145a2faf0c05a"
+    },
+    {
+      "name": "stale-removal",
+      "file": "src/workflow/preparation-store.ts",
+      "test": "test/preparation-store.test.ts",
+      "pattern": "stale removal",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "0eaec62819de761cf0620d02bee2c12868bca068d0dbb04013a6b1f3a3e74748"
+    },
+    {
+      "name": "stale-retirement",
+      "file": "src/workflow/work-checkpoints.ts",
+      "test": "test/work-checkpoints.test.ts",
+      "pattern": "a stale checkpoint",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "8856dd5e1e60c80e628e890e20aacd4390318dccd211ea926827d36a047bad6d"
+    },
+    {
+      "name": "stale-restore",
+      "file": "src/workflow/work-checkpoints.ts",
+      "test": "test/work-checkpoints.test.ts",
+      "pattern": "a stale checkpoint",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "ee43f012921e2671148d8be21f589d964e2c1c159af0da42cad0ce0e4a3311bf"
+    },
+    {
+      "name": "omit-checkpoint-pin",
+      "file": "src/workflow/preparation-store.ts",
+      "test": "test/preparation-store.test.ts",
+      "pattern": "prepare versus repair",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "394cd35d152b0a42fbdb18ee162da6b16c040faf174e08340cc58e44ed6044b5"
+    },
+    {
+      "name": "replace-pending-recipe",
+      "file": "src/acceptance/guided.ts",
+      "test": "test/recipe-migration.test.ts",
+      "pattern": "recipe selection cannot",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "683519709371fcf19e51451584ea7bf9d23f2bad0bc291eebd16b85b3e4fc373"
+    }
+  ],
+  "method": "Six independent deliberate source defects in a separate disposable copy. Each selected regression failed an assertion; original source restored between controls. No model requests."
+}
