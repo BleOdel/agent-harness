@@ -1,3 +1,4 @@
+import type { OperationPhase } from './operations.ts';
 import type { CheckLimits } from '../acceptance/budget.ts';
 import { OperatorError } from '../verbs/io.ts';
 /** Emitted only after work durably retained a timeout checkpoint. */
@@ -32,6 +33,7 @@ export interface ContinueSnapshot {
     reason?: string;
 }
 export interface ContinueServices {
+    dispatch?: <T>(phase: OperationPhase, action: () => Promise<T>) => Promise<T>;
     snapshot: () => Promise<ContinueSnapshot>;
     prepare: () => Promise<'ready' | 'paused' | 'blocked'>;
     review: () => Promise<void>;
@@ -40,6 +42,7 @@ export interface ContinueServices {
     write: (message: string) => void;
 }
 export async function driveContinuation(state: ContinueState, s: ContinueServices): Promise<ContinueState> {
+    const dispatch = s.dispatch ?? (<T>(_phase: OperationPhase, action: () => Promise<T>) => action());
     const set = async (status: ContinueStatus, stage: string, message: string) => {
         state.status = status;
         state.message = message.slice(0, 10000);
@@ -66,13 +69,13 @@ export async function driveContinuation(state: ContinueState, s: ContinueService
             }
             if (snap.checks === 'missing') {
                 await set('running', 'prepare', 'Preparing the saved requirements; recoverable failures stay inside the allowance.');
-                const outcome = await s.prepare();
+                const outcome = await dispatch('preparing', s.prepare);
                 if (outcome !== 'ready') {
                     await set(outcome === 'paused' ? 'paused' : 'attention', 'prepare', outcome === 'paused' ? 'Preparation stopped at its allowance or provider limit. All checkpoints are retained.' : 'Preparation needs a decision or a harness capability fix. The saved diagnosis is attached in acceptance/workflow.json.');
                     return state;
                 }
                 await set('approval', 'review', 'The proposed checks and interface choices are ready for your approval.');
-                await s.review();
+                await dispatch('reviewing', s.review);
                 const approved = await s.snapshot();
                 if (approved.checks !== 'approved') {
                     await set(approved.checks === 'blocked' ? 'attention' : 'approval', 'review', approved.reason ?? 'Approval is still needed. No implementation started.');
@@ -87,7 +90,7 @@ export async function driveContinuation(state: ContinueState, s: ContinueService
             state.attempts++;
             await set('running', 'build', `Building and verifying ${state.task}; dispatch ${state.attempts}/${state.maxBuilds}.`);
             try {
-                await s.build();
+                await dispatch('building', s.build);
             }
             catch (error) {
                 if (error instanceof ImplementationInterrupted && state.recoveries < 1 && state.attempts < state.maxBuilds) {

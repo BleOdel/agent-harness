@@ -1,3 +1,4 @@
+import {withOperationPhase} from '../workflow/operations.ts';
 import {assertDispatchRoute} from '../acceptance/feasibility-project.ts';
 import {caseKind} from '../acceptance/evidence-kind.ts';
 import { projectTestCommand } from "../project/profile.ts";
@@ -56,26 +57,26 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
             let config = loadConfig(); config = { ...config, ...await resolveTeamModel(config) };
             if (!staged.execution) throw new OperatorError("This older team has no pinned execution environment.", "Inspect/recover/undo remain available. Start a new team to verify under the adapter contract.");
             await assertExecutionCompatible(staged.execution, canonical, config, await projectTestCommand(canonical, setting(process.env, "HARNESS_TEST_COMMAND")), true);
-            acceptance = await verifyAcceptance(canonical, staged.baseline, staged.integrated, config, approved, staged.execution);
+            acceptance = await withOperationPhase(canonical, 'verifying', argv[1]!, () => verifyAcceptance(canonical, staged.baseline, staged.integrated, config, approved, staged.execution));
             for (const summary of acceptance.summaries) say(summary);
           }
         }
-        const state = await (argv[0] === "apply" ? applyTeam : undoTeam)(canonical, directory, acceptance ? { acceptance } : {});
+        const state = await withOperationPhase(canonical, 'applying', argv[1]!, () => (argv[0] === "apply" ? applyTeam : undoTeam)(canonical, directory, acceptance ? { acceptance } : {}));
         say(`${state.runId}: ${state.status}. Record: ${state.application?.recordId ?? state.appliedRecordId ?? "none"}.`); return;
       }
       const pending = await readFile(applicationPath(canonical)).catch((e: NodeJS.ErrnoException) => { if (e.code === "ENOENT") return undefined; throw e; });
       if (pending) {
-        const state = await recoverApplication(canonical, directory, { rollback: argv[2] === "--rollback" });
+        const state = await withOperationPhase(canonical, 'recovering', argv[1]!, () => recoverApplication(canonical, directory, { rollback: argv[2] === "--rollback" }));
         say(`${state.runId}: ${state.status}. Application recovery completed.`); return;
       }
       if (argv[2] === "--rollback") throw new OperatorError("No pending application to roll back.");
     }
-    let config;
+    let config: ReturnType<typeof loadConfig>;
     try { config = loadConfig(); } catch (error) { if (error instanceof ConfigError) throw new OperatorError(error.message, error.remedy); throw error; }
     if (argv[0] === "recover") {
       if (argv.length !== 2 || !identifier(argv[1])) throw new OperatorError(USAGE);
       const directory = path.join(harnessDirectory(canonical), "teams", argv[1]);
-      const state = await recoverTeam(directory, processWorker(config, directory, []));
+      const state = await withOperationPhase(canonical, 'recovering', argv[1]!, () => recoverTeam(directory, processWorker(config, directory, [])));
       say(`${state.runId}: ${state.status}. Owned resources reconciled. Retained staging: ${state.baseline.directory}.`); return;
     }
     if (argv[0] === "resume") {
@@ -92,7 +93,7 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
       await assertRpcVersion(config.piPackageDirectory);
       const control = await TeamControl.start(directory);
       let state;
-      try { state = await resumeTeam(canonical, directory, processWorker(config, directory, testCommand, undefined, control, approved), control); }
+      try { state = await withOperationPhase(canonical, 'building', argv[1]!, () => resumeTeam(canonical, directory, processWorker(config, directory, testCommand, undefined, control, approved), control)); }
       finally { await control.close(); }
       say(`${state.runId}: ${state.status}. ${state.integrated.length} assignments staged. No new application requested.`);
       if (["stopped", "aborted"].includes(state.status)) throw new OperatorError(state.reason ?? "Team stopped.");
@@ -129,7 +130,7 @@ export async function team(project: string, argv: readonly string[]): Promise<vo
     say(`team: ${path.basename(directory)}\nstate: ${directory}\nconcurrency: ${policy.maxWorkers ?? 1}; results stay in staging`);
     const control = await TeamControl.start(directory);
     let state;
-    try { state = await driveTeam(directory, processWorker(config, directory, testCommand, undefined, control, approved), control); }
+    try { state = await withOperationPhase(canonical, 'building', path.basename(directory), () => driveTeam(directory, processWorker(config, directory, testCommand, undefined, control, approved), control)); }
     catch (error) { throw new OperatorError(`Team execution interrupted: ${(error as Error).message}`, `Reconcile owned resources with: harness team recover ${path.basename(directory)}`); }
     finally { await control.close(); }
     say(`${state.runId}: ${state.status}. ${state.integrated.length} assignments staged. Nothing applied.`);

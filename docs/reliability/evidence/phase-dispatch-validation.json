@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "kind": "local-phase-dispatch-validation",
+  "scope": "hr-024 phase dispatch adoption; shared phase-selection/status authority and compatibility reconciliation remain open",
+  "source": {
+    "baseCommit": "3ab06742ae57b482c44d1da777fd02ad5937d38b",
+    "codeTreeSha256": "3c9685e0cb7a911576b6bff2a022ba66e0fde7093f61d930f4427edf200143b6",
+    "changedFiles": {
+      "src/acceptance/workflow.ts": "fada9ec4fccd3acd0647d90e18d65782979030019a4c5c3da7a55262ed45c9bc",
+      "src/staging/apply.ts": "41e3ca29f0f197b2d8e01bfc8a792145ccedbeda1a2a2449f69df85e3c0e1648",
+      "src/verbs/continue.ts": "823b1a8dc2a414677a0cb39c59d23a8759494869c7a3291fe76aa6ac79df736a",
+      "src/verbs/team.ts": "91a8553c5b4a07030986ef8f9906667ff0898f0d57b900841fa2142ca77142e8",
+      "src/verbs/work.ts": "388043eaf03ac61c1b61cfc4defe2c00c1be9fabfe3fabd9d1717956242579cf",
+      "src/view/guidance.ts": "185ead79a56939a18cb5b13018f8763787fd8faf098c49cab529d2ad7cb06bc0",
+      "src/workflow/controller.ts": "795434ac5da05238777ac30183eca601fa7ab4447e5a0c9b6311ed87f371067f",
+      "src/workflow/operations.ts": "dad73c4a7ebdbf6157b2f45a93e74ef42dfdf2234dd3293c1539ad66b1a2cbb4",
+      "src/workspace/application.ts": "dd8ab14d1524dedfd15f8e2f0897bcd2078a7fac685bf323c54e16102ea1f99e",
+      "src/workspace/work-attempts.ts": "333898bc2e4d038c5a0c65e8e2936861dda9e69eef74666d6b621d8451ec702a",
+      "test/application-transaction.test.ts": "e31ac8e8f549ee1d759ae1165f74ea14ff3aaf8d1b870fb08bec168f94374995",
+      "test/staged-review.test.ts": "41257ce8b1297a7e99b6c441e2ead6cf725a36d945e2c5d67ac3b6a187a89b97",
+      "test/work-flow.test.ts": "2f4c82ee9845245ee7e4d8eb90e856e117299c1e30f9593812f3986ca282c745",
+      "test/workflow-phases.test.ts": "1658b8396dbb2767a3c17b7c0ce61d44616be20df1381ccd6434fd8bff2ffb06"
+    }
+  },
+  "node": "v26.5.0",
+  "fullSuite": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "counts": {
+      "tests": 1213,
+      "pass": 1141,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 72,
+      "todo": 0
+    },
+    "logSha256": "acee5427c403eb283e7059f4f8ef9e1a292da1876a65c4874e18be46a6ede503"
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-11T19:41:23.582Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-timing-docker.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "9fc13c216549ac88490a4391ea44b7f09376f163e3c4c9e0605815dc8aba100b",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-11T19:43:14.580Z"
+  },
+  "negativeControls": {
+    "count": 7,
+    "detected": 7,
+    "artifact": "docs/reliability/evidence/phase-dispatch-controls.json"
+  },
+  "requiredRegressions": [
+    "test/workflow-phases.test.ts",
+    "test/workflow-ownership.test.ts",
+    "test/work-flow.test.ts",
+    "test/staged-review.test.ts",
+    "test/application-transaction.test.ts",
+    "test/continuation.test.ts"
+  ],
+  "limitations": [
+    "Execution returned is not application success, approval or acceptance evidence.",
+    "Phase scopes own execution reservations. Existing preparation, continuation and team stores still own domain selection/status facts; full hr-024 migration remains open.",
+    "Team scheduling remains behind its compatibility adapter; phase scopes do not serialize individual parallel team workers.",
+    "A child already dispatched is drained under the writer lock if its parent forgets to await it. Existing child execution timeouts still bound that work; this service does not forcibly cancel arbitrary callbacks.",
+    "Request accounting, automatic retry decisions, structured headless events and dashboard mutations remain subsequent tasks.",
+    "No live blog, credentials, paid provider or external release was used. Local macOS Node and Linux arm64 Docker/Chromium evidence does not qualify other platforms.",
+    "Evidence reports and the disposable claim were written after runtime qualification; executable source and tests are unchanged."
+  ]
+}

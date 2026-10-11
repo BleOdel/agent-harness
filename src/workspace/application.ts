@@ -1,4 +1,4 @@
-import {currentOperationId} from '../workflow/operations.ts';
+import {currentOperationId,withOperationPhase} from '../workflow/operations.ts';
 /** Host-owned application journal. Atomic file replacements are recoverable, not a filesystem transaction. */
 import {randomUUID} from 'node:crypto';
 import {lstat,open,readFile,unlink} from 'node:fs/promises';
@@ -121,5 +121,5 @@ export async function finishApplication(i:ApplicationIntent,options:ApplicationO
  await json(path.join(root,'complete.json'),{rollback});await checkpoint('complete');await unlink(applicationPath(i.project));await syncDirectory(harnessDirectory(i.project));return rollback?undefined:i.record;
 }
 export async function recoverPendingApplication(project:string,options:ApplicationOptions={}):Promise<RunRecord|undefined>{
- project=await canonicalProject(project);return withWriter(project,'application recovery',async()=>{const i=await loadApplication(project);if(i)return finishApplication(i,options);return undefined;},true);
+ project=await canonicalProject(project);return withWriter(project,'application recovery',async()=>{const i=await loadApplication(project);if(i)return withOperationPhase(project,'recovering',i.id,()=>finishApplication(i,options));return undefined;},true);
 }

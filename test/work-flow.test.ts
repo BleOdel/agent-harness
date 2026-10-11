@@ -1,3 +1,4 @@
+import {readOperation} from '../src/workflow/operations.ts';
 import {saveBrowserEvidence} from "../src/review/browser-evidence.ts";
 import {findWorkCheckpoint} from "../src/workspace/work-checkpoints.ts";
 import assert from "node:assert/strict";
@@ -49,6 +50,9 @@ const mount = args.find(a => a.startsWith('type=bind,src=') && a.includes(',dst=
 const work = mount.split(',src=')[1].split(',dst=')[0];
 const mode = process.env.FLOW_MODE;
 const kind = args.at(-1)?.includes('Correct only the completion claim') ? 'claim-correction' : args.includes('--mode') ? 'builder' : args.includes('read,grep') ? 'reviewer' : args.some(a=>a.startsWith('--env=NODE_OPTIONS')) ? 'gate' : 'acceptance';
+const owner = JSON.parse(fs.readFileSync(process.env.HARNESS_PROJECT+'-harness/operations/current.json','utf8'));
+const phase = owner.dispatches.filter(d=>d.phase&&d.state==='reserved').at(-1);
+if (owner.state!=='running'||phase?.phase.kind!==({builder:'building',gate:'verifying',reviewer:'reviewing',acceptance:'verifying','claim-correction':'repairing'})[kind]) throw Error('Process started without its reserved phase');
 fs.appendFileSync(process.env.FLOW_LOG, JSON.stringify({kind, work, browserEvidence:kind==='reviewer' && args.at(-1).includes('BEGIN OPERATOR BROWSER OBSERVATIONS')}) + '\\n');
 if(kind === 'claim-correction') {
   if(mode==='claim-timeout'){setInterval(()=>{},1000);return;}
@@ -605,6 +609,12 @@ test('staged work runs all gates but waits for exact final review; rejection cre
   assert.equal(await readFile(path.join(f.project,'app.js'),'utf8'),'export const value = 1;\n');
   assert.deepEqual((await f.calls()).map(c=>c.kind),['builder','gate','reviewer','acceptance']);
   assert.equal((await readRecord(f.project)).runs[0]!.outcome,'staged');
+  const operation=(await readOperation(f.project))!;
+  assert.equal(operation.state,'returned');
+  assert.deepEqual(operation.dispatches.filter(d=>d.phase).map(d=>d.phase!.kind),['building','verifying','reviewing','verifying','staging']);
+  assert.equal(operation.dispatches.every(d=>d.state==='returned'),true);
+  assert.equal(operation.progress?.status,'approval');
+
   const again=await f.run('work','api');assert.notEqual(again.code,0);assert.match(again.text,/awaiting final review/);
   const apply=await f.run('stage','apply','r1');assert.notEqual(apply.code,0);assert.match(apply.text,/review/);
   const {rejectStage}=await import('../src/verbs/stage.ts');await rejectStage(f.project,'r1','The keyboard focus is lost after saving.');

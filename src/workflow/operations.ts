@@ -10,12 +10,16 @@ import {OperatorError} from '../verbs/io.ts';
 
 type ExecutionState = 'running' | 'returned' | 'failed' | 'interrupted';
 export interface OperationCheckpoint {
+  dispatchId?: string;
   kind: 'run' | 'implementation' | 'continuation' | 'preparation' | 'stage' | 'team';
   reference: string;
   digest: string;
   status: 'checkpoint' | 'paused' | 'attention' | 'approval' | 'complete';
 }
+export type OperationPhase = 'preparing' | 'repairing' | 'building' | 'verifying' | 'reviewing' | 'staging' | 'applying' | 'recovering';
+export interface PhaseIdentity {kind: OperationPhase; reference: string;}
 interface Dispatch {
+  phase?: PhaseIdentity;
   id: string;
   parent: string | null;
   command: string;
@@ -36,7 +40,7 @@ export interface DurableOperation {
 }
 interface Lease {project: string; token: string; assertOwned(): Promise<void>;}
 interface Session {lease: Lease; record: DurableOperation; writes: Promise<unknown>; closed: boolean;}
-interface Frame {session: Session; dispatch: string; closed: boolean;}
+interface Frame {session: Session; dispatch: string; closed: boolean; child: Promise<unknown> | null;}
 const context = new AsyncLocalStorage<Frame>();
 function canonical(project: string): string {
   try { return realpathSync(project); } catch (error) {
@@ -53,19 +57,28 @@ function fields(value: unknown, names: string[]): asserts value is Record<string
   if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).sort().join(',') !== [...names].sort().join(',')) throw new OperatorError('Invalid operation fields. Retained state needs inspection.');
 }
 function checkpoint(value: unknown): asserts value is OperationCheckpoint {
-  fields(value, ['kind', 'reference', 'digest', 'status']);
+  fields(value, ['kind', 'reference', 'digest', 'status', ...(value && typeof value === 'object' && Object.hasOwn(value, 'dispatchId') ? ['dispatchId'] : [])]);
+  if (Object.hasOwn(value, 'dispatchId') && !uuid(value.dispatchId)) throw new OperatorError('Invalid checkpoint dispatch.');
   if (!['run', 'implementation', 'continuation', 'preparation', 'stage', 'team'].includes(value.kind as string) || !text(value.reference) || typeof value.digest !== 'string' || !/^[a-f0-9]{64}$/.test(value.digest) || !['checkpoint', 'paused', 'attention', 'approval', 'complete'].includes(value.status as string)) throw new OperatorError('Invalid operation checkpoint.');
+}
+function parsePhase(value: unknown): asserts value is PhaseIdentity {
+  fields(value, ['kind', 'reference']);
+  if (!['preparing', 'repairing', 'building', 'verifying', 'reviewing', 'staging', 'applying', 'recovering'].includes(value.kind as string) || !text(value.reference)) throw new OperatorError('Invalid operation phase.');
 }
 export function parseOperation(value: unknown): DurableOperation {
   fields(value, ['version', 'id', 'revision', 'previous', 'owner', 'command', 'state', 'updated', 'dispatches', 'checkpoints', 'progress']);
   if (value.version !== 1 || !uuid(value.id) || !uuid(value.owner) || (value.previous !== null && !uuid(value.previous)) || !Number.isSafeInteger(value.revision) || Number(value.revision) < 0 || !text(value.command) || !['running', 'returned', 'failed', 'interrupted'].includes(value.state as string) || typeof value.updated !== 'string' || !Number.isFinite(Date.parse(value.updated)) || !Array.isArray(value.dispatches) || value.dispatches.length > 1024 || !Array.isArray(value.checkpoints) || value.checkpoints.length > 1024) throw new OperatorError('Invalid durable operation.');
   const ids = new Set<string>();
   for (const d of value.dispatches) {
-    fields(d, ['id', 'parent', 'command', 'state']);
+    fields(d, ['id', 'parent', 'command', 'state', ...(d && typeof d === 'object' && Object.hasOwn(d, 'phase') ? ['phase'] : [])]);
+    if (d.phase !== undefined) parsePhase(d.phase);
     if (!uuid(d.id) || ids.has(d.id) || (d.parent !== null && !ids.has(String(d.parent))) || !text(d.command) || !['reserved', 'returned', 'failed', 'uncertain'].includes(d.state as string)) throw new OperatorError('Invalid operation dispatch.');
     ids.add(d.id);
   }
-  for (const c of value.checkpoints) checkpoint(c);
+  for (const c of value.checkpoints) {
+    checkpoint(c);
+    if (c.dispatchId !== undefined && !ids.has(c.dispatchId)) throw new OperatorError('Unknown checkpoint dispatch.');
+  }
   if (value.progress !== null) {
     checkpoint(value.progress);
     if (JSON.stringify(value.progress) !== JSON.stringify(value.checkpoints.at(-1))) throw new OperatorError('Operation progress does not match its checkpoint.');
@@ -117,33 +130,63 @@ export async function checkpointOperation(project: string, value: OperationCheck
   const frame = context.getStore();
   if (!frame || frame.session.lease.project !== canonical(project)) return;
   if (frame.closed) throw new OperatorError('Operation dispatch has finished.');
+  if (value.dispatchId !== undefined && value.dispatchId !== frame.dispatch) throw new OperatorError('Checkpoint belongs to another dispatch.');
+  const saved = {...value, dispatchId: frame.dispatch};
   await update(frame.session, next => {
-    next.checkpoints.push(structuredClone(value));
-    next.progress = structuredClone(value);
+    next.checkpoints.push(structuredClone(saved));
+    next.progress = structuredClone(saved);
   });
 }
 export function trackedCommand(command: string): boolean {
-  return command === 'recover-application' || command === 'undo' || command === 'work' || command === 'continue' || command === 'team' || /^checks(?: |$)/.test(command) || /^stage /.test(command);
+  return command === 'recover-application' || command === 'application recovery' || command === 'undo' || command === 'work' || command === 'continue' || command === 'team' || /^checks(?: |$)/.test(command) || /^stage /.test(command);
 }
-async function dispatch<T>(session: Session, command: string, parent: string | null, action: () => Promise<T>): Promise<T> {
-  const id = randomUUID(), frame: Frame = {session, dispatch: id, closed: false};
-  await update(session, next => { next.dispatches.push({id, parent, command, state: 'reserved'}); });
-  try {
-    const result = await context.run(frame, action);
-    frame.closed = true;
-    await update(session, next => { next.dispatches.find(d => d.id === id)!.state = 'returned'; });
-    return result;
-  } catch (error) {
-    frame.closed = true;
-    await update(session, next => { next.dispatches.find(d => d.id === id)!.state = 'failed'; });
-    throw error;
+/** The phase scope owns dispatch, not the evidence verdict produced by its callback. */
+export async function withOperationPhase<T>(project: string, kind: OperationPhase, reference: string, action: () => Promise<T>): Promise<T> {
+  const frame = context.getStore();
+  if (!frame || frame.session.lease.project !== canonical(project)) throw new OperatorError('A phase requires its project operation owner.');
+  const phase = {kind, reference};
+  parsePhase(phase);
+  return childDispatch(frame, `phase ${kind}`, action, phase);
+}
+function childDispatch<T>(parent: Frame, command: string, action: () => Promise<T>, phase?: PhaseIdentity): Promise<T> {
+  if (parent.closed || parent.session.closed) throw new OperatorError('Operation owner has finished.');
+  if (parent.child) throw new OperatorError('An operation child is already active; await it before dispatching another phase.');
+  // Claim the in-process slot synchronously, before the durable reservation awaits I/O.
+  const work = dispatch(parent.session, command, parent.dispatch, action, phase);
+  const tracked = work.finally(() => { if (parent.child === tracked) parent.child = null; });
+  parent.child = tracked;
+  return tracked;
+}
+async function dispatch<T>(session: Session, command: string, parent: string | null, action: () => Promise<T>, phase?: PhaseIdentity): Promise<T> {
+  const id = randomUUID(), frame: Frame = {session, dispatch: id, closed: false, child: null};
+  await update(session, next => { next.dispatches.push({id, parent, command, state: 'reserved', ...(phase ? {phase} : {})}); });
+  let result!: T, failure: unknown, failed = false;
+  try { result = await context.run(frame, action); }
+  catch (error) { failure = error; failed = true; }
+  frame.closed = true;
+  if (frame.child) {
+    // Never release the writer while dispatched work can still produce effects.
+    // Drain the already-started child, but reject the programming error instead of reporting success.
+    await frame.child.catch(() => {});
+    if (!failed) { failed = true; failure = new OperatorError('Operation callback did not await its active child.'); }
   }
+  await update(session, next => { next.dispatches.find(d => d.id === id)!.state = failed ? 'failed' : 'returned'; });
+  if (failed) throw failure;
+  return result;
+}
+function commandPhase(command: string): PhaseIdentity | undefined {
+  const kind: OperationPhase | undefined = command === 'checks prepare' || command === 'checks setup' || command === 'checks draft' ? 'preparing'
+    : /^checks (repair|simplify|regenerate)/.test(command) ? 'repairing'
+    : command === 'checks review' || command === 'checks approve' || command === 'checks recipe' || command === 'stage review' ? 'reviewing'
+    : command === 'stage apply' || command === 'undo' ? 'applying'
+    : command === 'recover-application' || command === 'application recovery' ? 'recovering' : undefined;
+  return kind ? {kind, reference: command} : undefined;
 }
 export async function withOperation<T>(lease: Lease, command: string, action: () => Promise<T>): Promise<T> {
   const parent = context.getStore();
   if (parent && parent.session.lease.project === lease.project) {
     if (parent.closed || parent.session.closed) throw new OperatorError('Operation owner has finished.');
-    return dispatch(parent.session, command, parent.dispatch, action);
+    return childDispatch(parent, command, action, commandPhase(command));
   }
   if (!trackedCommand(command)) return action();
   const previous = await readOperation(lease.project);
@@ -172,7 +215,7 @@ export async function withOperation<T>(lease: Lease, command: string, action: ()
   await writeRecord(lease, replacementExpected, record);
   const session: Session = {lease, record, writes: Promise.resolve(), closed: false};
   try {
-    const result = await dispatch(session, command, null, action);
+    const result = await dispatch(session, command, null, action, commandPhase(command));
     await update(session, next => { next.state = 'returned'; });
     return result;
   } catch (error) {
@@ -180,10 +223,19 @@ export async function withOperation<T>(lease: Lease, command: string, action: ()
     throw error;
   } finally { session.closed = true; }
 }
+export function operationProjection(record: DurableOperation): {detail: string; unresolved: boolean} {
+  const phases = record.dispatches.filter(d => d.phase);
+  const selected = phases.findLast(d => d.state === 'reserved' || d.state === 'uncertain') ?? phases.at(-1);
+  return {
+    detail: selected ? `Recorded phase: ${selected.phase!.kind} · ${selected.phase!.reference} · ${selected.state}.` : 'No phase dispatch is recorded.',
+    unresolved: record.state === 'running' || record.state === 'interrupted',
+  };
+}
 export async function describeOperation(project: string, write: (message: string) => void): Promise<void> {
   const record = await readOperation(project);
   if (!record) return;
   write(`Operation ${record.id} · revision ${record.revision} · ${record.command}: ${record.state} (last recorded execution).`);
+  write(operationProjection(record).detail);
   if (record.progress) write(`Saved ${record.progress.kind}: ${record.progress.status} · ${record.progress.reference}.`);
   if (record.state === 'running') write('A running record is not a liveness claim. Inspect writer ownership before recovery.');
   write('Execution status does not grant application approval or prove task completion.');

@@ -58,3 +58,16 @@ Compatibility checkpoints pin saved domain facts by kind, reference and digest. 
 Records are bounded to 1,024 dispatches, 1,024 checkpoints and 2 MiB. Reaching a limit stops rather than silently dropping history. Project-wide retention/pruning remains hr-033. The service is a cooperating host-writer boundary, not protection against arbitrary malicious native code running as the operator.
 
 Remaining hr-024 work: adopt the shared phase/event model as controller authority, consolidate selection/transition APIs beyond command-entry reservations, and qualify crash/restart composition of those phase transitions before declaring the task complete.
+
+
+### Phase dispatch adoption
+
+The same `operations/current.json` now reserves concrete phase scopes before their callbacks: preparing, repairing, building, verifying, reviewing, staging, applying and recovering. A dispatch may carry `{kind, reference}` phase metadata. This is additive within the execution envelope; old command-only records still parse. New checkpoints name their producing dispatch, and the parser rejects unknown dispatch references. Callers cannot attribute a checkpoint to a different phase.
+
+Ordinary work enters these scopes around builder execution, claim repair, candidate gates, independent review, acceptance execution, stage publication and application intent/commit. Continuation delegates its preparation/review/build callbacks through the same service. Preparation and team commands adapt their existing saved decisions and event journals; team worker scheduling remains inside its existing controller. Staged apply and the internal `application recovery` command also enter the shared dispatcher. Work-attempt pointers retain the operation ID.
+
+Sibling scopes cannot run concurrently on the same inherited operation frame. An accidentally unawaited child holds its parent's writer until it settles; the parent then fails instead of reporting success. A child that has already started is drained, not silently abandoned. Its existing execution timeout remains responsible for bounding it. Finished frames cannot start new phase callbacks. The writer token and complete expected operation record are checked before publishing every reservation.
+
+CLI and dashboard obtain the recorded phase from one projection. `returned` still means only that the callback returned. Pauses, attention, approval and completion remain backed by saved domain records; neither a phase label nor recovery generates evidence or authorization. Journal recovery retains the original intent's operation ID even though a new operation performs recovery.
+
+This is phase-dispatch adoption, not full domain-state consolidation. Preparation selection, continuation allowances and team event reduction still use their compatibility stores. Completing hr-024 requires consolidating those phase-selection/status transitions with explicit migration and reconciliation of old records. Request accounting and retry policy remain hr-026/hr-027.

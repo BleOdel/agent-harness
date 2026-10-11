@@ -1,3 +1,4 @@
+import {readOperation} from '../src/workflow/operations.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {mkdtemp,mkdir,readFile,writeFile,rm,stat,chmod} from 'node:fs/promises';
@@ -39,11 +40,21 @@ for(const point of ['intent','prepared:a','replaced:a','write:a','prepared:b','r
  try{
   const module=new URL('../src/workspace/application.ts',import.meta.url).href,writer=new URL('../src/workspace/writer-lock.ts',import.meta.url).href;
   const input={project:f.project,source:f.candidate,expected:f.baseline,featuresAfter:after,record:{id:'r1',at:'now',project:f.project,goal:'task',attempts:1,outcome:'applied',changes:[],gates:[]}};
-  const script=`import {beginApplication,finishApplication} from ${JSON.stringify(module)};import {withWriter} from ${JSON.stringify(writer)};const input=JSON.parse(process.argv[1]);await withWriter(input.project,'test',async()=>{const i=await beginApplication(input.project,input);await finishApplication(i,{checkpoint:p=>{if(p===process.argv[2])process.kill(process.pid,'SIGKILL');}});});`;
+  const operationModule=new URL('../src/workflow/operations.ts',import.meta.url).href;
+  const script=`import {withOperationPhase} from ${JSON.stringify(operationModule)};import {beginApplication,finishApplication} from ${JSON.stringify(module)};import {withWriter} from ${JSON.stringify(writer)};const input=JSON.parse(process.argv[1]);await withWriter(input.project,'work',()=>withOperationPhase(input.project,'applying','r1',async()=>{const i=await beginApplication(input.project,input);await finishApplication(i,{checkpoint:p=>{if(p===process.argv[2])process.kill(process.pid,'SIGKILL');}});}));`;
   await assert.rejects(execute(process.execPath,['--input-type=module','-e',script,JSON.stringify(input),point]),(e:any)=>e.signal==='SIGKILL');
+  const interrupted=(await readOperation(f.project))!;
+  assert.equal(interrupted.dispatches.at(-1)?.phase?.kind,'applying');
+  assert.equal(interrupted.dispatches.at(-1)?.state,'reserved');
   const lock=JSON.parse(await readFile(f.project+'-harness.writer-lock','utf8'));
   const recover=`import {recoverWriter} from ${JSON.stringify(writer)};import {recoverPendingApplication} from ${JSON.stringify(module)};await recoverWriter(process.argv[1],process.argv[2]);await recoverPendingApplication(process.argv[1]);`;
   await execute(process.execPath,['--input-type=module','-e',recover,f.project,lock.token]);assert.equal((await readRecord(f.project)).runs.length,1);assert.equal(await readFile(f.project+'/features.json','utf8'),after);assert.equal(await readFile(f.project+'/b','utf8'),'after');assert.equal((await stat(f.project+'/b')).mode&0o111,0o111);
+  const resumed=(await readOperation(f.project))!;
+  assert.equal(resumed.previous,interrupted.id);
+  assert.equal(resumed.state,'returned');
+  const archive=JSON.parse(await readFile(f.project+'-harness/operations/history/'+interrupted.id+'.json','utf8'));
+  assert.equal(archive.dispatches.at(-1).state,'uncertain');
+  assert.equal((await readRecord(f.project)).runs[0]!.operationId,interrupted.id);
  }finally{await f.close();}
 });
 

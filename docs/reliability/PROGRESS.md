@@ -133,3 +133,14 @@ Saved run, implementation, continuation, preparation, stage and team facts are r
 The complete phase-service migration is deliberately not marked done: this batch owns command execution, while legacy domain controllers still own task/phase progression behind compatibility adapters. hr-024 remains open; completed count remains **23/45**. Request accounting and autonomous retry policy remain hr-026/hr-027. This is not yet the promised uninterrupted end-to-end workflow.
 
 Validation: `npm run check`: 1,201 tests, 1,129 passed, 72 explicitly skipped, zero failures. Required Docker/Chromium smoke passed 13/13 without skips. Six deliberately restored defects were detected. Evidence: `evidence/operation-ownership-validation.json` and `evidence/operation-ownership-controls.json`. The suite caught an import-cycle regression; the shared artifact reader is now independent of the planning/runtime registry. No paid model calls, new dependencies or live blog changes were made.
+
+
+## Shared phase dispatch (hr-024 adoption; task remains open)
+
+Concrete preparation, repair, build, verification, review, staging, application and recovery callbacks now reserve their phase through the durable operation service. Continuation and team adapters retain their existing budget, approval and event-journal decisions. Work-attempt pointers carry the owner ID; saved progress names its producing dispatch. CLI and dashboard share phase projection.
+
+Fixed two ownership gaps discovered during adoption: returning with an unawaited child could release the project writer while that child was still working, and the internal `application recovery` command was missing from tracked operation commands. The former now drains the child under the same lock and fails the parent; the latter records recovery without changing the original application identity.
+
+Qualification includes real process death across phase boundaries and 13 application-journal boundaries, stale-state rejection before side effects, phase provenance, continuation resume without rebuilding staged work, and actual ordinary-work dispatch observations using deterministic external-process fixtures. Seven deliberately restored defects are detected. Full-suite and installed Docker/Chromium qualification are recorded in `evidence/phase-dispatch-validation.json`; mutation results are in `evidence/phase-dispatch-controls.json`.
+
+hr-024 remains open for shared phase-selection/status authority and legacy reconciliation beyond dispatch. This is not a claim that the whole reliability plan or unattended workflow is complete. Completed task count remains **23/45**. No blog state, model credentials or installed dependencies were changed; no paid model requests were made.

@@ -186,3 +186,5 @@ Older receipts are read without rewriting them or inventing missing observations
 ## Current Group 2 increment
 
 The command-ownership foundation is implemented for hr-024. Work, continuation, checks, staging and teams now record one durable execution owner with pre-dispatch reservations and referenced checkpoints. This does not yet replace all domain phase controllers; hr-024 remains open. See [progress](PROGRESS.md), [state boundaries](STATE-CONTRACTS.md), and [qualification](evidence/operation-ownership-validation.json). No model allowance or approval changes implicitly.
+
+Phase-dispatch adoption and its remaining scope are documented in [PROGRESS.md](PROGRESS.md) and [STATE-CONTRACTS.md](STATE-CONTRACTS.md). hr-024 is still open; execution receipts are not acceptance evidence.

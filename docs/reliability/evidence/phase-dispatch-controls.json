@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "method": "Each defect was introduced independently in a separate disposable copy; the selected regression failed an assertion. Original bytes were restored after each trial. No live provider calls.",
+  "controls": [
+    {
+      "id": "sibling-dispatch",
+      "mutation": {
+        "file": "src/workflow/operations.ts",
+        "before": "  if (parent.child) throw new OperatorError('An operation child is already active; await it before dispatching another phase.');",
+        "after": ""
+      },
+      "regression": "test/workflow-phases.test.ts",
+      "testNamePattern": "phases require an active owner",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "f65e557637e265e81573c6508dcfd6db15af8bcdd1c089e7d0a2cf0f9a770f2c"
+    },
+    {
+      "id": "unawaited-child",
+      "mutation": {
+        "file": "src/workflow/operations.ts",
+        "before": "  if (frame.child) {",
+        "after": "  if (false) {"
+      },
+      "regression": "test/workflow-phases.test.ts",
+      "testNamePattern": "a parent cannot release",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "932e33d03ff5bf544d3c37afa6cdcbfda4154d321d85b010806dd271c0b1705e"
+    },
+    {
+      "id": "phase-reservation",
+      "mutation": {
+        "file": "src/workflow/operations.ts",
+        "before": "  return childDispatch(frame, `phase ${kind}`, action, phase);",
+        "after": "  return action();"
+      },
+      "regression": "test/workflow-phases.test.ts",
+      "testNamePattern": "phase reservations precede work",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "ea4788feae90370b20dd98856138a9e36e7f0a26153e9b5187be308cf8e03b8d"
+    },
+    {
+      "id": "stale-state",
+      "mutation": {
+        "file": "src/workflow/operations.ts",
+        "before": "    if (JSON.stringify(await readOperation(lease.project)) !== JSON.stringify(expected)) throw new OperatorError('Stale operation or owner; refusing state replacement.');",
+        "after": ""
+      },
+      "regression": "test/workflow-phases.test.ts",
+      "testNamePattern": "phase dispatch refuses stale",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "17ede797748434f5d9954d17cc470d9d9ea8e11cdea76e2d97eae5383fb45cf2"
+    },
+    {
+      "id": "checkpoint-provenance",
+      "mutation": {
+        "file": "src/workflow/operations.ts",
+        "before": "const saved = {...value, dispatchId: frame.dispatch};",
+        "after": "const saved = {...value, dispatchId: frame.session.record.dispatches[0]!.id};"
+      },
+      "regression": "test/workflow-phases.test.ts",
+      "testNamePattern": "saved progress binds",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "fb61b3853def373b9b001cefb6e662d62e4008e504b90224b557156938491ba3"
+    },
+    {
+      "id": "phase-failure",
+      "mutation": {
+        "file": "src/workflow/operations.ts",
+        "before": "next.dispatches.find(d => d.id === id)!.state = failed ? 'failed' : 'returned';",
+        "after": "next.dispatches.find(d => d.id === id)!.state = 'returned';"
+      },
+      "regression": "test/staged-review.test.ts",
+      "testNamePattern": "interrupted application reserves",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "dbacd5ed90072c13ce32fa1eff9232272805dbbb37ea0cffcf63feb49fdd651f"
+    },
+    {
+      "id": "controller-dispatch",
+      "mutation": {
+        "file": "src/workflow/controller.ts",
+        "before": "await dispatch('building', s.build)",
+        "after": "await s.build()"
+      },
+      "regression": "test/workflow-phases.test.ts",
+      "testNamePattern": "resumed continuation dispatches only",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "cc93ac8526442707b87efdc31066a6e6a5a01f76021839e50ed344521ee6672c"
+    }
+  ]
+}

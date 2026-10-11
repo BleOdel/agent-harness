@@ -1,3 +1,4 @@
+import {readOperation} from '../src/workflow/operations.ts';
 import {receiptRuntimeFixture} from './evidence-fixture.ts';
 import {runSnapshotPath} from '../src/record/record.ts';
 import test from 'node:test';
@@ -59,9 +60,18 @@ test('application requires final review, preserves undo data, marks the task don
 test('interrupted application reserves its run, blocks other writers and resumes exact bytes once',()=>fixture(async(root,p)=>{
  const {stage}=await staged(root,p);await approveStage(p,stage);
  await assert.rejects(applyStage(p,'r1',async point=>{if(point==='file:app.js')throw Error('simulated crash');}),/simulated crash/);
+ const stopped=(await readOperation(p))!;
+ assert.equal(stopped.state,'failed');
+ assert.ok(stopped.dispatches.some(d=>d.phase?.kind==='applying'&&d.phase.reference==='r1'&&d.state==='failed'));
  await assert.rejects(withWriter(p,'work',async()=>assert.fail()),/application requires recovery/);
  assert.equal(await nextRunId(p),'r3');
  await applyStage(p,'r1');assert.equal((await readRecord(p)).runs.length,1);assert.equal((await readStage(p,'r1')).status,'applied');
+ const recovered=(await readOperation(p))!;
+ assert.equal(recovered.previous,stopped.id);
+ assert.equal(recovered.state,'returned');
+ assert.ok(recovered.dispatches.some(d=>d.phase?.reference==='r1'&&d.state==='returned'));
+ assert.equal((await readRecord(p)).runs[0]!.operationId,stopped.id,'recovery preserves the original application identity');
+
  await withWriter(p,'work',async()=>{});
 }));
 test('interrupted application refuses external edits and changed approved expectations',()=>fixture(async(root,p)=>{
