@@ -1,3 +1,4 @@
+import {receiptRuntimeFixture} from './evidence-fixture.ts';
 import {observationFixture} from './fixtures/browser-observations.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -126,7 +127,7 @@ test('current CLI evidence can pass; subsequent failed acceptance cannot be hidd
  const source=await captureBaseline(f.project,path.join(f.root,'source'));
  await recordDiagnostics(f.project,source.digest,[{name:'tests',status:'passed',summary:'Observed assertions'}]);
  const root=f.project+'-harness/acceptance/results';await mkdir(root,{recursive:true});
- const saved={version:1,at:'2026-01-01T00:00:00Z',project:f.project,tasks:['core'],approvalDigest:approval.digest,candidateDigest:source.digest,outcome:'passed',observations:[{case:'probe',step:1,exitCode:0,timedOut:false}]};
+ const saved={...receiptRuntimeFixture,version:1,at:'2026-01-01T00:00:00Z',project:f.project,tasks:['core'],approvalDigest:approval.digest,candidateDigest:source.digest,outcome:'passed',observations:[{case:'probe',step:1,exitCode:0,timedOut:false,stdoutPreview:'1\n',stdoutHash:sha256('1\n'),files:{}}]};
  await writeFile(path.join(root,randomUUID()+'.json'),JSON.stringify(saved));
  const report=await productReport(f.project);assert.equal(report.checks.find(c=>c.id==='acceptance:core')?.status,'passed');
  await recordAssessment(f.project,report.source!,report.spec!,true,'Inspected the full CLI workflow and coverage limits.');

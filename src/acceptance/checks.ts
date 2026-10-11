@@ -1,3 +1,5 @@
+import {acceptanceEnvelope,acceptanceRuntime,assessAcceptance,assertCommandObservations,addEvidence,type AcceptanceEnvelope} from '../evidence/acceptance.ts';
+import {evidenceHash,type DeliveryMode} from '../evidence/admission.ts';
 import {assertBrowserEvidence} from './browser-evidence.ts';
 import {verifyBrowserCandidate} from '../browser/controller.ts';
 import {caseKind,type EvidenceKind} from './evidence-kind.ts';
@@ -142,6 +144,8 @@ export async function assertApprovalCurrent(project:string,expected:Approval):Pr
  if((await readApproval(project))?.digest!==expected.digest)throw new OperatorError("Acceptance checks changed during this run. Re-verify before applying.");
 }
 export interface AcceptanceProof {
+  evidenceDigest?: string;
+  runtimeDigest?: string;
   approvalDigest: string;
   candidateDigest: string;
   evidencePath: string;
@@ -158,35 +162,58 @@ export class AcceptanceFailure extends OperatorError {
 
 /** The caller is trusted host code; a candidate never receives this evidence directory. */
 export async function assertAcceptanceProof(project: string, candidate: Snapshot, tasks: readonly string[], proof?: AcceptanceProof): Promise<void> {
-  return assertProof(project,candidate,tasks,proof,false);
+  await assertProof(project,candidate,tasks,proof,false);
 }
 export async function assertAutomatedAcceptanceProof(project:string,candidate:Snapshot,tasks:readonly string[],proof?:AcceptanceProof,legacyRecovery=false):Promise<void>{
-  return assertProof(project,candidate,tasks,proof,true,legacyRecovery);
+  await assertProof(project,candidate,tasks,proof,true,legacyRecovery);
 }
-async function assertProof(project:string,candidate:Snapshot,tasks:readonly string[],proof:AcceptanceProof|undefined,staging:boolean,legacyRecovery=false):Promise<void>{
+export async function acceptanceAdmission(project:string,candidate:Snapshot,tasks:readonly string[],proof:AcceptanceProof|undefined,route:DeliveryMode,legacyRecovery=false):Promise<AcceptanceEnvelope>{
+  return assertProof(project,candidate,tasks,proof,true,legacyRecovery,route);
+}
+async function assertProof(project:string,candidate:Snapshot,tasks:readonly string[],proof:AcceptanceProof|undefined,staging:boolean,legacyRecovery=false,route:DeliveryMode=staging?'staged':'ordinary'):Promise<AcceptanceEnvelope>{
   if (!proof) throw new OperatorError("Application requires approved acceptance evidence.", "Run verification before applying this candidate.");
   const approved = await requireApprovedChecks(project, tasks, staging);
   tasks=await acceptanceTaskScope(project,tasks,approved);
   const root = path.join(harnessDirectory(await realpath(project)), "acceptance", "results");
   if (path.dirname(proof.evidencePath) !== root || !/^[a-f0-9-]+\.json$/u.test(path.basename(proof.evidencePath))) throw new OperatorError("Invalid acceptance evidence location.");
-  const evidence = JSON.parse(await readArtifact(root, path.basename(proof.evidencePath)) ?? "null");
-  if (!evidence || evidence.version !== 1 || evidence.outcome !== (staging ? "automated-passed" : "passed")
+  const original = await readArtifact(root, path.basename(proof.evidencePath),16*1024*1024);
+  if(!original||(proof.evidenceDigest!==undefined&&evidenceHash(original)!==proof.evidenceDigest))throw new OperatorError("Acceptance evidence artifact is missing or changed.");
+  const evidence = JSON.parse(original);
+  if (!evidence || evidence.version !== 1 || !(["passed","automated-passed"].includes(evidence.outcome))
     || evidence.project !== await realpath(project) || evidence.approvalDigest !== approved.digest
     || evidence.approvalDigest !== proof.approvalDigest || evidence.candidateDigest !== candidate.digest
     || proof.candidateDigest !== candidate.digest || !Array.isArray(evidence.tasks)
     || tasks.some(t => !evidence.tasks.includes(t))) throw new OperatorError("Acceptance evidence does not cover the current candidate and approved checks.");
-  if(staging){
-    const selected=approved.manifest.cases.filter(c=>c.tasks.includes('*')||c.tasks.some(t=>tasks.includes(t)));
-    if(JSON.stringify(evidence.manualPending)!==JSON.stringify(selected.filter(c=>caseKind(c)==='manual').map(c=>c.id)))throw new OperatorError('Automated evidence lost pending manual requirements.');
-    for(const c of selected.filter(c=>caseKind(c)==='command'))for(const [index,step] of c.steps.entries()){
-      const o=evidence.observations?.filter((v:{case:string;step:number})=>v.case===c.id&&v.step===index+1);
-      if(o?.length!==1||o[0].timedOut||o[0].exitCode!==step.exitCode)throw new OperatorError('Automated evidence has incomplete command observations.');
+  const selected=approved.manifest.cases.filter(c=>c.tasks.includes('*')||c.tasks.some(t=>tasks.includes(t)));
+  if((selected.some(c=>caseKind(c)==='manual')&&evidence.outcome!=='automated-passed')||(evidence.outcome==='automated-passed'&&JSON.stringify(evidence.manualPending)!==JSON.stringify(selected.filter(c=>caseKind(c)==='manual').map(c=>c.id))))throw new OperatorError('Automated evidence lost pending manual requirements.');
+  const observations=structuredClone(evidence.observations);
+  const outputArtifacts:{id:string;bytes:Buffer;caseId:string}[]=[];
+  for(const o of Array.isArray(observations)?observations:[]){
+    if(o?.stdoutArtifact!==undefined){
+      const prefix=path.basename(proof.evidencePath,'.json')+'-output-';
+      if(typeof o.stdoutArtifact!=='string'||!o.stdoutArtifact.startsWith(prefix)||!/^[-a-f0-9]+-output-[0-9]+-[0-9]+\.txt$/u.test(o.stdoutArtifact))throw new OperatorError('Invalid command evidence output artifact.');
+      const output=await readArtifact(root,o.stdoutArtifact,2*1024*1024);
+      if(output===undefined||hash(output)!==o.stdoutHash)throw new OperatorError('Command evidence output artifact is missing or changed.');
+      o.stdout=output;outputArtifacts.push({id:'acceptance/results/'+o.stdoutArtifact,bytes:Buffer.from(output),caseId:o.case});
     }
   }
+  for(const c of selected.filter(c=>caseKind(c)==='command'))assertCommandObservations(c,observations);
   for(const check of approved.manifest.cases.filter(c=>caseKind(c)==='browser'&&(c.tasks.includes('*')||c.tasks.some(t=>tasks.includes(t)))))await assertBrowserEvidence(project,check,approved.browserRuntime,candidate.digest,evidence.browserObservations);
-  if (candidate.executionDigest) assertExecutionPin(evidence.execution);
-  if (candidate.executionDigest && (proof.executionDigest !== candidate.executionDigest || evidence.execution?.digest !== candidate.executionDigest)) throw new OperatorError("Acceptance evidence does not match the candidate execution environment.");
+  if (candidate.executionDigest||proof.executionDigest) assertExecutionPin(evidence.execution);
+  if ((candidate.executionDigest && proof.executionDigest !== candidate.executionDigest) || ((candidate.executionDigest||proof.executionDigest)&&evidence.execution?.digest !== (candidate.executionDigest??proof.executionDigest))) throw new OperatorError("Acceptance evidence does not match the candidate execution environment.");
+  const runtime=acceptanceRuntime(evidence,candidate.executionDigest??proof.executionDigest??null);
+  if(proof.runtimeDigest!==undefined&&proof.runtimeDigest!==runtime)throw new OperatorError('Acceptance runtime evidence changed.');
   await assertSnapshot(candidate,legacyRecovery);
+  const approvedRaw=await readArtifact(path.dirname(approvalPath(project)),"approved.json");
+  if(!approvedRaw||JSON.parse(approvedRaw).digest!==approved.digest)throw new OperatorError('Acceptance approval changed during admission.');
+  const bundle=acceptanceEnvelope(route,approved,candidate.digest,candidate.executionDigest??proof.executionDigest??null,selected,{approval:Buffer.from(approvedRaw),result:Buffer.from(original),resultId:path.relative(harnessDirectory(project),proof.evidencePath)});
+  for(const output of outputArtifacts)if(selected.some(c=>c.id===output.caseId))addEvidence(bundle,output.id,{bytes:output.bytes,fact:{kind:'automatic',binding:bundle.binding,obligations:[output.caseId],verdict:'passed',limitations:[]}});
+  const result=await assessAcceptance(bundle);
+  if(!['verified','automated-passed'].includes(result.status)||(!staging&&result.status!=='verified'))throw new OperatorError('Acceptance evidence is incomplete: '+[...result.missing,...result.failures].join('; '));
+  if(await readArtifact(root,path.basename(proof.evidencePath),16*1024*1024)!==original)throw new OperatorError('Acceptance evidence changed during admission.');
+  for(const output of outputArtifacts)if(await readArtifact(root,path.basename(output.id),2*1024*1024)!==output.bytes.toString())throw new OperatorError('Command evidence output changed during admission.');
+  await assertApprovalCurrent(project,approved);
+  return bundle;
 }
 
 export async function verifyAcceptance(project: string, candidate: Snapshot, tasks: readonly string[], config: Config, approved: Approval, execution?: ExecutionPin): Promise<AcceptanceResult> {
@@ -209,7 +236,7 @@ async function verifyApproved(project:string,candidate:Snapshot,tasks:readonly s
   const proof: AcceptanceProof = { ...(execution ? { executionDigest: execution.digest } : {}), approvalDigest: approved.digest, candidateDigest: candidate.digest, evidencePath: path.join(evidenceRoot, `${randomUUID()}.json`) };
   let environmentKey: string | undefined;
   const browserObservations:{case:string;run:string;source?:string;status:string}[]=[];
-  const observations: { runner?: ReturnType<typeof dockerRunner.evidence>; case: string; step: number; exitCode: number | null; timedOut: boolean; stdoutHash: string; stdoutPreview: string; stderrTail: string; files: Record<string, string | null> }[] = [];
+  const observations: { runner?: ReturnType<typeof dockerRunner.evidence>; case: string; step: number; exitCode: number | null; timedOut: boolean; stdoutArtifact?: string; outputLimited: boolean; stdoutHash: string; stdoutPreview: string; stderrTail: string; files: Record<string, string | null> }[] = [];
   const save = async (outcome: "passed" | "failed", error?: string) => atomicWrite(proof.evidencePath, JSON.stringify({
     version: 1, at: new Date().toISOString(), project, ...proof, execution, adapter: adapter.reference, runner: dockerRunner.reference, image: config.imageId, environmentKey, tasks, outcome: outcome === "passed" && staging ? "automated-passed" : outcome, ...(staging ? {manualPending:approved.manifest.cases.filter(c=>caseKind(c)==='manual'&&(c.tasks.includes('*')||c.tasks.some(t=>tasks.includes(t)))).map(c=>c.id)} : {}), observations, browserObservations, ...(error ? { error } : {}),
   }, null, 2) + "\n");
@@ -228,6 +255,7 @@ async function verifyApproved(project:string,candidate:Snapshot,tasks:readonly s
     let assetHelpers:string|undefined,recipeHelpers:string|undefined;
     const environment = await adapter.prepare(candidate.directory, path.join(root, "environment"), base, config.gateTimeoutMs, config.installPolicy);
     environmentKey = environment.key;
+    proof.runtimeDigest=acceptanceRuntime({image:config.imageId,adapter:adapter.reference,runner:dockerRunner.reference,environmentKey},execution?.digest??null);
     const selected = approved.manifest.cases.filter(c => c.tasks.includes("*") || tasks.some(t => c.tasks.includes(t)));
     if (!selected.length) throw new OperatorError("No approved acceptance cases apply to this work.");
     for (const [index, check] of selected.entries()) {
@@ -250,7 +278,12 @@ async function verifyApproved(project:string,candidate:Snapshot,tasks:readonly s
       for (const [number, step] of check.steps.entries()) {
         const label = `acceptance ${check.id}, step ${number + 1}`;
         const result = await runContained(layout, buildVerificationArguments(layout, "none", step.command), { timeoutMs: config.gateTimeoutMs, maxOutputBytes: 2 * 1024 * 1024 });
-        const observation = { runner: dockerRunner.evidence(layout, result), case: check.id, step: number + 1, exitCode: result.code, timedOut: result.timedOut, stdoutHash: hash(result.stdout), stdoutPreview: result.stdout.slice(0, 4000), stderrTail: result.stderr.slice(-2000), files: Object.create(null) as Record<string, string | null> };
+        const observation = { runner: dockerRunner.evidence(layout, result), case: check.id, step: number + 1, exitCode: result.code, timedOut: result.timedOut, outputLimited: !!result.outputLimited, stdoutHash: hash(result.stdout), stdoutPreview: result.stdout.slice(0, 4000), stderrTail: result.stderr.slice(-2000), files: Object.create(null) as Record<string, string | null> };
+        if(!result.outputLimited&&result.stdout.length>4000){
+          const output=path.basename(proof.evidencePath,'.json')+`-output-${index}-${number}.txt`;
+          await atomicWrite(path.join(evidenceRoot,output),result.stdout);
+          Object.assign(observation,{stdoutArtifact:output});
+        }
         observations.push(observation);
         if (result.outputLimited) throw new OperatorError(`${label}: application output exceeded 2 MiB.`);
         if (result.timedOut || result.code !== step.exitCode) throw new OperatorError(`${label}: ${result.timedOut ? "timed out" : `expected exit ${step.exitCode}, got ${result.code}`}.`);
@@ -271,7 +304,7 @@ async function verifyApproved(project:string,candidate:Snapshot,tasks:readonly s
     await assertApprovalCurrent(project, approved);
     if (execution) await assertExecutionCompatible(execution, project, config, execution.settings.testCommand);
     await save("passed");
-    return { ...proof, summaries };
+    return { ...proof, evidenceDigest:hash((await readArtifact(evidenceRoot,path.basename(proof.evidencePath),16*1024*1024))!), summaries };
   } catch (error) {
     await save("failed", (error as Error).message);
     throw new AcceptanceFailure((error as Error).message, proof);

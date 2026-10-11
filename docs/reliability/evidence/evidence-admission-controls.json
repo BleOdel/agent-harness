@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "scope": "Provider-free deliberate harness defects in a separate disposable copy",
+  "controls": [
+    {
+      "id": "command-observations",
+      "caught": true,
+      "exitCode": 1,
+      "test": "test/evidence-acceptance.test.ts",
+      "pattern": "ordinary evidence needs actual command",
+      "file": "src/acceptance/checks.ts",
+      "replacement": "for(const c of [])assertCommandObservations(c,observations);",
+      "log": "/tmp/evidence-control-command-observations.log",
+      "sha256": "1ab8a7b2632d51b30508fc957a5ef43757236de7e56cb4acad17248f277a6a1d"
+    },
+    {
+      "id": "artifact-hash",
+      "caught": true,
+      "exitCode": 1,
+      "test": "test/evidence-admission.test.ts",
+      "pattern": "missing, altered and stale artifacts",
+      "file": "src/evidence/admission.ts",
+      "replacement": "",
+      "log": "/tmp/evidence-control-artifact-hash.log",
+      "sha256": "006aaa90ea57def9502fd17dfbdc9e6d73a4ed86e8de981841737f94e763b167"
+    },
+    {
+      "id": "manual-observation",
+      "caught": true,
+      "exitCode": 1,
+      "test": "test/evidence-admission.test.ts",
+      "pattern": "automated-passed cannot waive",
+      "file": "src/evidence/admission.ts",
+      "replacement": "r.kinds.filter(k=>k!=='manual'&&!observed.has(`${r.id}:${k}`))",
+      "log": "/tmp/evidence-control-manual-observation.log",
+      "sha256": "0321d74478e3c02405b7e3ac283b1b116eb0019e4d03e2c189272c44aa769d6c"
+    },
+    {
+      "id": "source-contract",
+      "caught": true,
+      "exitCode": 1,
+      "test": "test/evidence-delivery.test.ts",
+      "pattern": "forged source review flags",
+      "file": "src/evidence/delivery.ts",
+      "replacement": "false",
+      "log": "/tmp/evidence-control-source-contract.log",
+      "sha256": "abc8ae92248294e11cea6d15b5a79c2571964bac8390e0f9cacff044f54cb373"
+    },
+    {
+      "id": "receipt-pin",
+      "caught": true,
+      "exitCode": 1,
+      "test": "test/evidence-acceptance.test.ts",
+      "pattern": "bound new receipt detects",
+      "file": "src/acceptance/checks.ts",
+      "replacement": "false",
+      "log": "/tmp/evidence-control-receipt-pin.log",
+      "sha256": "fd5322f3a431d8c60d315707e724ad6d6dd7b569371471081e3559bfdb63165e"
+    },
+    {
+      "id": "source-pin",
+      "caught": true,
+      "exitCode": 1,
+      "test": "test/evidence-delivery.test.ts",
+      "pattern": "source review artifact pins",
+      "file": "src/evidence/delivery.ts",
+      "replacement": "false",
+      "log": "/tmp/evidence-control-source-pin.log",
+      "sha256": "20df92447e9a78ab1596e4718c13047dac5d326e82925de7efa4a43de63ec33e"
+    },
+    {
+      "id": "final-authorization",
+      "caught": true,
+      "exitCode": 1,
+      "test": "test/evidence-delivery.test.ts",
+      "pattern": "staged automated receipt stays incomplete",
+      "file": "src/evidence/delivery.ts",
+      "replacement": "verdict:'passed'",
+      "log": "/tmp/evidence-control-final-authorization.log",
+      "sha256": "f04d573a2103705cc9579716701d6e7c492112fc2da184ecd5ac8c342008fd54"
+    },
+    {
+      "id": "candidate-binding",
+      "caught": true,
+      "exitCode": 1,
+      "test": "test/evidence-admission.test.ts",
+      "pattern": "missing, altered and stale artifacts",
+      "file": "src/evidence/admission.ts",
+      "replacement": "Object.keys(a).every(k=>k==='candidate'||a[k as keyof EvidenceBinding]===b[k as keyof EvidenceBinding])",
+      "log": "/tmp/evidence-control-candidate-binding.log",
+      "sha256": "00f9dcca4900fb079f4f7ddd384338f01ff755819b31684de2e05f0e0f440334"
+    }
+  ],
+  "passed": true
+}

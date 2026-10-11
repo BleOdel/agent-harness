@@ -43,7 +43,7 @@ export interface RunRecord {
   readonly outcome: Outcome;
   /** One line per gate, as the operator saw them. */
   readonly gates: readonly string[];
-  readonly review?: { readonly verdict: string; readonly findings: readonly string[]; readonly evidencePath?: string };
+  readonly review?: { readonly verdict: string; readonly findings: readonly string[]; readonly evidencePath?: string; readonly evidenceDigest?: string };
   /** What the model cost, summed across the run's turns. */
   readonly usage?: {
     readonly requestedEffort?: string;

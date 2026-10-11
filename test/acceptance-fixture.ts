@@ -1,3 +1,5 @@
+import {receiptRuntimeFixture} from './evidence-fixture.ts';
+import {evidenceHash} from '../src/evidence/admission.ts';
 /** Host-authored proof fixture for journal crash tests; real execution is tested in acceptance.test.ts. */
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -18,6 +20,6 @@ export async function applyTeam(project: string, directory: string, options: App
   await writeFile(source, JSON.stringify({version:1,cases:[{id:"content",tasks:["feature"],steps:[{command:["cat","old.txt"],exitCode:0,stdout:expected}]}]}));
   const approved = await approveChecks(project, source);
   const acceptance = { approvalDigest: approved.digest, candidateDigest: state.baseline.digest, evidencePath: path.join(root, "results", `${randomUUID()}.json`) };
-  await writeFile(acceptance.evidencePath, JSON.stringify({version:1,project:project,...acceptance,outcome:"passed",tasks:["feature"]}));
+  await writeFile(acceptance.evidencePath, JSON.stringify({...receiptRuntimeFixture,version:1,project:project,...acceptance,outcome:"passed",tasks:["feature"],observations:[{case:"content",step:1,exitCode:0,timedOut:false,stdoutPreview:expected,stdoutHash:evidenceHash(expected),files:{}}]}));
   return apply(project, directory, { ...options, acceptance });
 }

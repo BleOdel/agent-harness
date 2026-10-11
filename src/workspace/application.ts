@@ -99,8 +99,11 @@ export async function finishApplication(i:ApplicationIntent,options:ApplicationO
  if(!continuingRollback&&(await assertProductCurrent(i.project))?.digest!==i.before.productDigest)throw Error('Product specification changed since application began; restore it or roll back.');
  await inspectLive(i);
  if(!continuingRollback){
-  if(i.effect?.kind==='stage'){const {readStage,assertStageCurrent,assertStageReview}=await import('../staging/store.ts');const stage=await readStage(i.project,i.effect.id);await assertStageCurrent(i.project,stage,true);await assertStageReview(stage);if(stage.execution){const {assertExecutionCompatible}=await import('../project/execution.ts'),{loadConfig}=await import('../config.ts'),{projectTestCommand}=await import('../project/profile.ts');await assertExecutionCompatible(stage.execution,i.project,loadConfig(),await projectTestCommand(i.project,process.env.HARNESS_TEST_COMMAND));}}
-  else if(i.direction==='apply'&&i.record.acceptance){const {assertAcceptanceProof}=await import('../acceptance/checks.ts');await assertAcceptanceProof(i.project,i.after,i.record.taskIds??[i.record.goal],i.record.acceptance);}
+  if(i.effect?.kind==='stage'){const {readStage,assertStageCurrent,assertStageReview}=await import('../staging/store.ts');const stage=await readStage(i.project,i.effect.id);await assertStageCurrent(i.project,stage,true);await assertStageReview(stage,true);if(stage.execution){const {assertExecutionCompatible}=await import('../project/execution.ts'),{loadConfig}=await import('../config.ts'),{projectTestCommand}=await import('../project/profile.ts');await assertExecutionCompatible(stage.execution,i.project,loadConfig(),await projectTestCommand(i.project,process.env.HARNESS_TEST_COMMAND));}}
+  else if(i.direction==='apply'&&i.record.acceptance){
+   if(!i.effect){const {assertDeliveryAdmission}=await import('../evidence/delivery.ts');await assertDeliveryAdmission(i.project,i.after,i.record.taskIds??[i.record.goal],i.record.acceptance,{route:'ordinary',review:i.record.review});}
+   else {const {assertAcceptanceProof}=await import('../acceptance/checks.ts');await assertAcceptanceProof(i.project,i.after,i.record.taskIds??[i.record.goal],i.record.acceptance);}
+  }
  }
  const history=await readRecord(i.project);if(history.malformed.length)throw Error('Malformed history requires repair before recovery.');
  const committed=history.runs.find(r=>r.id===i.record.id);if(committed&&digest(committed)!==digest(i.record))throw Error('Application record identity conflicts with history.');

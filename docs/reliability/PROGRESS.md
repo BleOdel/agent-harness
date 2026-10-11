@@ -1,10 +1,10 @@
-# Reliability progress — Group 1: routine decisions and reusable checks
+# Reliability progress — Group 2: evidence admission
 
-Completed tasks: hr-001–hr-022 — **22 of 45**. The remaining 23 tasks are open. [Grouped delivery](GROUPS.md) starts next with hr-023–hr-027: common evidence admission and durable execution.
+Completed tasks: hr-001–hr-023 — **23 of 45**. The remaining 22 tasks are open. [Grouped delivery](GROUPS.md) Group 2 has completed common evidence admission; hr-024–hr-027 (durable ownership, structured commands, cumulative allowances and continuation) remain.
 
 The registry covers all 25 findings: 12 fixed at their documented audit scope, 1 reproduced and 12 inspection-only or partially repaired gaps. F01, F13 and F14 now link current positive regressions and restored-defect controls. Historical audit evidence remains unchanged. Noninteractive preparation remains a known desired-behavior failure. Group 1 fixes dependency-scoped peer-review invalidation; unknown legacy dependencies still require fresh review. Browser timing is now qualified at the documented finite-window scope. The full end-to-end reliability program is not complete.
 
-The lifecycle boundary now includes strict event fields, canonical owner paths, atomic expected-record updates under the project writer lock, concurrent-process tests, retained request reservations and opt-in legacy archives. Legacy inspection preserves original text and cannot produce approval or passing application evidence. No existing project was migrated. Controller adoption and orchestration remain hr-024; common evidence admission remains hr-023; the shared application journal now implements hr-010.
+At the foundation checkpoint, the lifecycle boundary included strict event fields, canonical owner paths, atomic expected-record updates under the project writer lock, concurrent-process tests, retained request reservations and opt-in legacy archives. Legacy inspection preserves original text and cannot produce approval or passing application evidence. No existing project was migrated. Controller adoption and orchestration remain hr-024. Common evidence admission is now implemented by hr-023 below; the shared application journal implements hr-010.
 
 Historical foundation validation in the disposable copy:
 
@@ -111,3 +111,14 @@ Validation: `npm run check` passed 1,070 of 1,142 tests, with 72 explicit skips 
 Group 1 implements hr-020, hr-021 and hr-022 together. Operator-delegated routine interface amendments are bounded, independently reviewed and resumable. Models can map existing form controls into trusted scenario compilers. Case receipts bind to their actual local mappings and shared requirements; changing shared limitations cannot silently refresh an old verdict. Two synthetic UI variants pass the Chromium scenarios; broken counts, validation, early submission, acknowledgement, notes and prose retention all fail host observations. Seven deliberately restored harness defects are caught separately. Evidence is retained in `evidence/interface-group-validation.json`, `evidence/interface-group-controls.json` and `evidence/form-scenarios-browser.json`. No new dependencies or model requests were used. The live blog was not changed or approved.
 
 Final Group 1 qualification: `npm run check` passed 1,091 of 1,163 tests, with 72 explicit skips and no failures. Required Docker/Chromium smoke passed 13/13 with no skips. The dedicated form lane passed 8 valid scenarios and rejected 6 deliberately defective applications; 7 restored harness defects were caught.
+
+
+## Common evidence admission (hr-023)
+
+Ordinary and staged delivery now use the same reference-based admission policy. Approved design, automated observations, independent source review, manual observation and final authorization remain separate facets. Current candidate, contract, runtime and limitation identities bind each facet. New acceptance and source-review receipts retain artifact hashes; large command output is retained in bounded private sidecar files. Command output and expected-file hashes are rechecked during admission on both routes. A passed status with missing observations no longer authorizes application.
+
+Combined automated and operator evidence uses the same policy for ordinary, staged, team and worktree adapters. Ordinary/staged application and journal recovery consume it now; full team/worktree composition remains hr-030. No existing approval is migrated or waived. Legacy bytes remain retained; incomplete previews or missing runtime/contract references need fresh verification. Final operator approval is required by staged delivery; ordinary explicit work retains its existing automatic-application behavior.
+
+Eight deliberately restored defects were caught. Source identities, full-suite results and installed Docker/Chromium results are retained in `evidence/evidence-admission-validation.json` and `evidence/evidence-admission-controls.json`. No live blog state, paid model requests or dependencies changed. Group 2 continues with hr-024; F12 and F23 remain open for their broader integration obligations.
+
+Validation: `npm run check` passed 1,115 of 1,187 tests, with 72 explicit skips and no failures. Required Docker/Chromium smoke passed 13/13 with no skips.

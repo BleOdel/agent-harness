@@ -1,3 +1,5 @@
+import {evidenceHash} from '../evidence/admission.ts';
+import {assertDeliveryAdmission} from '../evidence/delivery.ts';
 import {assertDispatchRoute} from '../acceptance/feasibility-project.ts';
 import {beginApplication,finishApplication,loadApplication} from '../workspace/application.ts';
 import {applicationFeatures} from '../features.ts';
@@ -615,7 +617,8 @@ async function workUnlocked(argv: readonly string[],signal:AbortSignal): Promise
       const browserEvidence = await loadBrowserEvidence(project, {goal:task,sourceDigest:candidate.digest,baselineDigest:baseline.digest,workDigest,approvalDigest:approvedChecks.digest,executionDigest:execution!.digest});
       if (browserEvidence) say("Review includes operator browser observations matching this exact candidate.");
       const evidencePath = path.join(manifests, `review-attempt-${attempt}.json`);
-      await atomicBytes(evidencePath, Buffer.from(JSON.stringify({...evidence,...(browserEvidence ? {browserEvidence} : {})}, null, 2) + "\n"));
+      await atomicBytes(evidencePath, Buffer.from(JSON.stringify({...evidence,acceptanceApprovalDigest:approvedChecks.digest,...(browserEvidence ? {browserEvidence} : {})}, null, 2) + "\n"));
+      const reviewEvidenceDigest=evidenceHash(await readFile(evidencePath));
       await mark("reviewing");
       // The last gate, and the only one about intent. Everything before
       // it asks whether the code is sound; this asks whether it is the
@@ -643,7 +646,7 @@ async function workUnlocked(argv: readonly string[],signal:AbortSignal): Promise
           "escalated",
           `review: ${verdict.failure}`,
           "nothing was applied. A reviewer that cannot answer is never a pass.",
-          { review: { evidencePath, verdict: "escalate", findings: [verdict.failure] } },
+          { review: { evidencePath, evidenceDigest:reviewEvidenceDigest, verdict: "escalate", findings: [verdict.failure] } },
         );
       }
       if (verdict.verdict === "escalate") {
@@ -672,7 +675,7 @@ async function workUnlocked(argv: readonly string[],signal:AbortSignal): Promise
             ...(verdict.notes.length === 0 ? [] : ["Notes:", ...verdict.notes.map((entry) => `  - ${entry}`), ""]),
             "Nothing was applied. Repair the saved implementation or narrow the item.",
           ].join("\n"),
-          { review: { evidencePath, verdict: "escalate", findings: [...verdict.unmet, ...verdict.unaccounted] } },
+          { review: { evidencePath, evidenceDigest:reviewEvidenceDigest, verdict: "escalate", findings: [...verdict.unmet, ...verdict.unaccounted] } },
         );
       }
       say(`review: passed, ${String(work.criteria.length)} criteria accounted for`);
@@ -696,13 +699,14 @@ async function workUnlocked(argv: readonly string[],signal:AbortSignal): Promise
         }
         throw await stop("gate-failed", (error as Error).message,
           error instanceof OperatorError ? error.remedy : "Nothing applied. Inspect the failure and retry.",
-          { review: { evidencePath, verdict: verdict.verdict, findings: [...verdict.unmet, ...verdict.unaccounted] },
+          { review: { evidencePath, evidenceDigest:reviewEvidenceDigest, verdict: verdict.verdict, findings: [...verdict.unmet, ...verdict.unaccounted] },
             ...(error instanceof AcceptanceFailure ? { acceptance: error.proof } : {}) });
       }
       await assertExecutionCompatible(execution!, project, config, testCommand);
+      await assertDeliveryAdmission(project,candidate,acceptanceTasks,acceptance,{route:staging?'staged':'ordinary',review:{evidencePath,evidenceDigest:reviewEvidenceDigest,verdict:verdict.verdict,findings:[...verdict.unmet,...verdict.unaccounted]}});
       if(staging){
         const stage=await saveStage(project,{id:runId,task,workDigest,tasks:acceptanceTasks,baseline,candidate,acceptance,execution:execution!,gates:gateSummaries,
-          review:{evidencePath,verdict:verdict.verdict,findings:[...verdict.unmet,...verdict.unaccounted]},
+          review:{evidencePath,evidenceDigest:reviewEvidenceDigest,verdict:verdict.verdict,findings:[...verdict.unmet,...verdict.unaccounted]},
           usage:{...(spent.provider?{provider:spent.provider}:{}),...(spent.model?{model:spent.model}:{}),requestedEffort:config.effort??'medium',input:spent.input,output:spent.output,cacheRead:spent.cacheRead,reasoning:spent.reasoning,totalTokens:spent.totalTokens,costUsd:spent.costUsd,turns:spent.turns}});
         await appendRun(project,{id:runId,at:new Date().toISOString(),project,goal:task,attempts:attempt,outcome:'staged',gates:[...gateSummaries,...acceptance.summaries],changes:[],baselineDigest:baseline.digest,candidateDigest:candidate.digest,acceptance,execution:execution!,...(stage.usage?{usage:stage.usage}:{}),review:stage.review,reason:'Automated verification passed; final operator review pending.'});
         recorded=true;if(checkpoint)await retireWorkCheckpoint(checkpoint,'completed',runId);
@@ -728,7 +732,7 @@ async function workUnlocked(argv: readonly string[],signal:AbortSignal): Promise
         ...(environmentKey === undefined ? {} : { environmentKey }),
         acceptance,
         gates: [...run.verdicts.map((entry) => entry.summary), ...acceptance.summaries],
-        review: { evidencePath, verdict: verdict.verdict, findings: [...verdict.unmet, ...verdict.unaccounted] },
+        review: { evidencePath, evidenceDigest:reviewEvidenceDigest, verdict: verdict.verdict, findings: [...verdict.unmet, ...verdict.unaccounted] },
         changes,
         ...(spent.turns === 0 ? {} : {
           usage: {

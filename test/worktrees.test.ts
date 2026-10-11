@@ -1,3 +1,5 @@
+import {evidenceHash} from '../src/evidence/admission.ts';
+import {receiptRuntimeFixture} from './evidence-fixture.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,writeFile,readFile,rm,realpath} from 'node:fs/promises';
@@ -25,7 +27,7 @@ async function applied(checkout:string){
  const approval=JSON.parse(await readFile(path.join(root,'acceptance/approved.json'),'utf8'));
  const evidencePath=path.join(root,'acceptance/results/1234-abcd.json');await mkdir(path.dirname(evidencePath),{recursive:true});
  const proof={approvalDigest:approval.digest,candidateDigest:snap.digest,evidencePath};
- await writeFile(evidencePath,JSON.stringify({version:1,project:checkout,outcome:'passed',tasks:['story'],...proof}));
+ await writeFile(evidencePath,JSON.stringify({...receiptRuntimeFixture,version:1,project:checkout,outcome:'passed',tasks:['story'],...proof,observations:[{case:'story-output',step:1,exitCode:0,timedOut:false,stdoutPreview:'story\n',stdoutHash:evidenceHash('story\n'),files:{}}]}));
  await appendRun(checkout,{id:'r1',at:new Date().toISOString(),project:checkout,goal:'story',attempts:1,outcome:'applied',gates:['tests passed'],review:{verdict:'pass',findings:[]},changes:[],candidateDigest:snap.digest,acceptance:proof});
 }
 test('task checkout shares Git history, imports approved controls but no prior evidence, and leaves main unchanged',async t=>{

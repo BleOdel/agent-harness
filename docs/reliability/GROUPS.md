@@ -12,3 +12,5 @@ The operator requested grouped implementation on 11 October 2026. These groups s
 | 6. End-to-end qualification | hr-037–hr-045 | Qualify To Be Heard, CLI/team, dependent web, Python, existing desktop and ML routes; measure outcomes, enforce CI gates and publish only supported claims. Live-model evaluations require separate bounded allowances. |
 
 Each group is developed in a disposable copy and applied only after its gates pass. Commit/push remains a separate operator instruction. A completed group is not completion of the 45-task program. Unknown capabilities and unresolved manual evidence remain explicit.
+
+Current delivery: Group 1 is complete. Group 2 has completed hr-023; hr-024–hr-027 remain. Overall: 23/45 tasks complete.

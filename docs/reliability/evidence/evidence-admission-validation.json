@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "kind": "local-evidence-admission-validation",
+  "status": "passed",
+  "tasks": [
+    "hr-023"
+  ],
+  "source": {
+    "baseCommit": "ba70a8409fa53a425ab62b47b99825dd233f6ee6",
+    "codeTreeSha256": "4643e93f16a26a4d88af70a2857bbc0ad4459be483030bf19587de0f405a3dd7",
+    "changedCode": {
+      "test/evidence-acceptance.test.ts": "e69deeb755f3df0f024c35ccfe4437717923e75b5efaef83e0bb614ecd214514",
+      "test/evidence-fixture.ts": "8964816755d5c91d291372ebc2272b3cba9c12ff498be1361221e30640c3406b",
+      "test/browser-acceptance.test.ts": "2bcd5f345370598410fd787fefd2ed8b88b579a55306fdc4dfe542eaea6e46e3",
+      "test/worktrees.test.ts": "a9fed30474534fc515a12a2f87b3fb8418ae960ef299d10bac39ba2b3ed90426",
+      "test/check-regression.test.ts": "55f176eeb519670b96ab973a2053f894aca85a5562587d5998c1b7ef2228b9af",
+      "test/staged-review.test.ts": "1195622b27ae7cd76bf0ced3636b881848fca3682303c304a07b3114f12e2328",
+      "test/acceptance-fixture.ts": "577617d2b29fe1ad49a7f9bb6a3acf0bcadb35206cf53afcf66f08b09731bc8e",
+      "test/evidence-admission.test.ts": "5d6ef80e29bf714f84013bfe9acc11dd8476d67b57a44a55d61b60081b9b52e0",
+      "test/evidence-delivery.test.ts": "4764f5a39035e16ef673770bc7bd61067d2ba001357cbb39911b9f2d9194490c",
+      "test/product.test.ts": "1bdad89d6a0ab35997aa91eda1e0536dbc98366869f6647e3255a27bdd09f306",
+      "src/staging/store.ts": "a3fa9b2a60dafb66ea34166a0ee8c7f73a0e8f91b0450966911b5bb9777e9987",
+      "src/record/record.ts": "0d58b3ed2fad5a47dba11628820d817e28fd17870b5875e1deb2c53b9f4627d0",
+      "src/evidence/admission.ts": "d2d43a94c6e6484ebc42a2004f8754b8e5e47204018dfe41443f3d12abce82ca",
+      "src/evidence/acceptance.ts": "a6f2c955d44eb71ef65e15ec4033d94c934e9c6a8a266f762cbd30a6d0781e16",
+      "src/evidence/delivery.ts": "9821a9b1187d5ec7bb26dcda245661c44dd73a827529834eaa51dd5d070edb07",
+      "src/workspace/application.ts": "5158ce9b21815d33972268b68a965d3d9401c21cdaccced903827e873dcf577d",
+      "src/acceptance/checks.ts": "3c9850d22b48f4a8932429e72568ce7d2e874ea2ef4faf86530755d0772f3c13",
+      "src/verbs/work.ts": "dd0e5b555d41b36a413ede5c1aea05e78b30572a86ae310c9d92162ff3661ebe"
+    },
+    "identityScope": "Source, tests/fixtures, package manifests and tsconfig; excludes qualification documentation generated after execution."
+  },
+  "requiredRegressions": [
+    "test/evidence-admission.test.ts",
+    "test/evidence-acceptance.test.ts",
+    "test/evidence-delivery.test.ts",
+    "test/staged-review.test.ts",
+    "test/browser-acceptance.test.ts"
+  ],
+  "fullCheck": {
+    "command": "npm run check",
+    "tests": 1187,
+    "pass": 1115,
+    "fail": 0,
+    "skipped": 72,
+    "cancelled": 0,
+    "todo": 0,
+    "outputSha256": "a641c51359e20e84cb5946ff986b88715aebea2ed53f1a2bb764a1c20c107958"
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-11T18:48:06.799Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-timing-docker.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "149fbc9c415dfa6921accd6e8c2df007aee4f2fe43d531f4da5b78cda41cb44b",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-11T18:50:26.045Z"
+  },
+  "controls": {
+    "path": "docs/reliability/evidence/evidence-admission-controls.json",
+    "caught": 8,
+    "total": 8
+  },
+  "initialRegression": {
+    "path": "/tmp/evidence-acceptance-red.log",
+    "sha256": "a85761546cce9fa43d16bc96357972bcd19c39670379010167f8b22b8443fbad",
+    "result": "Three tests failed on the original implementation: absent command observations, mismatching output/file evidence and replaced receipts."
+  },
+  "modelRequests": 0,
+  "limitations": [
+    "Team/worktree policy adapters are tested; full staged worktree/team delivery integration remains hr-030. F12 stays open.",
+    "Operation ownership, structured commands, cumulative accounting and autonomous continuation remain hr-024\u2013hr-027. Group 2 is not complete.",
+    "Legacy command previews are usable only when they contain the complete hashed output. Missing observations, runtime identity or source-review contract bindings require fresh verification; old files are not rewritten.",
+    "Host-side receipts are trusted storage, not signatures against a hostile local operator. Manual observations remain human attestations.",
+    "Ordinary explicit work retains its existing automatic-application authorization semantics. It produces verified evidence, not a fabricated final human approval.",
+    "The local Linux arm64 qualification does not qualify desktop or ML delivery, hosted CI or the live blog. No paid model requests or new dependencies were used."
+  ]
+}

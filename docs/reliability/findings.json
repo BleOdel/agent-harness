@@ -539,14 +539,17 @@
         "hr-038",
         "hr-039"
       ],
-      "regressions": [],
+      "regressions": [
+        "test/evidence-admission.test.ts",
+        "test/evidence-delivery.test.ts"
+      ],
       "resolutionEvidence": [],
       "qualification": {
         "state": "inspection-only",
         "trigger": "Run a web task with manual accessibility review inside a managed worktree through build, preview, review, commit, combined verification and merge. Repeat with stale manual evidence, source changes and missing runtime evidence; those variants must stop safely.",
         "regression": null,
         "execution": null,
-        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence."
+        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence. hr-023 now qualifies the common admission policy and ordinary/staged adoption; full team/worktree and operation-service integration remain open. See evidence/evidence-admission-validation.json."
       }
     },
     {
@@ -950,14 +953,17 @@
         "hr-038",
         "hr-040"
       ],
-      "regressions": [],
+      "regressions": [
+        "test/evidence-admission.test.ts",
+        "test/evidence-delivery.test.ts"
+      ],
       "resolutionEvidence": [],
       "qualification": {
         "state": "inspection-only",
         "trigger": "Trace every mutating command through the common operation model. Schema migrations must be idempotent and retain old records. Kill/restart, parallel command and feature-composition tests must exercise shared services, not only mocked adapters.",
         "regression": null,
         "execution": null,
-        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence."
+        "limitation": "Inspection evidence only; the verification strategy describes required future execution, not passing application evidence. hr-023 now qualifies the common admission policy and ordinary/staged adoption; full team/worktree and operation-service integration remain open. See evidence/evidence-admission-validation.json."
       }
     },
     {

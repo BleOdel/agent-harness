@@ -1,3 +1,5 @@
+import {receiptRuntimeFixture} from './evidence-fixture.ts';
+import {evidenceHash} from '../src/evidence/admission.ts';
 import test from 'node:test';import assert from 'node:assert/strict';import {mkdtemp,mkdir,writeFile,rm,realpath} from 'node:fs/promises';import path from 'node:path';import os from 'node:os';
 import {regressionTasks} from '../src/acceptance/regression.ts';import {approveChecks,requireChecks} from '../src/acceptance/checks.ts';import {taskDigest} from '../src/acceptance/draft.ts';
 const feature=(id:string,dependsOn:string[]=[],status:'done'|'todo'='done')=>({id,title:id,status,priority:'must' as const,dependsOn,criteria:['Observe '+id]});
@@ -29,7 +31,7 @@ test('a dependent application proof must include freshly executed prerequisite t
   const source=path.join(root,'checks.json');await writeFile(source,JSON.stringify(manifest));const approved=await approveChecks(project,source);
   const candidate=await captureBaseline(project,path.join(root,'baseline')),dir=(await realpath(project))+'-harness/acceptance/results';await mkdir(dir,{recursive:true});
   const proof={approvalDigest:approved.digest,candidateDigest:candidate.digest,evidencePath:path.join(dir,randomUUID()+'.json')};
-  const base={version:1,project:await realpath(project),...proof,outcome:'passed'};
+  const base={...receiptRuntimeFixture,version:1,project:await realpath(project),...proof,outcome:'passed',observations:['reader','service','runtime'].map(id=>({case:id,step:1,exitCode:0,timedOut:false,stdoutPreview:'1\n',stdoutHash:evidenceHash('1\n'),files:{}}))};
   await writeFile(proof.evidencePath,JSON.stringify({...base,tasks:['reader']}));await assert.rejects(assertAcceptanceProof(project,candidate,['reader'],proof),/does not cover/);
   await writeFile(proof.evidencePath,JSON.stringify({...base,tasks:['reader','service','runtime']}));await assertAcceptanceProof(project,candidate,['reader'],proof);
  }finally{await rm(root,{recursive:true,force:true});}

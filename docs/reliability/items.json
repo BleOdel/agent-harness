@@ -420,7 +420,7 @@
     "id": "hr-023",
     "title": "Use one evidence admission policy across delivery modes",
     "priority": "must",
-    "status": "todo",
+    "status": "done",
     "criteria": [
       "Represent approved design, automated observations, source review, manual observation and final authorization separately in one reference-based evidence envelope.",
       "Validate exact candidate, contract, runtime, artifact and limitation bindings through one policy evaluator. Adopt it for ordinary and staged admission here; provide tested team/worktree adapters whose full delivery integration is completed in hr-030.",

@@ -1,3 +1,5 @@
+import {evidenceHash} from '../evidence/admission.ts';
+import {assertDeliveryAdmission} from '../evidence/delivery.ts';
 /** Retained, verified candidates. Metadata lives outside every candidate mount. */
 import {mkdir,mkdtemp,readdir,rename,rm,realpath,lstat,open} from 'node:fs/promises';
 import path from 'node:path';
@@ -29,7 +31,7 @@ export async function saveStage(project:string,input:StageInput):Promise<Stage>{
  project=await realpath(project);const dest=stageDirectory(project,input.id);
  await assertSnapshot(input.candidate);await assertLiveBaseline(project,input.baseline);
  await assertAutomatedAcceptanceProof(project,input.candidate,input.tasks,input.acceptance);
- if(input.review.verdict!=='pass')throw new OperatorError('Staging requires a passing independent source review.');
+ await assertDeliveryAdmission(project,input.candidate,input.tasks,input.acceptance,{route:'staged',review:input.review});
  const approval=await requireStagingChecks(project,input.tasks);
  await mkdir(root(project),{recursive:true,mode:0o700});const pending=await mkdtemp(path.join(root(project),'.pending-'));
  try{
@@ -40,6 +42,12 @@ export async function saveStage(project:string,input:StageInput):Promise<Stage>{
   const s:Stage={...input,acceptance:{...input.acceptance,summaries:input.acceptance.summaries??[]},version:1,project,created:new Date().toISOString(),status:'pending',
    candidate:{...input.candidate,directory:path.join(dest,'source')},baseline:{...input.baseline,directory:path.join(dest,'baseline')},
    manual:approval.manifest.cases.filter(c=>caseKind(c)==='manual'&&(c.tasks.includes('*')||c.tasks.some(t=>input.tasks.includes(t)))).map(c=>({id:c.id,instructions:c.manual!.instructions}))};
+  const acceptanceBytes=await readArtifact(path.dirname(input.acceptance.evidencePath),path.basename(input.acceptance.evidencePath),16*1024*1024);
+  const reviewBytes=await readArtifact(path.dirname(input.review.evidencePath!),path.basename(input.review.evidencePath!));
+  if(acceptanceBytes===undefined||reviewBytes===undefined)throw new OperatorError('Evidence disappeared while staging.');
+  s.acceptance.evidenceDigest=evidenceHash(acceptanceBytes);
+  s.review={...s.review,evidenceDigest:evidenceHash(reviewBytes)};
+  await assertDeliveryAdmission(project,input.candidate,input.tasks,s.acceptance,{route:'staged',review:s.review});
   for(const name of ['source','baseline']){const directories=new Set([path.join(pending,name)]);for(const file of Object.keys(await sourceFiles(path.join(pending,name),'',input.baseline.exclusions))){const target=path.join(pending,name,file),handle=await open(target,'r');try{await handle.sync();}finally{await handle.close();}let dir=path.dirname(target);while(dir.startsWith(path.join(pending,name))){directories.add(dir);dir=path.dirname(dir);}}for(const dir of [...directories].sort((a,b)=>b.length-a.length))await syncDirectory(dir);}
   await atomicWrite(path.join(pending,'state.json'),JSON.stringify(s,null,2)+'\n');
   await syncDirectory(pending);await rename(pending,dest);await syncDirectory(root(project));return s;
@@ -68,6 +76,7 @@ export async function assertStageCurrent(project:string,s:Stage,partialApplicati
  await assertAutomatedAcceptanceProof(project,s.candidate,s.tasks,s.acceptance,partialApplication);
  const a=await requireStagingChecks(project,s.tasks),manual=a.manifest.cases.filter(c=>caseKind(c)==='manual'&&(c.tasks.includes('*')||c.tasks.some(t=>s.tasks.includes(t)))).map(c=>({id:c.id,instructions:c.manual!.instructions}));
  if(JSON.stringify(manual)!==JSON.stringify(s.manual))throw new OperatorError('Staged manual requirements changed.');
+ await assertDeliveryAdmission(project,s.candidate,s.tasks,s.acceptance,{route:'staged',review:s.review,legacyRecovery:partialApplication});
 }
 export async function recordStageReview(project:string,s:Stage,result:StageReview):Promise<void>{
  await assertStageCurrent(project,s);
@@ -81,7 +90,9 @@ export async function recordStageReview(project:string,s:Stage,result:StageRevie
  }
  s.operator={...result,at:new Date().toISOString(),binding:stageBinding(s)};await writeStage(s);
 }
-export async function assertStageReview(s:Stage):Promise<void>{
- const r=s.operator;
- if(!r||r.binding!==stageBinding(s)||r.approved!==true||!r.environment?.trim()||r.observations.length!==s.manual.length||s.manual.some(c=>r.observations.filter(o=>o.id===c.id&&o.passed===true&&o.notes?.trim()).length!==1))throw new OperatorError('Final review is incomplete or failed.','Run harness stage review '+s.id+'. Manual observations are operator attestations, not automated proof.');
+export async function assertStageReview(s:Stage,legacyRecovery=false):Promise<void>{
+ await assertDeliveryAdmission(s.project,s.candidate,s.tasks,s.acceptance,{
+  route:'staged',review:s.review,legacyRecovery:legacyRecovery||['applying','applied'].includes(s.status),
+  human:{expectedBinding:stageBinding(s),...(s.operator?{recorded:s.operator}:{})},
+ });
 }
