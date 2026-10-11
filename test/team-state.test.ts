@@ -35,7 +35,7 @@ test("durable decisions replay without a snapshot; duplicates cannot advance sta
     state = await appendEvent(root, { type: "integrated", attemptId: "a-one", baseline });
     assert.equal(schedule(state)?.task.id, "client");
     await writeFile(path.join(root, "state.json"), "broken projection");
-    const recovered = await readState(root);
+    const recovered = await readState(root, true);
     assert.deepEqual(recovered, state);
     const files = await readdir(path.join(root, "events"));
     assert.equal(files.filter(f => f.endsWith(".json")).length, state.seq);

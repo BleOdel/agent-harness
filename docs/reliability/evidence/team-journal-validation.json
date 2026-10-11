@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "kind": "local-team-journal-validation",
+  "scope": "hr-024 shared team reducer and journal storage, read-only status, expected-journal controller/application transitions. Ordinary-work controller and preparation per-check consolidation remain open.",
+  "source": {
+    "baseCommit": "5063817fcd912beaee52e9550ddd22e25dc3aeec",
+    "codeTreeSha256": "7df032ca82b81daea77438f44531f48b1f67d545b0455bc33779c7e1a92dca65",
+    "changedFiles": {
+      "src/team/apply.ts": "b5633cad319a90313111b82604dc880e3ed8a10929b85953e3894c0ca1340654",
+      "src/team/controller.ts": "98433e8d7a771147e73b3fb2d24e90a50258075d9c4299d6590fa99268bde962",
+      "src/team/schema.ts": "2fa24eea4c2dac03a8b45a773aef4f4ec28dc4f06525d15c7becf5042d19082d",
+      "src/team/state.ts": "4acd3841635ae93d3810cfedd268003c1af8a30e669f05b59cf73043225ea5ca",
+      "src/workflow/operations.ts": "d6cfb8610b84e5d2ca28fde0398e8d924c053dbd361adeed9e7c7ce2eb0a6623",
+      "src/workflow/team-store.ts": "353c80cc14b123f3089d868578e8e50caba34331eebf9d41469e070a0ad4a23b",
+      "src/workflow/team.ts": "99b188bc024aa6088da6681c36b18238946e50abf069c095c2b57976be8dbb1b",
+      "src/workspace/application.ts": "c55470afcc36ebbd8ff4414c4234a4212e366e329637ca97efc89b12df63c7ef",
+      "test/team-state.test.ts": "b1b4d3fa758f1da324bb4ebfe1d1b98d3c7e266e3c543af2d6833ca36f38c0b1",
+      "test/team-workflow-store.test.ts": "065c29dfcb43c3eb644e9f98fc8615085e3f52e90eccf85769f37ff3dd4461c8"
+    }
+  },
+  "node": "v26.5.0",
+  "fullSuite": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "counts": {
+      "tests": 1254,
+      "pass": 1182,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 72,
+      "todo": 0
+    },
+    "logSha256": "56e1bffb4f340c88b164bbea6fe9f347d23257cc568ac3814157a47c4ecde70f"
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-11T21:08:48.551Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-timing-docker.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "bc95ad0fa6eb4f59165501c5d0d245ce8b7be69fc3435aa5abb743fd0f7efc68",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-11T21:11:20.627Z"
+  },
+  "negativeControls": {
+    "count": 5,
+    "detected": 5,
+    "artifact": "docs/reliability/evidence/team-journal-controls.json"
+  },
+  "requiredRegressions": [
+    "test/team-workflow-store.test.ts",
+    "test/team-state.test.ts",
+    "test/team-controller.test.ts",
+    "test/team-controller-crash.test.ts",
+    "test/team-application.test.ts",
+    "test/team-resume.test.ts",
+    "test/team-parallel.test.ts",
+    "test/workflow-ownership.test.ts",
+    "test/workflow-phases.test.ts"
+  ],
+  "limitations": [
+    "A journal replay proves retained transitions, not correctness of application evidence or approval. Existing verification and application gates remain required.",
+    "Immutable event and cache/operation checkpoint publication are separate writes. A cache failure after event commit is recovered by replay without granting success.",
+    "Read receipts are process-local and require a fresh journal replay after restart. Legacy callers without an expected receipt retain serialized append; production controller/application decisions supply a receipt.",
+    "Managed project events bind operation IDs; standalone legacy journal directories have a local writer but no project operation identity.",
+    "Read-only status can observe a committed prefix while a writer progresses; only a fresh expected-journal write under ownership can authorize the next transition.",
+    "Ordinary-work domain controller and preparation artifact-write consolidation remain; hr-024 is not complete.",
+    "No live blog changes, credentials, paid model calls, new dependencies or external publication. Runtime qualification covers installed Linux arm64 Docker/Chromium and local Node.",
+    "Evidence reports and the disposable claim were generated after qualification; executable code and tests are unchanged."
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "controls": [
+    {
+      "name": "status-rewrites-cache",
+      "file": "src/workflow/team-store.ts",
+      "test": "test/team-workflow-store.test.ts",
+      "pattern": "team status reads do not rewrite",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "e6927e47f861dad4a6e2c4d4b783a17b63344cbb0b226b710128423cc515f454"
+    },
+    {
+      "name": "accept-stale-decision",
+      "file": "src/workflow/team-store.ts",
+      "test": "test/team-workflow-store.test.ts",
+      "pattern": "stale and copied team decisions",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "8a13085c284e7f2f78b788c9080f7809016268f2cbb44145b800a27a84a4057c"
+    },
+    {
+      "name": "ignore-journal-bytes",
+      "file": "src/workflow/team-store.ts",
+      "test": "test/team-workflow-store.test.ts",
+      "pattern": "changed prior event bytes",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "85ef84a5690d68a8db66deb472f146d3bc846a3d28059b25e604b954f4daf973"
+    },
+    {
+      "name": "omit-operation-binding",
+      "file": "src/workflow/team-store.ts",
+      "test": "test/team-workflow-store.test.ts",
+      "pattern": "team event writes belong",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "e0bc16dd824274c9839d1dc724000fdc031386280a267309f0ce096fd5e202a2"
+    },
+    {
+      "name": "follow-owner-alias",
+      "file": "src/workflow/team-store.ts",
+      "test": "test/team-workflow-store.test.ts",
+      "pattern": "aliased project owner",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "e7ce2064c9550cc41fe751c684138dfaa79bb47f11796b95cce48fdc848799a8"
+    }
+  ],
+  "method": "Five independent deliberate source defects in a separate disposable copy. Each selected regression failed an assertion; original source restored between controls. No model requests."
+}

@@ -33,7 +33,7 @@ export type EventPayload =
   | { type: "application-started"; transactionId: string; intentDigest: string; direction: "apply" | "undo" }
   | { type: "application-completed"; transactionId: string; direction: "apply" | "undo"; recordId: string }
   | { type: "application-rolled-back"; transactionId: string; direction: "apply" | "undo" };
-export type TeamEvent = EventPayload & { version: 1 | 2 | 3 | 4; seq: number; at: string; runId: string };
+export type TeamEvent = EventPayload & { operationId?: string; version: 1 | 2 | 3 | 4; seq: number; at: string; runId: string };
 export interface AttemptState extends Attempt { environmentKey?: string; usage?: Usage; reviewerUsage?: Usage; startedAt?: string; finishedAt?: string; status: "running" | "submitted" | "verified" | "integrated" | "failed" | "blocked" | "interrupted"; candidate?: Snapshot; terminalSeq?: number; failureStage?: "integration"; integration?: { fromDigest: string; proposal: Snapshot; environmentKey?: string; executionDigest?: string }; reason?: string; }
 export interface TeamState {
   version: 1 | 2 | 3 | 4; runId: string; seq: number; startedAt: string; plan: TeamPlan; planDigest: string; policy: Policy;

@@ -168,3 +168,14 @@ Two related errors are fixed: task-scoped preparation reuses a ready reviewed dr
 Qualification is retained in `evidence/preparation-selection-validation.json` and `evidence/preparation-selection-controls.json`: full build/tests, installed Docker/Chromium smoke, a deterministic Docker preparation/recovery trial, and seven deliberate defects. The Docker trial uses local fake-agent responses; it does not contact a model provider.
 
 hr-024 is still open for remaining ordinary-work/team controller adoption and per-check artifact-write consolidation. **23/45 tasks remain complete.** No live blog, credentials, model allowance or installed dependency was changed.
+
+
+## Shared team journal transitions (hr-024; task remains open)
+
+Team lifecycle reduction and journal storage now live in `workflow/team.ts` and `workflow/team-store.ts`; `team/state.ts` preserves the existing imports. The immutable event sequence remains the authority. Ordinary status reads no longer rewrite the rebuildable `state.json` cache. Explicit cache repair and event writes use the project writer, with operation identity recorded on new managed-project events and checkpoints pinned to the committed event rather than the mutable cache.
+
+Controller dispatch/intake/recovery and team application/undo carry an expected journal read. Private receipts bind the canonical run and the exact event bytes; copied, foreign and stale receipts are rejected before a new transition. Publication rechecks ownership and the journal before committing. Symlink/hardlink event aliases and aliased project owners are rejected. Legacy events without operation IDs remain readable, and standalone journal callers retain a serialized compatibility adapter.
+
+Qualification includes the full build/test suite, installed Docker/Chromium smoke, cross-process team-versus-work exclusion, process termination after an event commit, cache-publication failure, and a real controller refusing a late worker result. Deliberate-defect results and qualified source hashes are in `evidence/team-journal-controls.json` and `evidence/team-journal-validation.json`. No model provider was contacted.
+
+This completes the team event-state adoption portion, not hr-024 as a whole: ordinary-work domain-controller migration and preparation per-check artifact-write consolidation remain. Standalone journals outside managed project directories have no project operation ID; their local writer and immutable events remain the compatibility boundary. **23/45 tasks are complete.**

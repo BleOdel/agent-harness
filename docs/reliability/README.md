@@ -192,3 +192,5 @@ Phase-dispatch adoption and its remaining scope are documented in [PROGRESS.md](
 Guarded continuation/preparation status and direct approval resume are described in [state contracts](STATE-CONTRACTS.md) and [controller-state qualification](evidence/controller-state-validation.json). Remaining domain-controller adoption keeps hr-024 open.
 
 Preparation status and resume now share phase selection and a bounded retry controller. See [preparation qualification](evidence/preparation-selection-validation.json); hr-024 remains open for the documented compatibility adapters.
+
+The latest hr-024 batch moves team event transitions into shared workflow storage, makes status read-only, and binds controller/application decisions to their exact journal read. See [team journal qualification](evidence/team-journal-validation.json). hr-024 remains open.

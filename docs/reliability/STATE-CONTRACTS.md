@@ -95,3 +95,14 @@ The returned selection is frozen, belongs to its canonical project and carries a
 `workflow/preparation.ts` owns preparation retry reconciliation and bounded transition policy. A selected phase is saved before dispatch. A changed task/source/operation key after a failure blocks automatic retry; the initial transition from a new request to its first saved owner remains supported. A durable scoped renewal consumes its prior reservation on restart. Existing request and repair limits remain unchanged; approval never follows from a ready status alone.
 
 The host adapter in `acceptance/workflow.ts` retains command compatibility and connects this controller to guarded workflow state, operation phase reservations and existing check operations. Per-check generation/review/simplification artifact writes still use their compatibility implementations; ordinary-work/team domain transitions remain to be consolidated. This does not complete hr-024.
+
+
+## Team journal compatibility and expected-version transitions
+
+Team lifecycle reduction and journal storage now live in `workflow/team.ts` and `workflow/team-store.ts`; `team/state.ts` preserves the existing imports. The immutable event sequence remains the authority. Ordinary status reads no longer rewrite the rebuildable `state.json` cache. Explicit cache repair and event writes use the project writer, with operation identity recorded on new managed-project events and checkpoints pinned to the committed event rather than the mutable cache.
+
+Controller dispatch/intake/recovery and team application/undo carry an expected journal read. Private receipts bind the canonical run and the exact event bytes; copied, foreign and stale receipts are rejected before a new transition. Publication rechecks ownership and the journal before committing. Symlink/hardlink event aliases and aliased project owners are rejected. Legacy events without operation IDs remain readable, and standalone journal callers retain a serialized compatibility adapter.
+
+Event publication and cache/checkpoint publication are separate writes. A committed event survives later projection failure. Recovery replays events and never infers worker success from a stopped process. Read receipts are process-local and must be recreated by replay after restart; they are not approvals or application evidence.
+
+This completes the team event-state adoption portion, not hr-024 as a whole: ordinary-work domain-controller migration and preparation per-check artifact-write consolidation remain. Standalone journals outside managed project directories have no project operation ID; their local writer and immutable events remain the compatibility boundary. **23/45 tasks are complete.**
