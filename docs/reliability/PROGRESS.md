@@ -155,3 +155,16 @@ Continuation now recognizes a current task-scoped reviewed draft and routes dire
 Qualification covers the real approval/renewal commands with deterministic model fixtures, stale writers, legacy migration, alias rejection and real process termination before/after status publication. Six deliberate defects are tested; full-suite and installed Docker/Chromium results are retained in `evidence/controller-state-validation.json` and `evidence/controller-state-controls.json`.
 
 hr-024 remains open for the remaining preparation/work/team domain-controller migration; **23/45 tasks are complete**. No paid model request, live blog change or dependency change was made.
+
+
+## Shared preparation selection and retry controller (hr-024; task remains open)
+
+Preparation's bounded retry transitions now live in `src/workflow/preparation.ts`; acceptance commands are adapters. One read-only selector chooses generation, full review, simplification or recipe migration for both resume and status. Pending branches bind to the active review's task, source and exact base, including legacy recipe records without a task ID. Conflicting branches and superseded review owners stop without discarding any saved records.
+
+Selection receipts bind the exact phase-file bytes and canonical project. Resume rechecks the receipt under the writer before invoking its adapter. The selected phase is saved before dispatch; retries cannot attach to different task/source/operation inputs after a failure. A process killed after a scoped renewal resumes the existing grant without granting another repair.
+
+Two related errors are fixed: task-scoped preparation reuses a ready reviewed draft even if intermediate files are absent, and selection failures close the recorded allowance as blocked instead of leaving it running. A pending migration prevents an older full-draft receipt from being treated as ready. Approval remains separate.
+
+Qualification is retained in `evidence/preparation-selection-validation.json` and `evidence/preparation-selection-controls.json`: full build/tests, installed Docker/Chromium smoke, a deterministic Docker preparation/recovery trial, and seven deliberate defects. The Docker trial uses local fake-agent responses; it does not contact a model provider.
+
+hr-024 is still open for remaining ordinary-work/team controller adoption and per-check artifact-write consolidation. **23/45 tasks remain complete.** No live blog, credentials, model allowance or installed dependency was changed.

@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "kind": "local-preparation-selection-validation",
+  "scope": "hr-024 shared preparation selection and retry controller; ordinary-work/team adoption and per-check artifact consolidation remain open",
+  "source": {
+    "baseCommit": "336630a247964ecc60a00c06b17cc96205acccd7",
+    "codeTreeSha256": "93dfed57fb260432d29dbf2069f2111b355be311c7113fcd7ae635781baab762",
+    "changedFiles": {
+      "src/acceptance/guided.ts": "3b7eb70d414b06ffbe857fa9ed5f7fbbc35df6a84c3253ae169e4460edc3e463",
+      "src/acceptance/workflow.ts": "9c9b039d96b3168592991c77691dc130b9dfc2d03f34940ddc9214dc41cd6747",
+      "src/workflow/preparation-selection.ts": "f091ae6fde6d398fa223ad8bdc98a5311c71cc8b0817adc6ee9d8f75c204c41e",
+      "src/workflow/preparation.ts": "95dba882261e5ab55c7ded627560b84c6b6487b7c829f4b25c83a26e5a7fb3c8",
+      "test/check-preparation-process.test.ts": "f7ab7c1a7dc60a1d411fdff0912e320acc6093eb8aac5b580e47d48bcf33bd48",
+      "test/guided-checks.test.ts": "a794ae0705c5e404dd2af6f08e57050c83d87ca6c4709d7f18d2efcb4bfb6c49",
+      "test/preparation-selection.test.ts": "57ada1db6384452081df6c556a7be964337cd459c688bbfb3b9d30f40acf1fe4"
+    }
+  },
+  "node": "v26.5.0",
+  "fullSuite": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "counts": {
+      "tests": 1242,
+      "pass": 1170,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 72,
+      "todo": 0
+    },
+    "logSha256": "40f88406d7b7923a8833c10ddb69b00fb25943920741394ef9e5e9804b251d69"
+  },
+  "smoke": {
+    "version": 1,
+    "suite": "operational-smoke-v1",
+    "startedAt": "2026-10-11T20:49:27.413Z",
+    "status": "passed",
+    "tests": [
+      "test/asset-helper-docker.test.ts",
+      "test/browser-acceptance.test.ts",
+      "test/browser-timing-docker.test.ts",
+      "test/browser-capabilities.test.ts",
+      "test/staged-preview-docker.test.ts"
+    ],
+    "node": "v26.5.0",
+    "source": "d5ed11ea997e7acd0ca1ba4de81b0b9dec251ce12105a35e89623a28c84f6a2f",
+    "nodeImage": {
+      "id": "sha256:2d49d876e96237d76de412761cf05dbfe5aee325cc4406a4d41d5824c5bb8beb",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "browserImage": {
+      "id": "sha256:7b184617c20bcece60a4ddbcca8e6963fa5c9dfd69a32a27f7039d0ec0139f31",
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "passed": true,
+    "counts": {
+      "tests": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "exitCode": 0,
+    "timedOut": false,
+    "outputLimited": false,
+    "finishedAt": "2026-10-11T20:51:49.266Z"
+  },
+  "negativeControls": {
+    "count": 7,
+    "detected": 7,
+    "artifact": "docs/reliability/evidence/preparation-selection-controls.json"
+  },
+  "requiredRegressions": [
+    "test/preparation-selection.test.ts",
+    "test/check-preparation-process.test.ts",
+    "test/guided-checks.test.ts",
+    "test/continuation.test.ts",
+    "test/workflow-phases.test.ts",
+    "test/workflow-ownership.test.ts",
+    "test/staged-review.test.ts",
+    "test/work-flow.test.ts",
+    "test/check-workflow.test.ts"
+  ],
+  "limitations": [
+    "Operation status and checkpoint hashes are execution bookkeeping, not approval or application evidence.",
+    "Status publication and its operation checkpoint are separate atomic writes; recovery reads the domain file and treats interrupted dispatch as uncertain.",
+    "Per-check artifact writes and ordinary-work/team domain transitions still use compatibility controllers. hr-024 remains open; cumulative budgets and broader automatic retry policy are separate tasks.",
+    "Expected raw-state bindings live only in process memory and are rebuilt by reading retained records on restart. A fresh or copied object cannot overwrite an existing record without explicit renewal inheritance.",
+    "No live blog changes, credential access, paid models or new dependencies. Runtime qualification covers installed Linux arm64 Docker/Chromium and local Node, not all platforms.",
+    "Evidence reports and the disposable claim were generated after qualification; executable source and tests remain unchanged."
+  ],
+  "dockerPreparationTrial": {
+    "command": "HARNESS_DOCKER and HARNESS_IMAGE_ID configured; node --test test/check-preparation-process.test.ts",
+    "exitCode": 0,
+    "tests": 1,
+    "passed": 1,
+    "skipped": 0,
+    "logSha256": "e75f47cb3f69645963917b880646b2f7fc26be8b1c7ab91ff25d15474bd5532f",
+    "provider": "local deterministic fake agent; no remote model calls",
+    "fixtureCorrection": "The unchanged baseline also failed because its fake agent had no response for atomic evidence discovery. Added the real schema response and its extra bounded preparation stage; no runtime assertions were removed."
+  }
+}

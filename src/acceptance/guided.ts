@@ -1,3 +1,4 @@
+import {readPreparationSelection,assertPreparationSelection,type PreparationSelection} from '../workflow/preparation-selection.ts';
 import {caseKind} from './evidence-kind.ts';
 import {readActivePreparation,preparationOperation} from './active-preparation.ts';
 import {CheckRequestInterrupted} from './request-failure.ts';
@@ -67,6 +68,7 @@ export async function readGuidedDraft(project: string, recovering = false): Prom
 }
 export async function readyCheckDraft(project:string,taskId?:string):Promise<boolean>{
  const saved=await readGuidedDraft(project,true);if(!saved||(taskId!==undefined&&saved.taskId!==taskId)||!isReviewed(saved))return false;
+ if((await readPreparationSelection(project,taskId)).pending)return false;
  await assertCurrent(project,saved);
  try{parseChecks(saved.manifest);assertServerRuntimes(saved.manifest);return true;}catch{return false;}
 }
@@ -85,8 +87,8 @@ export function describeProposal(io: Dialogue, proposal: Proposal, task: Feature
  io.write('Approval replaces previous cases scoped only to this task; checks for other tasks are retained.');
 }
 export async function reviewGuidedDraft(project: string, io: Dialogue, draft?: SavedDraft, validator: Validator = validateProposal): Promise<void> {
- if(await readArtifact(directory(project),'recipe-change.json',8*1024*1024))return useRecipeSavedCheck(project,io,undefined,{resume:true});
- if(await readArtifact(directory(project),'simplification.json',8*1024*1024))return simplifySavedCheck(project,io);
+ const selection=await readPreparationSelection(project);
+ if(selection.pending){await resumePreparation(project,io,false,selection);return;}
  const saved = draft ?? await readGuidedDraft(project,true);
  if (!saved && await resumePreparation(project, io)) return;
  if (!saved) throw new OperatorError('No generated check draft is saved.', 'Run harness checks setup.');
@@ -118,8 +120,7 @@ export async function reviewGuidedDraft(project: string, io: Dialogue, draft?: S
  }
 }
 export async function guidedSetup(project: string, task: Feature, io: Dialogue, drafter: Drafter = generateProposal, validator: Validator = validateProposal, automatic?: Proposal, resume = false, deferApproval = false): Promise<void> {
- if(resume&&await readArtifact(directory(project),'recipe-change.json',8*1024*1024))return useRecipeSavedCheck(project,io,undefined,{resume:true});
- if(resume&&await readArtifact(directory(project),'simplification.json',8*1024*1024))return simplifySavedCheck(project,io);
+ if(resume){const selection=await readPreparationSelection(project,task.id);if(selection.pending){await resumePreparation(project,io,deferApproval,selection);return;}}
  const existing = await readGuidedDraft(project).catch((error: Error) => { io.write(`Saved draft cannot be reused: ${error.message}`); return undefined; });
  let freshPreparation = false;
  if (!automatic && !resume && existing?.taskId === task.id) {
@@ -246,10 +247,13 @@ export async function guidedSetup(project: string, task: Feature, io: Dialogue, 
 }
 
 /** Resume a first preparation even if no complete guided draft has been produced yet. */
-export async function resumePreparation(project:string,io:Dialogue,deferApproval=false):Promise<boolean>{
- if(await readArtifact(directory(project),'recipe-change.json',8*1024*1024)){await useRecipeSavedCheck(project,io,undefined,{resume:true});return true;}
- if(await readArtifact(directory(project),'simplification.json',8*1024*1024)){await simplifySavedCheck(project,io);return true;}
- const active=await readActivePreparation(directory(project));
+export async function resumePreparation(project:string,io:Dialogue,deferApproval=false,selected?:PreparationSelection):Promise<boolean>{
+ return withWriter(project,'checks resume',async()=>{
+ const selection=selected??await readPreparationSelection(project);
+ await assertPreparationSelection(project,selection);
+ if(selection.kind==='recipe'){await useRecipeSavedCheck(project,io,undefined,{resume:true});return true;}
+ if(selection.kind==='simplify'){await simplifySavedCheck(project,io);return true;}
+ const active=selection.kind==='resume'?selection.primary:undefined;
  if(active){
   const raw=active.raw;
   const record=JSON.parse(raw);const task=await currentTask(project,record.taskId);
@@ -258,6 +262,7 @@ export async function resumePreparation(project:string,io:Dialogue,deferApproval
   await guidedSetup(project,task,io,generateProposal,validateProposal,undefined,true,deferApproval);return true;
  }
  return false;
+ });
 }
 
 /** Stage an explicit design revision separately; commit it only after its new checks pass review. */

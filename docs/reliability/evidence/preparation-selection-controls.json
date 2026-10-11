@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "controls": [
+    {
+      "name": "ignore-pending-owner",
+      "file": "src/workflow/preparation-selection.ts",
+      "test": "test/preparation-selection.test.ts",
+      "pattern": "pending simplification owns status",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "7e8d2e1329d67df1cf091aeca5992530667ed866f713dff53c9bed19844dfe1e"
+    },
+    {
+      "name": "ignore-conflicting-branches",
+      "file": "src/workflow/preparation-selection.ts",
+      "test": "test/preparation-selection.test.ts",
+      "pattern": "conflicting pending branches",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "d1481f526684cafc8c29d747b258cd17cafb7ce62c3f95d2e44b740ac0c1283d"
+    },
+    {
+      "name": "dispatch-stale-selection",
+      "file": "src/workflow/preparation-selection.ts",
+      "test": "test/preparation-selection.test.ts",
+      "pattern": "selection receipts reject changed",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "aae620be3cc0cb49ec3e8b8600a074a25153a880c081c2cbd6b3d000a87c3a54"
+    },
+    {
+      "name": "switch-pending-task",
+      "file": "src/workflow/preparation-selection.ts",
+      "test": "test/preparation-selection.test.ts",
+      "pattern": "pending migration identity",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "bdb8e13b66179ab763e704aa90a6fd4bd60d209f0858e182e09f2b7e69e7e36a"
+    },
+    {
+      "name": "reuse-pending-draft",
+      "file": "src/acceptance/guided.ts",
+      "test": "test/guided-checks.test.ts",
+      "pattern": "a reviewed full draft cannot bypass",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "a4291354dc3c3851d07d0a85af326f51742dcd43aab2b7c3cd23ac64ba6e8db0"
+    },
+    {
+      "name": "retry-new-inputs",
+      "file": "src/workflow/preparation.ts",
+      "test": "test/preparation-selection.test.ts",
+      "pattern": "a provider failure cannot grant",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "97a7c093fc371f9fd45d4583229b4aa52aa0cedeea9aa264acc60beeb120cc9b"
+    },
+    {
+      "name": "dispatch-before-status",
+      "file": "src/workflow/preparation.ts",
+      "test": "test/preparation-selection.test.ts",
+      "pattern": "the selected preparation phase is durably",
+      "exitCode": 1,
+      "detected": true,
+      "logSha256": "e6b78b1fe7d0f3f1e82d460933e6b64bd8c22ea58860138e76f29357e95ac94b"
+    }
+  ],
+  "method": "Seven independently introduced defects in a separate disposable copy; each selected regression failed an assertion. Original source restored between controls. No model calls."
+}

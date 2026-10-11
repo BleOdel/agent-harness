@@ -13,4 +13,4 @@ The operator requested grouped implementation on 11 October 2026. These groups s
 
 Each group is developed in a disposable copy and applied only after its gates pass. Commit/push remains a separate operator instruction. A completed group is not completion of the 45-task program. Unknown capabilities and unresolved manual evidence remain explicit.
 
-Current delivery: Group 1 is complete. Group 2 has completed hr-023 and command ownership and phase dispatch for hr-024. Continuation phase selection and guarded continuation/preparation status writes are implemented. Remaining hr-024 domain-controller consolidation and hr-025–hr-027 remain. Overall: 23/45 tasks complete.
+Current delivery: Group 1 is complete. Group 2 has completed hr-023 and command ownership and phase dispatch for hr-024. Continuation phase selection and guarded continuation/preparation status writes are implemented. Shared preparation selection/retry orchestration is also implemented. Remaining hr-024 domain-controller and per-check write consolidation and hr-025–hr-027 remain. Overall: 23/45 tasks complete.

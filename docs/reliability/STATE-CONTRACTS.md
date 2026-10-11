@@ -84,3 +84,14 @@ State publication precedes the operation checkpoint. If a process dies in betwee
 `selectContinuationPhase` prioritizes an existing stage, completed task and blocked requirements before preparation, review or build. A current independently reviewed draft for the selected task goes directly to approval, even when preparation allowance has expired. Source/task/approval/runtime bindings are revalidated; a different task's draft cannot authorize that transition. Review is followed by a fresh domain snapshot before any build. Existing approval and verification gates remain mandatory.
 
 The remaining hr-024 adoption covers preparation's internal phase-selection/status transitions and ordinary-work/team compatibility controllers; this batch does not replace immutable team events or application journals with a status snapshot. End-to-end autonomous recovery and cumulative cost/request policy remain separate tasks.
+
+
+## Preparation selection and retry compatibility adapter
+
+`workflow/preparation-selection.ts` reads bounded regular phase artifacts and selects the active preparation through the existing operation-sequence/legacy rules. A pending simplification or recipe change takes ownership only when its task/source/base bindings match the active full review. Two pending branches, stale bases or a superseding generation owner are explicit conflicts. A committed migration's cleanup marker remains resumable after the original check has been replaced. Legacy recipe records derive task identity only from their matching retained review.
+
+The returned selection is frozen, belongs to its canonical project and carries a private exact-byte fingerprint. Resume checks that fingerprint under the project writer before invoking the selected adapter. The same selection supplies status and durable retry keys; read-only selection does not rewrite, migrate, approve or discard records. Existing source/task/approval and executable-check validation still run inside the adapters.
+
+`workflow/preparation.ts` owns preparation retry reconciliation and bounded transition policy. A selected phase is saved before dispatch. A changed task/source/operation key after a failure blocks automatic retry; the initial transition from a new request to its first saved owner remains supported. A durable scoped renewal consumes its prior reservation on restart. Existing request and repair limits remain unchanged; approval never follows from a ready status alone.
+
+The host adapter in `acceptance/workflow.ts` retains command compatibility and connects this controller to guarded workflow state, operation phase reservations and existing check operations. Per-check generation/review/simplification artifact writes still use their compatibility implementations; ordinary-work/team domain transitions remain to be consolidated. This does not complete hr-024.

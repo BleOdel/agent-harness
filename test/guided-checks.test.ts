@@ -218,3 +218,17 @@ test('continuation recognizes only a current task-scoped reviewed draft and revi
  assert.equal(io.lines.filter(s=>s.includes('Review actions')).length,1);assert.equal((await readContinuation(project))!.status,'approval');assert.equal((await readContinuation(project))!.checkDeadline,1);assert.equal(await readApproval(project),undefined);
  await writeFile(path.join(project,'changed.js'),'// changed');assert.equal((await continuationSnapshot(project,task.id)).checks,'blocked');
 }));
+
+import {prepareChecks} from '../src/acceptance/workflow.ts';
+test('task-scoped preparation reuses a reviewed draft even when intermediate phase files are absent',()=>fixture(async project=>{
+ await guidedSetup(project,task,dialogue(['','3']),async()=>parseProposal(proposal(),task));
+ const dir=path.join(harnessDirectory(project),'acceptance');for(const name of ['preparation.json','review-progress.json'])await rm(path.join(dir,name),{force:true});
+ const result=await prepareChecks(project,{write:()=>{},ask:async()=>assert.fail('No question or model work for a ready draft')},{maxRequests:1,maxSeconds:1,requestSeconds:1},task.id);
+ assert.equal(result,'ready');const workflow=JSON.parse(await readFile(path.join(dir,'workflow.json'),'utf8'));assert.equal(workflow.runs.at(-1).spend.requests,0);assert.equal(await readApproval(project),undefined);
+}));
+test('a reviewed full draft cannot bypass a pending migration or become implicitly approved',()=>fixture(async project=>{
+ await guidedSetup(project,task,dialogue(['','3']),async()=>parseProposal(proposal(),task));
+ const dir=path.join(harnessDirectory(project),'acceptance'),raw=await readFile(path.join(dir,'review-progress.json'),'utf8'),record=JSON.parse(raw);
+ await writeFile(path.join(dir,'simplification.json'),JSON.stringify({version:1,taskId:task.id,taskDigest:record.taskDigest,sourceDigest:record.sourceDigest,baseDigest:proposalDigest(record.proposal),scope:'pending',state:{}}));
+ assert.equal(await readyCheckDraft(project,task.id),false);assert.equal(await readApproval(project),undefined);
+}));
